@@ -68,6 +68,8 @@
 #define VNAH_TRIES      8u             /* link gives up after this many    */
 #define VNAH_DOOR_PORT  80u            /* the seed's plain-http door       */
 #define VNAH_DOOR_TX    1400u          /* door tx staging, one segment     */
+#define VNAH_SHARD_N    8u             /* 8 asymmetric epistemic shards    */
+#define VNAH_SHARD_TTL  3600000u       /* 1-hour DHT provider record TTL   */
 
 /* One datagram that could not be sent yet (the next hop's MAC was not in the
  * ARP cache; the request is in flight). Bounded: when the ring is full the
@@ -129,6 +131,9 @@ typedef struct {
     uint16_t door_tx_len[VNA_DOOR_CONNS];
     uint16_t door_tx_off[VNA_DOOR_CONNS];
     uint8_t bus_cid[VNA_CID_RAW_LEN];
+    uint8_t shard_slot;   /* 0..7: this seed's primary epistemic shard */
+    uint8_t shard_cursor; /* rotates Fibonacci-adjacent complementary shards */
+    uint32_t shard_announces, shard_queries;
     uint8_t up;
 } vna_host_t;
 

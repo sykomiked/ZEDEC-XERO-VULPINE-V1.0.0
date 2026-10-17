@@ -268,10 +268,41 @@ bool net_arp_lookup(net_state_t *net, const uint8_t *ip, uint8_t *mac_out) {
 }
 
 void net_arp_add(net_state_t *net, const uint8_t *ip, const uint8_t *mac) {
-    if (net->arp_cache_count >= 16) return;
-    mem_copy(net->arp_cache_ip[net->arp_cache_count], ip, NET_IP_LEN);
-    mem_copy(net->arp_cache_mac[net->arp_cache_count], mac, NET_MAC_LEN);
-    net->arp_cache_count++;
+    static uint32_t evict = 0;
+    if (!(ip[0] | ip[1] | ip[2] | ip[3])) return;
+    if ((ip[0] & ip[1] & ip[2] & ip[3]) == 0xFF) return;
+    for (uint32_t i = 0; i < net->arp_cache_count; i++) {
+        bool match = true;
+        for (int j = 0; j < NET_IP_LEN; j++) {
+            if (net->arp_cache_ip[i][j] != ip[j]) { match = false; break; }
+        }
+        if (match) {
+            mem_copy(net->arp_cache_mac[i], mac, NET_MAC_LEN);
+            return;
+        }
+    }
+    if (net->arp_cache_count < 16) {
+        mem_copy(net->arp_cache_ip[net->arp_cache_count], ip, NET_IP_LEN);
+        mem_copy(net->arp_cache_mac[net->arp_cache_count], mac, NET_MAC_LEN);
+        net->arp_cache_count++;
+        return;
+    }
+    /* Table full: replace a slot, skipping any configured gateway IP. */
+    for (uint32_t tries = 0; tries < 16; tries++) {
+        uint32_t s = (evict++) & 15u;
+        bool is_gw = false;
+        if (net->num_interfaces > 0) {
+            const uint8_t *gw = net->interfaces[0].gateway;
+            if (net->arp_cache_ip[s][0] == gw[0] && net->arp_cache_ip[s][1] == gw[1] &&
+                net->arp_cache_ip[s][2] == gw[2] && net->arp_cache_ip[s][3] == gw[3])
+                is_gw = true;
+        }
+        if (!is_gw) {
+            mem_copy(net->arp_cache_ip[s], ip, NET_IP_LEN);
+            mem_copy(net->arp_cache_mac[s], mac, NET_MAC_LEN);
+            return;
+        }
+    }
 }
 
 /* ICMP */
@@ -330,7 +361,17 @@ void net_handle_eth(net_state_t *net, net_interface_t *iface, const uint8_t *dat
             if (eth->src_mac[i] != 0xFF) bcast = false;
             if (eth->src_mac[i] != 0x00) zero = false;
         }
-        if (!bcast && !zero) net_arp_add(net, src_ip, eth->src_mac);
+        if (!bcast && !zero) {
+            net_arp_add(net, src_ip, eth->src_mac);
+            if ((iface->ip[0] | iface->ip[1] | iface->ip[2] | iface->ip[3]) &&
+                (iface->gateway[0] | iface->gateway[1] | iface->gateway[2] | iface->gateway[3])) {
+                bool on_link = true;
+                for (int i = 0; i < NET_IP_LEN; i++)
+                    if ((src_ip[i] & iface->netmask[i]) != (iface->ip[i] & iface->netmask[i]))
+                        on_link = false;
+                if (!on_link) net_arp_add(net, iface->gateway, eth->src_mac);
+            }
+        }
     }
 
     switch (eth_type) {
@@ -522,7 +563,9 @@ void net_handle_icmp(net_state_t *net, net_interface_t *iface, const ip_header_t
             icmp_header_t *resp_icmp = (icmp_header_t *)((uint8_t *)resp_ip + sizeof(ip_header_t));
 
             uint8_t dst_mac[6];
-            if (!net_arp_lookup(net, ip->src_ip, dst_mac)) return;
+            if (!next_hop_mac(net, iface, ip->src_ip, dst_mac) &&
+                !net_arp_lookup(net, ip->src_ip, dst_mac))
+                return;
 
             net_build_eth(eth, dst_mac, iface->mac, ETH_TYPE_IP);
             net_build_ip(resp_ip, iface->ip, ip->src_ip, IP_PROTO_ICMP, (uint16_t)(sizeof(ip_header_t) + len));
@@ -569,7 +612,11 @@ static void tcp_emit(net_state_t *net, int32_t idx, const uint8_t *seg, uint32_t
     if (!iface) return;
     uint8_t mac[NET_MAC_LEN];
     if (!next_hop_mac(net, iface, c->remote_ip, mac)) {
-        net_arp_request(net, iface, c->remote_ip);
+        bool on_link = true;
+        for (int i = 0; i < NET_IP_LEN; i++)
+            if ((c->remote_ip[i] & iface->netmask[i]) != (iface->ip[i] & iface->netmask[i]))
+                on_link = false;
+        net_arp_request(net, iface, on_link ? c->remote_ip : iface->gateway);
         return;                      /* the retransmit timer will try again */
     }
     ip_tx_raw(net, iface, c->local_ip, c->remote_ip, mac, IP_PROTO_TCP, seg, n);

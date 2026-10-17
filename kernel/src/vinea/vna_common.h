@@ -49,7 +49,8 @@ typedef enum {
     VNA_ERR_HK = -19,         /* Hackronomicon command not canonical / unknown */
     VNA_ERR_FORK = -20,       /* receipt chain fork or gap */
     VNA_ERR_CRYPTO = -21,     /* key agreement failure (low-order point, bad tag) */
-    VNA_ERR_INALIENABLE = -22 /* Crown capital form may not be traded */
+    VNA_ERR_INALIENABLE = -22, /* Crown capital form may not be traded */
+    VNA_ERR_NOTFOUND = -23    /* no such record in the order book / index */
 } vna_status_t;
 
 /* ---- little-endian codec (exact, any host byte order) ---- */

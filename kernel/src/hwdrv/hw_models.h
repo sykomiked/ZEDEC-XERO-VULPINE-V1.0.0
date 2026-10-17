@@ -85,7 +85,7 @@ typedef struct hw_swarm_want {
 
 /* Mesh seed peers (Vinea transport addresses: IPv4 + big-endian port, six
  * bytes) from "peer <ipv4> <port>" lines, in the order listed. */
-#define HW_PEER_MAX      8
+#define HW_PEER_MAX      9
 #define HW_PEER_ADDR_LEN 6
 
 /* What the kernel does to the network once swarm discs fetched over it are

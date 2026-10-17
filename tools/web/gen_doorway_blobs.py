@@ -20,6 +20,7 @@ FILES = [
     ("/boot.html", "web/boot/boot.html", "text/html; charset=utf-8"),
     ("/boot.js", "web/boot/boot.js", "text/javascript; charset=utf-8"),
     ("/zxv_boot.wasm", "web/boot/zxv_boot.wasm", "application/wasm"),
+    ("/exchange.json", "docs/curriculum/EXCHANGE.json", "application/json"),
 ]
 
 

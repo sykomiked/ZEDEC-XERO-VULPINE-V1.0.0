@@ -59,6 +59,22 @@ static void gsp(void *ctx, const uint8_t *b, uint32_t n)
     memcpy(gossip_buf, b, n < sizeof gossip_buf ? n : sizeof gossip_buf);
 }
 
+static int qrefuse;
+static uint32_t qseen;
+static int32_t fquery(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t *out,
+                      uint32_t cap)
+{
+    (void) ctx;
+    (void) in;
+    if (qrefuse) return -1;
+    qseen = in_len;
+    if (cap < 3) return -1;
+    out[0] = 0xAA;
+    out[1] = 0xBB;
+    out[2] = 0xCC;
+    return 3;
+}
+
 static int delta(uint16_t cell, uint8_t lattice, uint8_t *out)
 {
     vna_delta_t d;
@@ -200,6 +216,39 @@ int main(void)
     got = drain(&d, (uint32_t) c, acc, sizeof acc);
     CHECK(strstr((char *) acc, "400") != 0);
     vna_door_close(&d, (uint32_t) c);
+
+    /* ---- POST /cisex: delegated routing through the query hook ---- */
+    c = vna_door_open(&d);
+    n = snprintf((char *) req, sizeof req,
+                 "POST /cisex HTTP/1.1\r\nContent-Length: 2\r\n\r\n\x01\x03");
+    CHECK(vna_door_input(&d, (uint32_t) c, req, (uint32_t) n) == VNA_OK);
+    got = drain(&d, (uint32_t) c, acc, sizeof acc);
+    CHECK(strstr((char *) acc, "404") != 0); /* no query hook yet */
+    vna_door_close(&d, (uint32_t) c);
+
+    d.query = fquery;
+    c = vna_door_open(&d);
+    n = snprintf((char *) req, sizeof req,
+                 "POST /cisex HTTP/1.1\r\nContent-Length: 2\r\n\r\n\x01\x03");
+    CHECK(vna_door_input(&d, (uint32_t) c, req, (uint32_t) n) == VNA_OK);
+    got = drain(&d, (uint32_t) c, acc, sizeof acc);
+    CHECK(strstr((char *) acc, "HTTP/1.1 200") != 0);
+    CHECK(strstr((char *) acc, "application/octet-stream") != 0);
+    CHECK(strstr((char *) acc, "ZEDEC-XERO-VULPINE") != 0);
+    CHECK(qseen == 2);
+    CHECK(got >= 3 && acc[got - 3] == 0xAA && acc[got - 2] == 0xBB && acc[got - 1] == 0xCC);
+    vna_door_close(&d, (uint32_t) c);
+
+    qrefuse = 1;
+    c = vna_door_open(&d);
+    n = snprintf((char *) req, sizeof req,
+                 "POST /cisex HTTP/1.1\r\nContent-Length: 2\r\n\r\n\x07\x03");
+    CHECK(vna_door_input(&d, (uint32_t) c, req, (uint32_t) n) == VNA_OK);
+    got = drain(&d, (uint32_t) c, acc, sizeof acc);
+    CHECK(strstr((char *) acc, "400") != 0);
+    vna_door_close(&d, (uint32_t) c);
+    qrefuse = 0;
+    d.query = 0;
 
     printf("vna_door: %d pass, %d fail\n", passes, failures);
     return failures ? 1 : 0;

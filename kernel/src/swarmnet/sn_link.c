@@ -112,6 +112,13 @@ int sn_link_up(sn_link_t *l, const hw_plat_t *p, hw_registry_t *r, const sn_cloc
     hw_line_s(&s, " dns ");
     ip_s(&s, l->net.dns_server);
     p->log(s.b);
+    if (l->eth->gateway[0] | l->eth->gateway[1] | l->eth->gateway[2] | l->eth->gateway[3]) {
+        net_arp_request(&l->net, l->eth, l->eth->gateway);
+        uint64_t gw_end = clk->ms(clk->ctx) + 100u;
+        uint8_t gw_mac[6];
+        while (clk->ms(clk->ctx) < gw_end && !net_arp_lookup(&l->net, l->eth->gateway, gw_mac))
+            sn_pump(l);
+    }
     return 1;
 }
 

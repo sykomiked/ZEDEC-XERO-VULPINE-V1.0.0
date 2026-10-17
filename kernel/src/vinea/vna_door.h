@@ -21,6 +21,11 @@
  *                           onward as a VNA_SPACE_EV_DELTA event). The
  *                           answer is the cell's lattice state after the
  *                           join, one byte: 0, 1, 2 or 3.
+ *   POST /cisex             one CISEX delegated-routing datagram as the
+ *                           body (cisex_rt.h): keyword/digest queries,
+ *                           index sync, want records, bounties. The host
+ *                           registers d->query; the answer is the binary
+ *                           reply datagram as application/octet-stream.
  *
  * Everything else is a file: the host's size/body callbacks serve the
  * doorway, the pack, /ipfs/<cid> blocks — whatever its tree holds. A body
@@ -53,6 +58,11 @@ typedef int32_t (*vna_door_body_fn)(void *ctx, const char *path, uint32_t plen, 
                                     uint8_t *out, uint32_t cap);
 /* The bus hook: a delta the door accepted, for the host to gossip on. */
 typedef void (*vna_door_gossip_fn)(void *ctx, const uint8_t *delta, uint32_t len);
+/* The delegated-routing hook: one bounded request datagram in, a bounded
+ * reply out (bytes written to `out`, <0 to refuse with 400). Set d->query
+ * and d->qctx to serve POST /cisex; NULL answers 404. */
+typedef int32_t (*vna_door_query_fn)(void *ctx, const uint8_t *in, uint32_t in_len,
+                                     uint8_t *out, uint32_t cap);
 
 typedef enum {
     VNA_DOOR_REQ = 0, /* reading the request head */
@@ -102,6 +112,8 @@ typedef struct {
     vna_door_type_fn type;
     vna_door_body_fn body;
     vna_door_gossip_fn gossip;
+    vna_door_query_fn query;
+    void *qctx;
     uint64_t now;
 } vna_door_t;
 

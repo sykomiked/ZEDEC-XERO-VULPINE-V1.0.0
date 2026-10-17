@@ -15,8 +15,8 @@
 #   gateway <url>  a plain-http IPFS gateway for the swarm-disc fetch
 #         (GET /ipfs/<cid>?format=raw; https is not in this path yet)
 #   peer <ipv4> <port>  a Vinea (Web4) seed: the node pings each one on the
-#         link coming up and joins the DHT through whoever answers. The eight
-#         first-fleet seeds, one per region.
+#         link coming up and joins the DHT through whoever answers. The nine
+#         first-fleet seeds, one per region (SIN is the mainframe).
 
 cid bafybeicih4utmpxyuyhbskc3wfx2tn5yr7phzvcwii7xen2nrps4spagcq
 
@@ -33,3 +33,4 @@ peer 13.140.75.51 8724
 peer 62.146.173.107 8724
 peer 13.140.47.157 8724
 peer 81.0.221.238 8724
+peer 13.140.66.46 8724

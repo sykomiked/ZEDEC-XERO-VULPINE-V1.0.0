@@ -58,15 +58,31 @@
 
 /* The https base the seed's door names at /boot.src: the first https://
  * gateway line in UPSTREAM.CID (hydration skips https; the browser needs
- * it — it is where boot.json and boot.pack live). NULL when none is set. */
+ * it — it is where boot.json and boot.pack live). NULL when none is set.
+ * A gateway line is a bare host (80 chars cannot hold host + /ipfs/<cid>),
+ * while its objects live under /ipfs/<bucket cid> — the door names the
+ * composed root so the page's own boot.json resolves. */
 static const char *door_src_of(const hw_models_t *m)
 {
     static const char https[] = "https://";
+    static const char ipfs[] = "/ipfs/";
+    static char buf[HW_GATEWAY_LEN + sizeof ipfs - 1 + sizeof((hw_models_t *)0)->cid];
     for (uint32_t i = 0; i < m->ngateway; i++) {
-        uint32_t j;
+        const char *g = m->gateway[i];
+        uint32_t j, n = 0;
         for (j = 0; j < sizeof https - 1; j++)
-            if (m->gateway[i][j] != https[j]) break;
-        if (j == sizeof https - 1) return m->gateway[i];
+            if (g[j] != https[j]) break;
+        if (j != sizeof https - 1) continue;
+        if (!m->cid[0]) return g;
+        while (n + 1 < sizeof buf && g[n]) {
+            buf[n] = g[n];
+            n++;
+        }
+        while (n && buf[n - 1] == '/') n--;
+        for (j = 0; j < sizeof ipfs - 1; j++) buf[n++] = ipfs[j];
+        for (j = 0; m->cid[j] && n + 1 < sizeof buf; j++) buf[n++] = m->cid[j];
+        buf[n] = 0;
+        return buf;
     }
     return 0;
 }

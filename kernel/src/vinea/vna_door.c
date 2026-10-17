@@ -3,6 +3,14 @@
 /* vna_door.c — the seed's plain-http door. See vna_door.h. */
 #include "vna_door.h"
 
+/* the node's public identity, on every answer: a probe or crawler learns in
+ * one header block what this stack is, which exchange it serves, and which
+ * post-quantum suite the :8724 trunk speaks */
+#define ZXV_DOOR_BANNER                                                                           \
+    "Server: ZEDEC-XERO-VULPINE/ZXV-Kernel (Post-Quantum Edge)\r\n"                                 \
+    "X-CISEX-Exchange: Crown-Intelligence-Service-Exchange\r\n"                                     \
+    "X-PQ-Protocol: ML-KEM + ML-DSA-87\r\n"
+
 static void put_head(vna_door_conn_t *c, const char *s)
 {
     uint32_t n = 0;
@@ -33,6 +41,7 @@ static void resp(vna_door_conn_t *c, const char *line, const char *extra, const 
     put_head(c, "HTTP/1.1 ");
     put_head(c, line);
     put_head(c, "\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n");
+    put_head(c, ZXV_DOOR_BANNER);
     if (extra) put_head(c, extra);
     put_head(c, "\r\n");
     if (body)
@@ -65,6 +74,13 @@ static int is_l2_path(const vna_door_conn_t *c)
            (c->path_len == 3 || c->path[3] == '?');
 }
 
+static int is_cisex_path(const vna_door_conn_t *c)
+{
+    return c->path_len >= 6 && c->path[0] == '/' && c->path[1] == 'c' && c->path[2] == 'i' &&
+           c->path[3] == 's' && c->path[4] == 'e' && c->path[5] == 'x' &&
+           (c->path_len == 6 || c->path[6] == '?');
+}
+
 static void on_request(vna_door_t *d, vna_door_conn_t *c)
 {
     /* the request line's method and target; anything else is refused */
@@ -88,7 +104,7 @@ static void on_request(vna_door_t *d, vna_door_conn_t *c)
     c->path[c->path_len] = 0;
 
     if (m_post) {
-        if (!is_l2_path(c)) {
+        if (!is_l2_path(c) && !is_cisex_path(c)) {
             resp(c, "404 Not Found\r\n", "Content-Length: 0\r\n", 0);
             return;
         }
@@ -122,7 +138,8 @@ static void on_request(vna_door_t *d, vna_door_conn_t *c)
         c->opened = c->last_out = d->now;
         c->head_len = c->head_sent = 0;
         put_head(c, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n"
-                    "Access-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n");
+                    "Access-Control-Allow-Origin: *\r\nConnection: close\r\n" ZXV_DOOR_BANNER
+                "\r\n");
         c->state = VNA_DOOR_STREAM;
         return;
     }
@@ -140,7 +157,8 @@ static void on_request(vna_door_t *d, vna_door_conn_t *c)
     const char *ct = d->type ? d->type(d->ctx, c->path, c->path_len) : 0;
     put_head(c, "HTTP/1.1 200 OK\r\nContent-Type: ");
     put_head(c, ct && ct[0] ? ct : "application/octet-stream");
-    put_head(c, "\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\nContent-Length: ");
+    put_head(c, "\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n" ZXV_DOOR_BANNER
+                "Content-Length: ");
     put_head_u64(c, (uint64_t) sz);
     put_head(c, "\r\n\r\n");
     c->body_off = 0;
@@ -150,6 +168,30 @@ static void on_request(vna_door_t *d, vna_door_conn_t *c)
 
 static void on_body(vna_door_t *d, vna_door_conn_t *c)
 {
+    if (is_cisex_path(c)) {
+        /* delegated routing: the request is consumed, so c->rx is scratch
+         * for the reply datagram */
+        int32_t n;
+        if (!d->query) {
+            resp(c, "404 Not Found\r\n", "Content-Length: 0\r\n", 0);
+            return;
+        }
+        n = d->query(d->qctx, c->body, c->body_len, c->rx, VNA_DOOR_REQ_MAX - 400);
+        if (n < 0) {
+            resp(c, "400 Bad Request\r\n", "Content-Length: 0\r\n", 0);
+            return;
+        }
+        c->head_len = c->head_sent = 0;
+        put_head(c, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n"
+                    "Access-Control-Allow-Origin: *\r\nConnection: close\r\n" ZXV_DOOR_BANNER
+                    "Content-Length: ");
+        put_head_u64(c, (uint64_t) n);
+        put_head(c, "\r\n\r\n");
+        for (int32_t i = 0; i < n && c->head_len < VNA_DOOR_REQ_MAX; i++)
+            c->head[c->head_len++] = c->rx[i];
+        c->state = VNA_DOOR_SEND;
+        return;
+    }
     /* a POST carries no Lamport field: the door's clock names its order */
     int st = vna_door_delta_in(d, c->body, c->body_len, d->page.clock + 1);
     char b = st >= 0 && st <= 3 ? (char) ('0' + st) : 'x';
@@ -157,7 +199,7 @@ static void on_body(vna_door_t *d, vna_door_conn_t *c)
     put_head(c, "HTTP/1.1 ");
     put_head(c, st >= 0 ? "200 OK\r\n" : "400 Bad Request\r\n");
     put_head(c, "Content-Length: 1\r\nAccess-Control-Allow-Origin: *\r\n"
-                "Connection: close\r\n\r\n");
+                "Connection: close\r\n" ZXV_DOOR_BANNER "\r\n");
     c->head[c->head_len++] = (uint8_t) b;
     c->state = VNA_DOOR_SEND;
 }

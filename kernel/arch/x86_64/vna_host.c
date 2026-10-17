@@ -5,6 +5,8 @@
 #include "vna_host.h"
 #include "uart_16550.h"
 #include "robin_debanks/sha256.h"
+#include "cisex_idx/cisex_rt.h"
+#include "vinea/vna_file.h"
 #include "zxv_doorway_blobs.h" /* the doorway files, generated into the build */
 
 /* The door's file table: the committed doorway files as compiled-in blobs
@@ -34,6 +36,38 @@ static int is_boot_src(const char *path, uint32_t plen)
     return 1;
 }
 
+static const char g_curriculum_cid[] =
+    "bafybeihgn75im5323qabyicaba64w7trb6irsrd32z3v4quj6qhoifvvt4\n";
+
+static int is_curriculum_cid(const char *path, uint32_t plen)
+{
+    static const char cc[] = "/curriculum.cid";
+    uint32_t i;
+    if (plen != sizeof cc - 1) return 0;
+    for (i = 0; i < plen; i++)
+        if (path[i] != cc[i]) return 0;
+    return 1;
+}
+
+/* The CISEX delegated-routing index this seed answers for (cisex_rt.h):
+ * bounded like the host itself, one instance per machine. The door's POST
+ * /cisex route is the :80 ingress; the same responder is the call a UDP
+ * wrapper would make. Its probe slot is the seed's epistemic shard. */
+#define VNAH_CISEX_N 256u
+static cisex_ent_t g_cisex_ents[VNAH_CISEX_N];
+static cisex_t g_cisex;
+static uint8_t g_cisex_region;
+
+static int32_t door_cisex(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t *out,
+                          uint32_t cap)
+{
+    uint32_t n = 0;
+    (void) ctx;
+    if (cisex_rt_handle(&g_cisex, in, in_len, g_cisex_region, out, cap, &n) != IPFSN_OK)
+        return -1;
+    return (int32_t) n;
+}
+
 static uint32_t door_src_len(const vna_host_t *h)
 {
     uint32_t n = 0;
@@ -48,6 +82,7 @@ static int32_t door_size(void *ctx, const char *path, uint32_t plen)
         uint32_t n = door_src_len((const vna_host_t *) ctx);
         return n ? (int32_t) n : -1; /* no upstream base: the door has no src */
     }
+    if (is_curriculum_cid(path, plen)) return (int32_t) (sizeof g_curriculum_cid - 1);
     return door_path(path, plen, &f) ? (int32_t) f->len : -1;
 }
 
@@ -55,7 +90,8 @@ static const char *door_type(void *ctx, const char *path, uint32_t plen)
 {
     const zxv_door_file_t *f;
     (void) ctx;
-    if (is_boot_src(path, plen)) return "text/plain; charset=utf-8";
+    if (is_boot_src(path, plen) || is_curriculum_cid(path, plen))
+        return "text/plain; charset=utf-8";
     return door_path(path, plen, &f) ? f->type : 0;
 }
 
@@ -71,6 +107,14 @@ static int32_t door_body(void *ctx, const char *path, uint32_t plen, uint64_t of
         n = len - (uint32_t) off;
         if (n > cap) n = cap;
         vna_copy(out, (const uint8_t *) h->door_src + off, n);
+        return (int32_t) n;
+    }
+    if (is_curriculum_cid(path, plen)) {
+        uint32_t len = (uint32_t) (sizeof g_curriculum_cid - 1);
+        if (off >= len) return 0;
+        n = len - (uint32_t) off;
+        if (n > cap) n = cap;
+        vna_copy(out, (const uint8_t *) g_curriculum_cid + off, n);
         return (int32_t) n;
     }
     if (!door_path(path, plen, &f) || off >= f->len) return off >= f->len ? 0 : -1;
@@ -208,36 +252,86 @@ static void vna_drain_link(vna_host_t *h, uint64_t now)
         (void) vna_node_send_rcpt(&h->node, &dst, b, len, now, &h->ob);
 }
 
-/* One economic cycle. Wants top up what the node buys (records served back
- * to us — the store part of the seed role); sells offer each peer exactly
- * the service the usage table measured it drawing (record stores and file
- * chunks), on credit at the unit price. The owner gate then turns the
- * cycle's budget into the financial pool and the settle pays the members
- * whose contribution was verified. Nothing here is trusted: every receipt
- * is countersigned or it never touches a book. */
+/* Reap finished DHT lookups so the node's 8 lookup slots never fill up, then
+ * announce our own primary epistemic shard + curriculum root and query the
+ * next Fibonacci-adjacent complementary shard ((slot + {1,2,3,5}) & 7) across
+ * the UBH-168 post-quantum mesh. */
+static void vna_shard_key(uint8_t slot, vna_id_t *out)
+{
+    uint8_t s = (uint8_t) (slot & 7u);
+    vna_htag("zxv/epistemic/shard/v1", &s, 1, out->b);
+}
+
+static void vna_reap_lookups(vna_host_t *h)
+{
+    for (int32_t i = 0; i < (int32_t) VNA_NODE_LOOKUPS; i++) {
+        if (h->node.lks[i].used && vna_node_lookup_done(&h->node, i))
+            vna_node_lookup_release(&h->node, i);
+    }
+}
+
+static void vna_epistemic_sync(vna_host_t *h, uint64_t now)
+{
+    static const uint8_t fib_step[4] = {1u, 2u, 3u, 5u};
+    vna_provider_t pv;
+    vna_id_t own_key, cur_key, comp_key;
+    uint8_t comp_slot;
+    uint32_t i;
+
+    vna_reap_lookups(h);
+    vna_zero(&pv, sizeof pv);
+    pv.file_size = 69763u; /* zxv-curriculum.car */
+    pv.chunk_size = VNA_CHUNK_SIZE;
+    pv.n_chunks = 3u;
+    pv.visibility = VNA_VIS_PUBLIC;
+    for (i = 0; i < 4; i++) pv.addr[i] = h->l->eth->ip[i];
+    pv.addr[4] = (uint8_t) (VNAH_PORT >> 8);
+    pv.addr[5] = (uint8_t) VNAH_PORT;
+    pv.addr_len = 6;
+
+    vna_shard_key(h->shard_slot, &own_key);
+    if (vna_node_announce(&h->node, &own_key, &pv, now, VNAH_SHARD_TTL, &h->ob) >= 0)
+        h->shard_announces++;
+
+    vna_htag("zxv/epistemic/curriculum/v1", (const uint8_t *) g_curriculum_cid,
+             (uint32_t) (sizeof g_curriculum_cid - 2), cur_key.b);
+    if (vna_node_announce(&h->node, &cur_key, &pv, now, VNAH_SHARD_TTL, &h->ob) >= 0)
+        h->shard_announces++;
+
+    comp_slot = (uint8_t) ((h->shard_slot + fib_step[h->shard_cursor & 3u]) & (VNAH_SHARD_N - 1u));
+    h->shard_cursor++;
+    vna_shard_key(comp_slot, &comp_key);
+    if (vna_node_lookup(&h->node, &comp_key, VNA_LK_FIND_VALUE, now, &h->ob) >= 0)
+        h->shard_queries++;
+}
+
+/* One economic cycle. The 8-node fleet trades INFORMATION (SWARM_CAP_INTELLECTUAL)
+ * rather than money: wants top up what the node requests from complementary
+ * shards (records and IPFS/UBH-168 file chunks); sells offer each peer the
+ * verified epistemic service the usage table measured it drawing, on credit in
+ * SWARM_CAP_INTELLECTUAL. The owner gate converts the cycle's budget into the
+ * intellectual pool and settlement distributes it to members whose contribution
+ * was countersigned. */
 static void vna_settle(vna_host_t *h, uint64_t now)
 {
     uint64_t got;
     uint32_t i, left = 0;
 
-    /* Keep open wants for the service this node consumes (records stored
-     * for it and file chunks served to it — the other half of the seed
-     * role); each slot refills only after peers' offers drain the old one. */
+    /* Keep open wants for the information service this node consumes (DHT
+     * epistemic records and UBH-168 file chunks from complementary shards). */
     for (i = 0; i < VNA_LINK_WANTS; i++)
         if (h->link.want[i].used && (h->link.want[i].resource == VNA_RES_RECORD ||
                                      h->link.want[i].resource == VNA_RES_FILE))
             left += (uint32_t) h->link.want[i].units_left;
     if (!left) {
-        (void) vna_link_want(&h->link, VNA_RES_RECORD, SWARM_CAP_FINANCIAL, VNAH_WANT_UNITS,
+        (void) vna_link_want(&h->link, VNA_RES_RECORD, SWARM_CAP_INTELLECTUAL, VNAH_WANT_UNITS,
                              VNAH_WANT_UNITS * VNAH_UNIT_PRICE);
-        (void) vna_link_want(&h->link, VNA_RES_FILE, SWARM_CAP_FINANCIAL, VNAH_WANT_UNITS,
+        (void) vna_link_want(&h->link, VNA_RES_FILE, SWARM_CAP_INTELLECTUAL, VNAH_WANT_UNITS,
                              VNAH_WANT_UNITS * VNAH_UNIT_PRICE);
     }
 
-    /* Sell what the agreement actually served this cycle, per peer, under
-     * the resource that was drawn. The served_*[] shadows keep the deltas
-     * across quota periods; a reused slot counts only its fresh owner's
-     * draw. */
+    /* Sell what the agreement actually served this cycle, per peer, in
+     * SWARM_CAP_INTELLECTUAL (verified information exchange). */
     for (i = 0; i < VNAH_USAGE_CAP; i++) {
         vna_usage_ent_t *e = &h->ue[i];
         uint64_t rec, ch;
@@ -250,16 +344,16 @@ static void vna_settle(vna_host_t *h, uint64_t now)
         if ((rec > h->served_rec[i] || ch > h->served_file[i]) && vna_book_learn(h, &e->peer)) {
             if (rec > h->served_rec[i]) {
                 uint64_t units = rec - h->served_rec[i];
-                if (vna_link_sell(&h->link, &e->peer, VNA_TR_CREDIT, SWARM_CAP_FINANCIAL,
+                if (vna_link_sell(&h->link, &e->peer, VNA_TR_CREDIT, SWARM_CAP_INTELLECTUAL,
                                   VNA_RES_RECORD, units, units * VNAH_UNIT_PRICE,
-                                  "serve(record, form: financial)", now) == VNA_OK)
+                                  "serve(record, form: intellectual)", now) == VNA_OK)
                     h->sold++;
             }
             if (ch > h->served_file[i]) {
                 uint64_t units = ch - h->served_file[i];
-                if (vna_link_sell(&h->link, &e->peer, VNA_TR_CREDIT, SWARM_CAP_FINANCIAL,
+                if (vna_link_sell(&h->link, &e->peer, VNA_TR_CREDIT, SWARM_CAP_INTELLECTUAL,
                                   VNA_RES_FILE, units, units * VNAH_UNIT_PRICE,
-                                  "serve(file, form: financial)", now) == VNA_OK)
+                                  "serve(file, form: intellectual)", now) == VNA_OK)
                     h->sold++;
             }
         }
@@ -267,11 +361,11 @@ static void vna_settle(vna_host_t *h, uint64_t now)
         h->served_file[i] = ch;
     }
 
-    /* The cycle's emission: the budget slot's allotment becomes the pool
-     * the settle splits over the members' verified contribution. */
+    /* The cycle's emission: the budget slot's allotment becomes the
+     * intellectual pool the settle splits over verified contributors. */
     (void) swarm_budget_begin_cycle(&h->sb);
     (void) vna_gate_export(&h->gate, h->owner_secret, &h->sb, VNAH_MODEL_ID, &h->book,
-                           SWARM_CAP_FINANCIAL, VNAH_EXPORT_MAX, &got);
+                           SWARM_CAP_INTELLECTUAL, VNAH_EXPORT_MAX, &got);
     vna_usage_new_cycle(&h->us);
     (void) vna_usage_expire(&h->us, now);
     {
@@ -281,6 +375,7 @@ static void vna_settle(vna_host_t *h, uint64_t now)
             h->refused_econ++;
         h->imported_total += imported;
     }
+    vna_epistemic_sync(h, now);
     vna_drain_link(h, now);
     h->earn_cycles++;
 }
@@ -334,6 +429,9 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
     h->earned_posted = h->imported_total = 0;
     h->last_cycle = 0;
     h->sold = h->earn_cycles = h->refused_econ = 0;
+    h->shard_slot = 0;
+    h->shard_cursor = 0;
+    h->shard_announces = h->shard_queries = 0;
     h->up = 0;
 
     /* One NodeID per machine: the seed is the MAC folded through SHA-256, so
@@ -361,6 +459,17 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
     }
 
     vna_node_cfg_default(&cfg);
+    cfg.ubh = true; /* enforce UBH-168 21-octet framing across all ZXV peers */
+    h->shard_slot = (uint8_t) (h->idn.id.b[0] & (VNAH_SHARD_N - 1u));
+    if (peers) {
+        for (i = 0; i < npeer; i++) {
+            if (peers[i][0] == l->eth->ip[0] && peers[i][1] == l->eth->ip[1] &&
+                peers[i][2] == l->eth->ip[2] && peers[i][3] == l->eth->ip[3]) {
+                h->shard_slot = (uint8_t) (i & (VNAH_SHARD_N - 1u));
+                break;
+            }
+        }
+    }
     mem.pool = h->pool;
     mem.pool_cap = VNAH_POOL_CAP;
     mem.kc = h->kc;
@@ -415,6 +524,10 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
     vna_node_set_rcpt_handler(&h->node, vna_on_rcpt, h);
     (void) swarm_budget_init(&h->sb, 1, VNAH_BASE_RATE);
     (void) swarm_budget_register(&h->sb, VNAH_MODEL_ID, 0);
+    (void) vna_link_want(&h->link, VNA_RES_RECORD, SWARM_CAP_INTELLECTUAL, VNAH_WANT_UNITS,
+                         VNAH_WANT_UNITS * VNAH_UNIT_PRICE);
+    (void) vna_link_want(&h->link, VNA_RES_FILE, SWARM_CAP_INTELLECTUAL, VNAH_WANT_UNITS,
+                         VNAH_WANT_UNITS * VNAH_UNIT_PRICE);
 
     h->sock = net_socket(&l->net, SOCK_UDP);
     if (h->sock < 0 || net_bind(&l->net, h->sock, VNAH_PORT) != 0) {
@@ -445,6 +558,9 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
                                 "zxv-l2", 0, bnonce, now, h->bus_cid) != VNA_OK)
             uart_puts("  [VNA] bus space failed\n");
         vna_door_init(&h->door, h, door_size, door_type, door_body, door_gossip);
+        cisex_init(&g_cisex, g_cisex_ents, VNAH_CISEX_N);
+        g_cisex_region = h->shard_slot;
+        h->door.query = door_cisex;
         for (i = 0; i < VNA_DOOR_CONNS; i++) {
             h->door_slot[i] = -1;
             h->door_tx_len[i] = h->door_tx_off[i] = 0;
@@ -467,7 +583,9 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
     }
     uart_putc(':');
     put_u16(VNAH_PORT);
-    uart_puts("\n");
+    uart_puts(" shard ");
+    uart_put_dec(h->shard_slot);
+    uart_puts(" ubh168+mldsa87\n");
 
     if (peers) {
         for (i = 0; i < npeer; i++) {
@@ -479,6 +597,7 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
             for (j = 0; j < 6; j++) a[j] = peers[i][j];
             if (vna_node_bootstrap(&h->node, a, 6, now, &h->ob) == VNA_OK) h->seeds++;
         }
+        vna_epistemic_sync(h, now);
         vna_flush(h);
     }
     return 1;
@@ -578,7 +697,7 @@ uint64_t vna_host_take_earned(vna_host_t *h)
 {
     uint64_t e;
     if (!h || !h->up) return 0;
-    e = h->book.held_in[SWARM_CAP_FINANCIAL];
+    e = h->book.held_in[SWARM_CAP_INTELLECTUAL] + h->book.held_in[SWARM_CAP_FINANCIAL];
     if (e <= h->earned_posted) return 0;
     e -= h->earned_posted;
     h->earned_posted += e;
@@ -588,13 +707,19 @@ uint64_t vna_host_take_earned(vna_host_t *h)
 void vna_host_report(const vna_host_t *h)
 {
     vna_contact_t c[8];
-    uint32_t n;
+    uint32_t n, ubh_n = 0, i;
     if (!h || !h->up) return;
     n = vna_node_contacts(&h->node, c, 8);
+    for (i = 0; i < n; i++)
+        if (c[i].flags & VNA_CF_UBH) ubh_n++;
     uart_puts("  [VNA] id ");
     put_hex_bytes(h->idn.id.b, 8);
+    uart_puts(" shard ");
+    uart_put_dec(h->shard_slot);
     uart_puts(" contacts ");
     uart_put_dec(n);
+    uart_puts(" ubh ");
+    uart_put_dec(ubh_n);
     uart_puts(" seeds ");
     uart_put_dec(h->seeds);
     uart_puts(" rx ");
@@ -608,13 +733,15 @@ void vna_host_report(const vna_host_t *h)
     uart_puts(" cycle ");
     uart_put_dec(h->book.cycle);
     uart_puts(" pool ");
-    uart_put_dec(h->book.pool[SWARM_CAP_FINANCIAL]);
+    uart_put_dec(h->book.pool[SWARM_CAP_INTELLECTUAL]);
     uart_puts(" held_in ");
-    uart_put_dec(h->book.held_in[SWARM_CAP_FINANCIAL]);
+    uart_put_dec(h->book.held_in[SWARM_CAP_INTELLECTUAL]);
     uart_puts(" sold ");
     uart_put_dec(h->sold);
     uart_puts(" traded ");
     uart_put_dec(h->link.committed + h->link.confirmed);
+    uart_puts(" sync ");
+    uart_put_dec(h->shard_announces + h->shard_queries);
     uart_puts(" refused_econ ");
     uart_put_dec(h->refused_econ + h->link.refused);
     uart_puts("\n");

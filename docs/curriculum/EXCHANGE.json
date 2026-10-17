@@ -1,0 +1,120 @@
+{
+  "exchange": "CISEX",
+  "exchange_name": "Crown Intelligence Service Exchange",
+  "protocol": "zxv.vinea.exchange.v1",
+  "index_protocol": "zxv.cisex.index.v1",
+  "identity": {
+    "banner": "ZEDEC-XERO-VULPINE/ZXV-Kernel (Post-Quantum Edge)",
+    "http_headers": [
+      "Server: ZEDEC-XERO-VULPINE/ZXV-Kernel (Post-Quantum Edge)",
+      "X-CISEX-Exchange: Crown-Intelligence-Service-Exchange",
+      "X-PQ-Protocol: ML-KEM + ML-DSA-87"
+    ],
+    "udp_magic": "UBH-168 frame octets 0-3: 0x5A 0x58 0x56 <version|frame-class> (\"ZXV\" + v1); Vinea wire magic \"VNA2\"",
+    "served_by": "vna_door :80 (all responses), vna_session :8724 (every datagram)"
+  },
+  "curriculum_anchor": "bafybeihgn75im5323qabyicaba64w7trb6irsrd32z3v4quj6qhoifvvt4",
+  "os_release_anchor": "bafybeicih44n3ebecncm32ckn3sfdgbycdxnggbd4vmpwbfhxk4y4yrh3u",
+  "armada": {
+    "mainframe": {"region": "SIN", "ip": "13.140.66.46", "role": "index warehouse + trunk anchor: 900 GB, highest bandwidth"},
+    "regions": [
+      {"region": "AUS", "ip": "46.250.247.153"},
+      {"region": "US-Central", "ip": "195.26.240.140"},
+      {"region": "JPN", "ip": "84.247.159.91"},
+      {"region": "EU", "ip": "173.249.40.169"},
+      {"region": "IND", "ip": "13.140.75.51"},
+      {"region": "US-West", "ip": "62.146.173.107"},
+      {"region": "US-East", "ip": "13.140.47.157"},
+      {"region": "UK", "ip": "81.0.221.238"}
+    ]
+  },
+  "envelope_bytes": 168,
+  "envelope_frames": "8 x 21-octet UBH-168 (1 header + 6 payload + 1 SHA-256 integrity trailer)",
+  "spot_audit_ram_bytes": 153600,
+  "index": {
+    "module": "kernel/src/cisex_idx",
+    "record_schema": "CISX (0x43495358), UBH target_type 3",
+    "wire_bytes_per_entry": 168,
+    "storage_model": "clearinghouse: CIDs, names, sizes, keywords, provider vectors, lpx health only; bulk payloads stay peer-to-peer",
+    "discovery": [
+      "passive wantlist sniffing (NEITHER stubs + demand counts)",
+      "shallow dag-pb directory harvesting (link name/size/CID -> cites)",
+      "first-chunk magic-byte + fixed-point x1024 entropy peek (<= 4 KiB)"
+    ],
+    "epistemic_rank": "rank = cites*13 + wants*8 + live_regions*5 + (joined==TRUE ? 21 : 0)",
+    "provider_health": "8 regional lpres observations, kjoin'ed: TRUE served, FALSE absent, BOTH regional split/censorship, NEITHER unseen",
+    "missing_block_bounties": "cited entries with no verified provider, non-TRUE join, or entropic polarity -> automatic archival bounty",
+    "delegated_routing": "regional keyword + CID resolution at :80 HTTP and :8724 UDP; records exchanged as 168-byte UBH-168 INDEX envelopes and merged idempotently (kjoin) across the ring"
+  },
+  "pq_backbone": {
+    "inter_armada": "ML-KEM-1024 + X25519 hybrid session key, ChaCha20-Poly1305 AEAD, UBH-168 framing on Vinea :8724 (vna_session)",
+    "index_attestation": "ML-DSA-87 per-record signatures (vna_rec/vna_msg); epoch checkpoints anchored with hash-based SLH-DSA",
+    "identity": "NodeID = SHA3-256(ML-DSA-87 public key) with proof-of-work"
+  },
+  "settlement_ratios": {
+    "commons_floor": "8/21",
+    "market_pool": "13/21"
+  },
+  "standing_tiers": [
+    {
+      "grade": "PLAIN",
+      "octane": 0,
+      "requirement": "Unauthenticated HTTP :80 / Gateway",
+      "access": [
+        "zxv-curriculum.car",
+        "zb.wasm",
+        "boot.pack",
+        "INDEX.md",
+        "BUCKET.md",
+        "EXCHANGE.json"
+      ]
+    },
+    {
+      "grade": "MIDGRADE",
+      "octane": 9,
+      "requirement": "Pin & serve zxv-curriculum.car (Social Crown Standing > 0)",
+      "access": [
+        "00_base/",
+        "disc/",
+        "Parallel 4-Node HTTP 206 Range Striping",
+        "CISEX delegated routing (priority lane)"
+      ]
+    },
+    {
+      "grade": "RACING",
+      "octane": 23,
+      "requirement": "Verified .car contribution (3-leaf stateless spot audit -> Intellectual / Manufactured / System Capital)",
+      "access": [
+        "Full 9.5 GB stack.car",
+        "models/",
+        "9-Node Vinea :8724 UDP Trunking (SIN mainframe anchored)"
+      ]
+    }
+  ],
+  "open_epistemic_bounties": [
+    {
+      "id": "BNTY-SYS-01",
+      "domain": "Low-Level Systems",
+      "shard": 0,
+      "target": "Register-level hardware probe logs (hw_verdict_t) across bare-metal RISC-V and ARM64 boards",
+      "capital_form": "System",
+      "octane_grant": 14
+    },
+    {
+      "id": "BNTY-MATH-02",
+      "domain": "Formal Methods & Physics",
+      "shard": 1,
+      "target": "Deterministic interval-dominance matrices and QUBO benchmark instances in exact rational format",
+      "capital_form": "Intellectual",
+      "octane_grant": 23
+    },
+    {
+      "id": "BNTY-ECON-03",
+      "domain": "Macroeconomics & Clearing",
+      "shard": 3,
+      "target": "Multi-party paraconsistent balance-sheet reconciliation datasets testing pce_fin.h",
+      "capital_form": "Intellectual",
+      "octane_grant": 14
+    }
+  ]
+}
