@@ -5,6 +5,7 @@
 #include "vna_host.h"
 #include "uart_16550.h"
 #include "robin_debanks/sha256.h"
+#include "robin_debanks/ed25519_verify.h"
 #include "cisex_idx/cisex_rt.h"
 #include "vinea/vna_file.h"
 #include "vinea/vna_session.h"
@@ -1549,6 +1550,31 @@ static int32_t door_card(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t 
     vna_host_t *h = (vna_host_t *) ctx;
     uint32_t id_len, pin_len;
     if (!h->card_check) return -1;
+    /* the sovereign-key seat: [0][pubkey 32][nonce 8][signature 64]. The
+     * nonce is the wall-clock second the client signed; a replay within
+     * the window seats the same pubkey again, which is idempotent — the
+     * seat is the identity, not a token. */
+    if (in_len >= 1 + ED25519_PUBLIC_KEY_LEN + 8 + ED25519_SIGNATURE_LEN && in[0] == 0) {
+        const uint8_t *pk = in + 1, *nonce = in + 1 + ED25519_PUBLIC_KEY_LEN;
+        const uint8_t *sig = nonce + 8;
+        uint64_t nsec = 0;
+        uint32_t i;
+        for (i = 0; i < 8; i++) nsec = nsec * 256 + nonce[i];
+        if (vna_absdiff(nsec, vna_now(h) / 1000ull) > 120ull) {
+            out[0] = 1;
+            h->cards_bad++;
+            return 1;
+        }
+        if (!ed25519_verify(nonce, 8, sig, pk)) {
+            out[0] = 1;
+            h->cards_bad++;
+            return 1;
+        }
+        out[0] = 0;
+        h->cards_ok++;
+        bond_obs(BOND_APP_SEC, BOND_ACT_SESS, vna_now(h)); /* a player seated */
+        return 1;
+    }
     /* [id_len u8][id][pin_len u8][pin]; both bounded, id first */
     if (in_len < 2 || in[0] == 0 || in[0] > 63) return -1;
     id_len = in[0];
@@ -1571,9 +1597,10 @@ static int32_t door_spaces(void *ctx, const uint8_t *in, uint32_t in_len, uint8_
                            uint32_t cap)
 {
     vna_host_t *h = (vna_host_t *) ctx;
-    uint32_t n = 1, i, count = 0;
-    if (in_len != 0 || cap < 2) return -1;
+    uint32_t n = 2, i, count = 0;
+    if (in_len != 0 || cap < 3) return -1;
     out[0] = 0;
+    out[1] = (uint8_t) (g_sntp_done ? 1u : 0u); /* bit0: the wall clock landed */
     for (i = 0; i < VNA_SPACE_MAX; i++) {
         const vna_space_t *s = &h->spaces.s[i];
         uint32_t nl;

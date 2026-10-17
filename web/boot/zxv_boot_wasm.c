@@ -60,6 +60,7 @@ static zui_login_person_t PEOPLE[1 + ZXV_CARDS] = {
 };
 static char CARD_NAME[ZXV_CARDS][24];
 static uint32_t n_cards;
+static bool CARD_KEY[ZXV_CARDS]; /* the person authenticates by key, not pin */
 static char PIN_BUF[16]; /* the typed pin, hex digits */
 static uint32_t pin_len;
 static int card_pending; /* a locked person waiting on the page's answer */
@@ -444,11 +445,16 @@ EXPORT(zb_pointer) int zb_pointer(int type, int32_t x, int32_t y, int button)
         zui_login_hit_t h = zui_login_hit((zui_rect_t){0, 0, S.w, S.h}, sc, &LOGIN, x, y, &index);
         if (h == ZUI_LOGIN_PERSON && index < LOGIN.n) {
             /* pressing the person already chosen enters them, the same as
-             * Enter — choosing one more time is how the door reads "come in" */
-            if (index == LOGIN.chosen &&
-                LOGIN.people[LOGIN.chosen].lock == ZUI_LOCK_NONE) {
+             * Enter — choosing one more time is how the door reads "come
+             * in". A key person's enter asks the page instead. */
+            if (index == LOGIN.chosen && LOGIN.people[LOGIN.chosen].lock == ZUI_LOCK_NONE &&
+                !(index > 0 && CARD_KEY[index - 1])) {
                 MODE = 2;
                 if (!desk_up) desk_init();
+                return 1;
+            }
+            if (index == LOGIN.chosen && index > 0 && CARD_KEY[index - 1] && !card_pending) {
+                card_pending = (int) LOGIN.chosen + 1;
                 return 1;
             }
             LOGIN.chosen = index;
@@ -456,12 +462,13 @@ EXPORT(zb_pointer) int zb_pointer(int type, int32_t x, int32_t y, int button)
             return 1;
         }
         if (h == ZUI_LOGIN_ENTER) {
-            if (LOGIN.people[LOGIN.chosen].lock == ZUI_LOCK_NONE) {
+            bool keyed = LOGIN.chosen > 0 && CARD_KEY[LOGIN.chosen - 1];
+            if (LOGIN.people[LOGIN.chosen].lock == ZUI_LOCK_NONE && !keyed) {
                 MODE = 2;
                 if (!desk_up) desk_init();
                 return 1;
             }
-            if (pin_len >= 8 && !card_pending) {
+            if ((keyed || pin_len >= 8) && !card_pending) {
                 card_pending = (int) LOGIN.chosen + 1;
                 return 1;
             }
@@ -502,10 +509,12 @@ EXPORT(zb_key) int zb_key(int key, int down, int mods)
     if (MODE == 1) {
         if (!down) return 0;
         uint8_t lock = LOGIN.people[LOGIN.chosen].lock;
-        if (lock != ZUI_LOCK_NONE) {
-            /* the pass field: hex digits, backspace, Enter asks the page */
+        if (lock != ZUI_LOCK_NONE || CARD_KEY[LOGIN.chosen > 0 ? LOGIN.chosen - 1 : 0]) {
+            /* the pass field: hex digits, backspace, Enter asks the page.
+             * A key person needs no pin: Enter raises the seat directly. */
             if (key == ZUI_KEY_ENTER) {
-                if (pin_len >= 8 && !card_pending) {
+                bool keyed = LOGIN.chosen > 0 && CARD_KEY[LOGIN.chosen - 1];
+                if ((keyed || pin_len >= 8) && !card_pending) {
                     card_pending = (int) LOGIN.chosen + 1;
                     return 1;
                 }
@@ -591,6 +600,7 @@ EXPORT(zb_card) uint32_t zb_card(const char *name)
     }
     for (uint32_t j = 0; j < n; j++) CARD_NAME[i][j] = name[j];
     CARD_NAME[i][n] = 0;
+    CARD_KEY[i] = false;
     PEOPLE[1 + i].name = CARD_NAME[i];
     PEOPLE[1 + i].color = 0;
     PEOPLE[1 + i].lock = ZUI_LOCK_PASS;
@@ -598,6 +608,17 @@ EXPORT(zb_card) uint32_t zb_card(const char *name)
     if (LOGIN.n <= 1 + i) LOGIN.n = 1 + i + 1;
     draw_login(&B, S.w, S.h);
     return i + 2;
+}
+
+/* Mark the last card person as key-authenticated: Enter raises the seat
+ * without a pin, and the page answers with the sovereign-key frame. */
+EXPORT(zb_card_key) int zb_card_key(uint32_t i)
+{
+    if (i < 1 || i > ZXV_CARDS || !CARD_NAME[i - 1][0]) return -1;
+    CARD_KEY[i - 1] = true;
+    PEOPLE[i].lock = ZUI_LOCK_NONE;
+    draw_login(&B, S.w, S.h);
+    return 0;
 }
 
 /* A locked person pressed Enter with a full pin: the index + 1 the page

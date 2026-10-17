@@ -1,73 +1,90 @@
-# agent_loop queue — second series (web app wiring, S3 origin, desk).
 - id: 1
-  title: static origin boot review
-  task: >-
-    Review the browser boot when served from a static origin (the Filebase
-    S3 website) instead of a ZXV node door: which fetches still work
-    (boot.json, boot.pack, wasm), which fail (POST /cisex, /card, /l2), and
-    what the page should show in each case. The search panel already takes
-    a node URL; the card form and L2 bus do not. Propose the minimal UI
-    changes: disable/hide the L2 bus on non-node origins, and let the card
-    form target a node URL too. Ground every point in boot.js lines.
+  title: draft satchel
+  task: "Draft the .zxapp application 'satchel' (layer 1, slot 7) from its wave spec.\
+    \ Read the spec first: it is the authority on what the app does and its exact\
+    \ logic. Produce:\n1. The manifest skeleton (id, slot, layer, needs, provides,\
+    \ budget) per kernel/src/apps/zxapp.h.\n2. The logic entries in the languages\
+    \ assigned below \u2014 use each language where it excels (eve for safety/limits,\
+    \ kron for exact arrays, myra for records/indexes, C/Sutra/wasm for the rest).\
+    \ Every entry complete, no TODO, no stubs.\n3. A test plan naming the exact checks\
+    \ the node would run.\n4. The reuse lines: what the spec says to 'use' and what\
+    \ to register in CONCEPTS.tsv.\nAssigned languages: C/c: view and model (primary,\
+    \ runs), Ada/eve: limits (primary, runs), MUMPS/myra: records (primary, runs),\
+    \ APL/kron: arrays (primary, runs), FORTRAN/trebago: exact numerics (primary,\
+    \ runs), Rust/rust: low-level system (primary, runs (compiled to wasm))."
   files:
-    - web/boot/boot.js
-    - web/intro/index.html
-  tokens: 1200
+  - tools/server-tasks/wave3/007-satchel.md
+  tokens: 1800
 - id: 2
-  title: card login pin flow review
-  task: >-
-    Review the player-card login flow in zxv_boot_wasm.c and boot.js: card
-    person added via zb_card, pin typed into PIN_BUF, Enter raises
-    card_pending, boot.js POSTs /card and answers zb_card_result. Find
-    edge cases: switching persons with a half-typed pin, pin cleared on
-    wrong answer, the wrong-shake state, what happens when the door is a
-    static origin (no /card), and the 4-card bound. Propose fixes or
-    confirm each is handled, citing lines.
+  title: draft vintner
+  task: "Draft the .zxapp application 'vintner' (layer 1, slot 91) from its wave spec.\
+    \ Read the spec first: it is the authority on what the app does and its exact\
+    \ logic. Produce:\n1. The manifest skeleton (id, slot, layer, needs, provides,\
+    \ budget) per kernel/src/apps/zxapp.h.\n2. The logic entries in the languages\
+    \ assigned below \u2014 use each language where it excels (eve for safety/limits,\
+    \ kron for exact arrays, myra for records/indexes, C/Sutra/wasm for the rest).\
+    \ Every entry complete, no TODO, no stubs.\n3. A test plan naming the exact checks\
+    \ the node would run.\n4. The reuse lines: what the spec says to 'use' and what\
+    \ to register in CONCEPTS.tsv.\nAssigned languages: C/c: view and model (primary,\
+    \ runs), MUMPS/myra: records (primary, runs), FORTRAN/trebago: exact numerics\
+    \ (primary, runs), COBOL/sutra: money and ledgers (primary, runs), C++/cpp: money\
+    \ and ledgers (witness, runs (compiled to wasm)), Forth/forth: small interpreters\
+    \ (primary, runs)."
   files:
-    - web/boot/zxv_boot_wasm.c
-    - web/boot/boot.js
-    - kernel/arch/x86_64/vna_host.c
-  tokens: 1200
+  - tools/server-tasks/wave1/091-vintner.md
+  tokens: 1800
 - id: 3
-  title: catalogue desk extension design
-  task: >-
-    Design the extension of the launch-theme desk (RAIL_APPS 16, compiled
-    in) to the full 407-app catalogue from boot.json's apps list: how the
-    wasm should page tiles, how boot.js feeds the app list (zb_apps
-    exports), how each app's card gets its catalogue node bytes (the pack
-    slices), and what stays on the rail. Must stay within the wasm's
-    memory budget (ICON_CAP 16K per icon; catalogue names bounded).
-    Output a concrete export list and the frame-loop changes.
+  title: draft typecase
+  task: "Draft the .zxapp application 'typecase' (layer 1, slot 113) from its wave\
+    \ spec. Read the spec first: it is the authority on what the app does and its\
+    \ exact logic. Produce:\n1. The manifest skeleton (id, slot, layer, needs, provides,\
+    \ budget) per kernel/src/apps/zxapp.h.\n2. The logic entries in the languages\
+    \ assigned below \u2014 use each language where it excels (eve for safety/limits,\
+    \ kron for exact arrays, myra for records/indexes, C/Sutra/wasm for the rest).\
+    \ Every entry complete, no TODO, no stubs.\n3. A test plan naming the exact checks\
+    \ the node would run.\n4. The reuse lines: what the spec says to 'use' and what\
+    \ to register in CONCEPTS.tsv.\nAssigned languages: C/c: view and model (primary,\
+    \ runs), FORTRAN/trebago: exact numerics (primary, runs), APL/kron: arrays (primary,\
+    \ runs), Groovy/-: scripting (primary, planned: needs Lingua front-end), Racket/-:\
+    \ parsing (primary, planned: needs Lingua front-end), TeX/-: typesetting (primary,\
+    \ planned: needs Lingua front-end)."
   files:
-    - web/boot/zxv_boot_wasm.c
-    - web/boot/boot.js
-    - kernel/src/zui/zui_launch_theme.h
-  tokens: 1600
+  - tools/server-tasks/wave2/113-typecase.md
+  tokens: 1800
 - id: 4
-  title: web4 l2 bus static origin
-  task: >-
-    The L2 bus (vna_delta) only works from a ZXV door origin. Document the
-    bus's wire format (10-byte frame header + payload, after=cursor) and
-    design the gateway bridge: a WebTransport or WebSocket relay on the
-    nine nodes that carries the same deltas to browser peers that cannot
-    reach /l2. Ground the design in vna_delta.h and the door's /l2
-    implementation. Say plainly what does not exist yet.
+  title: draft crown
+  task: "Draft the .zxapp application 'crown' (layer 1, slot 75) from its wave spec.\
+    \ Read the spec first: it is the authority on what the app does and its exact\
+    \ logic. Produce:\n1. The manifest skeleton (id, slot, layer, needs, provides,\
+    \ budget) per kernel/src/apps/zxapp.h.\n2. The logic entries in the languages\
+    \ assigned below \u2014 use each language where it excels (eve for safety/limits,\
+    \ kron for exact arrays, myra for records/indexes, C/Sutra/wasm for the rest).\
+    \ Every entry complete, no TODO, no stubs.\n3. A test plan naming the exact checks\
+    \ the node would run.\n4. The reuse lines: what the spec says to 'use' and what\
+    \ to register in CONCEPTS.tsv.\nAssigned languages: C/c: view and model (primary,\
+    \ runs), COBOL/sutra: money and ledgers (primary, runs), FORTRAN/trebago: exact\
+    \ numerics (primary, runs), Ada/eve: limits (primary, runs), Go/go: concurrency\
+    \ (primary, planned: SDK host only, no in-app runtime yet), Eiffel/-: contracts\
+    \ (primary, planned: needs Lingua front-end), Solidity/-: contracts (witness,\
+    \ planned: needs Lingua front-end)."
   files:
-    - kernel/src/vinea/vna_delta.h
-    - kernel/src/vinea/vna_door.c
-  tokens: 1400
+  - tools/server-tasks/wave3/075-crown.md
+  tokens: 1800
 - id: 5
-  title: aipi compute marketplace slice
-  task: >-
-    The AIPI broker (aipi_vna) escrows compute calls against the trade
-    book; the zt engine executes GGUF modules deterministically. Design
-    the first bounded slice of a peer compute marketplace over Vinea:
-    a provider-announce record (model id, max batch, price), a call
-    record, and settlement through the existing link/credit path. Do not
-    invent the 810/846/888 codes; use the real book accounts. Say what
-    must change in vna_wire.h and aipi.
+  title: draft keystone
+  task: "Draft the .zxapp application 'keystone' (layer 1, slot 4) from its wave spec.\
+    \ Read the spec first: it is the authority on what the app does and its exact\
+    \ logic. Produce:\n1. The manifest skeleton (id, slot, layer, needs, provides,\
+    \ budget) per kernel/src/apps/zxapp.h.\n2. The logic entries in the languages\
+    \ assigned below \u2014 use each language where it excels (eve for safety/limits,\
+    \ kron for exact arrays, myra for records/indexes, C/Sutra/wasm for the rest).\
+    \ Every entry complete, no TODO, no stubs.\n3. A test plan naming the exact checks\
+    \ the node would run.\n4. The reuse lines: what the spec says to 'use' and what\
+    \ to register in CONCEPTS.tsv.\nAssigned languages: C/c: view and model (primary,\
+    \ runs), Ada/eve: limits (primary, runs), MUMPS/myra: records (primary, runs),\
+    \ APL/kron: arrays (primary, runs), FORTRAN/trebago: exact numerics (primary,\
+    \ runs), COBOL/sutra: money and ledgers (primary, runs), C++/cpp: money and ledgers\
+    \ (witness, runs (compiled to wasm))."
   files:
-    - kernel/src/aipi/aipi_vna.c
-    - kernel/src/vinea/vna_wire.h
-    - kernel/arch/x86_64/vna_host.c
-  tokens: 1600
+  - tools/server-tasks/wave3/004-keystone.md
+  tokens: 1800

@@ -282,6 +282,85 @@ async function boot()
         if (r >= 2) CARD_IDS[r - 2] = id;
         return r;
     };
+
+    // ---- the sovereign key ----------------------------------------------
+    // A profile is an Ed25519 keypair made here (or imported): the public
+    // key is the profile id, the private key never leaves this device. The
+    // login signs the wall-clock second and the door verifies it — no
+    // password, no server-held secret. The private key is stored in
+    // IndexedDB (this page uses no cookies; localStorage only holds prefs).
+    let ZXKey = null;
+    const KEY_PREFIX = 'zxv-key-';
+    const b64url = (b) =>
+        btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const hex32 = (b) => Array.from(b).map((x) => x.toString(16).padStart(2, '0')).join('');
+    function keydb()
+    {
+        return new Promise((res, rej) => {
+            const q = indexedDB.open('zxv-keys', 1);
+            q.onupgradeneeded = () => q.result.createObjectStore('keys');
+            q.onsuccess = () => res(q.result);
+            q.onerror = () => rej(q.error);
+        });
+    }
+    async function keySave(id, jwk)
+    {
+        const db = await keydb();
+        return new Promise((res, rej) => {
+            const tx = db.transaction('keys', 'readwrite');
+            tx.objectStore('keys').put(jwk, KEY_PREFIX + id);
+            tx.oncomplete = res;
+            tx.onerror = () => rej(tx.error);
+        });
+    }
+    async function keyLoad(id)
+    {
+        const db = await keydb();
+        return new Promise((res) => {
+            const tx = db.transaction('keys', 'readonly');
+            const g = tx.objectStore('keys').get(KEY_PREFIX + id);
+            g.onsuccess = () => res(g.result || null);
+            g.onerror = () => res(null);
+        });
+    }
+    window.ZXV_KEYGEN = async () => {
+        if (!crypto.subtle || !crypto.subtle.generateKey) return null;
+        const kp = await crypto.subtle.generateKey({name : 'Ed25519'}, true, [ 'sign', 'verify' ]);
+        const pub = new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey));
+        const jwk = await crypto.subtle.exportKey('jwk', kp.privateKey);
+        await keySave(hex32(pub), jwk);
+        ZXKey = {pub, jwk, priv : kp.privateKey};
+        const id = 'player-' + hex32(pub).slice(0, 10);
+        window.ZXV_CARD(id);
+        if (zb.zb_card_key) zb.zb_card_key(window.ZXV_CARD.idx = 1);
+        return id;
+    };
+    window.ZXV_KEYSEAT = async (id, pinText) => {
+        /* id = 'player-<hex>' -> the pubkey hex; pinText = the passphrase
+         * to unlock the stored private key (the browser keys the JWK) */
+        const pubHex = id.slice(7);
+        const jwk = await keyLoad(pubHex);
+        if (!jwk) return 1;
+        const priv =
+            await crypto.subtle.importKey('jwk', jwk, {name : 'Ed25519'}, false, [ 'sign' ]);
+        const nonce = new Uint8Array(8);
+        new DataView(nonce.buffer).setUint32(4, Math.floor(Date.now() / 1000) >>> 0);
+        const sig = new Uint8Array(await crypto.subtle.sign('Ed25519', priv, nonce));
+        const body = new Uint8Array(1 + 32 + 8 + 64);
+        body[0] = 0;
+        body.set(hexToBytes(pubHex), 1);
+        body.set(nonce, 33);
+        body.set(sig, 41);
+        const r = await fetch('/card',
+                              {method : 'POST', body : new Blob([ body ], {type : 'text/plain'})});
+        return (await r.arrayBuffer())[0] || 0;
+    };
+    function hexToBytes(h)
+    {
+        const b = new Uint8Array(h.length / 2);
+        for (let i = 0; i < b.length; i++) b[i] = parseInt(h.slice(2 * i, 2 * i + 2), 16);
+        return b;
+    }
     const cardForm = document.getElementById('card');
     if (cardForm && zb.zb_card) {
         cardForm.style.display = 'flex';
@@ -290,6 +369,13 @@ async function boot()
             const id = document.getElementById('cardid').value.trim();
             if (id) window.ZXV_CARD(id);
         });
+        const keygen = document.getElementById('keygen');
+        if (keygen && window.ZXV_KEYGEN) {
+            keygen.addEventListener('click', async () => {
+                const id = await window.ZXV_KEYGEN();
+                if (id) say('key made: ' + id + ' — choose it and press Enter to seat');
+            });
+        }
     }
     function seatPending()
     {
@@ -297,10 +383,25 @@ async function boot()
         const p = zb.zb_card_pending();
         if (p < 2 || p - 2 >= CARD_IDS.length || !CARD_IDS[p - 2]) return;
         cardBusy = true;
+        const id = CARD_IDS[p - 2];
+        if (id.slice(0, 7) === 'player-') {
+            /* sovereign-key seat: sign the wall-clock second with the
+             * stored key; no pin buffer involved */
+            window.ZXV_KEYSEAT(id)
+                .then((ok) => {
+                    zb.zb_card_result(ok);
+                    cardBusy = false;
+                })
+                .catch(() => {
+                    zb.zb_card_result(1);
+                    cardBusy = false;
+                });
+            return;
+        }
         const plen = zb.zb_pin_len();
         const pin = new Uint8Array(memory.buffer, zb.zb_pin_buf(), plen);
         const pinText = new TextDecoder().decode(pin).toLowerCase();
-        const idb = new TextEncoder().encode(CARD_IDS[p - 2]);
+        const idb = new TextEncoder().encode(id);
         const pinb = new TextEncoder().encode(pinText);
         const body = new Uint8Array(1 + idb.length + 1 + pinb.length);
         body[0] = idb.length;
@@ -327,7 +428,7 @@ async function boot()
                     const d = new Uint8Array(await res.arrayBuffer());
                     const n = d[0] || 0;
                     zb.zb_spaces(n);
-                    let at = 1;
+                    let at = 2; /* [count][flags: bit0 = wall clock landed] */
                     for (let i = 0; i < n; i++) {
                         const nl = d[at++];
                         const name = new TextDecoder().decode(d.subarray(at, at + nl));
