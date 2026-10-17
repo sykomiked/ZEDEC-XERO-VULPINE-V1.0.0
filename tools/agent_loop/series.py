@@ -16,6 +16,7 @@ Usage: series.py N [--out QUEUE]
 """
 import argparse
 import csv
+from pathlib import Path
 import json
 import sys
 
@@ -77,6 +78,9 @@ def lang_rows(app_id):
     return rows
 
 
+REF_MANIFEST = "\n".join(Path(__file__).parent.joinpath(
+    "../../kernel/src/apps/banker.zxapp").resolve().read_text().split("\n")[:34])
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("n", type=int, nargs="?", default=5)
@@ -90,15 +94,24 @@ def main():
         task_text = (
             f"Draft the .zxapp application '{app_id}' (layer {node.get('layer')}, "
             f"slot {node.get('slot')}) from its wave spec. Read the spec first: it "
-            f"is the authority on what the app does and its exact logic. Produce:\n"
-            f"1. The manifest skeleton (id, slot, layer, needs, provides, budget) "
-            f"per kernel/src/apps/zxapp.h.\n"
-            f"2. The logic entries in the languages assigned below — use each "
-            f"language where it excels (eve for safety/limits, kron for exact "
-            f"arrays, myra for records/indexes, C/Sutra/wasm for the rest). "
-            f"Every entry complete, no TODO, no stubs.\n"
-            f"3. A test plan naming the exact checks the node would run.\n"
-            f"4. The reuse lines: what the spec says to 'use' and what to "
+            f"is the authority on what the app does and its exact logic.\n"
+            f"OUTPUT FORMAT (non-negotiable): the COMPLETE, LOADABLE .zxapp "
+            f"manifest text, starting with the line 'zxapp 1' and ending at the "
+            f"last check line. NO C code, NO explanations, NO markdown fences. "
+            f"The manifest is parsed and TESTED by a running node — a single "
+            f"syntax error fails it. Follow the reference manifest exactly:\n"
+            f"--- reference (banker.zxapp) ---\n{REF_MANIFEST}\n--- end reference ---\n"
+            f"Requirements:\n"
+            f"1. The header: zxapp 1 / id / name / version / slot / layer.\n"
+            f"2. needs lines for every capability the spec names.\n"
+            f"3. provides + logic lines in the languages assigned below — use "
+            f"each where it excels (eve for safety/limits, kron for exact arrays, "
+            f"myra for records/indexes, sutra/cobol for records and procedures, "
+            f"wasm/C for the rest). Self-contained entries use INLINE sources "
+            f"(logic <lang> <entry> << then the source, then a line with only '.').\n"
+            f"4. check lines (K2 proofs) for EVERY provided entry, with exact "
+            f"inputs and expected outputs from the spec's logic.\n"
+            f"5. The reuse lines: what the spec says to 'use' and what to "
             f"register in CONCEPTS.tsv.\n"
             f"Assigned languages: {', '.join(lang) if lang else 'see the spec'}."
         )

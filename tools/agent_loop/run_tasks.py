@@ -98,6 +98,10 @@ def testbed_test(out_path, prompt):
         if i < 0:
             return "no manifest in the draft"
         manifest = text[i:i + 8192]
+        # strip a trailing markdown fence if the model added one anyway
+        j = manifest.find("```")
+        if j >= 0:
+            manifest = manifest[:j]
         import urllib.request
         req = urllib.request.Request(url + "/api/app", data=manifest.encode(),
                                      method="POST")
