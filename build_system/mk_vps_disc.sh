@@ -31,6 +31,14 @@ ssz=$((send - sstart + 1))
 [ -n "$sguid" ] && [ -n "$sname" ] || { echo "mk_vps_disc: cannot read swarm partition" >&2; exit 1; }
 
 cp "$CORE" "$OUT"
+
+# Legacy-BIOS boot path first: the stage claims partition 2 (the EF02 BIOS
+# boot partition in the LBA 34..2047 gap) so it must run before the graft,
+# which numbers the swarm partition after whatever is already there. A VPS
+# disc that only boots UEFI never starts under SeaBIOS KVM hosts.
+ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+bash "$ROOT/build_system/mk_bios_stage.sh" "$OUT" "${ELF:-$ROOT/kernel_x86_64.elf}"
+
 cend=$(sgdisk -p "$OUT" | awk '/^Disk .* sectors/{print $3}')
 # 2048-aligned start past the old end; room for the secondary GPT (33
 # sectors) after the partition.

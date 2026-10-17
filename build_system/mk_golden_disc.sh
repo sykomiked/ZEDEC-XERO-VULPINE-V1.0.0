@@ -358,7 +358,7 @@ while read -r key val rest; do
   case "$key" in
     cid)  [[ "$val" =~ ^b[a-z2-7]{20,120}$ ]] || die "$UPSTREAM: '$val' is not a base32 CIDv1" ;;
     ipns) [[ "$val" =~ ^k[0-9a-z]{20,120}$ ]] || die "$UPSTREAM: '$val' is not an IPNS name (k51...)" ;;
-    gateway) [[ "$val" =~ ^https?://[!-~]+$ && ${#val} -lt 80 ]] || die "$UPSTREAM: '$val' is not an http:// or https:// URL under 80 characters" ;;
+    gateway) [[ "$val" =~ ^https?://[[:print:]]+$ && ${#val} -lt 80 ]] || die "$UPSTREAM: '$val' is not an http:// or https:// URL under 80 characters" ;;
     seal) [[ "$val" =~ ^(POWERDOWN_NIC|LOCAL_MESH_ONLY|PROMPT_USER)$ ]] || die "$UPSTREAM: seal '$val' is not POWERDOWN_NIC, LOCAL_MESH_ONLY or PROMPT_USER" ;;
     *) die "$UPSTREAM: unknown key '$key' (cid|ipns|gateway|seal|peer)" ;;
   esac
