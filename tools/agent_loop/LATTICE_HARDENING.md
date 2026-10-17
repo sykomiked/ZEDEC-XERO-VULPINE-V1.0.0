@@ -226,3 +226,71 @@ SCP-144 is the **native networking protocol**, not an option:
 And because the running cost is near zero, there is no device too small
 to be a full participant: a phone is a node, a browser is a node, a
 low-power machine is a node. The paradox is what makes it universal.
+
+## The traditional standards — compatibility and protection
+
+NIST's post-quantum standards (ML-KEM, ML-DSA, SLH-DSA) and Pretty Good
+Privacy are **legacy interfaces**, not the native protocol. SCP-144 is
+native. The relationship is threefold:
+
+### 1. Native: SCP-144 with SCP-144
+
+When both ends speak SCP-144 (ZXV to ZXV, or ZXV to any system that has
+it), the native handshake runs: the point, the projection, the
+close-vector proof, the tier ladder. No legacy layer, no translation.
+
+### 2. Compatible: the traditional standards are accepted
+
+A peer using NIST standards or PGP is **not refused**. The system bridges:
+the legacy handshake completes, and the session is established. A
+traditional user is a full participant, not a second-class one.
+
+### 3. Protective: the legacy is wrapped, so Shor cannot reach it
+
+This is the important part. A legacy standard (RSA, ECDSA, ECDH, PGP's
+classical keys) is **obsolete against Shor's algorithm** — a sufficiently
+large quantum computer breaks it outright. SCP-144 does not merely accept
+such a peer; it **protects** them:
+
+```
+legacy handshake (broken by Shor)
+        wrapped inside
+SCP-144 (the Crown factor, lattice-hard)
+```
+
+The legacy session's secret is carried **inside** an SCP-144 tunnel, so
+even if the legacy key is later broken, the session's content is
+protected by the lattice factor. The user keeps their familiar standard;
+the system fills the gap the standard cannot.
+
+### Why this matters
+
+- **No user is left behind.** A traditional-standard user is compatible
+  *and* protected — the system does not punish them for an outdated
+  choice, it shields them from its consequence.
+- **No forced migration.** The native protocol is faster and safer, but
+  adopting it is a choice, not a requirement.
+- **The protection is honest.** The wrap does not make the legacy cipher
+  stronger; it makes the *session* safe by carrying it in a tunnel the
+  legacy break cannot open. That is a real guarantee, stated precisely.
+
+### The three spaces, per compatibility path
+
+- *positive*: a legacy peer completes the handshake and the session is
+  wrapped in SCP-144;
+- *negative*: a legacy peer's broken key does not expose the wrapped
+  session (the negative-space test: the tunnel holds even when the inner
+  cipher is assumed broken);
+- *neutral*: a peer offering both standards negotiates deterministically
+  (native preferred, legacy wrapped).
+
+### The standard's statement
+
+```
+SCP-144 native.  NIST and PGP compatible.  Legacy wrapped, so Shor's
+algorithm cannot reach a user who has not migrated.
+```
+
+The native protocol costs almost nothing to run (the paradox), so
+offering it to every peer — and protecting the ones who use something
+else — costs the system almost nothing either.
