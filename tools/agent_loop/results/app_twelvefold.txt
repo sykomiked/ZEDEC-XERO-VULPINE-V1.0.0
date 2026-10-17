@@ -1,0 +1,33 @@
+# app twelvefold: FAILED
+# verdict: load failed: product: a Sutra entry is a record, then "procedure" and its statements
+
+zxapp 1
+id twelvefold
+matrix 132
+name Twelvefold
+needs fs.read
+needs fs.write
+
+provides product num a b
+provides count_ok truth count max
+provides limit_excess num value limit
+logic sutra product <<
+product-record.
+01 a PIC 9(9).
+procedure division.
+  move 0 to a.
+.
+logic kron count_ok <<
+0|_count
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
+check count_ok count=1,100,101,0 max=100,100,100,100 = true,true,false,false
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+

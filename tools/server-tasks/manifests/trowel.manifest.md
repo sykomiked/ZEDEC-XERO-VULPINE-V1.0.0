@@ -1,0 +1,144 @@
+# trowel — the complete manifest (the parameter document)
+
+**Purpose.** logs building upkeep: repairs, inspections, contractors and costs, in the Hoard (`files.list`, `files.read`, `files.write`, `sys.disk`) and the books (`ledger.entries`).
+
+**Matrix layer 184 · icon group L2 · wave spec `wave15/184-trowel.md`.**
+
+## The manifest: the parts the pattern library already makes correct
+
+Every line below is FINAL — the provides, the body and the check are the
+library's verified implementations. Emit them exactly.
+
+```zxapp
+zxapp 1
+id trowel
+matrix 184
+name Trowel
+needs fs.read
+needs fs.write
+needs sys.read
+needs ledger.read
+needs notify
+
+provides difference num a b
+logic kron difference <<
+0|_a-_b
+.
+check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
+```
+
+## The app-specific entries — SPELLED OUT TO THE LETTER
+
+These are the entries the library does not cover. Each one below
+gives the exact `provides` line, the runtime, the body's required
+shape (from the real blocks) and the exact check. Write the body;
+nothing else is yours to decide.
+
+### Entry 1 — "safety check overdue" (days since the last gas, electrical or alarm inspection over the declared interval) in Ada as Eve + APL as KRON witnessed
+
+**The clause it implements.** "safety check overdue" (days since the last gas, electrical or alarm inspection over the declared interval) in Ada as Eve + APL as KRON witnessed
+
+**Runtime.** `c` — the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
+
+**The provides line (copy exactly, choose the entry name):**
+
+```
+provides <entry_name> num|truth <arg> <arg> ...
+```
+
+**The body (this shape, this runtime):**
+
+```
+logic c <entry_name> <<
+<the source>
+.
+```
+
+**The check (one line; the inputs are integers, the answers the
+rows):**
+
+```
+check <entry_name> <arg>=<int>,... = <answer>,...
+```
+
+### Entry 2 — repair invoices per item and per year in minor units in COBOL as Sutra + FORTRAN as Trebago witnessed
+
+**The clause it implements.** repair invoices per item and per year in minor units in COBOL as Sutra + FORTRAN as Trebago witnessed
+
+**Runtime.** `sutra` — the pillar (COBOL): records and procedures. A record with PIC pictures, then 'procedure division.' with COMPUTE and IF. A value that does not fit its picture is refused, never cut.
+
+**The provides line (copy exactly, choose the entry name):**
+
+```
+provides <entry_name> num|truth <arg> <arg> ...
+```
+
+**The body (this shape, this runtime):**
+
+```
+logic sutra <entry_name> <<
+<the source>
+.
+```
+
+**The check (one line; the inputs are integers, the answers the
+rows):**
+
+```
+check <entry_name> <arg>=<int>,... = <answer>,...
+```
+
+### Entry 3 — room grid in APL as KRON
+
+**The clause it implements.** room grid in APL as KRON
+
+**Runtime.** `trebago` — the pillar (FORTRAN): exact numerics. 'trebago <entry>' then 'in  <args>' / 'out <result>' / assignments / 'end'. Integer only; sums via sum(i, expr).
+
+**The provides line (copy exactly, choose the entry name):**
+
+```
+provides <entry_name> num|truth <arg> <arg> ...
+```
+
+**The body (this shape, this runtime):**
+
+```
+logic trebago <entry_name> <<
+<the source>
+.
+```
+
+**The check (one line; the inputs are integers, the answers the
+rows):**
+
+```
+check <entry_name> <arg>=<int>,... = <answer>,...
+```
+
+### Entry 4 — property tree in MUMPS as MYRA
+
+**The clause it implements.** property tree in MUMPS as MYRA
+
+**Runtime.** `eve` — the pillar (Ada): ranges and limits. A package line 'eve <app>', domain declarations '<name> = <lo> .. <hi>', and blocks '<block> { <arg>: <domain> <lo> .. <hi> }'. It declares what is allowed; it cannot compute.
+
+**The provides line (copy exactly, choose the entry name):**
+
+```
+provides <entry_name> num|truth <arg> <arg> ...
+```
+
+**The body (this shape, this runtime):**
+
+```
+logic eve <entry_name> <<
+<the source>
+.
+```
+
+**The check (one line; the inputs are integers, the answers the
+rows):**
+
+```
+check <entry_name> <arg>=<int>,... = <answer>,...
+```
+

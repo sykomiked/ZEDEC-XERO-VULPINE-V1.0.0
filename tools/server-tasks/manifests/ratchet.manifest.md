@@ -1,0 +1,137 @@
+# ratchet — the complete manifest (the parameter document)
+
+**Purpose.** diagnoses hardware faults from the machine's readings (`sys.info`, `sys.disk`, `power.status`), schedules maintenance and walks a person through a repair step by step. zxvd has no method for readings from machines other than this one: use only existing methods; list what's missing in your report.
+
+**Matrix layer 152 · icon group L2 · wave spec `wave12/152-ratchet.md`.**
+
+## The manifest: the parts the pattern library already makes correct
+
+Every line below is FINAL — the provides, the body and the check are the
+library's verified implementations. Emit them exactly.
+
+```zxapp
+zxapp 1
+id ratchet
+matrix 152
+name Ratchet
+needs sys.read
+needs notify
+
+provides limit_excess num value limit
+provides exact_total num n a b c d
+provides share_x100 num part whole
+provides product num a b
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+logic trebago exact_total <<
+trebago exact_total
+  in  n, a, b, c, d
+  out total
+  total = sum(i = 1:n, (i=1)*a + (i=2)*b + (i=3)*c + (i=4)*d)
+end
+.
+logic kron share_x100 <<
+0|_part*10000%_whole
+.
+logic kron product <<
+0|_a*_b
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
+```
+
+## The app-specific entries — SPELLED OUT TO THE LETTER
+
+These are the entries the library does not cover. Each one below
+gives the exact `provides` line, the runtime, the body's required
+shape (from the real blocks) and the exact check. Write the body;
+nothing else is yours to decide.
+
+### Entry 1 — next repair step from the check results in BASIC (twin Hatchling) + APL as KRON witnessed (the person sees one step at a time)
+
+**The clause it implements.** next repair step from the check results in BASIC (twin Hatchling) + APL as KRON witnessed (the person sees one step at a time)
+
+**Runtime.** `c` — the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
+
+**The provides line (copy exactly, choose the entry name):**
+
+```
+provides <entry_name> num|truth <arg> <arg> ...
+```
+
+**The body (this shape, this runtime):**
+
+```
+logic c <entry_name> <<
+<the source>
+.
+```
+
+**The check (one line; the inputs are integers, the answers the
+rows):**
+
+```
+check <entry_name> <arg>=<int>,... = <answer>,...
+```
+
+### Entry 2 — sensor grid (sensor by hour) in APL as KRON
+
+**The clause it implements.** sensor grid (sensor by hour) in APL as KRON
+
+**Runtime.** `sutra` — the pillar (COBOL): records and procedures. A record with PIC pictures, then 'procedure division.' with COMPUTE and IF. A value that does not fit its picture is refused, never cut.
+
+**The provides line (copy exactly, choose the entry name):**
+
+```
+provides <entry_name> num|truth <arg> <arg> ...
+```
+
+**The body (this shape, this runtime):**
+
+```
+logic sutra <entry_name> <<
+<the source>
+.
+```
+
+**The check (one line; the inputs are integers, the answers the
+rows):**
+
+```
+check <entry_name> <arg>=<int>,... = <answer>,...
+```
+
+### Entry 3 — machine parts tree in MUMPS as MYRA
+
+**The clause it implements.** machine parts tree in MUMPS as MYRA
+
+**Runtime.** `trebago` — the pillar (FORTRAN): exact numerics. 'trebago <entry>' then 'in  <args>' / 'out <result>' / assignments / 'end'. Integer only; sums via sum(i, expr).
+
+**The provides line (copy exactly, choose the entry name):**
+
+```
+provides <entry_name> num|truth <arg> <arg> ...
+```
+
+**The body (this shape, this runtime):**
+
+```
+logic trebago <entry_name> <<
+<the source>
+.
+```
+
+**The check (one line; the inputs are integers, the answers the
+rows):**
+
+```
+check <entry_name> <arg>=<int>,... = <answer>,...
+```
+

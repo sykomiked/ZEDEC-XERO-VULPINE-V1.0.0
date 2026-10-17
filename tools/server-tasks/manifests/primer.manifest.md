@@ -1,0 +1,181 @@
+# primer — the complete manifest (the parameter document)
+
+**Purpose.** learn Sutra, Trebago, Eve, KRON and MYRA by doing (`play.catalogue`, `play.run` on scratch state, `play.draft` for hints).
+
+**Matrix layer 100 · icon group L1 · wave spec `wave9/100-primer.md`.**
+
+## The manifest: the parts the pattern library already makes correct
+
+Every line below is FINAL — the provides, the body and the check are the
+library's verified implementations. Emit them exactly.
+
+```zxapp
+zxapp 1
+id primer
+matrix 100
+name Primer
+needs ai.ask
+needs fs.read
+
+provides limit_excess num value limit
+provides exact_total num n a b c d
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+logic trebago exact_total <<
+trebago exact_total
+  in  n, a, b, c, d
+  out total
+  total = sum(i = 1:n, (i=1)*a + (i=2)*b + (i=3)*c + (i=4)*d)
+end
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+```
+
+## The app-specific entries — SPELLED OUT TO THE LETTER
+
+These are the entries the library does not cover. Each one below
+gives the exact `provides` line, the runtime, the body's required
+shape (from the real blocks) and the exact check. Write the body;
+nothing else is yours to decide.
+
+### Entry 1 — "lesson passed" (`play.run` verdict TRUE and the expected output) in eve + kron witnessed
+
+**The clause it implements.** "lesson passed" (`play.run` verdict TRUE and the expected output) in eve + kron witnessed
+
+**Runtime.** `c` — the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
+
+**The provides line (copy exactly, choose the entry name):**
+
+```
+provides <entry_name> num|truth <arg> <arg> ...
+```
+
+**The body (this shape, this runtime):**
+
+```
+logic c <entry_name> <<
+<the source>
+.
+```
+
+**The check (one line; the inputs are integers, the answers the
+rows):**
+
+```
+check <entry_name> <arg>=<int>,... = <answer>,...
+```
+
+### Entry 2 — first steps track in basic
+
+**The clause it implements.** first steps track in basic
+
+**Runtime.** `sutra` — the pillar (COBOL): records and procedures. A record with PIC pictures, then 'procedure division.' with COMPUTE and IF. A value that does not fit its picture is refused, never cut.
+
+**The provides line (copy exactly, choose the entry name):**
+
+```
+provides <entry_name> num|truth <arg> <arg> ...
+```
+
+**The body (this shape, this runtime):**
+
+```
+logic sutra <entry_name> <<
+<the source>
+.
+```
+
+**The check (one line; the inputs are integers, the answers the
+rows):**
+
+```
+check <entry_name> <arg>=<int>,... = <answer>,...
+```
+
+### Entry 3 — progress x100 in kron
+
+**The clause it implements.** progress x100 in kron
+
+**Runtime.** `trebago` — the pillar (FORTRAN): exact numerics. 'trebago <entry>' then 'in  <args>' / 'out <result>' / assignments / 'end'. Integer only; sums via sum(i, expr).
+
+**The provides line (copy exactly, choose the entry name):**
+
+```
+provides <entry_name> num|truth <arg> <arg> ...
+```
+
+**The body (this shape, this runtime):**
+
+```
+logic trebago <entry_name> <<
+<the source>
+.
+```
+
+**The check (one line; the inputs are integers, the answers the
+rows):**
+
+```
+check <entry_name> <arg>=<int>,... = <answer>,...
+```
+
+### Entry 4 — results in myra
+
+**The clause it implements.** results in myra
+
+**Runtime.** `eve` — the pillar (Ada): ranges and limits. A package line 'eve <app>', domain declarations '<name> = <lo> .. <hi>', and blocks '<block> { <arg>: <domain> <lo> .. <hi> }'. It declares what is allowed; it cannot compute.
+
+**The provides line (copy exactly, choose the entry name):**
+
+```
+provides <entry_name> num|truth <arg> <arg> ...
+```
+
+**The body (this shape, this runtime):**
+
+```
+logic eve <entry_name> <<
+<the source>
+.
+```
+
+**The check (one line; the inputs are integers, the answers the
+rows):**
+
+```
+check <entry_name> <arg>=<int>,... = <answer>,...
+```
+
+### Entry 5 — `play.draft` text is untrusted: shown as a hint, never run without the learner's action
+
+**The clause it implements.** `play.draft` text is untrusted: shown as a hint, never run without the learner's action
+
+**Runtime.** `kron` — the pillar (APL/K): exact array arithmetic as ONE expression line '<first-row-answer>|<expr with _arg names>'. Multiply, modulus, comparisons, min/max only. No floats.
+
+**The provides line (copy exactly, choose the entry name):**
+
+```
+provides <entry_name> num|truth <arg> <arg> ...
+```
+
+**The body (this shape, this runtime):**
+
+```
+logic kron <entry_name> <<
+<the source>
+.
+```
+
+**The check (one line; the inputs are integers, the answers the
+rows):**
+
+```
+check <entry_name> <arg>=<int>,... = <answer>,...
+```
+
