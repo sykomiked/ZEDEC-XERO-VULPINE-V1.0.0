@@ -916,7 +916,7 @@ static void pane_close(int i)
 static int open_tiled(int ti, const char *cwd, const char *const *cmds, int n, int req, char *why,
                       uint32_t wm)
 {
-    int ids[ZMUX_MAXP], free_slots = 0;
+    int ids[ZMUX_MAXP] = {0}, free_slots = 0;
     for (int i = 0; i < MAXP; i++) free_slots += !S.p[i].used;
     if (n < 1 || n > ZMUX_MAXP || n > free_slots) return fail(why, wm, "too many panes");
     for (int k = 0; k < n; k++) {

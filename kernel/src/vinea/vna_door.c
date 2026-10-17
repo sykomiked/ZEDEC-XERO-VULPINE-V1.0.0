@@ -87,6 +87,8 @@ static int is_smic_path(const vna_door_conn_t *c)
            c->path[3] == 'i' && c->path[4] == 'c' && (c->path_len == 5 || c->path[5] == '?');
 }
 
+static void on_body(vna_door_t *d, vna_door_conn_t *c);
+
 static void on_request(vna_door_t *d, vna_door_conn_t *c)
 {
     /* the request line's method and target; anything else is refused */
@@ -128,12 +130,15 @@ static void on_request(vna_door_t *d, vna_door_conn_t *c)
                 break;
             }
         }
-        if (!cl || cl > VNA_DOOR_BODY_MAX) {
+        if (cl > VNA_DOOR_BODY_MAX) {
             resp(c, "413 Payload Too Large\r\n", "Content-Length: 0\r\n", 0);
             return;
         }
         c->body_need = (uint32_t) cl;
         c->state = VNA_DOOR_BODY;
+        /* an empty body is a complete request: the query endpoints answer
+         * their summary for in_len == 0 */
+        if (cl == 0) on_body(d, c);
         return;
     }
 

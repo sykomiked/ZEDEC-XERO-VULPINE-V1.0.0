@@ -69,7 +69,7 @@ CFLAGS  := -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib \
            -Ikernel/src/shimmer \
            -Ikernel/src/situation -Ikernel/src/smap -Ikernel/src/social_spaces \
            -Ikernel/src/sovereign_node -Ikernel/src/subterm -Ikernel/src/superpos \
-           -Ikernel/src/surplus -Ikernel/src/synthesis -Ikernel/src/telemetry \
+           -Ikernel/src/surplus -Ikernel/src/swarm -Ikernel/src/synthesis -Ikernel/src/telemetry \
            -Ikernel/src/theme -Ikernel/src/tls -Ikernel/src/trispace \
            -Ikernel/src/update -Ikernel/src/vbe -Ikernel/src/zab -Ikernel/src/syscall -Ikernel/src/invproof -Ikernel/src/codec -Ikernel/src/megarom -Ikernel/src/bombsquad -Ikernel/src/video -Ikernel/src/tolvovina -Ikernel/src/vena \
            -Ikernel/src/vino -Ikernel/src/vino_stores -Ikernel/src/virtio \
@@ -201,6 +201,8 @@ SRCS := \
     kernel/src/cards/zca.c \
     kernel/src/cellular_multikernel/cellular_multikernel.c \
     kernel/src/chiglet/chiglet.c \
+    kernel/src/chiglet/chg_kin.c \
+    kernel/src/chiglet/chg_bond.c \
     kernel/src/choice/choice_core.c \
     kernel/src/chronicle/chronicle.c \
     kernel/src/chronicle/chronicle_persist.c \

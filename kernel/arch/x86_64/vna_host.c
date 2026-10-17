@@ -19,12 +19,14 @@
 #include "event_space/event_space.h"
 #include "ipfs_node/ipfs_node.h"
 #include "swarm/swarm_denom.h"
-#include "chiglet/chiglet.h" /* the node's evidence judge (ISF mixture) */
-#include "oseq/oseq.h"       /* causal ordering + replay detection */
+#include "chiglet/chiglet.h"  /* the node's evidence judge (ISF mixture) */
+#include "chiglet/chg_kin.h"  /* the chiglet's social layer: DNA, hobbies, visits */
+#include "chiglet/chg_bond.h" /* its habit model of this node's own rhythms */
+#include "oseq/oseq.h"        /* causal ordering + replay detection */
 #include "tensor/zt_gguf.h"
 #include "tensor/zt_model.h"
 #include "tensor/zt_tok.h"
-#include "zxv_doorway_blobs.h" /* the doorway files, generated into the build */
+#include "zxv_doorway_blobs.h"   /* the doorway files, generated into the build */
 #include "zxv_curriculum_blob.h" /* the deterministic curriculum CAR, generated */
 
 /* The door's file table: the committed doorway files as compiled-in blobs
@@ -109,8 +111,14 @@ static int32_t g_oseq_vna = -1;
 #define VNAH_SESS_PT   (VNA_CHUNK_SIZE + 640u) /* chunk + proof + header */
 #define VNAH_REC_F_REQ 2u
 #define VNAH_REC_F_REP 3u
-#define VNAH_HS_POW    8u
-#define VNAH_FETCH_MS  4000ull /* give one fetch a bounded window */
+/* chiglet visit frames inside a session (the warm layer below) */
+#define VNAH_REC_V_REQ   4u /* dna + grant + visitor's ML-DSA-87 signature */
+#define VNAH_REC_V_ACK   5u /* status + host dna when opened */
+#define VNAH_REC_V_CLAIM 6u /* one chgk claim/verdict, 67 bytes */
+#define VNAH_REC_V_CACK  7u /* status + xp gained, little-endian u32 */
+#define VNAH_REC_V_END   8u /* close the visit */
+#define VNAH_HS_POW      8u
+#define VNAH_FETCH_MS    4000ull /* give one fetch a bounded window */
 
 static uint8_t g_shard_leaves[VNAH_SLICE_N][1][32];
 static vna_shared_file_t g_sf[VNAH_SF_N];
@@ -156,7 +164,9 @@ static uint32_t g_sess_est, g_chunks_in, g_chunks_served, g_fetch_done;
 #define CHG_L_SUSPECT 1u
 static chiglet_t g_chg;
 static uint32_t g_chg_decided, g_chg_uncertain;
-static uint8_t g_chg_suspect[VNAH_BOOK_CAP]; /* decided-SUSPECT flag per book slot */
+/* per book slot the judge's verdict: 0 undecided, 1 decided-clear,
+ * 2 decided-suspect — the value the chiglet's own verdict claims carry */
+static uint8_t g_chg_verdict[VNAH_BOOK_CAP];
 
 static void vna_chg_model(void)
 {
@@ -197,7 +207,7 @@ static void vna_chg_audit(vna_host_t *h, uint64_t now)
         const vna_account_t *ac = &h->book.acct[i];
         chg_result_t res;
         if (!ac->used || !ac->member) {
-            g_chg_suspect[i] = 0;
+            g_chg_verdict[i] = 0;
             continue;
         }
         /* source 1: verified settlements with this member (value they have
@@ -235,12 +245,173 @@ static void vna_chg_audit(vna_host_t *h, uint64_t now)
         if (chg_infer(&g_chg, ev, 4, &res) != CHG_OK) continue;
         if (res.state == CHG_DECIDED) {
             g_chg_decided++;
-            g_chg_suspect[i] = (res.label == CHG_L_SUSPECT);
+            g_chg_verdict[i] = res.label == CHG_L_SUSPECT ? LPRES_STATE_FALSE : LPRES_STATE_TRUE;
         } else {
             g_chg_uncertain++;
-            g_chg_suspect[i] = 0; /* uncertainty condemns nobody */
+            /* LOW_MARGIN means the evidence pulled both ways (BOTH); nothing
+             * or nothing independent enough is honestly NEITHER — never a
+             * collapse to a boolean */
+            g_chg_verdict[i] =
+                res.reason == CHG_REASON_LOW_MARGIN ? LPRES_STATE_BOTH : LPRES_STATE_NEITHER;
         }
     }
+}
+
+/* ===== the chiglet's warm layer: a social agent per node ==================
+ * Every node births one chiglet: a hashed DNA genome (owner = the node's
+ * ML-DSA-87 identity, seed = its fleet slot), a hobby profile the genome
+ * picks, a bond model learning this node's own action rhythms, and the
+ * visit machinery — signed grants, opened visits, four-valued verdict
+ * claims — by which the nine chiglets meet each other over the PQ session
+ * channel. Nothing here runs unsupervised: grants need BOTH owners' ML-DSA
+ * signatures, a claim is accepted only while a visit is open and in scope,
+ * and a foreign verdict is taken only when our own judgment does not
+ * already hold a contradictory DECIDED verdict. A chiglet's claims about a
+ * member are its judge's verdict, not gossip: the evidence hashes carry
+ * the axis bundle it scored, and the verdict byte is the lpres state. */
+#define VNAH_CHG_SEED_BASE 0xC461ull
+#define VNAH_CHG_VISIT_S   900ull /* a visit's grant window, seconds */
+#define VNAH_CHG_TOPIC_MEM 0u     /* topic: member standing */
+#define VNAH_CHG_TOPIC_CNT 1u     /* topic: content availability */
+#define VNAH_CHG_TOPICS    3u     /* topics bitmap: member + content */
+#define VNAH_PD_N          8u     /* peer DNA table */
+static chgk_registry_t g_kreg;
+static chgk_dna_t g_self_dna;
+static chgk_hobbies_t g_hobby;
+static chgk_xp_t g_xp;
+static chgk_grantbook_t g_gbook;
+static chgb_t g_bond;
+static chgk_visit_t g_visit[VNAH_SESS_N];
+static chgk_dna_t g_visit_dna[VNAH_SESS_N];
+static chgk_grant_t g_visit_out[VNAH_SESS_N]; /* the grant we sent, until acked */
+static uint8_t g_visit_wait[VNAH_SESS_N];     /* 1: VISIT_REQ in flight */
+static struct {
+    vna_id_t publisher;
+    chgk_dna_t dna;
+    uint8_t used;
+} g_peer_dna[VNAH_PD_N];
+static uint32_t g_chg_visits, g_chg_claims_in, g_chg_claims_out, g_chg_xp_gain;
+static uint32_t g_bond_obs, g_chg_dna_in;
+static uint16_t g_bond_prev = CHGB_NONE;
+static chgb_suggestion_t g_bond_sug;
+static bool g_bond_sug_ok;
+static bool g_chg_alive;
+
+static void sha256_tag(const char *s, uint8_t out[32])
+{
+    sha256_ctx_t c;
+    uint32_t n = 0;
+    sha256_init(&c);
+    while (s[n]) n++;
+    sha256_update(&c, (const uint8_t *) s, n);
+    sha256_final(&c, out);
+}
+
+static bool byte_eq32(const uint8_t *a, const uint8_t *b)
+{
+    uint32_t i;
+    for (i = 0; i < 32 && a[i] == b[i]; i++) {
+    }
+    return i == 32;
+}
+
+/* The bond model's context: hour-of-week when the wall clock is honest, and
+ * the previous action — that is what the three experts read. */
+static void bond_obs(uint16_t app, uint16_t act, uint64_t now)
+{
+    chgb_ctx_t c;
+    if (!g_chg_alive) return;
+    c.slot = (uint16_t) ((now / 3600000ull) % 168u);
+    c.app = app;
+    c.prev = g_bond_prev;
+    if (chgb_observe(&g_bond, &c, act) == CHGB_OK) {
+        g_bond_prev = act;
+        g_bond_obs++;
+    }
+}
+#define BOND_APP_VNA    1u
+#define BOND_APP_IDX    2u /* cisex */
+#define BOND_APP_SEC    3u /* smic */
+#define BOND_APP_KIN    4u /* chiglet social */
+#define BOND_ACT_SESS   1u
+#define BOND_ACT_SERVE  2u
+#define BOND_ACT_FETCH  3u
+#define BOND_ACT_ENV    4u
+#define BOND_ACT_REFUSE 5u
+#define BOND_ACT_VISIT  6u
+#define BOND_ACT_CLAIM  7u
+
+/* ML-DSA-87 over the grant body, both owners' signature the grant demands. */
+static bool chg_pk_verify(const uint8_t *pk, uint32_t pk_len, const uint8_t *msg, uint32_t msg_len,
+                          const uint8_t *sig, uint32_t sig_len, void *ctx)
+{
+    (void) ctx;
+    return pk_len == VNA_PK_LEN && sig_len == VNA_SIG_LEN &&
+           vna_verify(pk, "zxv/chgk/grant/v1", msg, msg_len, sig);
+}
+
+/* A peer's verdict claim passes our own checker unless we already hold the
+ * contradictory DECIDED read on the same member: acceptance is "our
+ * evidence does not already refute it", not blind trust. */
+static bool chg_claim_checker(const vna_host_t *h, const chgk_claim_t *c)
+{
+    uint32_t i, j;
+    if (c->kind == CHGK_K_VERDICT) {
+        if (c->verdict > 3u) return false;
+        for (i = 0; i < h->book.cap && i < VNAH_BOOK_CAP; i++) {
+            const vna_account_t *ac = &h->book.acct[i];
+            if (!ac->used || !ac->member) continue;
+            for (j = 0; j < 32 && ac->id.b[j] == c->claim[j]; j++) {
+            }
+            if (j == 32 && g_chg_verdict[i] == LPRES_STATE_FALSE)
+                /* we hold DECIDED-SUSPECT; only F or BOTH is consistent with
+                 * it — a T claim contradicts our decided evidence */
+                return c->verdict == LPRES_STATE_FALSE || c->verdict == LPRES_STATE_BOTH;
+            if (j == 32 && g_chg_verdict[i] == LPRES_STATE_TRUE)
+                /* and symmetric: our DECIDED-clear refutes an F claim */
+                return c->verdict != LPRES_STATE_FALSE;
+        }
+        return true;
+    }
+    return c->kind == CHGK_K_CLAIM;
+}
+
+static void vna_chg_warm_init(vna_host_t *h)
+{
+    uint8_t sp[32], ln[32];
+    uint64_t seed;
+    sha256_tag("zxv/chg/species/node/v1", sp);
+    sha256_tag("zxv/chg/lineage/fleet/0", ln);
+    chgk_registry_init(&g_kreg);
+    seed = (uint64_t) (h->peer_index == 0xFFu ? h->shard_slot : h->peer_index) + VNAH_CHG_SEED_BASE;
+    if (chgk_dna_birth(&g_kreg, h->idn.id.b, sp, ln, NULL, seed, &g_self_dna) != CHGK_OK) return;
+    (void) chgk_hobbies_for(&g_kreg, &g_self_dna, &g_hobby);
+    chgk_xp_init(&g_xp, &g_self_dna);
+    chgk_grantbook_init(&g_gbook);
+    chgb_init(&g_bond, h->idn.id.b);
+    chgb_set_learning(&g_bond, true);
+    g_chg_alive = true;
+}
+
+/* Publish this node's chiglet genome so peers can address grants to it. */
+static void vna_chg_dna_publish(vna_host_t *h, uint64_t now)
+{
+    static uint8_t buf[VNA_REC_MAX];
+    vna_id_t key;
+    int32_t len;
+    uint8_t rnd[32];
+    vna_rec_t *r = &h->node.rec;
+    if (!g_chg_alive) return;
+    r->rtype = VNA_REC_CHG;
+    vna_copy(key.b, g_self_dna.id, 32);
+    r->key = key;
+    r->created = now;
+    r->expires = now + 30ull * 24ull * 3600ull * 1000ull;
+    r->payload_len = (uint16_t) chgk_dna_encode(&g_self_dna, r->payload, sizeof r->payload);
+    if (r->payload_len != CHGK_DNA_ENC) return;
+    vna_drbg_gen(&h->node.rng, rnd, 32);
+    len = vna_rec_seal(r, h->node.idn, rnd, buf, sizeof buf);
+    if (len > 0) (void) vna_node_publish(&h->node, buf, (uint32_t) len, now, &h->ob);
 }
 
 /* ===== zt executor: integer-only inference as the AIPI RUN substrate ======
@@ -442,6 +613,29 @@ static void vna_env_ingest_rec(vna_host_t *h, const uint8_t *bytes, uint32_t len
     if (r.rtype == VNA_REC_ENV) {
         if (env_seen(&r.key, &r.publisher, r.created)) return;
         vna_env_ingest(h, r.payload, r.payload_len, now);
+        bond_obs(BOND_APP_IDX, BOND_ACT_ENV, now);
+        return;
+    }
+    if (r.rtype == VNA_REC_CHG) {
+        /* a peer's chiglet genome: register it against its publisher so a
+         * visit's grant can name it. A node may only publish its own
+         * chiglet — the record signature binds the payload to it, and the
+         * DNA's owner field must be the same identity. */
+        chgk_dna_t pd;
+        if (!g_chg_alive || chgk_dna_decode(r.payload, r.payload_len, &pd) != CHGK_OK ||
+            !byte_eq32(pd.owner, r.publisher.b))
+            return;
+        for (i = 0; i < VNAH_PD_N; i++)
+            if (g_peer_dna[i].used && vna_id_eq(&g_peer_dna[i].publisher, &r.publisher)) break;
+        if (i == VNAH_PD_N)
+            for (i = 0; i < VNAH_PD_N; i++)
+                if (!g_peer_dna[i].used) break;
+        if (i < VNAH_PD_N) {
+            g_peer_dna[i].publisher = r.publisher;
+            g_peer_dna[i].dna = pd;
+            g_peer_dna[i].used = 1;
+            g_chg_dna_in++;
+        }
         return;
     }
     if (r.rtype == VNA_REC_PROVIDER) {
@@ -733,6 +927,19 @@ static void sess_send(vna_host_t *h, int i, uint8_t type, const uint8_t *pt, uin
     if (n > 0) (void) vna_sendto(h, g_sess_addr[i], g_sess_wire, (uint32_t) n);
 }
 
+/* The chiglet's decided verdict on a book member: only a DECIDED-suspect
+ * (LPRES FALSE) refuses a session; T, BOTH and NEITHER all get the normal
+ * path — uncertainty condemns nobody. */
+static bool chg_suspect(const vna_host_t *h, const vna_id_t *peer)
+{
+    uint32_t i;
+    for (i = 0; i < h->book.cap && i < VNAH_BOOK_CAP; i++)
+        if (h->book.acct[i].used && vna_id_eq(&h->book.acct[i].id, peer) &&
+            g_chg_verdict[i] == LPRES_STATE_FALSE)
+            return true;
+    return false;
+}
+
 /* Open a session to a peer when none exists and none is in flight. */
 static void sess_ensure(vna_host_t *h, const vna_id_t *peer, uint64_t now)
 {
@@ -743,9 +950,10 @@ static void sess_ensure(vna_host_t *h, const vna_id_t *peer, uint64_t now)
     /* the chiglet's decided verdict: a member it judged SUSPECT on
      * independent evidence gets no new session (advice enforced at the
      * edge; the evidence itself stays in the audit record) */
-    for (i = 0; i < (int) h->book.cap && i < (int) VNAH_BOOK_CAP; i++)
-        if (h->book.acct[i].used && vna_id_eq(&h->book.acct[i].id, peer) && g_chg_suspect[i])
-            return;
+    if (chg_suspect(h, peer)) {
+        bond_obs(BOND_APP_SEC, BOND_ACT_REFUSE, now);
+        return;
+    }
     if (sess_slot(peer) >= 0) return;
     i = sess_free();
     if (i < 0 || !vna_contact_addr(h, peer, addr)) return;
@@ -812,8 +1020,9 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
         /* the claimed initiator is unauthenticated until M3, but it lets the
          * agreement refuse non-members before any expensive handshake work */
         if (vna_hs_peek_initiator(data, len, &claimed) == VNA_OK &&
-            vna_agree_check(&h->agr, &h->us, &claimed, vna_book_trust(&h->book, &claimed),
-                            VNA_RES_FILE, NULL, 1, 0, now, false) != VNA_OK)
+            (chg_suspect(h, &claimed) ||
+             vna_agree_check(&h->agr, &h->us, &claimed, vna_book_trust(&h->book, &claimed),
+                             VNA_RES_FILE, NULL, 1, 0, now, false) != VNA_OK))
             return;
         vna_drbg_gen(&h->node.rng, rnd, sizeof rnd);
         l = vna_hs_respond(&g_hs[i], &h->idn, VNAH_HS_POW, VNA_FEAT_UBH168, data, len, rnd,
@@ -837,8 +1046,16 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
                                         &g_sess[i]);
             if (l > 0) {
                 (void) vna_sendto(h, a, g_hs_wire, (uint32_t) l);
-                g_sess[i].established = true;
-                g_sess_est++;
+                /* the authenticated identity now: a DECIDED-suspect peer
+                 * never gets the established channel */
+                if (chg_suspect(h, &g_sess[i].peer)) {
+                    bond_obs(BOND_APP_SEC, BOND_ACT_REFUSE, now);
+                    vna_zero(&g_sess[i], sizeof g_sess[i]);
+                } else {
+                    g_sess[i].established = true;
+                    g_sess_est++;
+                    bond_obs(BOND_APP_VNA, BOND_ACT_SESS, now);
+                }
             }
             vna_hs_clear(&g_hs[i]);
             g_hs_used[i] = 0;
@@ -852,8 +1069,16 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
             if (!g_hs_used[i] || g_hs[i].initiator || g_hs[i].state != VNA_HS_SENT_M2) continue;
             if (vna_hs_responder_finish(&g_hs[i], data, len, &g_sess[i]) == VNA_OK) {
                 vna_copy(g_sess_addr[i], a, 6);
-                g_sess[i].established = true;
-                g_sess_est++;
+                /* same edge on the responder side: the peer is
+                 * authenticated here, so a DECIDED-suspect refuses */
+                if (chg_suspect(h, &g_sess[i].peer)) {
+                    bond_obs(BOND_APP_SEC, BOND_ACT_REFUSE, now);
+                    vna_zero(&g_sess[i], sizeof g_sess[i]);
+                } else {
+                    g_sess[i].established = true;
+                    g_sess_est++;
+                    bond_obs(BOND_APP_VNA, BOND_ACT_SESS, now);
+                }
             }
             vna_hs_clear(&g_hs[i]);
             g_hs_used[i] = 0;
@@ -881,6 +1106,7 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
                                         g_sess_pt, pl, now, &g_chunk, g_sess_pt, sizeof g_sess_pt);
             if (rl > 0) {
                 g_chunks_served++;
+                bond_obs(BOND_APP_VNA, BOND_ACT_SERVE, now);
                 sess_send(h, i, VNAH_REC_F_REP, g_sess_pt, (uint32_t) rl);
             }
             return;
@@ -898,6 +1124,7 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
                     uint32_t e;
                     g_fetch_active = 0;
                     g_fetch_done++;
+                    bond_obs(BOND_APP_VNA, BOND_ACT_FETCH, now);
                     /* become a seeder for what we just verified */
                     for (e = 0; e < VNAH_EXT_N; e++)
                         if (!g_ext_used[e]) break;
@@ -919,11 +1146,176 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
             }
             return;
         }
+        if (type == VNAH_REC_V_REQ) {
+            /* host side of a visit: [dna 153][grant 105][sig_v 4627]. The
+             * visitor signs the grant it built; the host's countersignature
+             * IS the admission — only then are both owners on the bytes. */
+            chgk_dna_t vd;
+            chgk_grant_t gt, gv;
+            const uint8_t *pkv;
+            uint8_t sigh[VNA_SIG_LEN], rnd2[32];
+            uint8_t st = 0xfe;
+            if (g_chg_alive && pl == CHGK_DNA_ENC + CHGK_GRANT_ENC + VNA_SIG_LEN &&
+                chgk_dna_decode(g_sess_pt, CHGK_DNA_ENC, &vd) == CHGK_OK &&
+                chgk_grant_decode(g_sess_pt + CHGK_DNA_ENC, CHGK_GRANT_ENC, &gt) == CHGK_OK &&
+                byte_eq32(gt.visitor, vd.id) && byte_eq32(gt.host, g_self_dna.id) &&
+                gt.depth <= CHGK_DEPTH_VERDICTS &&
+                (pkv = vna_keycache_get(&h->node.kc, &g_sess[i].peer)) != NULL) {
+                vna_drbg_gen(&h->node.rng, rnd2, 32);
+                vna_sign(h->idn.sk, "zxv/chgk/grant/v1", g_sess_pt + CHGK_DNA_ENC, CHGK_GRANT_ENC,
+                         rnd2, sigh);
+                if (chgk_grant_verify(g_sess_pt + CHGK_DNA_ENC, CHGK_GRANT_ENC, pkv, h->idn.pk,
+                                      VNA_PK_LEN, g_sess_pt + CHGK_DNA_ENC + CHGK_GRANT_ENC, sigh,
+                                      VNA_SIG_LEN, chg_pk_verify, NULL, &gv) == CHGK_OK &&
+                    chgk_visit_open(&g_visit[i], &g_xp, &g_gbook, &gv, &g_self_dna, &vd,
+                                    now / 1000ull) == CHGK_OK) {
+                    g_visit_dna[i] = vd;
+                    g_chg_visits++;
+                    bond_obs(BOND_APP_KIN, BOND_ACT_VISIT, now);
+                    st = 0;
+                }
+            }
+            g_sess_pt[0] = st;
+            if (st == 0) {
+                uint32_t dl = chgk_dna_encode(&g_self_dna, g_sess_pt + 1, CHGK_DNA_ENC);
+                sess_send(h, i, VNAH_REC_V_ACK, g_sess_pt, 1 + dl);
+            } else {
+                sess_send(h, i, VNAH_REC_V_ACK, g_sess_pt, 1);
+            }
+            return;
+        }
+        if (type == VNAH_REC_V_ACK) {
+            /* initiator side: the host's verdict on our visit request */
+            if (!g_visit_wait[i]) return;
+            g_visit_wait[i] = 0;
+            if (pl >= 1 && g_sess_pt[0] == 0 && pl >= 1 + CHGK_DNA_ENC &&
+                chgk_dna_decode(g_sess_pt + 1, CHGK_DNA_ENC, &g_visit_dna[i]) == CHGK_OK &&
+                chgk_visit_open(&g_visit[i], &g_xp, &g_gbook, &g_visit_out[i], &g_self_dna,
+                                &g_visit_dna[i], now / 1000ull) == CHGK_OK) {
+                g_chg_visits++;
+                bond_obs(BOND_APP_KIN, BOND_ACT_VISIT, now);
+            }
+            return;
+        }
+        if (type == VNAH_REC_V_CLAIM) {
+            /* [kind][topic][verdict][claim 32][evidence 32] — the claim's own
+             * scope/depth rules apply before our checker is even asked */
+            chgk_claim_t cl;
+            uint32_t xp = 0;
+            uint8_t st = 0xfe;
+            if (g_visit[i].open && pl == 67u) {
+                vna_zero(&cl, sizeof cl);
+                cl.kind = g_sess_pt[0];
+                cl.topic = g_sess_pt[1];
+                cl.verdict = g_sess_pt[2];
+                vna_copy(cl.claim, g_sess_pt + 3, 32);
+                vna_copy(cl.evidence, g_sess_pt + 35, 32);
+                g_chg_claims_in++;
+                bond_obs(BOND_APP_KIN, BOND_ACT_CLAIM, now);
+                if (chgk_visit_receive(&g_visit[i], &g_xp, &cl, chg_claim_checker(h, &cl),
+                                       now / 1000ull, &xp) == CHGK_OK) {
+                    st = 0;
+                    g_chg_xp_gain += xp;
+                }
+            }
+            g_sess_pt[0] = st;
+            g_sess_pt[1] = (uint8_t) xp;
+            g_sess_pt[2] = (uint8_t) (xp >> 8);
+            g_sess_pt[3] = (uint8_t) (xp >> 16);
+            g_sess_pt[4] = (uint8_t) (xp >> 24);
+            sess_send(h, i, VNAH_REC_V_CACK, g_sess_pt, 5);
+            return;
+        }
+        if (type == VNAH_REC_V_CACK || type == VNAH_REC_V_END) {
+            if (type == VNAH_REC_V_END) {
+                chgk_visit_close(&g_visit[i]);
+                vna_zero(&g_visit_dna[i], sizeof g_visit_dna[i]);
+            }
+            return;
+        }
     }
 }
 
+/* Offer one visit on an established session whose peer's chiglet genome we
+ * hold: build the grant (both parties, a bounded window), sign it as the
+ * visitor, and send it — the host's countersignature completes it. */
+static void chg_visit_try(vna_host_t *h, int si, uint64_t now)
+{
+    uint32_t k;
+    chgk_grant_t *g;
+    uint8_t rnd2[160];
+    uint32_t dl, gl;
+    if (g_visit[si].open || g_visit_wait[si]) return;
+    for (k = 0; k < VNAH_PD_N; k++)
+        if (g_peer_dna[k].used && vna_id_eq(&g_peer_dna[k].publisher, &g_sess[si].peer)) break;
+    if (k == VNAH_PD_N) return;
+    g = &g_visit_out[si];
+    vna_zero(g, sizeof *g);
+    vna_drbg_gen(&h->node.rng, rnd2, sizeof rnd2);
+    vna_copy(g->gid, rnd2, 16);
+    vna_copy(g->visitor, g_self_dna.id, 32);
+    vna_copy(g->host, g_peer_dna[k].dna.id, 32);
+    g->topics = VNAH_CHG_TOPICS;
+    g->depth = CHGK_DEPTH_VERDICTS;
+    g->not_before = now / 1000ull;
+    g->expires = g->not_before + VNAH_CHG_VISIT_S;
+    dl = chgk_dna_encode(&g_self_dna, g_sess_pt, CHGK_DNA_ENC);
+    gl = chgk_grant_encode(g, g_sess_pt + dl, CHGK_GRANT_ENC);
+    if (dl != CHGK_DNA_ENC || gl != CHGK_GRANT_ENC) return;
+    vna_sign(h->idn.sk, "zxv/chgk/grant/v1", g_sess_pt + dl, gl, rnd2 + 16, g_sess_pt + dl + gl);
+    sess_send(h, si, VNAH_REC_V_REQ, g_sess_pt, dl + gl + VNA_SIG_LEN);
+    g_visit_wait[si] = 1;
+}
+
+/* One verdict claim over an open visit: our judge's current verdict on a
+ * book member, the member id as the referent, our evidence bundle hashed.
+ * Rotates members; verdicts travel only while the visit's grant allows. */
+static void chg_claim_send(vna_host_t *h, int si, uint64_t now)
+{
+    static uint32_t rotate;
+    uint32_t j, tries;
+    chgk_claim_t cl;
+    (void) now;
+    if (!g_visit[si].open || !(g_visit[si].g.topics & (1u << VNAH_CHG_TOPIC_MEM))) return;
+    for (tries = 0; tries < h->book.cap && tries < VNAH_BOOK_CAP; tries++) {
+        j = (rotate + tries) % (h->book.cap < VNAH_BOOK_CAP ? h->book.cap : VNAH_BOOK_CAP);
+        const vna_account_t *ac = &h->book.acct[j];
+        /* NEITHER carries no evidence; T, F and BOTH all do */
+        if (ac->used && ac->member && g_chg_verdict[j] != LPRES_STATE_NEITHER) break;
+    }
+    if (tries >= h->book.cap || tries >= VNAH_BOOK_CAP) return;
+    rotate = (j + 1u) % (h->book.cap < VNAH_BOOK_CAP ? h->book.cap : VNAH_BOOK_CAP);
+    vna_zero(&cl, sizeof cl);
+    cl.kind = CHGK_K_VERDICT;
+    cl.topic = VNAH_CHG_TOPIC_MEM;
+    /* lpres numbering on the wire: NEITHER 0 TRUE 1 FALSE 2 BOTH 3 */
+    cl.verdict = g_chg_verdict[j];
+    vna_copy(cl.claim, h->book.acct[j].id.b, 32);
+    {
+        /* the evidence bundle: the four axes we judged, hashed, so the
+         * receiving chiglet can tell its own evidence apart from ours */
+        uint8_t eb[32 + 4];
+        vna_copy(eb, h->book.acct[j].id.b, 32);
+        eb[32] = 1; /* receipts */
+        eb[33] = 2; /* usage */
+        eb[34] = 3; /* smic admission */
+        eb[35] = 4; /* recency */
+        sha256_ctx_t sc;
+        sha256_init(&sc);
+        sha256_update(&sc, eb, sizeof eb);
+        sha256_final(&sc, cl.evidence);
+    }
+    g_sess_pt[0] = cl.kind;
+    g_sess_pt[1] = cl.topic;
+    g_sess_pt[2] = cl.verdict;
+    vna_copy(g_sess_pt + 3, cl.claim, 32);
+    vna_copy(g_sess_pt + 35, cl.evidence, 32);
+    sess_send(h, si, VNAH_REC_V_CLAIM, g_sess_pt, 67);
+    g_chg_claims_out++;
+}
+
 /* Session upkeep on the host cadence: handshakes to book members, the active
- * fetch's next request, and fetch expiry. */
+ * fetch's next request, fetch expiry, and the chiglet's social rounds. */
 static void vna_sess_poll(vna_host_t *h, uint64_t now)
 {
     uint32_t i;
@@ -931,17 +1323,31 @@ static void vna_sess_poll(vna_host_t *h, uint64_t now)
         const vna_account_t *ac = &h->book.acct[i];
         if (ac->used && ac->member) sess_ensure(h, &ac->id, now);
     }
+    if (g_chg_alive) {
+        int opened = 0;
+        for (i = 0; i < VNAH_SESS_N && !opened; i++)
+            if (g_sess[i].established && !g_visit[i].open && !g_visit_wait[i]) {
+                chg_visit_try(h, (int) i, now);
+                opened = g_visit_wait[i];
+            }
+        for (i = 0; i < VNAH_SESS_N; i++)
+            if (g_sess[i].established && g_visit[i].open) {
+                if (now / 1000ull >= g_visit[i].g.expires) {
+                    chgk_visit_close(&g_visit[i]);
+                } else {
+                    chg_claim_send(h, (int) i, now);
+                }
+            }
+    }
     if (!g_fetch_active) return;
     if (now > g_fetch_deadline) g_fetch_active = 0;
 }
 
-static int32_t door_cisex(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t *out,
-                          uint32_t cap)
+static int32_t door_cisex(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t *out, uint32_t cap)
 {
     uint32_t n = 0;
     (void) ctx;
-    if (cisex_rt_handle(&g_cisex, in, in_len, g_cisex_region, out, cap, &n) != IPFSN_OK)
-        return -1;
+    if (cisex_rt_handle(&g_cisex, in, in_len, g_cisex_region, out, cap, &n) != IPFSN_OK) return -1;
     return (int32_t) n;
 }
 
@@ -1475,6 +1881,7 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
     vna_book_init(&h->book, &h->idn, h->acct, VNAH_BOOK_CAP);
     chg_init(&g_chg, CHG_CAP_INFER | CHG_CAP_ADVISE);
     vna_chg_model();
+    vna_chg_warm_init(h); /* the node's own chiglet: genome, hobbies, bond, xp */
     oseq_registry_init(&g_oseq);
     g_oseq_vna = oseq_register_node(&g_oseq, "vna", 1);
     sha256_init(&c);
@@ -1666,6 +2073,7 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
                 vna_env_publish(h, &k, env, now, VNAH_ENV_TTL);
             }
             vna_exch_publish(h, now);
+            vna_chg_dna_publish(h, now); /* our chiglet's genome, so visits can name it */
         }
         /* SNTP requests to the three time servers, each with its own nonce:
          * two agreeing replies commit the node to Unix ms via timesvc. */
@@ -1711,7 +2119,24 @@ void vna_host_pump(vna_host_t *h, uint64_t now)
     }
     vna_env_sweep(h, now); /* envelopes peers stored at this node */
     vna_chg_audit(h, now); /* the evidence judge reads every member */
-    vna_sess_poll(h, now); /* handshakes, the active fetch, expiry */
+    if (g_chg_alive) {
+        /* the bond model's slow read: what this node's rhythm predicts
+         * next, and a daily decay so old habits fade (B2) */
+        static uint64_t decayed;
+        chgb_suggestion_t sug;
+        if (chgb_suggest(
+                &g_bond,
+                &(chgb_ctx_t){(uint16_t) ((now / 3600000ull) % 168u), BOND_APP_VNA, g_bond_prev},
+                &sug) == CHGB_OK) {
+            g_bond_sug = sug;
+            g_bond_sug_ok = true;
+        }
+        if (now >= decayed + 24ull * 3600ull * 1000ull) {
+            chgb_decay_all(&g_bond);
+            decayed = now;
+        }
+    }
+    vna_sess_poll(h, now); /* handshakes, the active fetch, expiry, visits */
     if (g_aipi_on) aipi_vna_tick(&g_av, now);
     vna_drain_link(h, now);
 
@@ -1838,5 +2263,28 @@ void vna_host_report(const vna_host_t *h)
     uart_put_dec(h->shard_announces + h->shard_queries);
     uart_puts(" refused_econ ");
     uart_put_dec(h->refused_econ + h->link.refused);
+    /* the chiglet: judged members, its social layer, the bond's read */
+    uart_puts(" chg d/u ");
+    uart_put_dec(g_chg_decided);
+    uart_putc('/');
+    uart_put_dec(g_chg_uncertain);
+    uart_puts(" visits ");
+    uart_put_dec(g_chg_visits);
+    uart_puts(" claims ");
+    uart_put_dec(g_chg_claims_in);
+    uart_putc('/');
+    uart_put_dec(g_chg_claims_out);
+    uart_puts(" xp ");
+    uart_put_dec(g_chg_xp_gain);
+    uart_puts(" dna ");
+    uart_put_dec(g_chg_dna_in);
+    uart_puts(" bond ");
+    uart_put_dec(g_bond_obs);
+    if (g_bond_sug_ok) {
+        uart_puts(g_bond_sug.state == CHGB_SUGGEST
+                      ? "->act"
+                      : (g_bond_sug.state == CHGB_UNSURE ? "->?" : "->-"));
+        uart_put_dec(g_bond_sug.action == CHGB_NONE ? 0 : g_bond_sug.action);
+    }
     uart_puts("\n");
 }

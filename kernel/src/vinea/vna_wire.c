@@ -87,7 +87,7 @@ const vna_schema_t vna_b_hk_schema = {"body_hk", 0x0007, 1, hk_fields, 3};
 #define R vna_rec_t
 static const vna_field_t rec_fields[] = {
     VNA_FCONST(R, magic, VNA_REC_MAGIC),
-    VNA_FU8(R, rtype, VNA_REC_ENV, VNA_AXIS_NONE),
+    VNA_FU8(R, rtype, VNA_REC_CHG, VNA_AXIS_NONE),
     VNA_FFIX(R, key, VNA_AXIS_NONE),
     VNA_FFIX(R, publisher, VNA_AXIS_PROVENANCE),
     VNA_FU64(R, pow, 0, VNA_AXIS_PROVENANCE),
@@ -270,6 +270,14 @@ vna_status_t vna_rec_verify(vna_verifier_t *v, const uint8_t *buf, uint32_t len,
         if (r->payload_len != 168 || !ubh_168_header_unpack(&hdr, r->payload) ||
             !ubh_168_header_validate(&hdr))
             return VNA_ERR_PARSE;
+        return VNA_OK;
+    }
+    if (r->rtype == VNA_REC_CHG) {
+        /* one chgk DNA record (chg_kin.h's encoding: 4 + 32*4 + 8 + genes +
+         * named + generation = 153). The record signature authenticates the
+         * publisher; the chiglet layer re-derives the genome id and its
+         * seed-grown genes when it consumes the payload. */
+        if (r->payload_len != 153) return VNA_ERR_PARSE;
         return VNA_OK;
     }
     return VNA_ERR_PARSE;

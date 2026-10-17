@@ -193,7 +193,8 @@ typedef enum {
     VNA_REC_AGREEMENT = 2,
     VNA_REC_SPACE = 3,
     VNA_REC_SPACE_EV = 4,
-    VNA_REC_ENV = 5 /* payload is one 168-byte UBH-168 envelope (smic/cisex/exchange) */
+    VNA_REC_ENV = 5, /* payload is one 168-byte UBH-168 envelope (smic/cisex/exchange) */
+    VNA_REC_CHG = 6  /* payload is one 153-byte chgk DNA record (chiglet genome) */
 } vna_rec_type_t;
 typedef enum { VNA_VIS_PUBLIC = 0, VNA_VIS_PRIVATE = 1 } vna_visibility_t;
 
