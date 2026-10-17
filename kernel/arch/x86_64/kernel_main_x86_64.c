@@ -31,6 +31,11 @@
 #include "identity/identity.h"
 #include "quantum/quantum_device.h"
 #include "vino/vino.h"
+#include "ai_layer/ai_layer.h"
+
+static ai_engine_t ai;
+static porter_house_t ai_ph;
+#include "porter_house/porter_house.h"
 #include "tribute/tribute.h"
 #include "vena/vena.h"
 #include "holographic/holo.h"
@@ -597,6 +602,19 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
          * list, before BOOT_OK hands the machine over. A model that does
          * not match is refused, never handed out (layers_boot.h). */
         (void) zxv_layers_boot(&layers, &models, hp, "x86_64", "BOOTX64.EFI", l0_cid);
+        /* The AI engine: the OS is also an AI. Start it once the disc's
+         * models are verified, so the engine's peers and tasks run on
+         * models the release vouches for (ai_layer.h). The idle loop
+         * below drives its timeouts. */
+        /* The AI engine starts once the disc's models are verified, and the
+         * idle loop below drives its task timeouts. The engine is the
+         * OS-as-AI: it schedules inference across the swarm's peers on
+         * models the release vouches for (ai_layer.h). */
+        porter_house_init(&ai_ph, 1, "zxv:ai-layer");
+        ai_init(&ai, 1, "ZEDEC:ai-layer", &ai_ph);
+        uart_puts("  [OK] ai engine started; the disc vouches for ");
+        uart_put_dec(models.n);
+        uart_puts(" model(s)\n");
         uart_puts("  [OK] hardware self-tests passed: ");
         uart_put_dec(ok);
         uart_puts(" (TSC ");
@@ -786,6 +804,9 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
         if (vna.up) {
             static uint64_t owed0, owed1; /* $YHVH earned, not yet posted   */
             vna_host_pump(&vna, x86_ms(0));
+            /* the AI engine's turn: expire its task timeouts so a peer
+             * that goes quiet never leaves a task in limbo */
+            ai_check_timeouts(&ai, x86_ms(0));
             {
                 /* The voucher bridge: whatever the node's book earned since
                  * the last pass splits 50/50 into the two card accounts.
