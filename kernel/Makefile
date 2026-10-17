@@ -2765,7 +2765,7 @@ test-adapters:
 	$(MAKE) --no-print-directory test-privacy
 # ==== end adapters ====
 # Retail track and people features: targets live in kernel/mk/.
-include mk/retail.mk
+include $(dir $(lastword $(MAKEFILE_LIST)))mk/retail.mk
 
 # The 407 app icons (zxv-brand/app-icons/svg): every one present, vector,
 # under 30 KB (tools/brand/check_icons.py).
