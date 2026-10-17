@@ -7,7 +7,7 @@
 
 # rv32 via multilib (-march=rv32 in CFLAGS below)
 CROSS_COMPILE ?= riscv64-linux-gnu-
-CC = $(CROSS_COMPILE)gcc
+CC = clang --target=riscv32-unknown-elf
 LD = $(CROSS_COMPILE)ld
 OBJCOPY = $(CROSS_COMPILE)objcopy
 
