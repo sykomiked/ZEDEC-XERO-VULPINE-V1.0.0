@@ -26,8 +26,9 @@
 
 ARCH ?= x86_64
 # the source directory for this arch (the geometry). riscv64 and
-# riscv32 share kernel/arch/riscv/, so the name and the dir differ.
-ARCH_SRCDIR = $(if $(filter riscv%,$(ARCH)),riscv,$(ARCH))
+# riscv32 share kernel/arch/riscv/, and the wasm32 kernel builds from the
+# hosted engine (kernel/arch/hosted/), so the name and the dir differ.
+ARCH_SRCDIR = $(if $(filter wasm32,$(ARCH)),hosted,$(if $(filter riscv%,$(ARCH)),riscv,$(ARCH)))
 LINKFLAGS := -Wl,--gc-sections -Wl,--build-id=none
 
 # ---- THE COMMON -------------------------------------------------------

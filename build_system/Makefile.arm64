@@ -338,6 +338,7 @@ KERNEL_SRCS = \
     kernel/src/lightningrod/lightningrod.c \
     kernel/src/bios/zbios.c \
     kernel/src/chiglet/chiglet.c \
+    kernel/src/chiglet/chg_mesh.c \
     kernel/src/cards/cards.c \
     kernel/src/cards/zca.c \
     kernel/src/cards/sigil.c \

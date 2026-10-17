@@ -76,6 +76,7 @@ ZXV_COMMON_SRCS := \
     kernel/src/cards/zca.c \
     kernel/src/cellular_multikernel/cellular_multikernel.c \
     kernel/src/chiglet/chiglet.c \
+    kernel/src/chiglet/chg_mesh.c \
     kernel/src/chiglet/chg_kin.c \
     kernel/src/chiglet/chg_bond.c \
     kernel/src/choice/choice_core.c \
