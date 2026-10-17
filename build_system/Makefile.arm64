@@ -776,4 +776,5 @@ clean:
 ZXV_GENDIR    := $(OBJDIR)/gen
 ZXV_PHASE_HDR := $(ZXV_GENDIR)/zxv_phase_table.h
 $(shell mkdir -p $(ZXV_GENDIR) && sh $(CURDIR)/build_system/gen_phase_table.sh $(CURDIR)/$(ZXV_PHASE_HDR) 2> $(CURDIR)/$(ZXV_GENDIR)/phase_census.txt)
+CFLAGS += $(ZXV_INCLUDES)
 CFLAGS += -I$(ZXV_GENDIR)

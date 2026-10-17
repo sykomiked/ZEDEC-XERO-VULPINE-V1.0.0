@@ -23,6 +23,8 @@ NPROC := $(shell nproc 2>/dev/null || echo 4)
 JOBS  ?= $(NPROC)
 MAKEFLAGS += -j$(JOBS)
 
+include build_system/zxv_includes.mk
+
 CFLAGS  := -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib -Isrc/seedbank \
            -fno-stack-protector -fno-pie -no-pie -fno-builtin \
            -ffunction-sections -fdata-sections -fcf-protection=none -mgeneral-regs-only \
@@ -666,6 +668,7 @@ efi: $(EFI_APP_X64)
 ZXV_GENDIR    := $(OBJDIR)/gen
 ZXV_PHASE_HDR := $(ZXV_GENDIR)/zxv_phase_table.h
 $(shell mkdir -p $(ZXV_GENDIR) && sh $(CURDIR)/build_system/gen_phase_table.sh $(CURDIR)/$(ZXV_PHASE_HDR) 2> $(CURDIR)/$(ZXV_GENDIR)/phase_census.txt)
+CFLAGS += $(ZXV_INCLUDES)
 CFLAGS += -I$(ZXV_GENDIR)
 
 # The doorway blobs the seed's plain-http door serves (tools/web/
