@@ -310,7 +310,9 @@ def judge(text):
     req = urllib.request.Request(ZXVD_URL.rstrip("/") + "/api/app", data=man.encode(),
                                  method="POST")
     req.add_header("X-ZXV-Token", ZXVD_TOKEN)
-    req.add_header("Host", "127.0.0.1:8799")
+    from urllib.parse import urlparse
+    u = urlparse(ZXVD_URL)
+    req.add_header("Host", u.netloc or "127.0.0.1:8799")
     with urllib.request.urlopen(req, timeout=60) as r:
         d = r.read()
     st = d[0] if d else 9
