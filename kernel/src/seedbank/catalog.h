@@ -29,4 +29,10 @@ const uint8_t *sb_catalog_find(const sb_catalog_t *c, const uint8_t digest[SB_DI
 /* The bank index holding a digest, or SB_CAT_MAX when absent. */
 uint32_t sb_catalog_bank_of(const sb_catalog_t *c, const uint8_t digest[SB_DIGEST_LEN]);
 
+/* The compiled-in bank (seedbank_blob.c, ZXV_HAVE_SEEDBANK_BLOB):
+ * registers the blob bank into the host store at boot. Returns the seed
+ * count, or a negative status. */
+int sb_seedbank_blob_register(void);
+uint32_t sb_seedbank_blob_bytes(void);
+
 #endif /* SEEDBANK_CATALOG_H */

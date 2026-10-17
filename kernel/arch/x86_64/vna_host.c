@@ -1549,9 +1549,9 @@ static int32_t door_cisex(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t
 /* The hosted Seed Banks and the master catalog over them. The banks
  * themselves load from ZXVFS at boot (the bank files on the data
  * partition); until then the store is empty and every lookup misses. */
-static sb_bank_t G_sbanks[SB_CAT_MAX];
-static uint32_t G_sbank_n;
-static sb_catalog_t G_catalog;
+sb_bank_t G_sbanks[SB_CAT_MAX]; /* non-static: seedbank_blob.c registers into them */
+uint32_t G_sbank_n;
+sb_catalog_t G_catalog;
 
 /* POST /bank: [digest 32] -> [status][bank u16][len u32][offset u32],
  * then the seed's bytes when they fit the door's reply budget. status 0 =
@@ -2295,6 +2295,21 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
         h->door.qctx5 = h;
         G_sbank_n = 0;
         sb_catalog_init(&G_catalog, G_sbanks, G_sbank_n);
+#if defined(ZXV_HAVE_SEEDBANK_BLOB)
+        {
+            int seeds = sb_seedbank_blob_register();
+            if (seeds > 0)
+                uart_puts("[BANK_OK] compiled-in seed bank: ");
+            else
+                uart_puts("[BANK_FAIL] seed bank blob refused\n");
+            if (seeds > 0) {
+                uart_put_dec((uint32_t) seeds);
+                uart_puts(" seeds, ");
+                uart_put_dec(sb_seedbank_blob_bytes());
+                uart_puts(" bytes\n");
+            }
+        }
+#endif
         /* self-supervision: one domain per running ring program */
         {
             char nid[9];

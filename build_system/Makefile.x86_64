@@ -354,6 +354,7 @@ SRCS := \
     kernel/src/cisex_idx/cisex_rt.c \
     kernel/src/seedbank/seedbank.c \
     kernel/src/seedbank/catalog.c \
+    kernel/src/seedbank/seedbank_blob.c \
     kernel/src/smic/smic_manifest.c \
     kernel/src/smic/smic_verify.c \
     kernel/src/smic/smic_core.c \
@@ -681,6 +682,12 @@ ZXV_CUR_CAR := $(ZXV_GENDIR)/zxv-curriculum.car
 ZXV_CURRICULUM_HDR := $(ZXV_GENDIR)/zxv_curriculum_blob.h
 $(shell python3 $(CURDIR)/build_system/mk_curriculum_car.py $(CURDIR)/$(ZXV_CUR_CAR) >/dev/null)
 $(shell python3 $(CURDIR)/tools/vps/gen_curriculum_blob.py $(CURDIR)/$(ZXV_CUR_CAR) $(CURDIR)/$(ZXV_CURRICULUM_HDR))
+
+# The compiled-in seed bank (tools/seedbank/mk_blob.py over the bank the
+# release builds): the icons+fonts bank's bytes, resolvable at boot.
+ZXV_SEEDBANK_BLOB := $(ZXV_GENDIR)/zxv_seedbank_blob.h
+$(shell python3 $(CURDIR)/tools/seedbank/mk_blob.py $(CURDIR)/build/seedbank/icons-fonts.bank $(CURDIR)/$(ZXV_SEEDBANK_BLOB))
+CFLAGS += -DZXV_HAVE_SEEDBANK_BLOB
 
 # The seed static-lease map (tools/vps/gen_seedmap.py over
 # build_system/vps_seeds.conf): providers that assign fixed addresses
