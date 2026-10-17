@@ -142,6 +142,11 @@ LANGUAGES = [
     ("fy", "Frysk", "Frisian", "Latn", 1),
     ("is", "Íslenska", "Icelandic", "Latn", 1),
     ("mt", "Malti", "Maltese", "Latn", 1),
+    # Enochian: the swarm's core internal language (kernel/src/swarm/
+    # swarm_enochian.c), transcribed in this repository and rendered to
+    # Sanskrit (the pivot) and IAST at the edge. The code is the private
+    # use tag i-enoch (Enochian has no ISO 639 code).
+    ("i-enoch", "ⴰⵏⵓⵀ", "Enochian", "Enoch", 0),
     ("sa", "संस्कृतम्", "Sanskrit", "Deva", 2),
     ("pi", "पालि", "Pali", "Deva", 0),
     ("la", "Latina", "Latin", "Latn", 0),
