@@ -142,6 +142,8 @@ LANGUAGES = [
     ("fy", "Frysk", "Frisian", "Latn", 1),
     ("is", "Íslenska", "Icelandic", "Latn", 1),
     ("mt", "Malti", "Maltese", "Latn", 1),
+    ("sa", "संस्कृतम्", "Sanskrit", "Deva", 2),
+    ("pi", "पालि", "Pali", "Deva", 0),
     ("la", "Latina", "Latin", "Latn", 0),
     ("arc", "ארמית", "Aramaic", "Syrc", 0),
     ("syr", "ܣܘܪܝܝܐ", "Syriac", "Syrc", 1),

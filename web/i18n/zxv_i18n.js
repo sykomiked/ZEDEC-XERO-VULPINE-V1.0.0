@@ -28,6 +28,14 @@
         return out;
     }
 
+    /* Sanskrit is the translation layer: every string table is keyed by
+     * the Sanskrit root concept (see sa.json), and a target language that
+     * lacks a string falls back to the Sanskrit pivot before English.
+     * This is the classical chain: the root meaning first, then the
+     * English gloss, so a language with no translation still renders a
+     * meaningful label rather than a bare key. */
+    var PIVOT = "sa";
+
     /* the string tables live beside the catalogue as <code>.json */
     function load(code, cb) {
         var req = new XMLHttpRequest();
@@ -40,6 +48,14 @@
             }
             /* the fallback: a missing string falls back to English, never
              * to a blank label (the UI must always say something) */
+            /* the pivot: any key the target lacks resolves through the
+             * Sanskrit root, then the English fallback */
+            if (code !== PIVOT && global.ZxvI18n._pivot) {
+                var piv = global.ZxvI18n._pivot;
+                for (var k in piv) {
+                    if (!t[k] && piv[k]) t[k] = piv[k];
+                }
+            }
             state.code = code;
             state.table = t;
             state.dir = (RTL[(t._script) || "Latn"]) ? "rtl" : "ltr";
@@ -71,12 +87,28 @@
         return h.join("");
     }
 
+    function loadPivot(cb) {
+        var req = new XMLHttpRequest();
+        req.open("GET", "i18n/sa.json", true);
+        req.onreadystatechange = function () {
+            if (req.readyState !== 4) return;
+            if (req.status === 200) {
+                try { global.ZxvI18n._pivot = JSON.parse(req.responseText); }
+                catch (e) { global.ZxvI18n._pivot = {}; }
+            }
+            if (cb) cb();
+        };
+        req.send();
+    }
+
     global.ZxvI18n = {
         parseCatalogue: parseCatalogue,
         load: load,
         t: t,
         pickerHtml: pickerHtml,
         state: state,
+        PIVOT: PIVOT,
+        loadPivot: loadPivot,
         isRtl: function () { return state.dir === "rtl"; }
     };
 }(typeof window !== "undefined" ? window : this));
