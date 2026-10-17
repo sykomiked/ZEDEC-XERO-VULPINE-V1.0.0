@@ -160,7 +160,7 @@ def decoding_for(app_id, node):
         path = os.path.join(ROOT, "tools/agent_loop/decoding", "%s.md" % rt)
         if os.path.exists(path):
             txt = open(path, errors="replace").read()
-            parts.append(txt[:400])
+            parts.append(txt)
     return "\n".join(parts) if parts else lang_examples()
 
 
@@ -268,8 +268,8 @@ def prompt_for(app_id, node, verdict, last_text=""):
         "--- skeleton (the assembled structure, for context) ---\n%s\n---\n"
         "The wave spec (the authority):\n---\n%s\n---\n"
         "The criteria (the exact entry table):\n---\n%s\n---\n"
-        % (app_id, node.get("slot"), assistance(), decoding_for(app_id, node), checks_of(app_id)[:700],
-           skeleton(app_id, node)[:700], spec[:700], criteria_of(app_id)[:700])
+        % (app_id, node.get("slot"), assistance(), decoding_for(app_id, node), checks_of(app_id),
+           skeleton(app_id, node), spec, criteria_of(app_id))
     )
     if verdict:
         p += ("\nYour previous attempt failed the node's test with:\n%s\n" % verdict)
@@ -367,26 +367,51 @@ def vllm(prompt, tokens):
         return openrouter(prompt, tokens)
     body = json.dumps({"model": VLLM_MODEL,
                        "messages": [{"role": "user", "content": prompt}],
-                       "max_tokens": tokens, "temperature": 0.6, "top_p": 0.9}).encode()
+                       "max_tokens": tokens, "temperature": 0.6, "top_p": 0.9,
+                       "stream": True}).encode()
     # a per-call http.client connection: urllib.request.urlopen shares a
     # global opener that is not thread-safe, so concurrent workers corrupt
     # each other's requests and the server sees invalid JSON (HTTP 400).
     # http.client gives every call its own socket, no shared state.
+    # STREAMING: the non-streamed reply wraps the model's output in a JSON
+    # envelope that doubles every newline and quote, so a long answer is
+    # truncated mid-string by the token cap and cannot parse. The SSE
+    # stream carries the text as chunks with no envelope, so nothing is
+    # escaped and nothing is cut. This is the robust path.
     import http.client
     from urllib.parse import urlparse
     u = urlparse(VLLM_URL)
     conn = http.client.HTTPConnection(u.hostname or "127.0.0.1",
                                       u.port or 80, timeout=3600)
+    parts = []
     try:
         conn.request("POST", "/v1/chat/completions", body=body,
                      headers={"Content-Type": "application/json",
+                              "Accept": "text/event-stream",
                               "Connection": "close"})
         resp = conn.getresponse()
-        raw = resp.read()
         if resp.status != 200:
-            raise ValueError("the server refused: HTTP %d %s" % (resp.status, raw[:120]))
+            err = resp.read()[:160]
+            raise ValueError("the server refused: HTTP %d %s" % (resp.status, err))
+        for line in resp:
+            line = line.decode("utf-8", errors="replace").strip()
+            if not line.startswith("data:"):
+                continue
+            payload = line[5:].strip()
+            if payload == "[DONE]":
+                break
+            try:
+                d = json.loads(payload)
+            except Exception:
+                continue
+            ch = (d.get("choices") or [{}])[0]
+            delta = ch.get("delta") or {}
+            piece = delta.get("content")
+            if piece:
+                parts.append(piece)
     finally:
         conn.close()
+    return "".join(parts)
     # a truncated body is detectable before parsing: the JSON cannot close
     if not raw.rstrip().endswith(b"}"):
         raise ValueError("the response was truncated (no closing brace); retry")

@@ -116,3 +116,20 @@ bridge exists, a truth entry is authored in ONE runtime and the second
 runtime is omitted; the check then expects the single language's values.
 This is the one place the four-valued design and the pillar runtimes do
 not yet meet, and it is named here rather than hidden.
+
+## No truncation — segment, never cut
+
+The system computes exactly: money, tokens, settlement and data are never
+rounded. **Truncating text is the same error as a floating-point round** —
+it loses information. When an input exceeds a manageable size it is SPLIT
+into segments (at line boundaries, losslessly), each segment is parsed,
+and the results are JOINED with a digest check that proves the
+reconstruction is exact (`tools/agent_loop/segment.py`).
+
+- A single segment is bounded (the denial-of-service guard: one segment
+  may not exceed the limit).
+- The NUMBER of segments is not bounded: the world computer's principle
+  is that whoever can pay the compute gets the compute. Bottlenecking a
+  user who has the vouchers is not the system's place.
+- A prompt that does not fit the model's window is therefore segmented
+  and sent in parts, never cut. The join is verified by digest.
