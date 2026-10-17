@@ -1552,6 +1552,7 @@ static int32_t door_cisex(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t
 sb_bank_t G_sbanks[SB_CAT_MAX]; /* non-static: seedbank_blob.c registers into them */
 uint32_t G_sbank_n;
 sb_catalog_t G_catalog;
+static uint32_t G_bank_hits, G_bank_misses;
 
 /* POST /bank: [digest 32] -> [status][bank u16][len u32][offset u32],
  * then the seed's bytes when they fit the door's reply budget. status 0 =
@@ -1563,7 +1564,12 @@ static int32_t door_bank(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t 
     (void) ctx;
     if (in_len != SB_DIGEST_LEN || cap < 11) return -1;
     p = sb_catalog_find(&G_catalog, in, &len, &bank);
-    if (p) off = (uint32_t) (p - (G_sbanks[bank].base + G_sbanks[bank].payload_off));
+    if (p) {
+        G_bank_hits++;
+        off = (uint32_t) (p - (G_sbanks[bank].base + G_sbanks[bank].payload_off));
+    } else {
+        G_bank_misses++;
+    }
     out[0] = p ? 0 : 1;
     out[1] = (uint8_t) (bank >> 8);
     out[2] = (uint8_t) bank;
@@ -1580,6 +1586,44 @@ static int32_t door_bank(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t 
         return (int32_t) (11 + len);
     }
     return 11;
+}
+
+/* POST /telemetry: the node's counters as key=value lines — the
+ * analytics plane's surface, human- and machine-readable alike. */
+static int32_t door_telemetry(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t *out,
+                              uint32_t cap)
+{
+    vna_host_t *h = (vna_host_t *) ctx;
+    uint32_t n = 0;
+    char *p = (char *) out;
+    int32_t c;
+    (void) in;
+    if (in_len != 0 || !cap) return -1;
+    c = snprintf(p + n, cap - n,
+                 "vna.rx=%u\n"
+                 "vna.tx=%u\n"
+                 "vna.contacts=%u\n"
+                 "vna.rej=%u\n"
+                 "vna.refused=%u\n"
+                 "cisex.entries=%u\n"
+                 "cisex.indexed=%u\n"
+                 "cisex.sync_in=%u\n"
+                 "cisex.sync_out=%u\n"
+                 "pins=%u\n"
+                 "evicts=%u\n"
+                 "bank.seeds=%u\n"
+                 "bank.bytes=%u\n"
+                 "bank.hits=%u\n"
+                 "bank.misses=%u\n",
+                 h->node.spool ? h->node.spool->rx_accepted : 0u,
+                 h->node.spool ? h->node.spool->queued : 0u, h->node.rt.used,
+                 h->node.v.rej_parse + h->node.v.rej_dst + h->node.v.rej_dup + h->node.v.rej_stale +
+                     h->node.v.rej_pow + h->node.v.rej_binding + h->node.v.rej_sig,
+                 h->refused, g_cisex.n_indexed, g_cisex.n_merged, h->idx_in, h->idx_out, g_pins,
+                 g_pin_evicts, G_sbank_n, sb_seedbank_blob_bytes(), G_bank_hits, G_bank_misses);
+    if (c < 0 || (uint32_t) c >= cap - n) return -1;
+    n += (uint32_t) c;
+    return (int32_t) n;
 }
 
 static int32_t door_card(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t *out, uint32_t cap)
@@ -2293,6 +2337,8 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
         h->door.qctx4 = h;
         h->door.query5 = door_bank;
         h->door.qctx5 = h;
+        h->door.query6 = door_telemetry;
+        h->door.qctx6 = h;
         G_sbank_n = 0;
         sb_catalog_init(&G_catalog, G_sbanks, G_sbank_n);
 #if defined(ZXV_HAVE_SEEDBANK_BLOB)

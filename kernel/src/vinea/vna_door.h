@@ -126,6 +126,8 @@ typedef struct {
     void *qctx4;
     vna_door_query_fn query5; /* POST /bank: the seed catalog lookup */
     void *qctx5;
+    vna_door_query_fn query6; /* POST /telemetry: the node's counters */
+    void *qctx6;
     uint64_t now;
 } vna_door_t;
 
