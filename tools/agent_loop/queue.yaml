@@ -1,0 +1,98 @@
+# agent_loop queue — first series (Web4 / CISEX / chiglet / audit docs).
+# Each task is a drafting proposal for human (or Devin) review. Files are
+# relative to the repository root. ids must be unique; finished ids are
+# recorded in queue.state.
+- id: 1
+  title: web4 east-west bridging section
+  task: >-
+    Draft the "Bridging the Eastern-Western CID chasm" section for
+    docs/WEB4.md: how the nine-node array with a Singapore anchor, local
+    pre-pinning of every shard, verified provider records, and per-region
+    lpres observations avoids cross-ocean DHT walks. Ground every claim in
+    the actual mechanisms below; no marketing, no "instant" or "zero-latency"
+    wording. Explain exactly which component prevents which failure mode.
+  files:
+    - docs/WEB4.md
+    - kernel/src/cisex_idx/cisex_idx.h
+    - build_system/vps_seeds.conf
+    - docs/curriculum/EXCHANGE.json
+  context: >-
+    Facts to use: nine static seeds on three continents; CISEX entries join
+    per-region lpres observations (NEITHER is a no-op) and rank by
+    cites*13+wants*8+live_regions*5+(joined TRUE ? 21 : 0); providers are
+    verified six-byte endpoints; every node publishes its top entries as
+    CISX envelopes each settle cycle; the Singapore node is the Eastern
+    anchor. A query still lands on whichever node answers; there is no
+    proximity routing yet — say so.
+  tokens: 1400
+- id: 2
+  title: cisex search ui review checklist
+  task: >-
+    Produce a review checklist for the CISEX search panel in
+    web/intro/index.html: bounds, wire-format conformance (KQ datagram,
+    0xB0 reply, 168-byte UBH envelopes, payload offsets), client-side UBH
+    digest verification, and failure modes (gateway without a node, stale
+    origin, malformed envelope). Each checklist item must name the exact
+    line or offset it guards. Do not rewrite the page; audit it.
+  files:
+    - web/intro/index.html
+    - kernel/src/cisex_idx/cisex_rt.c
+    - kernel/src/cisex_idx/cisex_idx.c
+  context: >-
+    Envelope: 21-byte UBH header (magic ZXV, version|class, source format
+    14, target type 3, order_flags 1, flags 5, payload len 126, schema
+    CISX), 126-byte payload (digest 32, name 32, kw 24, size 8, cites 4,
+    wants 4, prov addr 6, n_prov, kind, lpx, armada, region, codec,
+    entropy 2), 21-byte integrity trailer whose first 3 bytes are the
+    SHA-256 of the first 147 bytes.
+  tokens: 1200
+- id: 3
+  title: chiglet warm layer documentation
+  task: >-
+    Draft docs/CHIGLET.md: the warm layer's lifecycle on one node — DNA
+    birth (owner = ML-DSA-87 identity), publication as record type
+    VNA_REC_CHG, peer DNA registration, signed visit grants (both owners'
+    signatures), visit open/receive rules (party check, replay registry,
+    expiry in Unix seconds, topic/depth scope), four-valued verdict claims
+    (lpres numbering), and the bond model's habit read. Cite the functions
+    by name. State clearly that only a DECIDED-suspect verdict refuses a
+    session and that UNCERTAIN condemns nobody.
+  files:
+    - kernel/src/chiglet/chg_kin.c
+    - kernel/src/chiglet/chg_kin.h
+    - kernel/arch/x86_64/vna_host.c
+    - kernel/src/chiglet/chg_bond.h
+  tokens: 1600
+- id: 4
+  title: dormant module context map
+  task: >-
+    Produce a table of every module family still unreached in the x86_64
+    kernel image, with its applicable context and a one-line reason it is
+    not wired at boot: userland/app axis, arch-alternate axis, hardware-
+    conditional axis, federation axis (mesh_net/interspace), TLS gateway
+    family, and the deep swarm economy facets. One row per family; no
+    more than 40 rows. This is the audit's living map — be exact about
+    what "dormant" means (compiled, reachable only from its context).
+  files:
+    - build_system/Makefile.x86_64
+    - docs/ARCHITECTURE.md
+  context: >-
+    The audit classified 376 objects: ~180 reached from boot entries; the
+    rest are userland apps (emu, zui, desktop, games), arch alternates
+    (mm, sched, pic, timer on arm64), hardware-conditional drivers (ata,
+    keyboard, display), TLS, mesh_net, interspace, and swarm facets.
+  tokens: 1200
+- id: 5
+  title: virtio storage driver test matrix
+  task: >-
+    Propose a test matrix for the vblk and vscsi drivers against the
+    Contabo VPS hardware path (virtio-scsi + virtio-net, SeaBIOS, qcow2).
+    Cover: boot acceptance markers ([BOOT_OK], [MODELS_OK], [SWARM_MOUNTED]),
+    multi-disk layouts, DMA failure injection, ring exhaustion, and
+    cross-driver parity with the AHCI path. Name the existing test files
+    that already cover parts of it and what each proposed case adds.
+  files:
+    - kernel/src/hwdrv/virtio_pci.c
+    - kernel/src/hwdrv/test/test_virtio.c
+    - build_system/mk_vps_disc.sh
+  tokens: 1200
