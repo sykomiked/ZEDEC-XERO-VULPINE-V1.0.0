@@ -2054,6 +2054,7 @@ test-vhub:
 test-b2-small:
 	$(MAKE) --no-print-directory test-mixmat
 	$(MAKE) --no-print-directory test-curzi8889a
+	$(MAKE) --no-print-directory test-curzi-uri
 	$(MAKE) --no-print-directory test-situation
 	$(MAKE) --no-print-directory test-rtl-device
 	$(MAKE) --no-print-directory test-vfs
@@ -2207,6 +2208,11 @@ test-door-stack:
 test-cisex-idx:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/ipfs_node -Isrc/lpres -Isrc/event_space -Isrc/surplus -Isrc/modbind -Iinclude src/cisex_idx/test_cisex_idx.c src/cisex_idx/cisex_idx.c src/cisex_idx/cisex_rt.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/ubh/ubh.c src/lpres/lpres.c src/lpres/lpres_hex.c src/event_space/event_envelope.c -o $(ZXV_TMP)/test_cisex_idx -lm && $(ZXV_TMP)/test_cisex_idx > $(ZXV_TMP)/test_cisex_idx.log 2>&1 && echo "[PASS] test_cisex_idx ($$(tail -1 $(ZXV_TMP)/test_cisex_idx.log))" || { cat $(ZXV_TMP)/test_cisex_idx.log; echo "[FAIL] test_cisex_idx"; exit 1; }
 	@for s in src/cisex_idx/cisex_idx.c src/cisex_idx/cisex_rt.c; do for t in aarch64-none-elf i386-none-elf; do $(CLANG_CROSS) --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/ipfs_node -Isrc/lpres -Isrc/event_space -Isrc/surplus -Isrc/modbind -Iinclude -c $$s -o $(ZXV_TMP)/cisex_free.o || { echo "[FAIL] cisex freestanding $$s $$t"; exit 1; }; if nm -u $(ZXV_TMP)/cisex_free.o | grep -vE ' (ipfsn_[a-z0-9_]+|lpx_[a-z_]+|lpres_[a-z_]+|sha256_(init|update|final)|sha256|ubh_168_[a-z_]+|cisex_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/cisex_free.o; echo "[FAIL] cisex freestanding: libc or 64-bit division helper ($$s $$t)"; exit 1; fi; done; done; echo "[PASS] cisex freestanding (aarch64 and i386: no libc, no 64-bit division helpers)"
+
+.PHONY: test-curzi-uri
+test-curzi-uri:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/curzi src/curzi/test_curzi_uri.c src/curzi/curzi_uri.c -o $(ZXV_TMP)/test_curzi_uri && $(ZXV_TMP)/test_curzi_uri > $(ZXV_TMP)/test_curzi_uri.log 2>&1 && echo "[PASS] test_curzi_uri ($$(tail -1 $(ZXV_TMP)/test_curzi_uri.log))" || { cat $(ZXV_TMP)/test_curzi_uri.log; echo "[FAIL] test_curzi_uri"; exit 1; }
+	@for s in src/curzi/curzi_uri.c; do for t in aarch64-none-elf i386-none-elf; do $(CLANG_CROSS) --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/curzi -c $$s -o $(ZXV_TMP)/uri_free.o || { echo "[FAIL] curzi_uri freestanding $$s $$t"; exit 1; }; if nm -u $(ZXV_TMP)/uri_free.o | grep -vE ' (curzi_uri_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/uri_free.o; echo "[FAIL] curzi_uri freestanding: libc or 64-bit division helper ($$s $$t)"; exit 1; fi; done; done; echo "[PASS] curzi_uri freestanding (aarch64 and i386: no libc, no 64-bit division helpers)"
 
 # Seed Bank (src/seedbank/): the contiguous seed archive — digests to
 # byte offsets, O(log n) find, O(1) slice. Freestanding: no libc, no
