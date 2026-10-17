@@ -122,7 +122,7 @@ def criteria_of(app_id):
 _ASSIST = None
 
 
-_ASSIST = """THE K OPERATOR FACTS (verified against the pillar source):
+_ASSIST = """THE K OPERATOR FACTS:
   a % b   is exact DIVISION (a/b), never the modulo
   a | b   is the RESIDUE b mod a (order reversed); 0|b is b
   a & b   is the MINIMUM
@@ -160,7 +160,7 @@ def decoding_for(app_id, node):
         path = os.path.join(ROOT, "tools/agent_loop/decoding", "%s.md" % rt)
         if os.path.exists(path):
             txt = open(path, errors="replace").read()
-            parts.append(txt[:1800])
+            parts.append(txt[:400])
     return "\n".join(parts) if parts else lang_examples()
 
 
@@ -268,8 +268,8 @@ def prompt_for(app_id, node, verdict, last_text=""):
         "--- skeleton (the assembled structure, for context) ---\n%s\n---\n"
         "The wave spec (the authority):\n---\n%s\n---\n"
         "The criteria (the exact entry table):\n---\n%s\n---\n"
-        % (app_id, node.get("slot"), assistance(), decoding_for(app_id, node), checks_of(app_id),
-           skeleton(app_id, node), spec[:2500], criteria_of(app_id)[:2500])
+        % (app_id, node.get("slot"), assistance(), decoding_for(app_id, node), checks_of(app_id)[:700],
+           skeleton(app_id, node)[:700], spec[:700], criteria_of(app_id)[:700])
     )
     if verdict:
         p += ("\nYour previous attempt failed the node's test with:\n%s\n" % verdict)
@@ -368,16 +368,32 @@ def vllm(prompt, tokens):
     body = json.dumps({"model": VLLM_MODEL,
                        "messages": [{"role": "user", "content": prompt}],
                        "max_tokens": tokens, "temperature": 0.6, "top_p": 0.9}).encode()
-    req = urllib.request.Request(VLLM_URL.rstrip("/") + "/v1/chat/completions", data=body,
-                                 headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=3600) as r:
-        raw = r.read()
+    # a per-call http.client connection: urllib.request.urlopen shares a
+    # global opener that is not thread-safe, so concurrent workers corrupt
+    # each other's requests and the server sees invalid JSON (HTTP 400).
+    # http.client gives every call its own socket, no shared state.
+    import http.client
+    from urllib.parse import urlparse
+    u = urlparse(VLLM_URL)
+    conn = http.client.HTTPConnection(u.hostname or "127.0.0.1",
+                                      u.port or 80, timeout=3600)
+    try:
+        conn.request("POST", "/v1/chat/completions", body=body,
+                     headers={"Content-Type": "application/json",
+                              "Connection": "close"})
+        resp = conn.getresponse()
+        raw = resp.read()
+        if resp.status != 200:
+            raise ValueError("the server refused: HTTP %d %s" % (resp.status, raw[:120]))
+    finally:
+        conn.close()
+    # a truncated body is detectable before parsing: the JSON cannot close
+    if not raw.rstrip().endswith(b"}"):
+        raise ValueError("the response was truncated (no closing brace); retry")
     try:
         d = _json_lenient(raw)
     except Exception:
-        # a truncated response (finish_reason length) is not recoverable by
-        # parsing: signal it so the caller retries with the verdict
-        raise ValueError("the response was truncated or malformed; retry")
+        raise ValueError("the response was malformed; retry")
     ch = d["choices"][0]
     if ch.get("finish_reason") == "length":
         raise ValueError("the response hit the token cap; retry")
@@ -411,6 +427,8 @@ def main():
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--state", default=os.path.join(ROOT, "tools/agent_loop/pipeline.state"))
     args = ap.parse_args()
+    log("backend: VLLM_URL=%r MODEL=%r | IO_KEY=%s OR_KEY=%s | ZXVD=%r"
+        % (VLLM_URL, VLLM_MODEL, bool(IO_KEY), bool(OR_KEY), ZXVD_URL))
     if not (VLLM_URL or IO_KEY or OR_KEY) or not ZXVD_URL or not ZXVD_TOKEN:
         log("need a backend (VLLM_URL, IO_INTEL_KEY or OPENROUTER_API_KEY) plus "
             "ZXVD_URL and ZXVD_TOKEN")
@@ -439,7 +457,7 @@ def main():
         for attempt in range(1, args.attempts + 1):
             t0 = time.time()
             try:
-                text = vllm(prompt_for(o, node, verdict, last_text), 4096)
+                text = vllm(prompt_for(o, node, verdict, last_text), 2000)
             except Exception as e:
                 log("%s attempt %d: vllm error %s" % (o, attempt, e))
                 time.sleep(10)
