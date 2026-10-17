@@ -1,33 +1,24 @@
-# zxv_sources.mk — THE ONE source list, shared by every target. The
-# arch path is $(ARCH), so each target builds its own arch/ sources and
-# the identical common set. One list, six targets: a source added here
-# is built everywhere, and no target can drift from another.
+# zxv_sources.mk — THE ONE source list, shared by every target.
+#   ZXV_COMMON_SRCS  the common sources (identical for every target)
+#   ZXV_ARCH_SRCS    this target's own arch sources (what EXISTS)
+#   SRCS             the union, deduplicated, minus the second-stage artifacts
+# The arch path is $(ARCH); nothing is duplicated across targets, so the
+# six builds cannot drift.
 #
-# Extracted from the tree; edit here, never in a per-arch Makefile.
+# Generated from the tree; edit here, never in a per-arch Makefile.
 
-SRCS := \
-    kernel/arch/$(ARCH)/uart_16550.c \
-    kernel/arch/$(ARCH)/efifb_con.c \
-    kernel/arch/$(ARCH)/boot_evidence.c \
-    kernel/arch/$(ARCH)/ring3.c \
-    kernel/arch/$(ARCH)/x86_irq.c \
-    kernel/arch/$(ARCH)/x86_sched.c \
-    kernel/arch/$(ARCH)/x86_userspace.c \
+ZXV_COMMON_SRCS := \
+    kernel/compat/compat_layer.c \
+    kernel/compat/softfloat_stubs.c \
+    kernel/src/scp144/scp144.c \
     kernel/src/pmm/pmm.c \
     kernel/src/lpres/lpres.c \
     kernel/src/lpres/lpres_hex.c \
-    kernel/arch/$(ARCH)/kernel_main_x86_64.c \
-    kernel/arch/$(ARCH)/hwplat_x86.c \
-    kernel/arch/$(ARCH)/bootmem_x86.c \
-    kernel/arch/$(ARCH)/msr_safe.c \
-    kernel/arch/$(ARCH)/x86_extable.c \
-    kernel/arch/$(ARCH)/acpi_x86.c \
     kernel/src/acpi/acpi.c \
     kernel/src/acpi/acpi_pm.c \
     kernel/src/acpi/aml_core.c \
     kernel/src/acpi/aml_region.c \
     kernel/src/acpi/aml_dev.c \
-    kernel/arch/$(ARCH)/mca_x86.c \
     kernel/src/mca/mca.c \
     kernel/src/hwdrv/hwdrv_core.c \
     kernel/src/hwdrv/hwdrv_probe.c \
@@ -102,6 +93,7 @@ SRCS := \
     kernel/src/deploy/deploy.c \
     kernel/src/desktop/zxv_shell.c \
     kernel/src/desktop/zxv_shell_font.c \
+    kernel/src/desktop/render_boot.c \
     kernel/src/zui/zui_desk.c \
     kernel/src/zui/zui_wm.c \
     kernel/src/zui/zui_dock.c \
@@ -219,7 +211,6 @@ SRCS := \
     kernel/src/swarmnet/sn_http.c \
     kernel/src/swarmnet/sn_fetch.c \
     kernel/src/swarmnet/sn_seal.c \
-    kernel/arch/$(ARCH)/vna_host.c \
     kernel/src/vinea/vna_agree.c \
     kernel/src/vinea/vna_cid.c \
     kernel/src/vinea/vna_cmd.c \
@@ -385,3 +376,21 @@ SRCS := \
     kernel/src/tensor/zt_tok.c \
     kernel/freestanding.c
 
+# this target's own arch sources (only what exists). Exclude architecture
+# test programs and EFI-only C/assembly from the kernel's primary image.
+# The lowercase .s boot entry is supplied explicitly by each ecosystem.
+ZXV_ARCH_C_SRCS = $(filter-out $(wildcard kernel/arch/$(ARCH_SRCDIR)/test_*.c) \
+                                $(wildcard kernel/arch/$(ARCH_SRCDIR)/efi_*.c), \
+                    $(wildcard kernel/arch/$(ARCH_SRCDIR)/*.c))
+ZXV_ARCH_S_SRCS = $(filter-out $(wildcard kernel/arch/$(ARCH_SRCDIR)/efi_*.S), \
+                    $(wildcard kernel/arch/$(ARCH_SRCDIR)/*.S))
+
+# the second-stage artifacts embed the built kernel binary, so they are
+# built AFTER it (a later stage), never in the primary link
+ZXV_SECOND_STAGE := %/efi_kernel_blob.S %/efi_header.S %/efi_blob.S
+
+# the common list excludes ALL arch-specific sources (the
+# wildcard supplies each target's own); an x86 .c with 'rax'
+# asm must never reach the riscv or wasm build.
+SRCS = $(sort $(filter-out $(ZXV_SECOND_STAGE) kernel/arch/%, $(ZXV_COMMON_SRCS)) \
+               $(ZXV_ARCH_C_SRCS) $(ZXV_ARCH_S_SRCS) $(ARCH_ASM_SRCS))

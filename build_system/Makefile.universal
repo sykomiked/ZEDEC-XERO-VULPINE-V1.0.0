@@ -1,8 +1,18 @@
-# Makefile.universal — ONE Makefile, SIX targets. The H100's Occam's Razor
-# answer, and the structural fix for the drift: the include set lives in
-# exactly one file (build_system/zxv_includes.mk) and this one Makefile is
-# the only build description. Select the target with ARCH; there is no
-# second copy of anything, so drift is impossible by construction.
+# Makefile.universal — ONE Makefile that DYNAMICALLY ADAPTS to each of the
+# six ecosystems. It is not six copies; it is one description with three
+# kinds of section:
+#
+#   THE COMMON     what every target shares (the include set, the source
+#                  list, the freestanding flags) — identical everywhere
+#   THE BRIDGE     what is derived per target (the arch sources that
+#                  exist, the object paths) — computed, never listed
+#   THE ECOSYSTEM  what is genuinely different per target (the compiler,
+#                  the ABI flags, the boot entry, the linker script, the
+#                  image format) — one block per target
+#
+# Select the target with ARCH. Nothing is duplicated, so nothing can drift;
+# the only per-target data is the ecosystem block, which cannot be shared
+# because the ecosystems genuinely differ.
 #
 #   make -f build_system/Makefile.universal ARCH=x86_64
 #   make -f build_system/Makefile.universal ARCH=arm64
@@ -15,82 +25,227 @@
 # SPDX-License-Identifier: Apache-2.0
 
 ARCH ?= x86_64
+# the source directory for this arch (the geometry). riscv64 and
+# riscv32 share kernel/arch/riscv/, so the name and the dir differ.
+ARCH_SRCDIR = $(if $(filter riscv%,$(ARCH)),riscv,$(ARCH))
+LINKFLAGS := -Wl,--gc-sections -Wl,--build-id=none
 
-# the ONE include set and the ONE source list — shared by every
-# target, so neither can drift
+# ---- THE COMMON -------------------------------------------------------
+# the one include set and the one source list, shared by every target
 include build_system/zxv_includes.mk
 include build_system/zxv_sources.mk
 
-# ---- the per-arch toolchain and flags (the ONLY arch-specific data) ----
+CFLAGS_COMMON := -std=c11 -Dmemset=fs_memset -Dmemcpy=fs_memcpy -Dstrlen=fs_strlen -Dstrcmp=fs_strcmp -Dstrcpy=fs_strcpy -Dmalloc=fs_malloc -Dcalloc=fs_calloc -Dmemcmp=fs_memcmp -Dpow=fs_pow -Dlog=fs_log -include kernel/include/freestanding.h -Wall -Wextra -O2 -ffreestanding -fno-math-errno \
+                 -nostdlib -fno-stack-protector -fno-pie -no-pie -fno-builtin \
+                 -ffunction-sections -fdata-sections -MMD -MP \
+                 -Werror=double-promotion -Werror=float-conversion
+
+# ---- THE ECOSYSTEM (one block per target; genuinely different) --------
 ifeq ($(ARCH),x86_64)
-  CC      := x86_64-linux-gnu-gcc
-  ARCHFL  := -m64
-  ARCHINC := -Ikernel/arch/x86_64
-  KELF    := kernel_x86_64.elf
+  CC        := x86_64-linux-gnu-gcc
+  OBJCOPY   := x86_64-linux-gnu-objcopy
+  ARCHFLAGS := -m64 -mno-red-zone
+  ARCHINC   := -Ikernel/arch/x86_64
+  LINKSCRIPT := kernel/arch/x86_64/linker64.ld
+  LINKFLAGS += -Wl,-z,noexecstack
+  ARCH_EXTRA_OBJS = $(OBJDIR)/kernel/arch/x86_64/boot.o
+  ENTRY     := 0x100000
+  IMGFMT    := elf64
+  KELF      := kernel_x86_64.elf
 else ifeq ($(ARCH),arm64)
-  CC      := aarch64-linux-gnu-gcc
-  ARCHFL  := -march=armv8-a
-  ARCHINC := -Ikernel/arch/arm64
-  KELF    := kernel_arm64.elf
+  CC        := aarch64-linux-gnu-gcc
+  OBJCOPY   := aarch64-linux-gnu-objcopy
+  ARCHFLAGS := -march=armv8-a -mgeneral-regs-only
+  ARCHINC   := -Ikernel/arch/arm64
+  LINKSCRIPT := kernel/arch/arm64/linker.ld
+  ARCH_ASM_SRCS := kernel/arch/arm64/boot.s
+  ENTRY     := 0x40080000
+  IMGFMT    := elf64
+  KELF      := kernel_arm64.elf
 else ifeq ($(ARCH),riscv64)
-  CC      := riscv64-linux-gnu-gcc
-  ARCHFL  := -march=rv64gc -mabi=lp64
-  ARCHINC := -Ikernel/arch/riscv64
-  KELF    := kernel_riscv64.elf
+  EXTRA_DEFS := -include kernel/include/io.h
+  CC        := riscv64-linux-gnu-gcc
+  OBJCOPY   := riscv64-linux-gnu-objcopy
+  ARCHFLAGS := -std=gnu11 -march=rv64gc -mabi=lp64 -mcmodel=medany
+  ARCHINC   := -Ikernel/arch/riscv
+  LINKSCRIPT := kernel/arch/riscv/linker.ld
+  ARCH_ASM_SRCS := kernel/arch/riscv/boot.s
+  ENTRY     := 0x80200000
+  IMGFMT    := elf64
+  KELF      := kernel_riscv64.elf
 else ifeq ($(ARCH),riscv32)
-  CC      := clang --target=riscv32-unknown-elf
-  ARCHFL  := -march=rv32i -mabi=ilp32
-  ARCHINC := -Ikernel/arch/riscv32
-  KELF    := kernel_riscv32.elf
+  EXTRA_DEFS := -include kernel/include/io.h
+  CC        := clang --target=riscv32-unknown-elf
+  OBJCOPY   := llvm-objcopy
+  ARCHFLAGS := -std=gnu11 -march=rv32i -mabi=ilp32
+  ARCHINC   := -Ikernel/arch/riscv
+  LINKSCRIPT := kernel/arch/riscv/linker.ld
+  ARCH_ASM_SRCS := kernel/arch/riscv/boot_rv32.s
+  ENTRY     := 0x80000000
+  IMGFMT    := elf32
+  KELF      := kernel_riscv32.elf
 else ifeq ($(ARCH),arm32)
-  CC      := arm-linux-gnueabihf-gcc
-  ARCHFL  := -march=armv7-a -marm
-  ARCHINC := -Ikernel/arch/arm32
-  KELF    := kernel_arm32.elf
+  EXTRA_DEFS := -include kernel/include/io.h
+  CC        := arm-linux-gnueabihf-gcc
+  OBJCOPY   := arm-linux-gnueabihf-objcopy
+  ARCHFLAGS := -march=armv7-a -marm -mfloat-abi=soft
+  ARCHINC   := -Ikernel/arch/arm32
+  LINKSCRIPT := kernel/arch/arm32/linker.ld
+  ARCH_ASM_SRCS := kernel/arch/arm32/boot.s
+  ENTRY     := 0x8000
+  IMGFMT    := elf32
+  KELF      := kernel_arm32.elf
 else ifeq ($(ARCH),wasm32)
-  CC      := clang --target=wasm32-unknown-unknown
-  ARCHFL  := -mexec-model=reactor
-  ARCHINC := -Ikernel/arch/wasm32
-  KELF    := zxv_app.wasm
+  EXTRA_DEFS := -include kernel/include/io.h
+  CC        := clang --target=wasm32-unknown-unknown
+  OBJCOPY   := llvm-objcopy
+  ARCHFLAGS := -Wl,--no-entry -Wl,--export-all
+  ARCHINC   := -Ikernel/arch/hosted
+  LINKSCRIPT :=
+  LINKFLAGS := -Wl,--gc-sections -Wl,--no-entry -Wl,--export-all
+  ENTRY     := _start
+  IMGFMT    := wasm
+  KELF      := zxv_app.wasm
 else
   $(error unknown ARCH '$(ARCH)'; use x86_64 arm64 riscv64 riscv32 arm32 wasm32)
 endif
 
-# ---- the flags: one definition, every target --------------------------
-# the freestanding, exact-arithmetic build (the repo's rules)
-CFLAGS := -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib \
-          -fno-stack-protector -fno-pie -no-pie -fno-builtin \
-          -ffunction-sections -fdata-sections -MMD -MP \
-          -Werror=double-promotion -Werror=float-conversion \
-          $(ARCHFL) $(ARCHINC) $(ZXV_INCLUDES)
-
-OBJDIR := build/$(ARCH)
+# Isolate universal-build objects from the native Makefiles. Reusing
+# build/<arch> would allow stale objects compiled with different flags to
+# masquerade as a universal-build result.
+OBJDIR := build/universal/$(ARCH)
 OUT    := $(OBJDIR)/$(KELF)
 
-# ---- the targets ------------------------------------------------------
-.PHONY: all clean list
-all: $(OUT)
-	@printf 'built %s for ARCH=%s (%s)\n' "$(KELF)" "$(ARCH)" "$(CC)"
+# ---- THE GENERATED HEADERS (shared by every target) --------------
+# the phase table, the doorway blobs, the curriculum, the seedbank
+# and the seed map, each rebuilt at parse so a stale embed cannot
+# drift from its source. The same mechanism the original uses.
+ZXV_GENDIR    := $(OBJDIR)/gen
+ZXV_PHASE_HDR := $(ZXV_GENDIR)/zxv_phase_table.h
+$(shell mkdir -p $(ZXV_GENDIR) && sh $(CURDIR)/build_system/gen_phase_table.sh $(CURDIR)/$(ZXV_PHASE_HDR) 2> $(CURDIR)/$(ZXV_GENDIR)/phase_census.txt)
+CFLAGS += $(ZXV_INCLUDES)
+CFLAGS += -I$(ZXV_GENDIR)
+
+# The doorway blobs the seed's plain-http door serves (tools/web/
+# gen_doorway_blobs.py): the committed doorway files as C arrays, rebuilt
+# every parse like the phase table so a stale embed cannot drift from the
+# sources. boot.json and boot.pack are seal-time artifacts and stay on the
+# gateways — the browser fetches them cross-origin over https.
+ZXV_DOORWAY_HDR := $(ZXV_GENDIR)/zxv_doorway_blobs.h
+$(shell python3 $(CURDIR)/tools/web/gen_doorway_blobs.py $(CURDIR) $(CURDIR)/$(ZXV_DOORWAY_HDR))
+
+# The curriculum CAR (build_system/mk_curriculum_car.py over docs/curriculum):
+# rebuilt deterministically every parse and embedded so each fleet node can
+# slice, announce and serve its shard files over authenticated sessions.
+ZXV_CUR_CAR := $(ZXV_GENDIR)/zxv-curriculum.car
+ZXV_CURRICULUM_HDR := $(ZXV_GENDIR)/zxv_curriculum_blob.h
+$(shell python3 $(CURDIR)/build_system/mk_curriculum_car.py $(CURDIR)/$(ZXV_CUR_CAR) >/dev/null)
+$(shell python3 $(CURDIR)/tools/vps/gen_curriculum_blob.py $(CURDIR)/$(ZXV_CUR_CAR) $(CURDIR)/$(ZXV_CURRICULUM_HDR))
+
+# The compiled-in seed bank (tools/seedbank/mk_blob.py over the bank the
+# release builds): the icons+fonts bank's bytes, resolvable at boot.
+ZXV_SEEDBANK_BLOB := $(ZXV_GENDIR)/zxv_seedbank_blob.h
+$(shell python3 $(CURDIR)/tools/seedbank/mk_blob.py $(CURDIR)/build/seedbank/icons-fonts.bank $(CURDIR)/$(ZXV_SEEDBANK_BLOB))
+
+# The seed static-lease map (tools/vps/gen_seedmap.py over
+# build_system/vps_seeds.conf): providers that assign fixed addresses
+# answer no DHCP, so a seed recognises its own NIC MAC in this baked table.
+ZXV_SEEDMAP_HDR := $(ZXV_GENDIR)/zxv_seedmap.h
+$(shell python3 $(CURDIR)/tools/vps/gen_seedmap.py $(CURDIR)/build_system/vps_seeds.conf $(CURDIR)/$(ZXV_SEEDMAP_HDR))
+
+# FAIL-CLOSED BOOT TEST HOOK. Keep the architecture's generated header
+# available to kernel_main_riscv.c and kernel_main_arm32.c, as in their
+# native Makefiles. Default 0 leaves fault injection disabled.
+ZXV_BOOT_INJECT ?= 0
+ZXV_INJECT_HDR := $(ZXV_GENDIR)/zxv_boot_inject.h
+ZXV_INJECT_DEF := \#define ZXV_BOOT_INJECT $(ZXV_BOOT_INJECT)
+$(shell l='$(ZXV_INJECT_DEF)'; grep -qxF "$$l" $(ZXV_INJECT_HDR) 2>/dev/null || echo "$$l" > $(ZXV_INJECT_HDR))
+
+# ---- THE MANIFEST TABLE (build_system/mk_table.py) --------------------
+# the table the kernel bakes into .rodata: L0's CID and every swarm disc's
+# CID, size and SHA-256. Generated at parse, like the other headers.
+ZXV_SWARM_DISCS ?=
+ZXV_TABLE_HDR   := build/include/manifest_hashes.h
+ZXV_TABLE_RUN   := $(shell python3 $(CURDIR)/build_system/mk_table.py --out $(CURDIR)/$(ZXV_TABLE_HDR) $(ZXV_SWARM_DISCS) > $(CURDIR)/$(ZXV_GENDIR)/table.txt 2>&1; echo $$?)
+ifneq ($(ZXV_TABLE_RUN),0)
+$(error build_system/mk_table.py failed: $(shell cat $(CURDIR)/$(ZXV_GENDIR)/table.txt))
+endif
+CFLAGS := $(CFLAGS_COMMON) $(ARCHFLAGS) $(EXTRA_DEFS) $(ARCHINC) $(ZXV_INCLUDES) -I$(ZXV_GENDIR) -I$(dir $(ZXV_TABLE_HDR))
+
+# SRCS is defined once in zxv_sources.mk. Do not redefine it here: that
+# source list resolves ARCH_SRCDIR (for example riscv64 -> kernel/arch/riscv).
+# OBJS must also be recursive so it expands SRCS after ARCH is selected.
+OBJS = $(patsubst %.c,$(OBJDIR)/%.o,$(patsubst %.S,$(OBJDIR)/%.o,$(patsubst %.s,$(OBJDIR)/%.o,$(SRCS)))) $(ARCH_EXTRA_OBJS)
+
+.PHONY: all clean list info
+all: $(OUT).bin
+	@printf 'built %s.bin for %s (%s)\n' "$(KELF)" "$(ARCH)" "$(CC)"
 
 list:
-	@for a in x86_64 arm64 riscv64 riscv32 arm32 wasm32; do \
-	    printf '  %s\n' "$$a"; done
+	@for a in x86_64 arm64 riscv64 riscv32 arm32 wasm32; do printf '  %s\n' "$$a"; done
+
+info:
+	@printf 'ARCH=%s CC=%s ENTRY=%s IMG=%s SRCS=%d\n' \
+	    "$(ARCH)" "$(CC)" "$(ENTRY)" "$(IMGFMT)" "$(words $(SRCS))"
 
 clean:
 	rm -rf $(OBJDIR)
 
-# the compile rule: every source, the one include set, the one flag set
+# the directory: an ORDER-ONLY prerequisite, created once per directory
+# before any object in it compiles, so parallel builds cannot race
+# the compile rules (C and assembly). 'mkdir -p' is atomic, so parallel
+# builds are safe with no order-only prerequisite (which make cannot
+# evaluate in a pattern rule's prerequisite list).
 $(OBJDIR)/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# the link rule: per-arch, the arch's own linker script when present
+$(OBJDIR)/%.o: %.S
+	@mkdir -p $(dir $@)
+	$(CC) -x assembler-with-cpp $(ARCHFLAGS) $(ARCHINC) $(ZXV_INCLUDES) \
+	    -Ikernel/include -Ikernel/include/freestanding_stubs -c $< -o $@
+
+$(OBJDIR)/%.o: %.s
+	@mkdir -p $(dir $@)
+	$(CC) $(ARCHFLAGS) $(ARCHINC) $(ZXV_INCLUDES) -Ikernel/include -c $< -o $@
+
+ifeq ($(ARCH),x86_64)
+NASM ?= nasm
+X86_USER_ELF := $(OBJDIR)/userapp/x86_selftest.elf
+
+$(OBJDIR)/kernel/arch/x86_64/boot.o: kernel/arch/x86_64/boot.asm
+	@mkdir -p $(dir $@)
+	$(NASM) -f elf64 $< -o $@
+
+$(X86_USER_ELF): kernel/userapp/x86_selftest.c kernel/userapp/x86_user.ld \
+                 kernel/include/zxv_syscall_abi.h kernel/include/zxv_syscall_user.h
+	@mkdir -p $(dir $@)
+	$(CC) -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-stack-protector \
+	    -fpie -mgeneral-regs-only -fcf-protection=none \
+	    -fno-asynchronous-unwind-tables -Ikernel/include -nostdlib -static \
+	    -no-pie -Wl,-T,kernel/userapp/x86_user.ld -Wl,--build-id=none \
+	    -Wl,-z,max-page-size=4096 -Wl,-z,noexecstack -o $@ $<
+
+$(OBJDIR)/kernel/arch/x86_64/x86_userbin.o: kernel/arch/x86_64/x86_userbin.S $(X86_USER_ELF)
+	@mkdir -p $(dir $@)
+	$(CC) -ffreestanding -fno-pie -DX86_USER_ELF='"$(X86_USER_ELF)"' -c $< -o $@
+endif
+
+# the raw binary: the objcopy of the ELF, which the EFI stage 2 embeds.
+# This is stage 1's final output; the EFI stub (stage 2) consumes it.
+$(OUT).bin: $(OUT)
+	@command -v "$(OBJCOPY)" >/dev/null 2>&1 || { \
+	    echo "required objcopy not found: $(OBJCOPY)" >&2; exit 1; }
+	$(OBJCOPY) -O binary $< $@
+	@printf 'the raw image: %s\n' "$@"
+
+# the link: the arch's own linker script when present, else the default
 $(OUT): $(OBJS)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -T kernel/arch/$(ARCH)/link.ld $(OBJS) -o $@ 2>/dev/null || \
-	$(CC) $(CFLAGS) $(OBJS) -o $@
-	@printf 'the kernel: %s\n' "$@"
-
-# OBJS is supplied by the caller (the source list); the universal file
-# carries the STRUCTURE, the source list stays where it is (one list).
-OBJS := $(SRCS:%.c=$(OBJDIR)/%.o)
+	@if [ -n "$(LINKSCRIPT)" ]; then \
+	    printf 'the linker script: %s\n' "$(LINKSCRIPT)"; \
+	    $(CC) $(CFLAGS) $(LINKFLAGS) -T "$(LINKSCRIPT)" $(OBJS) -lgcc -o $@; \
+	else \
+	    $(CC) $(CFLAGS) $(LINKFLAGS) $(OBJS) -o $@; \
+	fi
+	@printf 'the image: %s (%s)\n' "$@" "$(IMGFMT)"

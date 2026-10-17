@@ -11,7 +11,7 @@ ZXV_INCLUDES := \
     -Ikernel/include -Ikernel/src -Ikernel/src/e8 -Ikernel/src/mixmat \
     -Ikernel/src/mbcomp -Ikernel/src/modbind -Ikernel/src/virtio -Ikernel/src/trispace \
     -Ikernel/src/holodeck -Ikernel/src/denconnect -Ikernel/src/mlkem -Ikernel/src/curzi \
-    -Ikernel/src/pqsec -Ikernel/boot -Ikernel/src/plnp -Ikernel/src/smap \
+    -Ikernel/src/pqsec -Ikernel/arch/arm64 -Ikernel/boot -Ikernel/src/plnp -Ikernel/src/smap \
     -Ikernel/src/decent -Ikernel/src/recon -Ikernel/src/hdcm -Ikernel/src/gematria \
     -Ikernel/src/dualtrack -Ikernel/src/superpos -Ikernel/src/pungent -Ikernel/src/ascent \
     -Ikernel/src/lattice -Ikernel/src/pterm -Ikernel/src/xedit -Ikernel/src/crypto_wallet \

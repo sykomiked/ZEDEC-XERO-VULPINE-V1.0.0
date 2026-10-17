@@ -4,6 +4,7 @@
 #include "vna_session.h"
 #include "../mlkem/keccak.h"
 #include "../tls/aead.h"
+#include "../scp144/scp144.h"
 #include "../tls/hkdf.h"
 
 #define H1 vna_hs1_t
@@ -77,16 +78,18 @@ static void th_of(const char *tag, const uint8_t *data, uint32_t len, uint8_t ou
 }
 
 /* hybrid = SHAKE256("vinea/v3/hybrid" || ss_k || ss_x || th2); prk = Extract(th2, hybrid) */
-static void derive_prk(const uint8_t ss_k[32], const uint8_t ss_x[32], const uint8_t th2[32],
+static void derive_prk(const uint8_t ss_k[32], const uint8_t ss_x[32],
+                       const uint8_t th2[32], const uint8_t binding[32],
                        uint8_t prk[32])
 {
     static const char tag[] = "vinea/v3/hybrid";
-    uint8_t in[sizeof tag - 1 + 96];
+    uint8_t in[sizeof tag - 1 + 128];
     uint8_t hyb[32];
     vna_copy(in, tag, sizeof tag - 1);
     vna_copy(in + sizeof tag - 1, ss_k, 32);
     vna_copy(in + sizeof tag - 1 + 32, ss_x, 32);
     vna_copy(in + sizeof tag - 1 + 64, th2, 32);
+    vna_copy(in + sizeof tag - 1 + 96, binding, 32);
     shake256(in, sizeof in, hyb, 32);
     hkdf_extract(th2, 32, hyb, 32, prk);
     vna_wipe(in, sizeof in);
@@ -195,7 +198,12 @@ int32_t vna_hs_respond(vna_hs_t *hs, const vna_identity_t *self, uint32_t pow_bi
     vna_sha3(out, (uint32_t) n, h);
     vna_h2(hs->th, h, hs->th); /* th2 */
     vna_sign(self->sk, VNA_CTX_HS_RESP, hs->th, 32, rnd + 96, m->sig);
-    derive_prk(ss_k, ss_x, hs->th, hs->prk);
+    {
+        uint8_t bind[32];
+        scp144_lattice_bind(hs->m1.init_id.b, hs->m1.resp_id.b, bind);
+        derive_prk(ss_k, ss_x, hs->th, bind, hs->prk);
+        vna_wipe(bind, sizeof bind);
+    }
     vna_wipe(ss_x, 32);
     vna_wipe(ss_k, 32);
     vna_wipe(hs->x_sk, 32);
@@ -226,7 +234,12 @@ int32_t vna_hs_initiator_finish(vna_hs_t *hs, const uint8_t *m2, uint32_t m2_len
     if (!vna_verify(m->pk, VNA_CTX_HS_RESP, hs->th, 32, m->sig)) return VNA_ERR_SIG;
     if (!x25519_shared(ss_x, hs->x_sk, m->x)) return VNA_ERR_CRYPTO;
     pqm_mlkem1024_decaps(hs->kem_dk, m->ct, ss_k);
-    derive_prk(ss_k, ss_x, hs->th, hs->prk);
+    {
+        uint8_t bind[32];
+        scp144_lattice_bind(hs->m1.init_id.b, hs->m1.resp_id.b, bind);
+        derive_prk(ss_k, ss_x, hs->th, bind, hs->prk);
+        vna_wipe(bind, sizeof bind);
+    }
     vna_wipe(ss_x, 32);
     vna_wipe(ss_k, 32);
     vna_wipe(hs->x_sk, 32);
