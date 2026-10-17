@@ -153,3 +153,48 @@ certified, the logic extensible, and the test ratio climbing — with every
 error along the way turned into the next task rather than suppressed.
 That is the paraconsistent omni-tautology: it holds even where the parts
 contradict, because a contradiction is a value, and an error is a map.
+
+## The per-layer test mandate (every layer, every end)
+
+The tests are not only for the kernel, the OS and the apps. **Every
+intervening layer and every piece of our own middleware carries its own
+tests**, to the same bar:
+
+| Layer | The test that must exist |
+|---|---|
+| the kernel core (the scheduler, the memory, the syscalls) | a boot test + a fault-injection test per subsystem |
+| each of the 87 modules | a unit test + an integration test with its real callers |
+| the middleware (the broker, the bridge, the appkit, the RPC) | a contract test per interface, both directions |
+| the network (Vinea, the mesh, the doors) | a two-node test + a lossy-link test |
+| the storage (ZXVFS, the ledger, the IPFS node) | a crash-consistency test + a round-trip test |
+| the apps | the code test **and** the user-interface test (below) |
+| the tools and the build system | a self-test per tool (the tool proves itself) |
+
+**No orphaned codebase**: every directory under `kernel/`, `tools/` and
+`web/` must be reached by at least one test and one caller. `orphan_scan.py`
+must run over `tools/` and `web/` as well as `kernel/`, and a directory
+with no test and no caller is a gap of the `modules/empty-module` kind.
+
+## The dual-end test (both ends of every interface)
+
+Every app is verified from **both** ends:
+
+1. **The code end** — the entries load and their checks pass (the node's
+   own verdict: `loaded, N checks passed`).
+2. **The user end** — the interface works as a human uses it:
+   - every button, hotkey and menu item is **clickable** and triggers its
+     action (no dead buttons: a rendered control with a null callback is
+     a failure);
+   - every action produces a visible state change within the latency
+     budget (< 16 ms for 60 Hz responsiveness);
+   - every screen has a way out (no trap states);
+   - malformed input (a rapid keystroke stream, an out-of-bounds click)
+     is handled without a panic.
+3. **The parity** — the two ends are the same state machine: an action
+   through the AI plane must appear on the human plane, and the reverse
+   (`VERIFICATION_TOPOLOGY.md`, Tier 2).
+
+The UI tests are injected headless: synthetic keystrokes and clicks
+against the framebuffer, the resulting state compared to the expected.
+A button that exists in the manifest but is not clickable is a **dead
+button**, and the test names it.
