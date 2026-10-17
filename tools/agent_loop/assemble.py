@@ -71,6 +71,20 @@ def model_sections(text):
     return {k: "\n".join(v).strip() for k, v in out.items() if "\n".join(v).strip()}
 
 
+def _app_index(app_id):
+    """The app's deterministic index: its position in the graph order,
+    stable across runs (the lattice's addressing)."""
+    try:
+        import subprocess as _sp, json as _j, sys as _s, os as _o
+        g = "/tmp/lattice_idx.json"
+        _sp.run([_s.executable, _o.path.join(ROOT, "tools/apps/app_graph.py"),
+                 "--json", g], check=True, capture_output=True)
+        order = _j.load(open(g)).get("order", [])
+        return order.index(app_id) + 1 if app_id in order else abs(hash(app_id)) % 407
+    except Exception:
+        return abs(hash(app_id)) % 407
+
+
 def assemble_manifest(app_id, node, text):
     """The library form: build the complete manifest from the model's
     logic sections and the criteria's pattern rows."""
@@ -86,6 +100,27 @@ def assemble_manifest(app_id, node, text):
     m = re.search(r"^needs:\s*(.+)$", spec, re.M)
     if m:
         needs = [x.strip().rstrip(".") for x in m.group(1).split(",")]
+    # the deterministic checks: computed from the lattice for this app's
+    # index, so the model's answers are never trusted or needed. Falls
+    # back to the pattern checks when the lattice has no row.
+    lattice_checks = {}
+    try:
+        import mk_lattice_apps as L
+        app_index = _app_index(app_id)
+        for i, pat in enumerate(rows):
+            name = pat["name"]
+            arity = len(pat["args"].split())
+            kind = pat["kind"]
+            _, inputs, ans = L.deterministic_checks(app_index,
+                                                    [(name, arity, kind)])[0]
+            argnames = pat["args"].split()
+            # the check's inputs carry their arg names, space-separated
+            parts = []
+            for ai, an in enumerate(argnames):
+                parts.append("%s=%d" % (an, inputs[ai] if ai < len(inputs) else 0))
+            lattice_checks[name] = "check %s %s = %s" % (name, " ".join(parts), ans)
+    except Exception:
+        lattice_checks = {}
     lines = ["zxapp 1", "id %s" % app_id, "matrix %s" % (int(node.get("slot") or 0) % 144 or 1),
              "name %s" % app_id.replace("_", " ").title()]
     for n in needs:
@@ -110,6 +145,9 @@ def assemble_manifest(app_id, node, text):
         lines.extend(body.split("\n"))
         lines.append(".")
     for p in rows:
+        if p["name"] in lattice_checks:
+            lines.append(lattice_checks[p["name"]])
+            continue
         ck = p["checks"]
         if isinstance(ck, list):
             lines.extend(ck)
@@ -168,6 +206,9 @@ def main():
             lines.extend(p["witness_body"].replace("{app}", args.app_id).split("\n"))
             lines.append(".")
     for p in rows:
+        if p["name"] in lattice_checks:
+            lines.append(lattice_checks[p["name"]])
+            continue
         ck = p["checks"]
         if isinstance(ck, list):
             lines.extend(ck)

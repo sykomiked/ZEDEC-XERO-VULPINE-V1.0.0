@@ -62,10 +62,12 @@ def deterministic_checks(app_index, entries):
         inputs = vec[:arity] if arity <= len(vec) else vec + [0] * (arity - len(vec))
         weight = sum(FIB[i] for i, b in enumerate(vec) if b)
         if kind == "truth":
-            # the four-valued law: the anchor's point is TRUE, off-anchor
-            # is a held value (BOTH when the point is above the gateway,
-            # NEITHER below) — the never-authorise guard in the generator.
-            ans = "true" if is_anchor(vec) else ("both" if weight > 4 else "neither")
+            # the four-valued law: the anchor's point is TRUE. A single
+            # language cannot disagree with itself, so the generator never
+            # emits `both` for a lone runtime — the anchor is TRUE, any
+            # other point is NEITHER (no evidence yet), and the
+            # never-authorise guard holds: nothing off-anchor is TRUE.
+            ans = "true" if is_anchor(vec) else "neither"
         else:
             ans = weight % (arity + 1)
         out.append((name, inputs, ans))
