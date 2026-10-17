@@ -125,6 +125,7 @@ int memcmp(const void *x, const void *y, unsigned long n)
 
 #define RAIL_APPS 16u           /* ZUI_DESK_APPS: the rail holds sixteen tiles */
 #define ICON_CAP  (16u * 1024u) /* one app's ZXVG icon (they run < 4 KB) */
+#define CAT_MAX   407u          /* the whole catalogue, one tile per app */
 
 static int MODE; /* 0 = the boot runs; 1 = the login answers; 2 = the desk */
 
@@ -134,7 +135,7 @@ static int MODE; /* 0 = the boot runs; 1 = the login answers; 2 = the desk */
  * one — the same elapsed ms the animation already runs on. */
 static uint32_t NOW_MS;
 
-/* the rail's sixteen: base layers 1..16, named as the matrix names them */
+/* The rail's sixteen: base layers 1..16, named as the matrix names them */
 static zui_desk_app_t RAIL[RAIL_APPS];
 static char RAIL_NAME[RAIL_APPS][24], RAIL_APP[RAIL_APPS][24], RAIL_MARK[RAIL_APPS][3];
 static uint8_t ICONS[RAIL_APPS][ICON_CAP];
@@ -142,6 +143,13 @@ static uint32_t icon_len[RAIL_APPS];
 static int8_t icon_st[RAIL_APPS];    /* 0 nothing, 1 asked for, 2 here, -1 failed */
 static uint32_t icon_win[RAIL_APPS]; /* the launch waiting on it, 0 none   */
 static uint32_t icon_off[RAIL_APPS], icon_n[RAIL_APPS]; /* a logo's bytes in LOGO */
+
+/* The catalogue (boot.json's apps, fed by the page): the desk pages over
+ * it sixteen tiles at a time; a rail slot maps to catalogue index
+ * cat_page*16 + slot, so every tile's icon streams from the same pack. */
+static char CAT_NAME[CAT_MAX][24];
+static char CAT_MARK[CAT_MAX][3];
+static uint32_t cat_n, cat_page, cat_pages;
 
 static zui_desk_t DESK;
 static zui_launch_theme_t THEME;
@@ -324,6 +332,55 @@ static void desk_init(void)
     desk_up = true;
 }
 
+/* The catalogue page on the rail: sixteen tiles, icons re-asked for, the
+ * launch windows of the old page closed. A slot is catalogue index
+ * cat_page*16 + slot; zb_icon_want reports the global index so the page
+ * serves the right manifest entry, and the icon APIs keep taking the slot. */
+static void cat_page_load(void)
+{
+    uint32_t i, g;
+    if (!desk_up) return;
+    for (i = 0; i < RAIL_APPS; i++) {
+        unsigned p;
+        g = cat_page * RAIL_APPS + i;
+        if (g < cat_n) {
+            for (p = 0; p < 23 && CAT_NAME[g][p]; p++) RAIL_NAME[i][p] = CAT_NAME[g][p];
+            RAIL_NAME[i][p] = 0;
+            for (p = 0; p < 23 && CAT_NAME[g][p]; p++) RAIL_APP[i][p] = CAT_NAME[g][p];
+            RAIL_APP[i][p] = 0;
+            RAIL_MARK[i][0] = CAT_MARK[g][0];
+            RAIL_MARK[i][1] = CAT_MARK[g][1];
+            RAIL_MARK[i][2] = 0;
+        } else {
+            RAIL_NAME[i][0] = RAIL_APP[i][0] = RAIL_MARK[i][0] = 0;
+        }
+        RAIL[i].name = RAIL_NAME[i];
+        RAIL[i].mark = RAIL_MARK[i];
+        icon_st[i] = 0;
+        icon_len[i] = 0;
+        icon_win[i] = 0;
+        if (DESK.win_of[i]) {
+            zui_wm_close(&DESK.wm, DESK.win_of[i]);
+            DESK.win_of[i] = 0;
+        }
+    }
+    DESK.napps = 0;
+    for (i = 0; i < RAIL_APPS; i++) zui_desk_add(&DESK, RAIL[i].name, RAIL[i].mark);
+    {
+        char st[40];
+        unsigned p = 0;
+        static const char pfx[] = "ZXV · the Web4 doorway · page ";
+        for (i = 0; pfx[i] && p < sizeof st - 8; i++) st[p++] = pfx[i];
+        st[p++] = (char) ('1' + (cat_page % 10));
+        if (cat_pages > 1) {
+            st[p++] = '/';
+            st[p++] = (char) ('0' + (cat_pages % 10));
+        }
+        st[p] = 0;
+        zui_desk_status(&DESK, st);
+    }
+}
+
 static void desk_act(void)
 {
     if (DESK.act == ZUI_DESK_LAUNCH && DESK.act_app >= 0)
@@ -481,6 +538,21 @@ EXPORT(zb_key) int zb_key(int key, int down, int mods)
         return 0;
     }
     if (MODE != 2) return 0;
+    /* page the catalogue with PageUp/PageDown; a page turn closes the
+     * old page's windows and asks for the new page's icons */
+    if (down && (key == 0x108 || key == 0x109)) {
+        if (cat_pages > 1) {
+            uint32_t np = key == 0x109
+                              ? (cat_page + 1 < cat_pages ? cat_page + 1 : 0)
+                              : (cat_page ? cat_page - 1 : cat_pages - 1);
+            if (np != cat_page) {
+                cat_page = np;
+                cat_page_load();
+                return 1;
+            }
+        }
+        return 0;
+    }
     zui_event_t e = {0};
     e.type = down ? ZUI_EV_KEY_DOWN : ZUI_EV_KEY_UP;
     e.key = (uint16_t) key;
@@ -555,12 +627,12 @@ EXPORT(zb_card_result) int zb_card_result(int ok)
     return 0;
 }
 
-/* Which rail app's icon the page should stream in next: its index + 1, or 0
- * when nothing is waiting. */
+/* Which rail app's icon the page should stream in next: the catalogue
+ * index + 1 (the page's slot + page*16), or 0 when nothing is waiting. */
 EXPORT(zb_icon_want) uint32_t zb_icon_want(void)
 {
     for (uint32_t i = 0; i < RAIL_APPS; i++)
-        if (icon_st[i] == 1) return i + 1;
+        if (icon_st[i] == 1) return cat_page * RAIL_APPS + i + 1;
     return 0;
 }
 
@@ -600,6 +672,41 @@ EXPORT(zb_icon_fail) int zb_icon_fail(uint32_t i)
     uint32_t id = icon_win[i];
     icon_win[i] = 0;
     if (id) zui_launch_theme_load(&THEME, id, ZUI_LT_FAILED, 0, 1);
+    return 0;
+}
+
+/* The catalogue (boot.json's apps): the page feeds it before the desk
+ * opens, so every tile is a real app, not a placeholder. */
+EXPORT(zb_apps) uint32_t zb_apps(uint32_t n)
+{
+    if (n > CAT_MAX) n = CAT_MAX;
+    cat_n = n;
+    cat_pages = cat_n ? (cat_n + RAIL_APPS - 1) / RAIL_APPS : 1;
+    if (cat_page >= cat_pages) cat_page = 0;
+    if (desk_up) cat_page_load();
+    return cat_n;
+}
+
+EXPORT(zb_apps_name) int zb_apps_name(uint32_t i, const char *name)
+{
+    unsigned p = 0;
+    if (i >= CAT_MAX || !name) return -1;
+    for (p = 0; name[p] && p < 23; p++) CAT_NAME[i][p] = name[p];
+    CAT_NAME[i][p] = 0;
+    zui_initials(name, CAT_MARK[i]);
+    return 0;
+}
+
+EXPORT(zb_apps_page) uint32_t zb_apps_page(void)
+{
+    return cat_page;
+}
+
+EXPORT(zb_apps_page_set) int zb_apps_page_set(uint32_t p)
+{
+    if (p >= cat_pages) return -1;
+    cat_page = p;
+    if (desk_up) cat_page_load();
     return 0;
 }
 

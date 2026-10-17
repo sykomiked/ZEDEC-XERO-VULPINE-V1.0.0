@@ -326,8 +326,11 @@ async function boot()
         const want = zb.zb_icon_want();
         if (!want || want - 1 === iconInflight) return;
         iconInflight = want - 1;
+        /* the want is the catalogue index; the icon APIs take the rail slot */
+        const page = zb.zb_apps_page ? zb.zb_apps_page() : 0;
+        const slot = iconInflight - page * 16;
         const app = manifest.apps && manifest.apps[iconInflight];
-        const i = iconInflight;
+        const i = slot;
         if (!app || (!app.icon && app.off === undefined)) {
             zb.zb_icon_fail(i);
             iconInflight = -1;
@@ -496,6 +499,12 @@ async function boot()
                 throw new Error(`boot.json: ${res.status} ${res.statusText}`);
         }
         manifest = await res.json();
+        /* the catalogue: every app the desk can open, in matrix order —
+         * fed before the desk, so its tiles are real apps */
+        if (zb.zb_apps) {
+            zb.zb_apps((manifest.apps || []).length);
+            (manifest.apps || []).forEach((a, k) => zb.zb_apps_name(k, a.name || ''));
+        }
         if (!crypto.subtle && !zb.zb_sha_begin)
             throw new Error('no way to check the files on this origin');
         const logos = LOGOS.map((k) => manifest.logos && manifest.logos[k]).filter(Boolean);
