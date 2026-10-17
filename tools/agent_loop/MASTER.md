@@ -256,3 +256,76 @@ Every boundary is crossed in both directions by a test, in all three
 spaces. That is the omnidirectional mandate, and it is what drives the
 ratio past 100:1 — not more of the same tests, but every edge of the
 graph exercised from both ends and both polarities.
+
+## The build order — each layer compiles off the one before
+
+The sequence is not arbitrary: every layer is derived from the one before
+it, so building out of order creates rework. Work in this order.
+
+```
+1. THE MATHEMATICS   the lattice, the anchors (8, 144), the Fibonacci
+                     ladder, the four values, the rank table.
+                     -> locked first, because everything below is a
+                        projection of it. The parameters are the truth.
+2. THE LOGIC         the 145-phase ladder, the operators (min/max on the
+                     rank), the bridge and tandem, the guards.
+                     -> the mathematics made executable.
+3. THE SECURITY      SCP-144 (Sicilian Crown Protection, 144-D): the
+                     point, the projection, the close-vector proof, the
+                     handshake, and the tier ladder over the protocols.
+                     -> the logic made defensive.
+4. THE ARCHITECTURE  the layers (the nine strata, the five logical
+                     layers), the modules, the middleware, the
+                     interfaces, the wasm engine and factory.
+                     -> the security made structural.
+5. THE APPS          the 144 matrix cells, generated from the lattice
+                     (the checks computed, the bodies rendered), the
+                     foundation's 82 patterns recombined.
+                     -> the architecture made usable.
+6. THE VERTICAL      a CHECK, not a build step: every cell must reach
+   INTEGRATION       all six layers with no gaps. This is where the
+                     measure (lattice_targets.py) reports 0/144 -> 144.
+                     -> the apps proven connected.
+7. THE ECOSYSTEM     the catalogue COMPILED off everything above: the
+   CATALOGUE         archetypes (84 dragon-* roles), the tiers (the
+                     gemstones), the progression, the artifacts, the
+                     icons. It is a projection of the system, so it is
+                     generated last, not authored.
+                     -> the system made legible.
+8. THE TEST CODE     the COMPLEMENT to the mathematics: for every
+                     mathematical fact (a rank, an operator, a guard, an
+                     anchor), a test. Because the mathematics is
+                     algebraic, one test covers unbounded cases, so the
+                     test code is the mirror of the math, not a
+                     duplicate of it.
+                     -> the mathematics made provable.
+```
+
+### Why this order
+
+- **The mathematics first** because it is the source: every other layer
+  is a projection of it. Locking it locks the parameters.
+- **The logic, security and architecture** in sequence because each is
+  the previous layer *made* something (executable, defensive,
+  structural).
+- **The apps after the architecture** because an app is an architecture
+  cell made usable.
+- **The vertical integration as a check, never a step** — it verifies
+  the apps are connected; it does not create them.
+- **The ecosystem catalogue compiled last** because it is a *projection*
+  of everything above (the archetypes from the bearer system, the tiers
+  from the card matrix, the progression from the grants) — authored
+  earlier it would drift.
+- **The test code as the complement to the mathematics**: not more of the
+  same tests, but the mathematical facts mirrored as checks. When the
+  math is algebraic, the tests are too.
+
+### The invariant across the order
+
+Each layer is a **projection** of the one before (the Rosetta elevator's
+principle applied to the build itself): the logic projects the math, the
+security projects the logic, the architecture projects the security, the
+apps project the architecture, the catalogue projects the system. A
+projection never invents; it carries the layer below faithfully. That is
+why the order matters and why it "all fits together seamlessly" — the
+system is one thing, viewed at eight levels.
