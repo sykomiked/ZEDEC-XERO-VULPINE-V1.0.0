@@ -52,9 +52,16 @@ zcap_result_t zcap_exchange(zcap_vec_t *v, zcap_form_t from, zcap_form_t to,
     /* You cannot move value you do not hold. */
     if (SR_CMP(v->bal[from], amount) < 0) return ZCAP_INSUFFICIENT;
 
-    /* Conservative move: what leaves `from` arrives at `to`, to the token. */
-    v->bal[from] = SR_SUB(v->bal[from], amount);
-    v->bal[to]   = SR_ADD(v->bal[to], amount);
+    /* Conservative move: what leaves `from` arrives at `to`, to the token.
+     * The Q32.32 add can overflow int64 (the October 2026 audit, finding
+     * 6): check both legs before committing either, and reject the whole
+     * transfer atomically on overflow. */
+    {
+        surplus_real_t to_new = SR_ADD(v->bal[to], amount);
+        if (to_new < 0 && v->bal[to] >= 0) return ZCAP_OVERFLOW;
+        v->bal[from] = SR_SUB(v->bal[from], amount);
+        v->bal[to] = to_new;
+    }
     return ZCAP_OK;
 }
 

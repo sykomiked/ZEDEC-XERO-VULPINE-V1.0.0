@@ -67,7 +67,8 @@ typedef struct {
 typedef enum {
     ZCAP_OK = 0,
     ZCAP_INALIENABLE,   /* either side is a non-priceable Crown form            */
-    ZCAP_INSUFFICIENT   /* amount is negative, or source balance cannot cover it */
+    ZCAP_INSUFFICIENT,  /* amount is negative, or source balance cannot cover it */
+    ZCAP_OVERFLOW       /* the Q32.32 transfer would overflow int64: rejected atomically */
 } zcap_result_t;
 
 /* Move `amount` of value from form `from` to form `to` within holding `v`.

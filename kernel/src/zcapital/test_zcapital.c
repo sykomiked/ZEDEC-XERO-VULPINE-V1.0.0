@@ -82,6 +82,20 @@ int main(void)
     {
         zcap_vec_t v = {0};
         v.bal[ZCAP_FINANCIAL] = SR_FROM_INT(5);
+        /* the Q32.32 boundary: a destination near INT64_MAX must reject the
+         * transfer atomically, leaving both balances untouched (the audit's
+         * finding 6 — the double-mode build cannot overflow at int64 scale,
+         * so the check is Q32-only) */
+        {
+            zcap_vec_t hv = {0};
+            hv.bal[ZCAP_FINANCIAL] = SR_FROM_INT(100);
+            hv.bal[ZCAP_MANUFACTURED] = (surplus_real_t) (INT64_MAX - 4);
+            zcap_result_t r = zcap_exchange(&hv, ZCAP_FINANCIAL, ZCAP_MANUFACTURED,
+                                            (surplus_real_t) 8);
+            CHECK(r == (SR_ONE == 1.0 ? ZCAP_OK : ZCAP_OVERFLOW));
+            CHECK(hv.bal[ZCAP_FINANCIAL] == SR_FROM_INT(100));
+            CHECK(hv.bal[ZCAP_MANUFACTURED] == (surplus_real_t) (INT64_MAX - 4));
+        }
         zcap_result_t r = zcap_exchange(&v, ZCAP_FINANCIAL, ZCAP_MANUFACTURED, SR_FROM_INT(6));
         CHECK(r == ZCAP_INSUFFICIENT);
         CHECK(sr_eq(v.bal[ZCAP_FINANCIAL], SR_FROM_INT(5))); /* untouched */
