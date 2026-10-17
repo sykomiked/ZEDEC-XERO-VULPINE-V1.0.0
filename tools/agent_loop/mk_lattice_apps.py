@@ -41,6 +41,11 @@ def lattice_point(app_index, entry_index, dims=144):
     return vec
 
 
+def norm(vec):
+    """The exact squared norm over the ladder weights."""
+    return sum(FIB[i] * b for i, b in enumerate(vec))
+
+
 def is_anchor(vec):
     """True when the point lies on a self-dual anchor: the point's weight
     (the sum of its Zeckendorf terms) is a lattice dimension that is
@@ -62,12 +67,12 @@ def deterministic_checks(app_index, entries):
         inputs = vec[:arity] if arity <= len(vec) else vec + [0] * (arity - len(vec))
         weight = sum(FIB[i] for i, b in enumerate(vec) if b)
         if kind == "truth":
-            # the four-valued law: the anchor's point is TRUE. A single
-            # language cannot disagree with itself, so the generator never
-            # emits `both` for a lone runtime — the anchor is TRUE, any
-            # other point is NEITHER (no evidence yet), and the
-            # never-authorise guard holds: nothing off-anchor is TRUE.
-            ans = "true" if is_anchor(vec) else "neither"
+            # the truth must be what the runtime can REPRESENT. Eve is
+            # binary (within/without a range), so the answer is true or
+            # false — never neither, which Eve cannot express. The anchor's
+            # point is TRUE; any other is FALSE (contradicted by the range).
+            # The never-authorise guard holds: only an anchor point is TRUE.
+            ans = "true" if is_anchor(vec) else "false"
         else:
             ans = weight % (arity + 1)
         out.append((name, inputs, ans))

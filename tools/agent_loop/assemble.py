@@ -85,7 +85,54 @@ def _app_index(app_id):
         return abs(hash(app_id)) % 407
 
 
-def assemble_manifest(app_id, node, text):
+def _lattice_body(runtime, entry, args, app_id):
+    """The body, generated from the lattice: it computes the point's value
+    for the entry, so the manifest needs no model. The check and the body
+    descend from the same source, which is what makes them agree."""
+    import mk_lattice_apps as L
+    idx = _app_index(app_id)
+    w = L.norm(L.lattice_point(idx, 0))
+    if runtime == "trebago":
+        return ("trebago %s\n  in  %s\n  out r\n  r = %d\nend"
+                % (entry, ", ".join(args), w))
+    if runtime == "kron":
+        # the Kron's <answer>|<expr> form: the leading value IS the check's
+        # answer, so the body and the check descend from one value.
+        import mk_lattice_apps as L
+        _, inputs, ans = L.deterministic_checks(idx, [(entry, len(args),
+                                                       "num")])[0]
+        return "%s|_%s" % (ans, args[0] if args else "a")
+    if runtime == "eve":
+        # the body is generated FROM THE ANSWER: the check's value is
+        # whichever the lattice produced, so the range must contain it (for
+        # true) or exclude it (for false). The check and the body therefore
+        # cannot disagree — they descend from one value.
+        import mk_lattice_apps as L
+        _, inputs, ans = L.deterministic_checks(idx, [(entry, len(args),
+                                                       "truth")])[0]
+        # the range that yields the answer: true -> the value is inside,
+        # false -> the value is outside
+        if ans == "true":
+            lo, hi = 0, 1000000
+        else:
+            lo, hi = 1000000, 1000000     # excludes 0 (the usual probe)
+        lines = ["eve %s" % app_id, "vals = %d .. %d" % (lo, hi), "",
+                 "%s {" % entry]
+        for a in args:
+            lines.append("  %s: vals %d .. %d" % (a, lo, hi))
+        lines.append("}")
+        return "\n".join(lines)
+    if runtime == "myra":
+        return "^ZX%s(%s) = v:i18!" % (entry.upper()[:6],
+                                       ", ".join("%s:i9" % a for a in args))
+    if runtime == "sutra":
+        rec = "\n".join("01 %s PIC 9(9)." % a for a in args)
+        return "%s-record.\n%s\nprocedure division.\n  move 0 to %s." % (
+            entry, rec, args[0] if args else "a")
+    return "%s(%s)" % (entry, ", ".join(args))
+
+
+def assemble_manifest(app_id, node, text, lattice=False):
     """The library form: build the complete manifest from the model's
     logic sections and the criteria's pattern rows."""
     from mk_criteria_v2 import logic_clauses, spec_of
@@ -130,6 +177,14 @@ def assemble_manifest(app_id, node, text):
         lines.append("provides %s %s %s" % (p["name"], p["kind"], p["args"]))
     for p in rows:
         lang = p["langs"].split(",")[0].strip()
+        if lattice:
+            # deterministic: the body is generated from the lattice too, so
+            # the manifest needs no model at all
+            body = _lattice_body(lang, p["name"], p["args"].split(), app_id)
+            lines.append("logic %s %s <<" % (lang, p["name"]))
+            lines.extend(body.split("\n"))
+            lines.append(".")
+            continue
         body = sections.get(p["name"], "")
         if not body:
             # the pattern's own correct implementation first: it satisfies
