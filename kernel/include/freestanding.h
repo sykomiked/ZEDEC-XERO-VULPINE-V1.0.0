@@ -24,6 +24,17 @@ static inline void *fs_memset(void *dst, int c, size_t n) {
     return dst;
 }
 
+static inline void *fs_memchr(const void *s, int c, size_t n)
+{
+    const uint8_t *p = (const uint8_t *) s;
+    while (n--) {
+        if (*p == (uint8_t) c) return (void *) p;
+        p++;
+    }
+    return (void *) 0;
+}
+void *fs_memmove(void *d, const void *s, size_t n);
+void *fs_realloc(void *p, size_t n);
 static inline void *fs_memcpy(void *dst, const void *src, size_t n) {
     uint8_t *d = (uint8_t*)dst;
     const uint8_t *s = (const uint8_t*)src;
@@ -222,5 +233,61 @@ static inline int fs_printf(const char *fmt, ...) {
 }
 #define printf fs_printf
 #define snprintf fs_snprintf
+#define vsnprintf fs_vsnprintf
+
+/* Minimal vsnprintf for freestanding mode: the same subset as fs_snprintf. */
+#include <stdarg.h>
+static inline int fs_vsnprintf(char *buf, size_t max, const char *fmt, va_list ap)
+{
+    size_t n = 0;
+    char tmp[32];
+    for (const char *p = fmt; p && *p; p++) {
+        if (*p != '%') {
+            if (n + 1 < max) buf[n] = *p;
+            n++;
+            continue;
+        }
+        p++;
+        int zero = 0, width = 0;
+        if (*p == '0') { zero = 1; p++; }
+        while (*p >= '0' && *p <= '9') { width = width * 10 + (*p - '0'); p++; }
+        char spec = *p;
+        const char *s = 0;
+        unsigned long long v = 0;
+        int neg = 0;
+        if (spec == 's') {
+            s = va_arg(ap, const char *);
+            if (!s) s = "(null)";
+            for (const char *q = s; *q; q++) {
+                if (n + 1 < max) buf[n] = *q;
+                n++;
+            }
+        } else if (spec == 'c') {
+            if (n + 1 < max) buf[n] = (char) va_arg(ap, int);
+            n++;
+        } else {
+            if (spec == 'd' || spec == 'i') {
+                long long sv = va_arg(ap, long long);
+                if (sv < 0) { neg = 1; v = (unsigned long long) -sv; } else v = (unsigned long long) sv;
+            } else {
+                v = va_arg(ap, unsigned long long);
+            }
+            int t = 0;
+            if (v == 0) tmp[t++] = '0';
+            while (v) {
+                int d = (int) (v % (spec == 'x' || spec == 'X' ? 16u : 10u));
+                tmp[t++] = (char) (d < 10 ? '0' + d : (spec == 'X' ? 'A' : 'a') + d - 10);
+                v /= (spec == 'x' || spec == 'X' ? 16u : 10u);
+            }
+            if (neg && n + 1 < max) buf[n++] = '-';
+            while (t < width--) { if (n + 1 < max) buf[n] = zero ? '0' : ' '; n++; }
+            while (t) { if (n + 1 < max) buf[n] = tmp[--t]; n++; }
+        }
+    }
+    if (max) buf[n < max ? n : max - 1] = 0;
+    return (int) n;
+}
+static inline int fs_strchr_impl(const char *s, int c) { (void) s; (void) c; return 0; }
+
 
 #endif
