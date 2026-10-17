@@ -1,0 +1,32 @@
+# app pinhole: FAILED
+# verdict: check failed (line 26): check flags_none: refused (every language)
+
+zxapp 1
+id pinhole
+matrix 58
+name Pinhole
+needs camera
+needs location
+needs fs.write
+needs sys.read
+
+provides flags_none truth bits forbidden
+provides limit_excess num value limit
+provides composite_key num high low
+logic kron flags_none <<
+0|_bits
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+

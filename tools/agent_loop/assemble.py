@@ -99,7 +99,7 @@ def assemble_manifest(app_id, node, text):
         if not body:
             # the pattern's own correct implementation first: it satisfies
             # the pattern's own check by construction
-            body = p.get("body", "").replace("{app}", args.app_id)
+            body = p.get("body", "").replace("{app}", app_id)
         if not body:
             first = p["args"].split()[0] if p["args"].split() else "a"
             argpics = ", ".join("%s:i9" % a for a in p["args"].split())

@@ -1,0 +1,32 @@
+# app rookery: FAILED
+# verdict: check failed (line 27): check composite_key: refused (every language)
+
+zxapp 1
+id rookery
+matrix 26
+name Rookery
+needs net
+needs fs.read
+needs fs.write
+needs notify
+
+provides limit_excess num value limit
+provides composite_key num high low
+provides clamp num value min max
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+logic kron clamp <<
+0|_value
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check clamp value=-5,0,50,150 min=0,0,0,0 max=100,100,100,100 = 0,0,50,100
+
