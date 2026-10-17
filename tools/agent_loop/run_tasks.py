@@ -84,6 +84,33 @@ def strip_banner(s):
     return s[j + 2:] if j >= 0 else s[i:]
 
 
+
+def testbed_test(out_path, prompt):
+    """Post a drafted manifest to the local zxvd testbed if one is set."""
+    url = os.environ.get("ZXVD_URL", "")
+    tok = os.environ.get("ZXVD_TOKEN", "")
+    if not url or not tok:
+        return None
+    try:
+        with open(out_path, "r", errors="replace") as f:
+            text = f.read()
+        i = text.find("zxapp 1")
+        if i < 0:
+            return "no manifest in the draft"
+        manifest = text[i:i + 8192]
+        import urllib.request
+        req = urllib.request.Request(url + "/api/app", data=manifest.encode(),
+                                     method="POST")
+        req.add_header("X-ZXV-Token", tok)
+        req.add_header("Host", urllib.parse.urlsplit(url).netloc)
+        with urllib.request.urlopen(req, timeout=20) as r:
+            d = r.read()
+        st = d[0] if d else 9
+        n = (d[1] << 8 | d[2]) if len(d) >= 3 else 0
+        return "testbed[%d]: %s" % (st, d[3:3 + n].decode(errors="replace"))
+    except Exception as e:
+        return "testbed error: %s" % e
+
 def run_task(task):
     prompt = prompt_for(task)
     ph = hashlib.sha256(prompt.encode()).hexdigest()[:16]
@@ -135,6 +162,9 @@ def run_task(task):
         f.write(head + body)
     with open(STATE, "a") as f:
         f.write("%d\n" % task["id"])
+    verdict = testbed_test(out_path, prompt)
+    if verdict:
+        log("task %s: %s" % (task["id"], verdict))
     log("task %s: done -> %s (%.1fs)" % (task["id"], os.path.basename(out_path), dt))
     return True
 
