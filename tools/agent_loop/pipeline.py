@@ -119,6 +119,20 @@ def criteria_of(app_id):
     return "\n\n".join(parts)
 
 
+_ASSIST = None
+
+
+def assistance():
+    """The assistance criteria: the K and pillar facts verified against the
+    pillar sources, so a retry fixes the operator errors rather than
+    repeating them."""
+    global _ASSIST
+    if _ASSIST is None:
+        p = os.path.join(ROOT, "tools/agent_loop/ASSISTANCE.md")
+        _ASSIST = open(p, errors="replace").read() if os.path.exists(p) else ""
+    return _ASSIST
+
+
 def decoding_for(app_id, node):
     """The per-runtime decoding reference: the real blocks from the built
     apps whose runtimes this app uses, so the model copies exact spellings
@@ -222,6 +236,9 @@ def prompt_for(app_id, node, verdict, last_text=""):
         "  kron: one line: '<answer-for-the-first-row>|<expression with _arg names>'\n"
         "  myra: one line: '^<GLOBAL>(<arg>:<pic>, <arg>:<pic>) = <name>:<pic>!'\n"
         "  sutra: the record (pictures) then the procedure (COMPUTE / IF)\n"
+        "THE ASSISTANCE CRITERIA — the exact K and pillar facts, verified "
+        "against the pillar sources. Every failure traced to one of these; "
+        "follow it and the entries pass:\n%s\n"
         "THE DECODING REFERENCE — real blocks from the built apps in the very "
         "runtimes this app uses; copy these spellings exactly:\n%s\n"
         "PARACONSISTENT LOGIC — this is the kernel's signature and the apps' "
@@ -239,7 +256,7 @@ def prompt_for(app_id, node, verdict, last_text=""):
         "--- skeleton (the assembled structure, for context) ---\n%s\n---\n"
         "The wave spec (the authority):\n---\n%s\n---\n"
         "The criteria (the exact entry table):\n---\n%s\n---\n"
-        % (app_id, node.get("slot"), decoding_for(app_id, node), checks_of(app_id),
+        % (app_id, node.get("slot"), assistance(), decoding_for(app_id, node), checks_of(app_id),
            skeleton(app_id, node), spec[:2500], criteria_of(app_id)[:2500])
     )
     if verdict:
