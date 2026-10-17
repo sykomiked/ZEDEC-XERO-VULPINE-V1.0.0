@@ -250,7 +250,7 @@ def intelligence(prompt, tokens, tries=4):
 
 
 OR_KEY = os.environ.get("OPENROUTER_API_KEY", "")
-OR_MODEL = os.environ.get("OR_MODEL", "nvidia/nemotron-3.5-super-vl:free")
+OR_MODEL = os.environ.get("OR_MODEL", "nvidia/nemotron-3.5-lightning:free")
 OR_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
@@ -262,7 +262,9 @@ def openrouter(prompt, tokens, tries=4):
         try:
             body = json.dumps({"model": OR_MODEL,
                                "messages": [{"role": "user", "content": prompt}],
-                               "max_tokens": tokens, "temperature": 0.3}).encode()
+                               "max_tokens": max(tokens, 2000),
+                               "reasoning": {"exclude": True},
+                               "temperature": 0.3}).encode()
             req = urllib.request.Request(OR_URL, data=body,
                                          headers={"Authorization": "Bearer " + OR_KEY,
                                                   "Content-Type": "application/json"})
@@ -271,8 +273,10 @@ def openrouter(prompt, tokens, tries=4):
             return d["choices"][0]["message"]["content"]
         except Exception as e:
             if a == tries - 1:
-                raise
-            _t.sleep(3 * (a + 1))
+                log("openrouter failed: %s" % e)
+                return ""
+            _t.sleep(4 * (a + 1))
+    _t.sleep(2)  # paced: the free tier wants one request at a time
     return ""
 
 
@@ -316,8 +320,9 @@ def main():
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--state", default=os.path.join(ROOT, "tools/agent_loop/pipeline.state"))
     args = ap.parse_args()
-    if not VLLM_URL or not ZXVD_URL or not ZXVD_TOKEN:
-        log("need VLLM_URL, ZXVD_URL and ZXVD_TOKEN")
+    if not (VLLM_URL or IO_KEY or OR_KEY) or not ZXVD_URL or not ZXVD_TOKEN:
+        log("need a backend (VLLM_URL, IO_INTEL_KEY or OPENROUTER_API_KEY) plus "
+            "ZXVD_URL and ZXVD_TOKEN")
         return 1
     g = "/tmp/appgraph_pipeline.json"
     subprocess.run([sys.executable, os.path.join(ROOT, "tools/apps/app_graph.py"),
@@ -347,6 +352,9 @@ def main():
             except Exception as e:
                 log("%s attempt %d: vllm error %s" % (o, attempt, e))
                 time.sleep(10)
+                continue
+            if not text or not text.strip():
+                log("%s attempt %d: the model returned nothing" % (o, attempt))
                 continue
             try:
                 from assemble import assemble_manifest
