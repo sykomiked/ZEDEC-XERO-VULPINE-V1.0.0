@@ -171,6 +171,11 @@ def main():
         log("the OS: the release buckets (the two clean passes)")
         run(["bash", "build_system/ipfs_dist.sh", "x86_64", "arm64"], cwd=ROOT)
 
+    if args.stage in ("all", "audit", "gaps"):
+        log("the vertical-integration gap audit (the standing instruction)")
+        run([sys.executable, os.path.join(AG, "gap_audit.py"), "--json", "/tmp/gaps.json"])
+        log("the gap-filling recipes: tools/agent_loop/GAP_FILLING.md")
+
     if args.stage in ("all", "audit"):
         log("the audits")
         r = audit_static()
