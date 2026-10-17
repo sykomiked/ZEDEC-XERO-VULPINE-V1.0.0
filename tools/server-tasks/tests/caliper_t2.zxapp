@@ -1,0 +1,19 @@
+# T2 — caliper: the inter-language agreement
+zxapp 1
+id caliper_t2
+matrix 33
+name Caliper T2
+provides count_ok truth count cap
+logic eve count_ok <<
+eve caliper
+counts = 1 .. 100
+
+count_ok {
+  count: counts 1 .. 100
+  cap: counts 100 .. 100
+}
+.
+logic kron count_ok <<
+(_count>0)&(_count le _cap)
+.
+check count_ok count=0,1,2,3 cap=0,1,2,3 = both

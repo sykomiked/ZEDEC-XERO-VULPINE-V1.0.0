@@ -1,0 +1,13 @@
+# T2 — talewind: the inter-language agreement
+zxapp 1
+id talewind_t2
+matrix 108
+name Talewind T2
+provides flags_none truth bits forbidden
+logic kron flags_none <<
+(_bits&_forbidden)=0
+.
+logic kron flags_none <<
+(_bits|(_forbidden*2))<_forbidden
+.
+check flags_none bits=0,1,2,3 forbidden=0,1,2,3 = both

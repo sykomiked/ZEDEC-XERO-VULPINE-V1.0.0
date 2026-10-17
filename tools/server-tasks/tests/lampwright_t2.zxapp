@@ -1,0 +1,20 @@
+# T2 — lampwright: the inter-language agreement
+zxapp 1
+id lampwright_t2
+matrix 61
+name Lampwright T2
+provides within_range truth value lo hi
+logic eve within_range <<
+eve lampwright
+values = 0 .. 100
+
+within_range {
+  value: values 0 .. 100
+  lo: values 0 .. 0
+  hi: values 100 .. 100
+}
+.
+logic kron within_range <<
+(_value>=_lo)&(_value le _hi)
+.
+check within_range value=0,1,2,3 lo=0,1,2,3 hi=0,1,2,3 = both

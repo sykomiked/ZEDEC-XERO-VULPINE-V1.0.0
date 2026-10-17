@@ -1,0 +1,27 @@
+# T2 — sundial: the inter-language agreement
+zxapp 1
+id sundial_t2
+matrix 110
+name Sundial T2
+provides flags_none truth bits forbidden
+provides count_ok truth count cap
+logic kron flags_none <<
+(_bits&_forbidden)=0
+.
+logic kron flags_none <<
+(_bits|(_forbidden*2))<_forbidden
+.
+logic eve count_ok <<
+eve sundial
+counts = 1 .. 100
+
+count_ok {
+  count: counts 1 .. 100
+  cap: counts 100 .. 100
+}
+.
+logic kron count_ok <<
+(_count>0)&(_count le _cap)
+.
+check flags_none bits=0,1,2,3 forbidden=0,1,2,3 = both
+check count_ok count=0,1,2,3 cap=0,1,2,3 = both

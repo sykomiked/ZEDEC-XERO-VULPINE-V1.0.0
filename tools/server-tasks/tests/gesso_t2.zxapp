@@ -1,0 +1,34 @@
+# T2 — gesso: the inter-language agreement
+zxapp 1
+id gesso_t2
+matrix 53
+name Gesso T2
+provides within_range truth value lo hi
+provides count_ok truth count cap
+logic eve within_range <<
+eve gesso
+values = 0 .. 100
+
+within_range {
+  value: values 0 .. 100
+  lo: values 0 .. 0
+  hi: values 100 .. 100
+}
+.
+logic kron within_range <<
+(_value>=_lo)&(_value le _hi)
+.
+logic eve count_ok <<
+eve gesso
+counts = 1 .. 100
+
+count_ok {
+  count: counts 1 .. 100
+  cap: counts 100 .. 100
+}
+.
+logic kron count_ok <<
+(_count>0)&(_count le _cap)
+.
+check within_range value=0,1,2,3 lo=0,1,2,3 hi=0,1,2,3 = both
+check count_ok count=0,1,2,3 cap=0,1,2,3 = both

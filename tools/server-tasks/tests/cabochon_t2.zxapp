@@ -1,0 +1,19 @@
+# T2 — cabochon: the inter-language agreement
+zxapp 1
+id cabochon_t2
+matrix 134
+name Cabochon T2
+provides count_ok truth count cap
+logic eve count_ok <<
+eve cabochon
+counts = 1 .. 100
+
+count_ok {
+  count: counts 1 .. 100
+  cap: counts 100 .. 100
+}
+.
+logic kron count_ok <<
+(_count>0)&(_count le _cap)
+.
+check count_ok count=0,1,2,3 cap=0,1,2,3 = both

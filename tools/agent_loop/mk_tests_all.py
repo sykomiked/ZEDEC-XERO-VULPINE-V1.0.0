@@ -90,8 +90,11 @@ def main():
                            p["witness_body"].replace("{app}", o), "."]
             for p in pats:
                 if p.get("witness_body"):
-                    ck = p["checks"]
-                    l2 += ck if isinstance(ck, list) else [ck]
+                    # the witnesses disagree by design: the join is BOTH,
+                    # and the check expects it (the paraconsistent answer)
+                    args = p["args"].split()
+                    probe = " ".join("%s=0,1,2,3" % a for a in args)
+                    l2.append("check %s %s = both" % (p["name"], probe))
             open(os.path.join(out, "%s_t2.zxapp" % o), "w").write("\n".join(l2) + "\n")
             t2 += 1
 
