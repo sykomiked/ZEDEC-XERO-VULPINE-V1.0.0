@@ -221,7 +221,37 @@ def prompt_for(app_id, node, verdict, last_text=""):
     return p
 
 
+IO_KEY = os.environ.get("IO_INTEL_KEY", "")
+IO_MODEL = os.environ.get("IO_MODEL", "moonshotai/Kimi-K2.7-Code")
+IO_URL = "https://api.intelligence.io.solutions/api/v1/chat/completions"
+
+
+def intelligence(prompt, tokens, tries=4):
+    """The IO Intelligence backend: the hosted strong coders (Kimi, GLM,
+    DeepSeek). The API refuses very large single requests, so the retry
+    backs off and the callers keep prompts small (per entry)."""
+    import time as _t
+    for a in range(tries):
+        try:
+            body = json.dumps({"model": IO_MODEL,
+                               "messages": [{"role": "user", "content": prompt}],
+                               "max_tokens": tokens, "temperature": 0.3}).encode()
+            req = urllib.request.Request(IO_URL, data=body,
+                                         headers={"Authorization": "Bearer " + IO_KEY,
+                                                  "Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=300) as r:
+                d = json.loads(r.read())
+            return d["choices"][0]["message"]["content"]
+        except Exception as e:
+            if a == tries - 1:
+                raise
+            _t.sleep(3 * (a + 1))
+    return ""
+
+
 def vllm(prompt, tokens):
+    if IO_KEY:
+        return intelligence(prompt, tokens)
     body = json.dumps({"model": VLLM_MODEL,
                        "messages": [{"role": "user", "content": prompt}],
                        "max_tokens": tokens, "temperature": 0.6, "top_p": 0.9}).encode()
