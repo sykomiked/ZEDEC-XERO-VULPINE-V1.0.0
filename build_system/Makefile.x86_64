@@ -35,7 +35,7 @@ CFLAGS  := -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib -
            -include kernel/include/freestanding.h \
            -Ikernel/arch/arm64 -Ikernel/arch/x86_64 -Ikernel/boot \
            -Ikernel/compat -Ikernel/include -Ikernel/include/freestanding_stubs \
-           -Ikernel/src -Ikernel/src/e8 -Ikernel/src/mixmat -Ikernel/src/mbcomp -Ikernel/src/modbind -Ikernel/src/abacus -Ikernel/src/ai_layer \
+           -Ikernel/src -Ikernel/src/e8 -Ikernel/src/mixmat -Ikernel/src/mbcomp -Ikernel/src/modbind -Ikernel/src/abacus -Ikernel/src/zxpkg -Ikernel/src/sdk_bridge -Ikernel/src/sdk -Ikernel/src/rur -Ikernel/src/rce -Ikernel/src/panopticon -Ikernel/src/orbital_fabric -Ikernel/src/macgyver -Ikernel/src/legal_engine -Ikernel/src/financial_fabric -Ikernel/src/epu -Ikernel/src/dharana -Ikernel/src/curzi -Ikernel/src/bootlegger -Ikernel/src/bluetooth -Ikernel/src/acpi -Ikernel/src/wifi -Ikernel/src/ubh -Ikernel/src/clock -Ikernel/src/browser -Ikernel/src/sutra -Ikernel/src/fs -Ikernel/src/sched -Ikernel/src/pqsec -Igui -Ikernel/src/ai_layer \
            -Ikernel/src/alloc -Ikernel/src/appkit -Ikernel/src/art_studio \
            -Ikernel/src/ascent -Ikernel/src/audiogenomics_pro -Ikernel/src/axiom_matrix \
            -Ikernel/src/battering_ram -Ikernel/src/bios -Ikernel/src/bootfeat \

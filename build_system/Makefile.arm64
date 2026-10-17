@@ -133,7 +133,7 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -Ikernel/src/fractal \
          -Ikernel/src/tolvovina \
          -Ikernel/src/rational \
-         -Ikernel/src/abacus \
+         -Ikernel/src/abacus -Ikernel/src/video -Ikernel/src/swarm \
          -Ikernel/src/lightningrod \
          -Ikernel/src/bios \
          -Ikernel/src/dharma -Ikernel/src/sephirot \
