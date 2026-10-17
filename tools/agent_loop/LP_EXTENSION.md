@@ -311,3 +311,41 @@ never-authorise (no non-TRUE mix yields TRUE), and the total-table (the
 operators are defined for every pair — proven by the algebraic properties,
 not enumerated). A milestone that does not hold blocks the next, exactly
 as the verification tiers gate each other.
+
+## The lattice geometry — why 8 and 144 are the anchors
+
+The Fibonacci ladder's dimensions are **lattice dimensions**, and the two
+self-dual anchors are forced by arithmetic, not chosen.
+
+**The criteria.** A lattice `Λ ⊂ ℝⁿ` is *perfect* (Korkine–Zolotareff)
+when the rank-1 outer products of its minimal vectors span `Sym_n(ℝ)`, and
+*eutactic* when the identity is a strictly positive combination of their
+projections. By **Voronoi's theorem** a lattice is *extreme* (a density
+maximum) iff perfect **and** eutactic. An **even unimodular (Type II)**
+lattice exists **only when `n ≡ 0 (mod 8)`**.
+
+**The Pisano period mod 8 is 12** (`1,1,2,3,5,0,5,5,2,7,1,0`), so only
+every sixth Fibonacci number is `0 mod 8`. Up to 144 that is exactly two:
+
+- **`F₆ = 8` → E₈** — the inner microkernel anchor (the Gosset root
+  lattice, 240 minimal vectors, the proven densest packing in 8D).
+- **`F₁₂ = 144` → Γ₁₄₄** — the outer omni-tautology envelope (extremal
+  even unimodular, minimal norm `2⌊144/24⌋+2 = 14`, its shells spherical
+  11-designs by Venkov: rigidly extreme). `144 = 18×8 = 6×24 = 12²`.
+
+So the ladder stops at 144 because that is where self-duality (`Λ = Λ*`)
+snaps back — the second and last Type II anchor up to that dimension.
+
+**The intermediate steps** (13, 21, 34, 55, 89) are not Type II and each
+has an exact-integer construction: laminated slicing (Λ₁₃ from BW₁₆, Λ₂₁
+from the Leech `Λ₂₄` by an `A₃` sublattice), Craig's cyclotomic lattices
+for the prime steps (13, 89), and the exterior-square construction at 55
+(the tenth triangular number). **E₈ itself bridges to the Fibonacci
+sequence** through the golden ratio: projected along its `H₄` Coxeter
+plane it splits into two 600-cells scaled by `φ` — the same ratio as the
+economy's 8:13 cycle.
+
+**What the H100 must verify:** at each Fibonacci milestone, the lattice
+claim is a *test*, not a comment — the kissing number, the minimal norm,
+and (for the two anchors) the self-duality `Λ = Λ*`, checked against the
+construction. The phase ladder and the lattice ladder are the same ladder.
