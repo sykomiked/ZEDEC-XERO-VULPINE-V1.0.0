@@ -110,6 +110,9 @@ typedef int sock_t;
 #include "pa_runtime.h"
 #include "quest.h"
 #include "zxv_http_guard.h"
+#if defined(ZXVD)
+#include "zxvd_app.h"
+#endif
 #include "zxv_model_host.h"
 #include "zxv_budget_gate.h"
 #include "zxv_answer_tag.h"
@@ -2011,6 +2014,19 @@ static void handle(sock_t c)
             reply(c, "400 Bad Request", "text/plain", "off, lan, online, peer, share, want or sell",
                   43);
 #if defined(ZXVD)
+    } else if (PATH_IS("/api/app") && !is_get) {
+        char *o = NULL;
+        size_t ol = 0;
+        if (!zxvd_app_handle(body, (size_t) want, &o, &ol)) {
+            if (!o)
+                reply(c, "500 Internal Server Error", "text/plain", "out of memory", 13);
+            else {
+                reply(c, "200 OK", "application/octet-stream", o, ol);
+                free(o);
+            }
+            return;
+        }
+        reply(c, "400 Bad Request", "text/plain", "app endpoint refused", 19);
     } else if (PATH_IS("/api/rpc") && !is_get) {
         /* the window's way to zxvd's methods (the staple apps): one JSON-RPC
          * request in, its response out, the same as a line on the socket.
@@ -3111,6 +3127,10 @@ int main(int argc, char **argv)
 #if defined(ZXVD)
     if (zxvd_phone_port())
         printf("ZXVD-PHONE: TCP %u (pair a phone with phone.pair)\n", (unsigned) zxvd_phone_port());
+    if (zxvd_app_init() != 0) {
+        fprintf(stderr, "zxvd: app layer failed to init\n");
+        return 1;
+    }
     zxvd_irc_service(NULL, pal_now_ms()); /* --enable irc: listen before saying so */
     if (zxvd_irc_port())
         printf("ZXVD-IRC: TLS 127.0.0.1:%u (password and certificate: irc.status)\n",

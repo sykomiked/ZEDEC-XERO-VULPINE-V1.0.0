@@ -72,6 +72,20 @@ set -- "$@" "-I$K/src/web4" "-I$K/src/print" "-I$R/sdk/libzxv/include"
 for d in freight harmonic stream ehop; do set -- "$@" "-I$K/src/$d"; done
 for f in $(sh "$HERE/app_sources.sh" srcs); do set -- "$@" "$K/$f"; done
 DEFS="-DZXVD $OSDEFS"
+# the app layer: the manifest host, the four interpreted pillars and the
+# live testbed (POST /api/app loads and runs a .zxapp with no recompile)
+for d in ada-eve apl-kron cobol-sutra mumps-myra; do
+    set -- "$@" "-I$R/sdk/pillars/$d/include"
+done
+set -- "$@" "-I$K/src/apps"
+set -- "$@" \
+    "$K/src/apps/zxapp.c" "$K/src/apps/zxapp_eve.c" "$K/src/apps/zxapp_kron.c" \
+    "$K/src/apps/zxapp_myra.c" "$K/src/apps/zxapp_sutra.c" "$HERE/zxvd_app.c"
+for d in ada-eve apl-kron cobol-sutra mumps-myra; do
+    for f in "$R/sdk/pillars/$d/src/"*.c; do set -- "$@" "$f"; done
+done
+DEFS="$DEFS -DZXV_HAVE_APP"
+
 if [ -f "$K/src/tensor/zt_model.c" ] && [ -f "$HERE/zxv_zt_glue.c" ]; then
     set -- "$@" "$HERE/zxv_zt_glue.c"
     DEFS="$DEFS -DZXV_HAVE_ZT_GLUE"
