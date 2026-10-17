@@ -509,6 +509,7 @@ verify-all: test
 	@echo "=== cisex: the armada's global IPFS index — dag-pb crawl, EpistemicRank, bounties ===";
 	$(MAKE) --no-print-directory test-cisex-idx
 	$(MAKE) --no-print-directory test-seedbank
+	$(MAKE) --no-print-directory test-sb-catalog
 	@echo "=== smic: sovereign hardware provisioning — UBH-168 manifests, ML-DSA attestation, paraconsistent admission ===";
 	$(MAKE) --no-print-directory test-smic
 	@echo "=== aipi: content-addressed functions (GET by hash, EXECUTE with checker/cert/quorum, escrow, privacy) ===";
@@ -2217,6 +2218,11 @@ test-curzi-uri:
 # Seed Bank (src/seedbank/): the contiguous seed archive — digests to
 # byte offsets, O(log n) find, O(1) slice. Freestanding: no libc, no
 # 64-bit division helpers.
+.PHONY: test-sb-catalog
+test-sb-catalog:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/seedbank -Iinclude src/seedbank/test_sb_catalog.c src/seedbank/catalog.c src/seedbank/seedbank.c -o $(ZXV_TMP)/test_sb_catalog && $(ZXV_TMP)/test_sb_catalog > $(ZXV_TMP)/test_sb_catalog.log 2>&1 && echo "[PASS] test_sb_catalog ($$(tail -1 $(ZXV_TMP)/test_sb_catalog.log))" || { cat $(ZXV_TMP)/test_sb_catalog.log; echo "[FAIL] test_sb_catalog"; exit 1; }
+	@for s in src/seedbank/catalog.c; do for t in aarch64-none-elf i386-none-elf; do $(CLANG_CROSS) --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/seedbank -Iinclude -c $$s -o $(ZXV_TMP)/cat_free.o || { echo "[FAIL] catalog freestanding $$s $$t"; exit 1; }; if nm -u $(ZXV_TMP)/cat_free.o | grep -vE ' (sb_[a-z_]+|sb_catalog_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/cat_free.o; echo "[FAIL] catalog freestanding: libc or 64-bit division helper ($$s $$t)"; exit 1; fi; done; done; echo "[PASS] catalog freestanding (aarch64 and i386: no libc, no 64-bit division helpers)"
+
 .PHONY: test-seedbank
 test-seedbank:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/seedbank -Iinclude src/seedbank/test_seedbank.c src/seedbank/seedbank.c -o $(ZXV_TMP)/test_seedbank && $(ZXV_TMP)/test_seedbank > $(ZXV_TMP)/test_seedbank.log 2>&1 && echo "[PASS] test_seedbank ($$(tail -1 $(ZXV_TMP)/test_seedbank.log))" || { cat $(ZXV_TMP)/test_seedbank.log; echo "[FAIL] test_seedbank"; exit 1; }

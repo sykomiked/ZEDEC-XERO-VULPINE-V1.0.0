@@ -99,6 +99,12 @@ static int is_spaces_path(const vna_door_conn_t *c)
            c->path[3] == 'a' && c->path[4] == 'c' && c->path[5] == 'e' && c->path[6] == 's';
 }
 
+static int is_bank_path(const vna_door_conn_t *c)
+{
+    return c->path_len == 5 && c->path[0] == '/' && c->path[1] == 'b' && c->path[2] == 'a' &&
+           c->path[3] == 'n' && c->path[4] == 'k';
+}
+
 static void on_body(vna_door_t *d, vna_door_conn_t *c);
 
 static void on_request(vna_door_t *d, vna_door_conn_t *c)
@@ -125,7 +131,7 @@ static void on_request(vna_door_t *d, vna_door_conn_t *c)
 
     if (m_post) {
         if (!is_l2_path(c) && !is_cisex_path(c) && !is_smic_path(c) && !is_card_path(c) &&
-            !is_spaces_path(c)) {
+            !is_spaces_path(c) && !is_bank_path(c)) {
             resp(c, "404 Not Found\r\n", "Content-Length: 0\r\n", 0);
             return;
         }
@@ -192,17 +198,20 @@ static void on_request(vna_door_t *d, vna_door_conn_t *c)
 
 static void on_body(vna_door_t *d, vna_door_conn_t *c)
 {
-    if (is_cisex_path(c) || is_smic_path(c) || is_card_path(c) || is_spaces_path(c)) {
+    if (is_cisex_path(c) || is_smic_path(c) || is_card_path(c) || is_spaces_path(c) ||
+        is_bank_path(c)) {
         /* delegated routing: the request is consumed, so c->rx is scratch
          * for the reply datagram */
-        vna_door_query_fn q = is_cisex_path(c)  ? d->query
-                              : is_smic_path(c) ? d->query2
-                              : is_card_path(c) ? d->query3
-                                                : d->query4;
-        void *qc = is_cisex_path(c)  ? d->qctx
-                   : is_smic_path(c) ? d->qctx2
-                   : is_card_path(c) ? d->qctx3
-                                     : d->qctx4;
+        vna_door_query_fn q = is_cisex_path(c)    ? d->query
+                              : is_smic_path(c)   ? d->query2
+                              : is_card_path(c)   ? d->query3
+                              : is_spaces_path(c) ? d->query4
+                                                  : d->query5;
+        void *qc = is_cisex_path(c)    ? d->qctx
+                   : is_smic_path(c)   ? d->qctx2
+                   : is_card_path(c)   ? d->qctx3
+                   : is_spaces_path(c) ? d->qctx4
+                                       : d->qctx5;
         int32_t n;
         if (!q) {
             resp(c, "404 Not Found\r\n", "Content-Length: 0\r\n", 0);

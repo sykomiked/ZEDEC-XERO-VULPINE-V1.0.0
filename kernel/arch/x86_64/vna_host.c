@@ -6,6 +6,7 @@
 #include "uart_16550.h"
 #include "robin_debanks/sha256.h"
 #include "robin_debanks/ed25519_verify.h"
+#include "seedbank/catalog.h"
 #include "cisex_idx/cisex_rt.h"
 #include "vinea/vna_file.h"
 #include "vinea/vna_session.h"
@@ -1545,6 +1546,42 @@ static int32_t door_cisex(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t
     return (int32_t) n;
 }
 
+/* The hosted Seed Banks and the master catalog over them. The banks
+ * themselves load from ZXVFS at boot (the bank files on the data
+ * partition); until then the store is empty and every lookup misses. */
+static sb_bank_t G_sbanks[SB_CAT_MAX];
+static uint32_t G_sbank_n;
+static sb_catalog_t G_catalog;
+
+/* POST /bank: [digest 32] -> [status][bank u16][len u32][offset u32],
+ * then the seed's bytes when they fit the door's reply budget. status 0 =
+ * hosted and served; 1 = not hosted here (bank 0xFFFF, len 0). */
+static int32_t door_bank(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t *out, uint32_t cap)
+{
+    uint32_t len = 0, bank = SB_CAT_MAX, off = 0;
+    const uint8_t *p;
+    (void) ctx;
+    if (in_len != SB_DIGEST_LEN || cap < 11) return -1;
+    p = sb_catalog_find(&G_catalog, in, &len, &bank);
+    if (p) off = (uint32_t) (p - (G_sbanks[bank].base + G_sbanks[bank].payload_off));
+    out[0] = p ? 0 : 1;
+    out[1] = (uint8_t) (bank >> 8);
+    out[2] = (uint8_t) bank;
+    out[3] = (uint8_t) (len >> 24);
+    out[4] = (uint8_t) (len >> 16);
+    out[5] = (uint8_t) (len >> 8);
+    out[6] = (uint8_t) len;
+    out[7] = (uint8_t) (off >> 24);
+    out[8] = (uint8_t) (off >> 16);
+    out[9] = (uint8_t) (off >> 8);
+    out[10] = (uint8_t) off;
+    if (p && len <= cap - 11) {
+        for (uint32_t i = 0; i < len; i++) out[11 + i] = p[i];
+        return (int32_t) (11 + len);
+    }
+    return 11;
+}
+
 static int32_t door_card(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t *out, uint32_t cap)
 {
     vna_host_t *h = (vna_host_t *) ctx;
@@ -1600,7 +1637,17 @@ static int32_t door_spaces(void *ctx, const uint8_t *in, uint32_t in_len, uint8_
     uint32_t n = 2, i, count = 0;
     if (in_len != 0 || cap < 3) return -1;
     out[0] = 0;
-    out[1] = (uint8_t) (g_sntp_done ? 1u : 0u); /* bit0: the wall clock landed */
+    /* flags: bit0 wall clock landed; bit1 anything received on the VNA;
+     * bit2 a message was rejected at a gate (the mesh's dead handshake
+     * shows as rx=0, or rx>0 with rejects) */
+    out[1] = (uint8_t) ((g_sntp_done ? 1u : 0u) |
+                        (h->node.spool ? h->node.spool->rx_accepted > 0 ? 2u : 0u : 0u) |
+                        (h->node.v.rej_parse + h->node.v.rej_dst + h->node.v.rej_dup +
+                                     h->node.v.rej_stale + h->node.v.rej_pow +
+                                     h->node.v.rej_binding + h->node.v.rej_sig >
+                                 0
+                             ? 4u
+                             : 0u));
     for (i = 0; i < VNA_SPACE_MAX; i++) {
         const vna_space_t *s = &h->spaces.s[i];
         uint32_t nl;
@@ -2244,6 +2291,10 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
         h->door.qctx3 = h;
         h->door.query4 = door_spaces;
         h->door.qctx4 = h;
+        h->door.query5 = door_bank;
+        h->door.qctx5 = h;
+        G_sbank_n = 0;
+        sb_catalog_init(&G_catalog, G_sbanks, G_sbank_n);
         /* self-supervision: one domain per running ring program */
         {
             char nid[9];

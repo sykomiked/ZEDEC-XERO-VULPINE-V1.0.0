@@ -23,7 +23,7 @@ NPROC := $(shell nproc 2>/dev/null || echo 4)
 JOBS  ?= $(NPROC)
 MAKEFLAGS += -j$(JOBS)
 
-CFLAGS  := -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib \
+CFLAGS  := -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib -Isrc/seedbank \
            -fno-stack-protector -fno-pie -no-pie -fno-builtin \
            -ffunction-sections -fdata-sections -fcf-protection=none -mgeneral-regs-only \
            -Werror=double-promotion -Werror=float-conversion \
@@ -353,6 +353,7 @@ SRCS := \
     kernel/src/cisex_idx/cisex_idx.c \
     kernel/src/cisex_idx/cisex_rt.c \
     kernel/src/seedbank/seedbank.c \
+    kernel/src/seedbank/catalog.c \
     kernel/src/smic/smic_manifest.c \
     kernel/src/smic/smic_verify.c \
     kernel/src/smic/smic_core.c \

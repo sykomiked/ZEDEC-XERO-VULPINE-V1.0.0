@@ -239,6 +239,20 @@ int main(void)
     CHECK(got >= 3 && acc[got - 3] == 0xAA && acc[got - 2] == 0xBB && acc[got - 1] == 0xCC);
     vna_door_close(&d, (uint32_t) c);
 
+    /* ---- POST /bank: delegated routing through the query5 hook ---- */
+    d.query5 = fquery;
+    c = vna_door_open(&d);
+    n = snprintf(
+        (char *) req, sizeof req,
+        "POST /bank HTTP/1.1\r\nContent-Length: 32\r\n\r\n01234567890123456789012345678901");
+    CHECK(vna_door_input(&d, (uint32_t) c, req, (uint32_t) n) == VNA_OK);
+    got = drain(&d, (uint32_t) c, acc, sizeof acc);
+    CHECK(strstr((char *) acc, "HTTP/1.1 200") != 0);
+    CHECK(strstr((char *) acc, "ZEDEC-XERO-VULPINE") != 0);
+    CHECK(qseen == 32);
+    vna_door_close(&d, (uint32_t) c);
+    d.query5 = 0;
+
     /* zero-length POST is a valid summary query, not a 413 */
     c = vna_door_open(&d);
     n = snprintf((char *) req, sizeof req, "POST /cisex HTTP/1.1\r\nContent-Length: 0\r\n\r\n");

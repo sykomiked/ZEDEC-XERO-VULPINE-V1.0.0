@@ -124,6 +124,8 @@ typedef struct {
     void *qctx3;
     vna_door_query_fn query4; /* GET /spaces: the node's shared spaces */
     void *qctx4;
+    vna_door_query_fn query5; /* POST /bank: the seed catalog lookup */
+    void *qctx5;
     uint64_t now;
 } vna_door_t;
 

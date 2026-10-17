@@ -1,23 +1,6 @@
 - id: 1
-  title: draft satchel
-  task: "Draft the .zxapp application 'satchel' (layer 1, slot 7) from its wave spec.\
-    \ Read the spec first: it is the authority on what the app does and its exact\
-    \ logic. Produce:\n1. The manifest skeleton (id, slot, layer, needs, provides,\
-    \ budget) per kernel/src/apps/zxapp.h.\n2. The logic entries in the languages\
-    \ assigned below \u2014 use each language where it excels (eve for safety/limits,\
-    \ kron for exact arrays, myra for records/indexes, C/Sutra/wasm for the rest).\
-    \ Every entry complete, no TODO, no stubs.\n3. A test plan naming the exact checks\
-    \ the node would run.\n4. The reuse lines: what the spec says to 'use' and what\
-    \ to register in CONCEPTS.tsv.\nAssigned languages: C/c: view and model (primary,\
-    \ runs), Ada/eve: limits (primary, runs), MUMPS/myra: records (primary, runs),\
-    \ APL/kron: arrays (primary, runs), FORTRAN/trebago: exact numerics (primary,\
-    \ runs), Rust/rust: low-level system (primary, runs (compiled to wasm))."
-  files:
-  - tools/server-tasks/wave3/007-satchel.md
-  tokens: 1800
-- id: 2
-  title: draft vintner
-  task: "Draft the .zxapp application 'vintner' (layer 1, slot 91) from its wave spec.\
+  title: draft caravan
+  task: "Draft the .zxapp application 'caravan' (layer 1, slot 90) from its wave spec.\
     \ Read the spec first: it is the authority on what the app does and its exact\
     \ logic. Produce:\n1. The manifest skeleton (id, slot, layer, needs, provides,\
     \ budget) per kernel/src/apps/zxapp.h.\n2. The logic entries in the languages\
@@ -27,52 +10,14 @@
     \ the node would run.\n4. The reuse lines: what the spec says to 'use' and what\
     \ to register in CONCEPTS.tsv.\nAssigned languages: C/c: view and model (primary,\
     \ runs), MUMPS/myra: records (primary, runs), FORTRAN/trebago: exact numerics\
-    \ (primary, runs), COBOL/sutra: money and ledgers (primary, runs), C++/cpp: money\
-    \ and ledgers (witness, runs (compiled to wasm)), Forth/forth: small interpreters\
-    \ (primary, runs)."
+    \ (primary, runs), Logo/logo: geometry (primary, runs), Objective-C/-: domain\
+    \ objects (primary, planned: needs Lingua front-end)."
   files:
-  - tools/server-tasks/wave1/091-vintner.md
+  - tools/server-tasks/wave1/090-caravan.md
   tokens: 1800
-- id: 3
-  title: draft typecase
-  task: "Draft the .zxapp application 'typecase' (layer 1, slot 113) from its wave\
-    \ spec. Read the spec first: it is the authority on what the app does and its\
-    \ exact logic. Produce:\n1. The manifest skeleton (id, slot, layer, needs, provides,\
-    \ budget) per kernel/src/apps/zxapp.h.\n2. The logic entries in the languages\
-    \ assigned below \u2014 use each language where it excels (eve for safety/limits,\
-    \ kron for exact arrays, myra for records/indexes, C/Sutra/wasm for the rest).\
-    \ Every entry complete, no TODO, no stubs.\n3. A test plan naming the exact checks\
-    \ the node would run.\n4. The reuse lines: what the spec says to 'use' and what\
-    \ to register in CONCEPTS.tsv.\nAssigned languages: C/c: view and model (primary,\
-    \ runs), FORTRAN/trebago: exact numerics (primary, runs), APL/kron: arrays (primary,\
-    \ runs), Groovy/-: scripting (primary, planned: needs Lingua front-end), Racket/-:\
-    \ parsing (primary, planned: needs Lingua front-end), TeX/-: typesetting (primary,\
-    \ planned: needs Lingua front-end)."
-  files:
-  - tools/server-tasks/wave2/113-typecase.md
-  tokens: 1800
-- id: 4
-  title: draft crown
-  task: "Draft the .zxapp application 'crown' (layer 1, slot 75) from its wave spec.\
-    \ Read the spec first: it is the authority on what the app does and its exact\
-    \ logic. Produce:\n1. The manifest skeleton (id, slot, layer, needs, provides,\
-    \ budget) per kernel/src/apps/zxapp.h.\n2. The logic entries in the languages\
-    \ assigned below \u2014 use each language where it excels (eve for safety/limits,\
-    \ kron for exact arrays, myra for records/indexes, C/Sutra/wasm for the rest).\
-    \ Every entry complete, no TODO, no stubs.\n3. A test plan naming the exact checks\
-    \ the node would run.\n4. The reuse lines: what the spec says to 'use' and what\
-    \ to register in CONCEPTS.tsv.\nAssigned languages: C/c: view and model (primary,\
-    \ runs), COBOL/sutra: money and ledgers (primary, runs), FORTRAN/trebago: exact\
-    \ numerics (primary, runs), Ada/eve: limits (primary, runs), Go/go: concurrency\
-    \ (primary, planned: SDK host only, no in-app runtime yet), Eiffel/-: contracts\
-    \ (primary, planned: needs Lingua front-end), Solidity/-: contracts (witness,\
-    \ planned: needs Lingua front-end)."
-  files:
-  - tools/server-tasks/wave3/075-crown.md
-  tokens: 1800
-- id: 5
-  title: draft keystone
-  task: "Draft the .zxapp application 'keystone' (layer 1, slot 4) from its wave spec.\
+- id: 2
+  title: draft ferry
+  task: "Draft the .zxapp application 'ferry' (layer 1, slot 12) from its wave spec.\
     \ Read the spec first: it is the authority on what the app does and its exact\
     \ logic. Produce:\n1. The manifest skeleton (id, slot, layer, needs, provides,\
     \ budget) per kernel/src/apps/zxapp.h.\n2. The logic entries in the languages\
@@ -82,9 +27,61 @@
     \ the node would run.\n4. The reuse lines: what the spec says to 'use' and what\
     \ to register in CONCEPTS.tsv.\nAssigned languages: C/c: view and model (primary,\
     \ runs), Ada/eve: limits (primary, runs), MUMPS/myra: records (primary, runs),\
-    \ APL/kron: arrays (primary, runs), FORTRAN/trebago: exact numerics (primary,\
-    \ runs), COBOL/sutra: money and ledgers (primary, runs), C++/cpp: money and ledgers\
-    \ (witness, runs (compiled to wasm))."
+    \ APL/kron: arrays (primary, runs), COBOL/sutra: money and ledgers (primary, runs),\
+    \ FORTRAN/trebago: exact numerics (primary, runs)."
   files:
-  - tools/server-tasks/wave3/004-keystone.md
+  - tools/server-tasks/wave4/012-ferry.md
+  tokens: 1800
+- id: 3
+  title: draft seedbank
+  task: "Draft the .zxapp application 'seedbank' (layer 1, slot 33) from its wave\
+    \ spec. Read the spec first: it is the authority on what the app does and its\
+    \ exact logic. Produce:\n1. The manifest skeleton (id, slot, layer, needs, provides,\
+    \ budget) per kernel/src/apps/zxapp.h.\n2. The logic entries in the languages\
+    \ assigned below \u2014 use each language where it excels (eve for safety/limits,\
+    \ kron for exact arrays, myra for records/indexes, C/Sutra/wasm for the rest).\
+    \ Every entry complete, no TODO, no stubs.\n3. A test plan naming the exact checks\
+    \ the node would run.\n4. The reuse lines: what the spec says to 'use' and what\
+    \ to register in CONCEPTS.tsv.\nAssigned languages: C/c: view and model (primary,\
+    \ runs), Ada/eve: limits (primary, runs), MUMPS/myra: records (primary, runs),\
+    \ Elixir/-: messaging (primary, planned: needs Lingua front-end), TeX/-: typesetting\
+    \ (primary, planned: needs Lingua front-end), Smalltalk/-: view and model (primary,\
+    \ planned: needs Lingua front-end)."
+  files:
+  - tools/server-tasks/wave1/033-seedbank.md
+  tokens: 1800
+- id: 4
+  title: draft tideturn
+  task: "Draft the .zxapp application 'tideturn' (layer 1, slot 6) from its wave spec.\
+    \ Read the spec first: it is the authority on what the app does and its exact\
+    \ logic. Produce:\n1. The manifest skeleton (id, slot, layer, needs, provides,\
+    \ budget) per kernel/src/apps/zxapp.h.\n2. The logic entries in the languages\
+    \ assigned below \u2014 use each language where it excels (eve for safety/limits,\
+    \ kron for exact arrays, myra for records/indexes, C/Sutra/wasm for the rest).\
+    \ Every entry complete, no TODO, no stubs.\n3. A test plan naming the exact checks\
+    \ the node would run.\n4. The reuse lines: what the spec says to 'use' and what\
+    \ to register in CONCEPTS.tsv.\nAssigned languages: C/c: view and model (primary,\
+    \ runs), Ada/eve: limits (primary, runs), MUMPS/myra: records (primary, runs),\
+    \ APL/kron: arrays (primary, runs), COBOL/sutra: money and ledgers (primary, runs),\
+    \ AWK/-: reports (primary, planned: needs Lingua front-end)."
+  files:
+  - tools/server-tasks/wave2/006-tideturn.md
+  tokens: 1800
+- id: 5
+  title: draft halloo
+  task: "Draft the .zxapp application 'halloo' (layer 1, slot 28) from its wave spec.\
+    \ Read the spec first: it is the authority on what the app does and its exact\
+    \ logic. Produce:\n1. The manifest skeleton (id, slot, layer, needs, provides,\
+    \ budget) per kernel/src/apps/zxapp.h.\n2. The logic entries in the languages\
+    \ assigned below \u2014 use each language where it excels (eve for safety/limits,\
+    \ kron for exact arrays, myra for records/indexes, C/Sutra/wasm for the rest).\
+    \ Every entry complete, no TODO, no stubs.\n3. A test plan naming the exact checks\
+    \ the node would run.\n4. The reuse lines: what the spec says to 'use' and what\
+    \ to register in CONCEPTS.tsv.\nAssigned languages: C/c: view and model (primary,\
+    \ runs), Ada/eve: limits (primary, runs), MUMPS/myra: records (primary, runs),\
+    \ Gleam/-: messaging (primary, planned: needs Lingua front-end), Python/python:\
+    \ AI (primary, planned: SDK host only, no in-app runtime yet), LabVIEW/-: signals\
+    \ (primary, planned: needs Lingua front-end)."
+  files:
+  - tools/server-tasks/wave3/028-halloo.md
   tokens: 1800
