@@ -1,0 +1,94 @@
+# Makefile.universal — ONE Makefile, SIX targets. The H100's Occam's Razor
+# answer, and the structural fix for the drift: the include set lives in
+# exactly one file (build_system/zxv_includes.mk) and this one Makefile is
+# the only build description. Select the target with ARCH; there is no
+# second copy of anything, so drift is impossible by construction.
+#
+#   make -f build_system/Makefile.universal ARCH=x86_64
+#   make -f build_system/Makefile.universal ARCH=arm64
+#   make -f build_system/Makefile.universal ARCH=riscv64
+#   make -f build_system/Makefile.universal ARCH=riscv32
+#   make -f build_system/Makefile.universal ARCH=arm32
+#   make -f build_system/Makefile.universal ARCH=wasm32
+#
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+
+ARCH ?= x86_64
+
+# the ONE include set — shared by every target, drift impossible
+include build_system/zxv_includes.mk
+
+# ---- the per-arch toolchain and flags (the ONLY arch-specific data) ----
+ifeq ($(ARCH),x86_64)
+  CC      := x86_64-linux-gnu-gcc
+  ARCHFL  := -m64
+  ARCHINC := -Ikernel/arch/x86_64
+  KELF    := kernel_x86_64.elf
+else ifeq ($(ARCH),arm64)
+  CC      := aarch64-linux-gnu-gcc
+  ARCHFL  := -march=armv8-a
+  ARCHINC := -Ikernel/arch/arm64
+  KELF    := kernel_arm64.elf
+else ifeq ($(ARCH),riscv64)
+  CC      := riscv64-linux-gnu-gcc
+  ARCHFL  := -march=rv64gc -mabi=lp64
+  ARCHINC := -Ikernel/arch/riscv64
+  KELF    := kernel_riscv64.elf
+else ifeq ($(ARCH),riscv32)
+  CC      := clang --target=riscv32-unknown-elf
+  ARCHFL  := -march=rv32i -mabi=ilp32
+  ARCHINC := -Ikernel/arch/riscv32
+  KELF    := kernel_riscv32.elf
+else ifeq ($(ARCH),arm32)
+  CC      := arm-linux-gnueabihf-gcc
+  ARCHFL  := -march=armv7-a -marm
+  ARCHINC := -Ikernel/arch/arm32
+  KELF    := kernel_arm32.elf
+else ifeq ($(ARCH),wasm32)
+  CC      := clang --target=wasm32-unknown-unknown
+  ARCHFL  := -mexec-model=reactor
+  ARCHINC := -Ikernel/arch/wasm32
+  KELF    := zxv_app.wasm
+else
+  $(error unknown ARCH '$(ARCH)'; use x86_64 arm64 riscv64 riscv32 arm32 wasm32)
+endif
+
+# ---- the flags: one definition, every target --------------------------
+# the freestanding, exact-arithmetic build (the repo's rules)
+CFLAGS := -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib \
+          -fno-stack-protector -fno-pie -no-pie -fno-builtin \
+          -ffunction-sections -fdata-sections -MMD -MP \
+          -Werror=double-promotion -Werror=float-conversion \
+          $(ARCHFL) $(ARCHINC) $(ZXV_INCLUDES)
+
+OBJDIR := build/$(ARCH)
+OUT    := $(OBJDIR)/$(KELF)
+
+# ---- the targets ------------------------------------------------------
+.PHONY: all clean list
+all: $(OUT)
+	@printf 'built %s for ARCH=%s (%s)\n' "$(KELF)" "$(ARCH)" "$(CC)"
+
+list:
+	@for a in x86_64 arm64 riscv64 riscv32 arm32 wasm32; do \
+	    printf '  %s\n' "$$a"; done
+
+clean:
+	rm -rf $(OBJDIR)
+
+# the compile rule: every source, the one include set, the one flag set
+$(OBJDIR)/%.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# the link rule: per-arch, the arch's own linker script when present
+$(OUT): $(OBJS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -T kernel/arch/$(ARCH)/link.ld $(OBJS) -o $@ 2>/dev/null || \
+	$(CC) $(CFLAGS) $(OBJS) -o $@
+	@printf 'the kernel: %s\n' "$@"
+
+# OBJS is supplied by the caller (the source list); the universal file
+# carries the STRUCTURE, the source list stays where it is (one list).
+OBJS ?=
