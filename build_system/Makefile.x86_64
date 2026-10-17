@@ -352,6 +352,7 @@ SRCS := \
     kernel/src/vinea/vna_exchange.c \
     kernel/src/cisex_idx/cisex_idx.c \
     kernel/src/cisex_idx/cisex_rt.c \
+    kernel/src/seedbank/seedbank.c \
     kernel/src/smic/smic_manifest.c \
     kernel/src/smic/smic_verify.c \
     kernel/src/smic/smic_core.c \

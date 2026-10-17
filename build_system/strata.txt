@@ -119,6 +119,7 @@ constellation                    transport
 event_transport                  transport
 freight                          transport
 ipfs_node                        transport
+seedbank                         transport  # the contiguous seed archive: digests to byte offsets over ipfs_node CIDs
 iphase                           transport
 lattice                          transport
 mesh_net                         transport

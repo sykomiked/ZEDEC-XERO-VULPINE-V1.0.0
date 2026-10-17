@@ -508,6 +508,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-door-stack
 	@echo "=== cisex: the armada's global IPFS index — dag-pb crawl, EpistemicRank, bounties ===";
 	$(MAKE) --no-print-directory test-cisex-idx
+	$(MAKE) --no-print-directory test-seedbank
 	@echo "=== smic: sovereign hardware provisioning — UBH-168 manifests, ML-DSA attestation, paraconsistent admission ===";
 	$(MAKE) --no-print-directory test-smic
 	@echo "=== aipi: content-addressed functions (GET by hash, EXECUTE with checker/cert/quorum, escrow, privacy) ===";
@@ -2206,6 +2207,14 @@ test-door-stack:
 test-cisex-idx:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/ipfs_node -Isrc/lpres -Isrc/event_space -Isrc/surplus -Isrc/modbind -Iinclude src/cisex_idx/test_cisex_idx.c src/cisex_idx/cisex_idx.c src/cisex_idx/cisex_rt.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/ubh/ubh.c src/lpres/lpres.c src/lpres/lpres_hex.c src/event_space/event_envelope.c -o $(ZXV_TMP)/test_cisex_idx -lm && $(ZXV_TMP)/test_cisex_idx > $(ZXV_TMP)/test_cisex_idx.log 2>&1 && echo "[PASS] test_cisex_idx ($$(tail -1 $(ZXV_TMP)/test_cisex_idx.log))" || { cat $(ZXV_TMP)/test_cisex_idx.log; echo "[FAIL] test_cisex_idx"; exit 1; }
 	@for s in src/cisex_idx/cisex_idx.c src/cisex_idx/cisex_rt.c; do for t in aarch64-none-elf i386-none-elf; do $(CLANG_CROSS) --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/ipfs_node -Isrc/lpres -Isrc/event_space -Isrc/surplus -Isrc/modbind -Iinclude -c $$s -o $(ZXV_TMP)/cisex_free.o || { echo "[FAIL] cisex freestanding $$s $$t"; exit 1; }; if nm -u $(ZXV_TMP)/cisex_free.o | grep -vE ' (ipfsn_[a-z0-9_]+|lpx_[a-z_]+|lpres_[a-z_]+|sha256_(init|update|final)|sha256|ubh_168_[a-z_]+|cisex_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/cisex_free.o; echo "[FAIL] cisex freestanding: libc or 64-bit division helper ($$s $$t)"; exit 1; fi; done; done; echo "[PASS] cisex freestanding (aarch64 and i386: no libc, no 64-bit division helpers)"
+
+# Seed Bank (src/seedbank/): the contiguous seed archive — digests to
+# byte offsets, O(log n) find, O(1) slice. Freestanding: no libc, no
+# 64-bit division helpers.
+.PHONY: test-seedbank
+test-seedbank:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/seedbank -Iinclude src/seedbank/test_seedbank.c src/seedbank/seedbank.c -o $(ZXV_TMP)/test_seedbank && $(ZXV_TMP)/test_seedbank > $(ZXV_TMP)/test_seedbank.log 2>&1 && echo "[PASS] test_seedbank ($$(tail -1 $(ZXV_TMP)/test_seedbank.log))" || { cat $(ZXV_TMP)/test_seedbank.log; echo "[FAIL] test_seedbank"; exit 1; }
+	@for s in src/seedbank/seedbank.c; do for t in aarch64-none-elf i386-none-elf; do $(CLANG_CROSS) --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/seedbank -Iinclude -c $$s -o $(ZXV_TMP)/sb_free.o || { echo "[FAIL] seedbank freestanding $$s $$t"; exit 1; }; if nm -u $(ZXV_TMP)/sb_free.o | grep -vE ' (sb_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/sb_free.o; echo "[FAIL] seedbank freestanding: libc or 64-bit division helper ($$s $$t)"; exit 1; fi; done; done; echo "[PASS] seedbank freestanding (aarch64 and i386: no libc, no 64-bit division helpers)"
 
 # SMIC (src/smic/): sovereign hardware provisioning — UBH-168 asset
 # manifests, ML-DSA-65 attestations, paraconsistent ring admission.
