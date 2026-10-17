@@ -1,0 +1,382 @@
+# The 407 app architecture map
+
+Every app: its matrix layer, purpose, capabilities, the language that owns each component, and the manifest contract with exact checks.
+
+- **satchel** (matrix 7, L1) — build, sign and install ZXV packages (`zxpkg`, AIPI signed bundles).
+- **vintner** (matrix 91, L1) — vineyard lots, barrels, bottling and sales in the books (`ledger.open_account`, `ledger.po
+- **typecase** (matrix 113, L1) — preview, install and check fonts kept in the Hoard (`files.list`, `files.read`, `files.wri
+- **crown** (matrix 75, L1) — mutual endowment and distribution by sortition over the grant engine (`grants.status`, `gr
+- **keystone** (matrix 4, L1) — displays, sound, keyboard, language, accessibility, network, sharing, the Hoard, model cho
+- **caravan** (matrix 90, L1) — shipments, parcels and addresses (`place.list`, records in the Banker via `files.read`, `f
+- **ferry** (matrix 12, L1) — move files, spaces, keys (owner approves), settings (`files.cross`, `spaces.*`, Keepsake).
+- **seedbank** (matrix 33, L1) — pin and publish by CID (`aipi.put`, `aipi.status`, `web4.cid`), fetch (`aipi.get`), record
+- **tideturn** (matrix 6, L1) — dual-signed OS and app updates with an audit trail (`update.check`, `update`).
+- **halloo** (matrix 28, L1) — place, answer and end calls (`call.start`, `call.accept`, `call.hangup`, `call.status`, `c
+- **reckoner** (matrix 83, L1) — period statements and tax estimates from the books (`ledger.entries`, `ledger.check`, `iso
+- **ramble** (matrix 25, L1) — the owner's envelope feed (`web4.open`, `web4.feed`, `web4.envelope`, `web4.verify`), cont
+- **ninefold** (matrix 80, L1) — what the owner holds in each of the nine forms (finance/capital_forms.h), from `ledger.acc
+- **lockbox** (matrix 9, L1) — ML-DSA identity keys, sealed hardware keys, saved passwords (`pqsec`, `identity`).
+- **kitling** (matrix 62, L1) — the companion's DNA, mood and generation (`companion.dna`, `companion.mood`, `companion.ge
+- **toolchest** (matrix 126, L1) — the SDK kits (sdk/kits, the language SDKs) with what each needs; daemon version from `zxvd
+- **trellis** (matrix 29, L1) — pair (`devmesh.invite`, `devmesh.join`, `devmesh.confirm_sas`), trust and revoke (`devmesh
+- **furrow** (matrix 40, L1) — sheets as files in the Hoard (`files.read`, `files.write`).
+- **hedgerow** (matrix 30, L1) — who may reach this machine: network mode (`net.command` off/lan/online), answering peers (
+- **solstice** (matrix 43, L1) — events as files in the Hoard (`files.list`, `files.read`, `files.write`). Time zones and a
+- **burin** (matrix 54, L1) — drawings as files (`files.read`, `files.write`), printed (`print.submit`).
+- **lodestone** (matrix 23, L1) — methods, models, peers, capabilities (`rpc.discover`, `model.info`, `net.peers`).
+- **weatherglass** (matrix 88, L1) — local conditions and forecast for where the machine is (`place.here`, `place.ask`). There 
+- **homestead** (matrix 94, L1) — the owner's home devices and scenes. No home-device method (devmesh is the owner's compute
+- **lifeboat** (matrix 11, L1) — start safe (every switch off: `features.get`, `features.set`), check (`journal.verify`, `l
+- **tallystick** (matrix 78, L1) — make invoices and receipts, record payments, render statements (`ledger.post`, `ledger.ent
+- **relief** (matrix 60, L1) — models as files in the Hoard (`files.read`, `files.write`).
+- **understory** (matrix 93, L1) — energy, water and land budgets: energy from `power.status`, `power.top`, set with `power.b
+- **folio** (matrix 39, L1) — letters, reports and books as files (`files.read`, `files.write`), printed with `print.sta
+- **commons** (matrix 27, L1) — rooms on this node (`chat.post`, `chat.feed`, `chat.thread`, `chat.react`, `chat.follow`, 
+- **cellar** (matrix 19, L1) — volumes, space by folder and space, Trash size, check and repair the Hoard, disc images (`
+- **fairground** (matrix 79, L1) — what the owner shares, wants and sells, settled sales and fees (`net.offers`, `net.command
+- **sundial** (matrix 110, L1) — clock, alarms, timers, world time. Read time from `sys.info`. zxvd has no alarm, timer, ti
+- **watchfire** (matrix 143, L1) — emergency contacts and a medical ID shown on the lock screen; on the person's request, rin
+- **tally** (matrix 109, L1) — integer and exact rational arithmetic (kernel/src/rational: reduced num/den, overflow refu
+- **sealwax** (matrix 47, L1) — forms as files (`files.read`, `files.write`), printed (`print.submit`), a signed copy chec
+- **aerie** (matrix 35, L1) — messages over radio bands (`ehop.bands`, `ehop.seal`, `ehop.open`), line frames (`harmonic
+- **broadsheet** (matrix 42, L1) — open documents from the Hoard (`files.read`, base64), print (`print.submit`); annotations 
+- **twelvefold** (matrix 132, L1) — write formulas over TRUE, FALSE, BOTH, NEITHER, see their tables and the 64-state hexagram
+- **rookery** (matrix 26, L1) — letters as signed envelopes to another companion (`web4.post`; held until `web4.consent` w
+- **pinhole** (matrix 58, L1) — photos saved in the Hoard (`files.write`), room left from `sys.disk`, a place tag only aft
+- **mockingbird** (matrix 128, L1) — emulate a ZXV device (the hwemu model) to try drivers and apps; machine facts from `sys.in
+- **retort** (matrix 70, L1) — the model slot (`model.info`), answers (`swarm.ask`), runs on scratch state (`play.run`), 
+- **kindred** (matrix 44, L1) — contacts as records kept in the Hoard (`files.read`, `files.write`), a contact's agent car
+- **bowline** (matrix 45, L1) — tasks as files in the Hoard (`files.read`, `files.write`), notices read with `notes.list`.
+- **fieldguide** (matrix 102, L1) — articles in a Hoard folder found by `search.query` (`search.refresh`, `files.read`).
+- **pollen** (matrix 31, L1) — offer and fetch on the local network (`net.command` lan, share, want; `net.offers`, `net.p
+- **gnomon** (matrix 107, L1) — exact shapes and numbers; saves in the Banker (`files.read`, `files.write`).
+- **assay** (matrix 72, L1) — run test prompts against the swarm's agents and score them (`swarm.state` agents and audit
+- **neap** (matrix 234, L2) — Keeps double-entry books, reconciles accounts and prepares tax reports exactly: accounts a
+- **escapement** (matrix 172, L2) — keeps exact time across devices (`sys.info`, `devmesh.devices`, `net.peers`) and runs shif
+- **gesso** (matrix 53, L1) — images from the Hoard (`files.read`, base64); an edit is saved as a new file (`files.write
+- **margins** (matrix 38, L1) — notes as files in the Hoard's Notes folder (`files.list`, `files.read`, `files.write`, `fi
+- **cartulary** (matrix 145, L2) — indexed, versioned records in the Hoard (`files.list`, `files.stat`, `files.read`, `files.
+- **wordhoard** (matrix 46, L1) — word lists kept in the Hoard (`files.read`, `search.query`), the language of a word (`xlat
+- **heirloom** (matrix 81, L1) — the inheritance manifest, guardians and recovery (`estate.setup`, `estate.manifest`, `esta
+- **warble** (matrix 50, L1) — the library from the Hoard (`files.list`, `files.stat`, `search.query`), playing together 
+- **cove** (matrix 32, L1) — only between devices on the owner's roster (`devmesh.devices`, `devmesh.status`); frames s
+- **gazette** (matrix 36, L1) — read what nodes and people post (`social.feed`, `chat.feed`, `web4.feed`, `pspace.events`,
+- **orrery** (matrix 101, L1) — the sky from where the machine is (`place.here`, `sys.info` for the clock). No sky data me
+- **pavise** (matrix 153, L2) — one security perimeter combining firewall paths, app permissions and keys into a single po
+- **footlight** (matrix 41, L1) — decks as files (`files.read`, `files.write`), printed handouts (`print.submit`), presented
+- **hamlet** (matrix 96, L1) — the circle's posts, replies and reactions (`social.feed`, `social.post`, `social.react`, `
+- **fireglow** (matrix 52, L1) — episodes and books in the Hoard (`files.list`, `files.read`), positions saved (`files.writ
+- **ticker** (matrix 135, L1) — captions for speech in calls, media and the room, translated with `xlate.translate` (langu
+- **chainman** (matrix 154, L2) — surveys land parcels, boundaries and waypoints (`place.here`, `place.add`, `place.list`) i
+- **isobar** (matrix 239, L2) — Runs a local weather station network: stations and sites (`place.here`, `place.list`), sta
+- **lore** (matrix 67, L1) — the owner's notes and files (`files.list`, `files.read`, `search.query`, `search.refresh`)
+- **quarry** (matrix 69, L1) — search the Hoard (`search.query`, `files.read`), the owner's Web4 feed (`web4.feed`), summ
+- **graft** (matrix 124, L1) — commits, history and merge of folders in the Hoard; file versions from `backup.versions` a
+- **meadow** (matrix 86, L1) — find, join and use public spaces (`pspace.find`, `pspace.join`, `pspace.leave`, `pspace.li
+- **pawprint** (matrix 122, L1) — step, break and inspect a Playground program (`play.run` verdicts with line and column) an
+- **mercer** (matrix 171, L2) — runs a small shop: stock, prices, sales and receipts in the books (`ledger.post`, `ledger.
+- **colonnade** (matrix 127, L1) — write, compile and run code in the pillars (Sutra, Trebago, Eve, KRON, MYRA) and the Lingu
+- **kinetoscope** (matrix 51, L1) — videos from the Hoard (`files.read`), cut for streaming (`stream.plan`, `stream.segment`),
+- **bonfire** (matrix 95, L1) — events in a public space or group (`pspace.create`, `pspace.post`, `pspace.members`, `soci
+- **dyer** (matrix 116, L1) — pick colours, convert between RGB, HSL and hex, check contrast, keep palettes in the Hoard
+- **ratchet** (matrix 152, L2) — diagnoses hardware faults from the machine's readings (`sys.info`, `sys.disk`, `power.stat
+- **warding** (matrix 173, L2) — issues and revokes keys for doors, devices and accounts from one place (`passkeys.list`, `
+- **tributary** (matrix 225, L2) — Asks several models the same question and joins their answers by witnessed agreement: loca
+- **joinery** (matrix 121, L1) — edit code in the Hoard (`files.read`, `files.write` begin/add/end, `files.rename`), find i
+- **whetstone** (matrix 125, L1) — run builds and tests and show the verdict. Runs Playground templates with `play.run` (four
+- **levin** (matrix 236, L2) — Plans home wiring: circuits, load calculations, test runs and safety checks, kept in the H
+- **silt** (matrix 242, L2) — Receives, stamps, files and retains official records with a signed trail: records in the H
+- **bramble** (matrix 48, L1) — boards as files in the Hoard (`files.read`, `files.write`).
+- **larder** (matrix 82, L1) — monthly budget per category against spending read from the books (`ledger.accounts`, `ledg
+- **glimpse** (matrix 111, L1) — capture the screen, a window or a region, record the screen; save into the Hoard with `fil
+- **conch** (matrix 141, L1) — pair hearing devices, balance and mono, show sound alerts as a screen flash; alerts from `
+- **poultice** (matrix 148, L2) — a care plan of symptoms, medicines and vitals kept in the Hoard (`files.read`, `files.writ
+- **verderer** (matrix 176, L2) — logs wildlife sightings, trails and habitats with photos (`files.read`, `files.write`) and
+- **assize** (matrix 178, L2) — runs dispute cases: filings, evidence, hearings and rulings in the Hoard (`files.read`, `f
+- **cupel** (matrix 179, L2) — simulates atoms, molecules and physical systems on the integer engine and compares models,
+- **sieve** (matrix 63, L1) — every held suggestion (M3) in one place: tagged answers (`swarm.ask`), untrusted drafts (`
+- **trickle** (matrix 77, L1) — standing streams and tithes the owner sets up, paid by `ledger.post` per period; read back
+- **nutshell** (matrix 106, L1) — decks kept in the Banker (`files.read`, `files.write`).
+- **talewind** (matrix 108, L1) — stories in the Banker (`files.read`, `files.write`); AI-drafted passages from `swarm.ask`.
+- **pivot** (matrix 136, L1) — drive the machine with one or two switches (scanning) or the eyes (dwell to click). zxvd h
+- **binnacle** (matrix 147, L2) — position, heading and routes worked out offline from star sights, the clock (`sys.info`) a
+- **dibber** (matrix 149, L2) — plans plantings, watering and harvests for a plot from weather and land budgets, kept in t
+- **pannier** (matrix 150, L2) — carries messages and data parcels store-and-forward between peers (`net.peers`, `peer.stat
+- **handfast** (matrix 164, L2) — drafts, negotiates and signs multi-party agreements in the Hoard (`files.read`, `files.wri
+- **tintype** (matrix 167, L2) — captures, develops and catalogues photos and screen grabs in one workflow in the Hoard (`f
+- **damper** (matrix 174, L2) — watches heat, smoke and power readings (`sys.info`, `power.status`, `log.tail`, `journal.q
+- **moraine** (matrix 210, L2) — holds keys in escrow with guardians (`recovery.setup`, `recovery.status`, `recovery.approv
+- **updraft** (matrix 214, L2) — runs a radio and mesh signal station: pairs peers (`devmesh.invite`, `devmesh.join`, `devm
+- **fell** (matrix 253, L2) — Coordinates search and rescue teams: maps and places (`place.here`, `place.list`, `place.a
+- **forage** (matrix 84, L1) — find and claim work for this node (`net.offers`, `net.command` want/sell, `peer.serve`, `p
+- **nightjar** (matrix 133, L1) — speak what is on screen and where focus is; language of text from `xlate.detect`, simple m
+- **cutwater** (matrix 56, L1) — sources from the Hoard (`files.read`), cut points checked with `stream.plan`, the edit lis
+- **kettle** (matrix 92, L1) — recipes and weekly plans in the Banker (`files.read`, `files.write`, `search.query`).
+- **sapling** (matrix 98, L1) — courses kept in the Banker (`files.read`, `files.write`); coding lessons run through `play
+- **cubby** (matrix 103, L1) — a child's seat with allowed apps and time (`screen.check`, `screen.status`, `screen.set_li
+- **chandler** (matrix 161, L2) — keeps vessel logs, tides, crew and provisions for boats and small fleets in the Hoard (`fi
+- **bindery** (matrix 168, L2) — catalogues a home, school or town library in the Hoard (`search.query`, `files.read`, `fil
+- **loupe** (matrix 181, L2) — investigates incidents by tracing logs (`log.tail`), events (`journal.query`, `journal.ver
+- **shipwright** (matrix 190, L2) — forecasts tides, floods and surges for districts (`place.here`, `place.list`) and sends al
+- **fen** (matrix 230, L2) — Identifies plants from photos, logs specimens and builds a local flora dataset: photos and
+- **parley** (matrix 68, L1) — which language (`xlate.detect`, `xlate.languages`), translate on this device (`xlate.trans
+- **bellows** (matrix 59, L1) — requests through the companion (`swarm.ask`, `model.info`) under the owner's budgets (`pow
+- **typewright** (matrix 99, L1) — typing lessons and drills; lessons and results in the Banker (`files.read`, `files.write`)
+- **hamper** (matrix 112, L1) — open and make compressed archives in the Hoard (`files.list`, `files.stat`, `files.read`, 
+- **gauntlet** (matrix 129, L1) — mutate code, rerun its tests, show the survivors (tests/harness/mutator); mutants of Playg
+- **glyphwright** (matrix 137, L1) — keyboard layouts and input methods for every script; languages from `xlate.languages`. zxv
+- **mummer** (matrix 182, L2) — produces shows: scripts, cues, music and slides in the Hoard (`files.read`, `files.write`)
+- **watershed** (matrix 221, L2) — Runs cooperative projects: the pooled fund and member shares in the books (`ledger.account
+- **stratum** (matrix 233, L2) — Compares sources side by side, traces citations and flags where they agree or conflict: th
+- **weir** (matrix 237, L2) — Maps household water: pipes, valves, flow, budgets and leak alerts, kept in the Hoard (`fi
+- **isthmus** (matrix 240, L2) — Mediates disputes: the case room (`pspace.create`, `pspace.post`, `chat.post`, `chat.threa
+- **varve** (matrix 243, L2) — Builds history timelines from archives, sources and dated events: the Hoard (`files.list`,
+- **cairn** (matrix 271, L2) — Runs community governance: proposals and votes (`spaces.propose`, `spaces.vote`, `spaces.g
+- **fiddlehead** (matrix 57, L1) — instruments, patterns and loops as files (`files.read`, `files.write`). Audio in and out h
+- **belvedere** (matrix 87, L1) — the public face of your space (`spaces.create`, `spaces.get`, `spaces.set_cid`, `pspace.cr
+- **spyglass** (matrix 117, L1) — magnify the area around the pointer or focus, full screen or lens. Screen size from `sys.i
+- **gridmark** (matrix 120, L1) — make QR codes and EAN-13 barcodes, save them as images (`files.write`), read them from ima
+- **trestle** (matrix 131, L1) — lay out native screens and save them as screen files in the Hoard (`files.read`, `files.wr
+- **hark** (matrix 134, L1) — run commands by voice; free requests go to `swarm.ask` and come back as suggestions held f
+- **alembic** (matrix 155, L2) — logs experiments, recipes and results as a lab notebook in the Hoard (`files.read`, `files
+- **astrolabe** (matrix 160, L2) — plans observing sessions, logs sightings and predicts sky events from local time (`sys.inf
+- **compositor** (matrix 165, L2) — writes and runs scripts in any pillar language from one workbench (`play.catalogue`, `play
+- **limner** (matrix 166, L2) — paints and edits images in the Hoard (`files.read`, `files.write`) with palettes and optio
+- **hornbook** (matrix 169, L2) — builds lessons with diagrams, slides and flashcards in the Hoard (`files.read`, `files.wri
+- **caliper** (matrix 177, L2) — measures parts and structures and checks them against design tolerances with exact integer
+- **apothecary** (matrix 180, L2) — keeps clinical records and prescriptions in the Hoard (`files.read`, `files.write`) with s
+- **skep** (matrix 185, L2) — coordinates a swarm of agents and nodes on shared work (`swarm.state`, `swarm.earnings`, `
+- **coppice** (matrix 192, L2) — manages woodland: tree inventory, growth, felling plans and carbon held, with places (`pla
+- **furnace** (matrix 199, L2) — runs a home or village microgrid: solar output, storage and when to use power, from `power
+- **headland** (matrix 215, L2) — watches a machine or fleet for trouble (`sys.info`, `sys.disk`, `sys.net`, `log.tail`, `jo
+- **spindrift** (matrix 223, L2) — Writes, illustrates and publishes interactive stories: stories and art in the Hoard (`file
+- **tarn** (matrix 224, L2) — Guides breathing and focus sessions and logs calm and sleep over time (advice only): sessi
+- **shallows** (matrix 241, L2) — Translates a live conversation between two people with captions on both sides: language an
+- **holm** (matrix 267, L2) — Locks a device into a hardened offline mode for kiosks or sensitive work: network off (`ne
+- **lamplight** (matrix 139, L1) — a calm reading view of a document in the Hoard (`files.read`), translated on request (`xla
+- **primer** (matrix 100, L1) — learn Sutra, Trebago, Eve, KRON and MYRA by doing (`play.catalogue`, `play.run` on scratch
+- **magpie** (matrix 119, L1) — the last copies, to paste again, pin or clear. Kept in memory only. zxvd has no clipboard 
+- **gait** (matrix 123, L1) — where time and energy go: consumers by energy (`power.top`, `power.status`), the swarm's c
+- **steady** (matrix 140, L1) — sticky keys, slow keys, bounce keys, mouse keys. zxvd has no input-filter method: use only
+- **swage** (matrix 146, L2) — shapes source in the Hoard (`files.list`, `files.read`, `files.write`) into a signed, test
+- **lectern** (matrix 151, L2) — reads documents from the Hoard (`files.read`, `files.write`, `search.query`) with annotati
+- **crier** (matrix 156, L2) — broadcasts one announcement to feeds (`social.post`), chat rooms (`chat.post`, `pspace.pos
+- **heddle** (matrix 162, L2) — designs woven and printed patterns and sends them to printers (`print.status`, `print.subm
+- **sheaf** (matrix 170, L2) — keeps the farm ledger: fields, harvests, livestock, sales and weather in one place, in the
+- **millrace** (matrix 197, L2) — builds data pipelines that branch, merge and route streams between apps on a schedule, fro
+- **linkman** (matrix 200, L2) — maps the mesh: every peer, route and name (`net.peers`, `peer.status`, `devmesh.devices`, 
+- **gearwright** (matrix 201, L2) — programs and supervises robots and actuators with scheduled routines and safety stops, mac
+- **glen** (matrix 220, L2) — Runs a family hub: shared calendar and contacts in the Hoard (`files.read`, `files.write`)
+- **cirque** (matrix 227, L2) — Draws buildings from plan to 3D, checks measurements and produces drawing sets: projects i
+- **rapids** (matrix 228, L2) — Supports emergency crews in one place: triage and vitals records in the Hoard (`files.read
+- **billow** (matrix 238, L2) — Broadcasts live audio shows to the mesh with captions and archives: the show plan and segm
+- **lode** (matrix 246, L2) — Appraises and registers precious items with photos, provenance and value records: photos a
+- **atoll** (matrix 258, L2) — Keeps a marine log: tides, catches, reef health and sightings in the Hoard (`files.read`, 
+- **gavel** (matrix 74, L1) — epoch state, quotes, bids and cancels (`auction.status`, `auction.quote`, `auction.bid`, `
+- **granary** (matrix 64, L1) — the model slot (`model.info`), room on disk (`sys.disk`), energy (`power.status`). Downloa
+- **hatchery** (matrix 65, L1) — templates (`play.catalogue`), drafts from the swarm (`play.draft`, untrusted), runs on scr
+- **temper** (matrix 66, L1) — the companion's feeling (`companion.mood`), the swarm's budgets and cycles (`swarm.state`)
+- **riddle** (matrix 104, L1) — logic and number puzzles; saves in the Banker (`files.read`, `files.write`); hints from `s
+- **patience** (matrix 105, L1) — solitaire card games; saved games in the Banker (`files.read`, `files.write`).
+- **runebook** (matrix 114, L1) — every character, emoji and symbol by script and block, with favourites saved in the Hoard 
+- **scriptorium** (matrix 130, L1) — the developer docs and the daemon's method reference, searchable: `search.query`, `search.
+- **tint** (matrix 138, L1) — colour filters for colour blindness, greyscale, invert, more contrast, fewer flashes. zxvd
+- **skillet** (matrix 159, L2) — turns meal plans into pantry checks, shopping lists and cooking timers for a household, ke
+- **collier** (matrix 163, L2) — digs through datasets and files in the Hoard (`search.query`, `files.list`, `files.read`, 
+- **tiller** (matrix 175, L2) — one control panel for vehicles, drones and machines with hard safety limits, reading link 
+- **creel** (matrix 187, L2) — logs catches, quotas and fishing spots (`place.here`, `place.add`, `place.list`) with weat
+- **courser** (matrix 188, L2) — plans and times workouts with music and logs results to the health record in the Hoard (`f
+- **flue** (matrix 189, L2) — syncs spaces, files and backups across your own devices and your cloud top (`spaces.list`,
+- **icehouse** (matrix 194, L2) — freezes snapshots of systems and data into cold archives (`backup.run`, `backup.list`, `ba
+- **taper** (matrix 198, L2) — guards rest: quiet hours (`screen.status`, `screen.check`, `notes.list`), sleep tracking a
+- **fellowcraft** (matrix 207, L2) — runs any job twice, in two languages (`play.run`) or on two machines (`peer.ask`, `aipi.ex
+- **freshet** (matrix 209, L2) — hatches a new app project from a template in the Hoard (`files.mkdir`, `files.write`, `fil
+- **tradewind** (matrix 211, L2) — plans routes for trips and shipments from saved places (`place.here`, `place.list`, `place
+- **rill** (matrix 216, L2) — gives children a safe reading space with read-aloud, word help and story choices, from the
+- **swale** (matrix 226, L2) — Runs a small bakery: recipes and orders in the Hoard (`files.read`, `files.write`), sales 
+- **sedge** (matrix 248, L2) — Tracks household medicines (advice only): doses, schedules, stock and interactions kept in
+- **swell** (matrix 251, L2) — Rehearses ensembles: a rehearsal hall (`pspace.create`, `pspace.members`, `hall.load`, `ha
+- **glebe** (matrix 255, L2) — Plans harvests: fields and the place (`place.here`, `place.list`), crop sales (`net.offers
+- **massif** (matrix 256, L2) — Spreads large integer compute jobs across machines and tracks results: functions and data 
+- **thaw** (matrix 266, L2) — Rebuilds a whole machine after disaster from backups, keys and settings (kernel/src/recove
+- **col** (matrix 269, L2) — Gates connections between ZXV and the outside web, names and identities: network mode (`ne
+- **den** (matrix 97, L1) — installed games in the Banker (`files.list`) and time left today (`screen.check`).
+- **burr** (matrix 118, L1) — sticky notes on the desktop, each a text file in a Notes folder of the Hoard (`files.list`
+- **luthier** (matrix 157, L2) — composes, notates and records music, from instrument loops to finished scores, kept in the
+- **joist** (matrix 158, L2) — plans construction projects: structure models, materials, costs and task schedules, kept i
+- **bodkin** (matrix 183, L2) — turns body measurements into fitted sewing patterns and cut sheets in the Hoard (`files.re
+- **trowel** (matrix 184, L2) — logs building upkeep: repairs, inspections, contractors and costs, in the Hoard (`files.li
+- **lapidary** (matrix 191, L2) — designs schematics, boards and chip logic in the Hoard (`files.read`, `files.write`), simu
+- **stoker** (matrix 196, L2) — runs models on the fastest hardware present, GPU first: picks the backend, places weights 
+- **tiler** (matrix 203, L2) — assembles live dashboards from tiles drawn from the machine's data and monitors (`sys.info
+- **lampwright** (matrix 205, L2) — sets ambient lighting and display scenes across rooms and screens with colour care, readin
+- **cooper** (matrix 208, L2) — tracks goods through reuse, repair and recycling loops in the cooperative market (`net.off
+- **eddy** (matrix 212, L2) — projects compounding savings, loans and long-term growth from the books (`ledger.accounts`
+- **shingle** (matrix 213, L2) — registers every program in its slot: checks the signed manifest's slot, layer, capabilitie
+- **wisp** (matrix 217, L2) — Keeps light, offline maps, contacts and battery triage ready when power or network fails: 
+- **scree** (matrix 219, L2) — Builds and plays logic and maths puzzles that adapt to a learner's level; puzzles and prog
+- **windbreak** (matrix 222, L2) — Fronts the Pit Boss and the Cage (docs/PIT_BOSS.md, docs/CAGE.md; admission in kernel/src/
+- **muster** (matrix 229, L2) — Fronts the driver layer (kernel/src/hwdrv: hwdrv_probe.c, hwdrv_core.c, usb.h, usbmsc.c, u
+- **decanter** (matrix 232, L2) — Fronts the Vino engines (kernel/src/vino, kernel/src/vino_stores, kernel/src/airc for rela
+- **dragoman** (matrix 244, L2) — Fronts the language layer (kernel/src/lingua with catalogue.tsv, the 104 languages; kernel
+- **fulgurite** (matrix 245, L2) — ZXV builds ZXV. Fronts build_system/mk_golden_disc.sh, build_system/golden.contents, build
+- **fusee** (matrix 247, L2) — Fronts the boot chain: the UEFI stubs (kernel/arch/x86_64/efi_stub.c, kernel/arch/arm64/ef
+- **bourn** (matrix 249, L2) — Logs brewing batches: recipes, temperatures, gravity, ageing and duty, kept in the Hoard (
+- **plumbline** (matrix 250, L2) — Fronts the policy engine (kernel/src/policy with policy.c, policy_cobol.c and copybooks; k
+- **overture** (matrix 252, L2) — Fronts first start (kernel/src/seats, kernel/src/ident, kernel/src/terms (the agreement), 
+- **plinth** (matrix 254, L2) — Fronts installation (install/install_zxv.py and install/transactional_disk.py, host only t
+- **caldera** (matrix 259, L2) — Watches natural hazards and pushes local alerts: events (`journal.query`, `log.tail`), the
+- **serac** (matrix 260, L2) — Fronts the reserve engines (kernel/src/svault, kernel/src/surplus, kernel/src/vswap, kerne
+- **rainshadow** (matrix 261, L2) — Plans sky watching: eclipses and transits, where and when, from the place (`place.here`, `
+- **thicket** (matrix 262, L2) — Fronts community updates (kernel/src/peer_audit, kernel/src/evolve with evo_upd.c, evo_lin
+- **grotto** (matrix 263, L2) — Keeps a hidden, encrypted compartment for the most sensitive files: a private space (`spac
+- **meander** (matrix 264, L2) — Writes by hand or brush and turns strokes into text in any script: documents in the Hoard 
+- **loom** (matrix 265, L2) — Fronts app composition (kernel/src/apps/zxapp.c: manifests, `use`, `provides`, at most 8 `
+- **chrysalis** (matrix 268, L2) — Fronts guest machines (kernel/src/hwemu with hwe.c and hwa.c, kernel/src/virtio, kernel/sr
+- **kiln** (matrix 186, L2) — queues 3D models from the Hoard (`files.read`) for printing, firing or fabrication (`print
+- **glazier** (matrix 193, L2) — publishes budgets and decisions from the books (`ledger.accounts`, `ledger.entries`, `ledg
+- **sexton** (matrix 195, L2) — responds to outages and incidents: raises alarms (`log.tail`, `journal.query`, `sys.info`)
+- **stationer** (matrix 202, L2) — designs forms, letters and printed templates in the Hoard (`files.read`, `files.write`), p
+- **topiary** (matrix 204, L2) — shapes habits over months with small daily tasks and reminders in the Hoard (`files.read`,
+- **verger** (matrix 206, L2) — organises a congregation or club: members and groups (`social.groups`, `social.group_creat
+- **gust** (matrix 218, L2) — Plans children's outdoor play: where the child is and the family's safe areas (`place.here
+- **terroir** (matrix 231, L2) — Manages a vineyard: blocks and lots, harvest timing, sales in the books (`ledger.open_acco
+- **copse** (matrix 235, L2) — Plans woodworking: designs, cut lists, joints, materials and cost, kept in the Hoard (`fil
+- **reedbed** (matrix 257, L2) — Monitors wetlands and water quality with low-power sensor nodes: sites (`place.list`), rec
+- **lagoon** (matrix 270, L2) — Holds savings and guardianship plans for children until they come of age: accounts (`ledge
+- **barbican** (matrix 272, L3) — guards one person's devices, logins and identity keys (`devmesh.devices`, `passkeys.list`,
+- **relume** (matrix 273, L3) — brings a business or household back after a disaster: restores files, books and services i
+- **vigil** (matrix 274, L3) — watches servers, networks and agents through the night (`sys.info`, `sys.net`, `log.tail`,
+- **tracery** (matrix 275, L3) — records wildlife sightings, herd counts and habitat health across a reserve (`place.here`,
+- **albedo** (matrix 276, L3) — checks news claims against sources (`search.query`, `files.read`, `web4.feed`, `web4.verif
+- **aureole** (matrix 277, L3) — runs a town or co-op council: agendas, motions, minutes, budgets and signed decisions in o
+- **cabochon** (matrix 278, L3) — gathers accounts, savings goals, bills and investments into one honest picture of your wea
+- **vesper** (matrix 279, L3) — spreads warnings, check-ins and help requests across nearby households even without intern
+- **volute** (matrix 280, L3) — runs a fish or shellfish farm: water readings, feeding schedules, stock health and harvest
+- **lozenge** (matrix 281, L3) — tracks hives, pollination contracts with growers and honey sales for beekeepers and their 
+- **cupola** (matrix 282, L3) — preserves records for decades: checks integrity, migrates old formats and keeps copies on 
+- **gibbous** (matrix 283, L3) — tracks sleep, light exposure and body clock, suggesting gentle routines for better rest (a
+- **penumbra** (matrix 284, L3) — hunts quietly for hidden threats across a network the owner declares in scope, replaying t
+- **annulus** (matrix 285, L3) — manages medicines for a household or small pharmacy: prescriptions, doses, refills and int
+- **perigee** (matrix 286, L3) — plans drone deliveries and inspections within declared airspace, weather and battery limit
+- **cusp** (matrix 287, L3) — manages livestock: herd records, breeding, grazing rotation, vet visits and sales (`ledger
+- **lambent** (matrix 288, L3) — guides a life change such as a new career or move: goals, courses, tasks and milestones in
+- **rampart** (matrix 289, L3) — a security operations centre for an organisation: alerts, incidents, responders and signed
+- **kerf** (matrix 290, L3) — runs a small workshop or factory: job orders, materials, machine time, quality checks and 
+- **meridian** (matrix 291, L3) — plans voyages by sea or land: routes, tides, weather windows, fuel and crew watches (`plac
+- **solarium** (matrix 292, L3) — looks after a garden or greenhouse: planting plans, watering, soil and light sensors, and 
+- **clerestory** (matrix 293, L3) — supports a research project end to end: reading lists, notes, citations, drafts and superv
+- **parallax** (matrix 294, L3) — a visual effects studio for layered images, motion and the depth effect, from sketch to fi
+- **sanctum** (matrix 295, L3) — custody for valuables and digital assets: who holds what, guardians, withdrawal rules and 
+- **cistern** (matrix 296, L3) — runs a water utility: pipes, pumps, leaks, meter readings, quality tests and customer bill
+- **armature** (matrix 297, L3) — an invention lab notebook: experiments, prototypes, parts, results and dated proof of who 
+- **sightline** (matrix 298, L3) — plans and patrols trails and wild land: routes, hazards, check-ins and rescue handoffs (`p
+- **ephemeris** (matrix 299, L3) — plans observing nights: object positions, rise and set times, weather and a log of what yo
+- **lumen** (matrix 300, L3) — a small clinic: appointments, patient records, consultations, referrals and billing in one
+- **elevation** (matrix 301, L3) — designs buildings from sketch to construction drawings, with structure checks, materials a
+- **transit** (matrix 302, L3) — moves parcels from sender to doorstep: pickups, routes, handoffs, proof of delivery and pa
+- **syzygy** (matrix 303, L3) — two-party agreements witnessed in two languages: drafting, signing, obligations and disput
+- **firstlight** (matrix 304, L3) — a child's first computer: safe play, reading, puzzles and first coding lessons with parent
+- **culmen** (matrix 305, L3) — one dashboard across an organisation: money, people, risks, projects and AI agents (`ledge
+- **azimuth** (matrix 306, L3) — indoor and outdoor wayfinding with step-by-step directions, accessible routes and offline 
+- **bitting** (matrix 307, L3) — issues and revokes digital keys for doors, rooms, vehicles and shared equipment, with a fu
+- **luminaire** (matrix 308, L3) — controls lighting across a home or building, saving energy with schedules, presence and da
+- **collet** (matrix 309, L3) — locks sensitive data in escrow that opens only under agreed rules, such as two keyholders 
+- **cleave** (matrix 310, L3) — stress tests apps and systems by breaking them on purpose and recording how and where they
+- **parsec** (matrix 311, L3) — controls a telescope for deep-sky imaging and shares calibrated images with citizen scienc
+- **equinox** (matrix 312, L3) — time capsules and time-locked promises: messages, wills and payments released on a chosen 
+- **illumine** (matrix 313, L3) — publishes books from manuscript to finished edition: editing, layout, illustration, rights
+- **umbra** (matrix 314, L3) — lets you act under separate personas and pseudonyms online while keeping each unlinkable a
+- **escutcheon** (matrix 315, L3) — insurance for households and co-ops: policies, premiums, claims, evidence and mutual-aid g
+- **quay** (matrix 316, L3) — runs a port or marina: berths, arrivals, cargo handling, customs papers and fees (`place.l
+- **pinion** (matrix 317, L3) — automates and maintains factory equipment: machine states, predictive maintenance, spare p
+- **bevel** (matrix 318, L3) — finds and redacts personal data in documents and datasets before sharing, keeping only wha
+- **lunette** (matrix 319, L3) — records life ceremonies such as weddings, namings and funerals: bookings, officiants, cert
+- **equant** (matrix 320, L3) — arbitrates disputes: claims, evidence, hearings, rulings and enforcement under a published
+- **diadem** (matrix 321, L3) — runs elections and votes for clubs, co-ops and towns: ballots, eligibility, counting and v
+- **archivolt** (matrix 322, L3) — migrates old systems to ZXV: reads mainframe data and code, translates it, and runs old an
+- **spire** (matrix 323, L3) — manages geology and mining surveys: samples, claims, drill logs, reserves and land restora
+- **druse** (matrix 324, L3) — deep cold storage for things that must outlive you: offline seed copies of data, keys and 
+- **arcology** (matrix 325, L3) — city services in one place: permits, repairs, transport, utilities and resident requests w
+- **pharos** (matrix 326, L3) — broadcasts emergency warnings across radio, mesh and screens, confirming who has received 
+- **viaduct** (matrix 327, L3) — settles payments between currencies, co-ops and networks with fair rates and clear records
+- **tephra** (matrix 328, L3) — monitors volcanoes, earthquakes and landslides, turning sensor data into hazard maps and e
+- **caustic** (matrix 329, L3) — surveys and restores coral reefs: dive logs, bleaching records, water quality and restorat
+- **sunfleck** (matrix 330, L3) — plans and verifies tree planting and carbon storage, with growth records that buyers of cr
+- **rotunda** (matrix 331, L3) — books shared research instruments and facilities: time slots, training, usage logs and cos
+- **atrium** (matrix 332, L3) — runs a guesthouse or venue: rooms, bookings, catering, housekeeping and guest bills (`file
+- **ravelin** (matrix 333, L3) — protects critical sites such as power, water and data halls: physical access, cameras, ala
+- **nymphaeum** (matrix 334, L3) — tests household drinking water and filters, warning when quality drops and logging every r
+- **insolation** (matrix 335, L3) — runs a community wind and solar co-op: generation, storage, shares, mutual-aid grants and 
+- **portcullis** (matrix 336, L3) — controls entry to venues and communities: invitations, tickets, guest lists and who may co
+- **apse** (matrix 337, L3) — supports faith and spiritual communities: services, readings, member care, giving and quie
+- **corbel** (matrix 338, L3) — guides visitors through heritage sites: stories, audio tours, conservation records and tic
+- **athenaeum** (matrix 339, L3) — a community or national library: catalogue, lending, digital collections and reading rooms
+- **windlass** (matrix 340, L3) — plans, logs and audits a mine or quarry: ore grades, shifts, safety checks and royalty pay
+- **vernier** (matrix 341, L3) — inspects and grades finished parts or stones to fine tolerance, issuing a signed certifica
+- **dulcimer** (matrix 342, L3) — designs pieces, tracks metal and stones, schedules bench work and sells finished goods (`f
+- **monochord** (matrix 343, L3) — runs optics and spectroscopy experiments: captures spectra, fits lines, logs runs and shar
+- **portolan** (matrix 344, L3) — Surveys and publishes maps of land, buildings and routes, merging field notes, drone scans
+- **caravel** (matrix 345, L3) — Runs a trading stall or shop online and offline: stock and sales in the books (`ledger.pos
+- **chintz** (matrix 346, L3) — Identifies, catalogues and monitors plants in the field or greenhouse: photos and labels i
+- **sampler** (matrix 347, L3) — Catalogues a museum or private collection: objects, provenance, condition reports, loans a
+- **theorbo** (matrix 348, L3) — Composes, records and performs music with others: scores and stems in the Hoard (`files.re
+- **armillary** (matrix 349, L3) — Calibrates and maintains precision machines: readings from this machine (`sys.info`, `sys.
+- **stereoscope** (matrix 350, L3) — Shoots, edits and publishes photo stories with signed originals, tracked edits and licence
+- **athanor** (matrix 351, L3) — Plans and runs chemistry or brewing processes: recipes, batch records and hazard checks in
+- **consonance** (matrix 352, L3) — Negotiates, drafts and signs agreements between groups or nations: drafts in the Hoard (`f
+- **gauze** (matrix 353, L3) — Runs a clinic or field medic post: triage, charts, medicines given and handover notes in t
+- **pianola** (matrix 354, L3) — Builds, tests and ships apps in all five pillars from one workspace: scripts and runs (`pl
+- **damask** (matrix 355, L3) — Runs a restaurant kitchen: menus, recipes, orders, allergens and stock in the Hoard (`file
+- **landfall** (matrix 356, L3) — Plans and records expeditions: routes and offline navigation (`place.here`, `place.list`, 
+- **heartstring** (matrix 357, L3) — Looks after someone you love: shared care plans, medication reminders, mood check-ins and 
+- **crowsnest** (matrix 358, L3) — Watches cameras and sensors across sites, spots unusual activity and logs signed evidence:
+- **capstan** (matrix 359, L3) — Monitors and dispatches wind and water turbines: readings from this machine (`power.status
+- **carrick** (matrix 360, L3) — Binds multiparty commitments into one living contract: text and obligations in the Hoard (
+- **pyrometer** (matrix 361, L3) — Tracks home and building heating, fuel use and fire risk: readings (`sys.info`, `power.sta
+- **shanty** (matrix 362, L3) — Forecasts tides, waves and coastal flooding for harbours and shore towns: districts (`plac
+- **linen** (matrix 363, L3) — Tracks crops, soil, carbon and biodiversity across a farm or forest, and earns credits for
+- **fanfare** (matrix 364, L3) — Recognises contributions in a team or community with badges, credits and an auditable repu
+- **veil** (matrix 365, L3) — Hides what you choose from apps and people: shade data, set blackout periods and see who t
+- **spinnaker** (matrix 366, L3) — Plans and logs flights for small aircraft and drones: routes and places (`place.here`, `pl
+- **argonaut** (matrix 367, L3) — Grows savings in chambered goals that compound over time, with locked portions: accounts (
+- **aubade** (matrix 368, L3) — Tracks daylight, UV and the sleep-wake rhythm to plan outdoor work and healthy light: the 
+- **conclave** (matrix 369, L3) — Runs your local AI swarm: choose models for this machine (`model.info`, `power.status`, `p
+- **rondo** (matrix 370, L3) — Tracks personal cycles and rhythms privately, with predictions, symptoms and shared care n
+- **ostinato** (matrix 371, L3) — Runs a circular economy: goods through reuse, repair and recycling (`net.offers`, `ledger.
+- **tatting** (matrix 372, L3) — Keeps vaccines, food and samples cold from source to door: consignments and sensor logs in
+- **paisley** (matrix 373, L3) — Designs symmetric patterns, textiles, tiles and logos with live radial symmetry, then expo
+- **calliope** (matrix 374, L3) — Children create illustrated stories and games with a gentle AI helper in a safe, parent-gu
+- **bulwark** (matrix 375, L3) — Protects an organisation's keys, assets and accounts with layered guardians, approvals and
+- **brocade** (matrix 376, L3) — Designs, shows and sells fashion collections: patterns and lookbooks in the Hoard (`files.
+- **buckram** (matrix 377, L3) — Hardens devices and edge sensors: firmware checks and update rollouts (`update.check`), th
+- **counterpoint** (matrix 378, L3) — Shares money, plans and chores as a couple, with joint goals and each person's view kept: 
+- **hydrophone** (matrix 379, L3) — Tracks marine life and ship noise with underwater listening stations, sharing sightings an
+- **moire** (matrix 380, L3) — Adapts any app's look, language and input to each person: simple mode (`ui.get`, `ui.set`)
+- **rigging** (matrix 381, L3) — Orchestrates many services, agents and machines from one console, with budgets and safe ro
+- **seine** (matrix 382, L3) — Spreads a mesh of low-power sensors across water or land, gathering readings that survive 
+- **carapace** (matrix 383, L3) — Manages a fishing fleet or co-op: catch logs and quotas (`place.here`, `place.list`), land
+- **hornpipe** (matrix 384, L3) — Coaches swimming and water sports: drills and lap times in the Hoard (`files.read`, `files
+- **piccolo** (matrix 385, L3) — Plans pollinator-friendly gardens and tracks bees, birds and blooms with neighbours: beds 
+- **privateer** (matrix 386, L3) — Hunts threats on the network and devices, tests defences safely and contains intrusions: e
+- **commonweal** (matrix 387, L3) — Your part in the mutual-aid economy in one honest view, read only: bounties earned (`swarm
+- **patchwork** (matrix 388, L3) — Gathers a family's history: stories, photos, records and voices in the Hoard (`files.read`
+- **distaff** (matrix 389, L3) — Publishes and links your own Web4 site of pages, files and services with signed links: pag
+- **galliard** (matrix 390, L3) — Trains martial arts, dance or movement with pose capture, drills, grading and injury-safe 
+- **planisphere** (matrix 391, L3) — Your own computer from disc to desktop in one place, every step signed: install (Plinth), 
+- **consort** (matrix 392, L3) — Finds and connects people with shared skills into project teams, mentoring pairs and trust
+- **atelier** (matrix 393, L3) — Make your own app with no code: compose existing apps and blocks (Loom), register them in 
+- **quadrant** (matrix 394, L3) — Links remote places by satellite: book passes, relay messages and earth images, share grou
+- **manometer** (matrix 395, L3) — Supervises a power plant or microgrid: core readings, interlocks, operator logs and regula
+- **macrame** (matrix 396, L3) — Runs a community mesh network: add nodes (`devmesh.invite`, `devmesh.join`, `devmesh.confi
+- **descant** (matrix 397, L3) — Grows a personal learning tree: goals and lessons in the Hoard (`files.read`, `files.write
+- **orlop** (matrix 398, L3) — Stores and queries your structured data with versioned tables, signed changes and offline 
+- **topsail** (matrix 399, L3) — Hosts apps and files on your own devices and trusted peers as one personal cloud: sync (`s
+- **foghorn** (matrix 400, L3) — Runs navigation aids and harbour signals: hazards broadcast once a person approves (`socia
+- **bearing** (matrix 401, L3) — Plans multi-stop journeys across land and sea: places (`place.here`, `place.list`, `place.
+- **heliostat** (matrix 402, L3) — Plans, monitors and shares solar power across homes, settling surplus energy credits betwe
+- **seachest** (matrix 403, L3) — Keeps wills, deeds, keys and valuables in sealed custody with timed releases and guardian 
+- **chronometer** (matrix 404, L3) — Coordinates shifts, bookings and deadlines across time zones, with exact time from trusted
+- **wardian** (matrix 405, L3) — Runs greenhouses, vertical farms or terrariums: climate, water, light, plant health and ha
+- **celesta** (matrix 406, L3) — Plans mountain trips and winter sports with snow reports, avalanche risk, lift passes and 
+- **chorale** (matrix 407, L3) — Runs a cooperative's or town's governance: proposals and votes (`spaces.propose`, `spaces.

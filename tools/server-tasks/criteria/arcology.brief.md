@@ -1,0 +1,80 @@
+# arcology — the complete brief
+
+| | |
+|---|---|
+| matrix layer | 325 |
+| icon group | L3 |
+| wave spec | `wave27/325-arcology.md` |
+
+## Purpose
+
+city services in one place: permits, repairs, transport, utilities and resident requests with public progress (`files.read`, `files.write`, `pspace.post`, `ledger.entries`, `place.list`).
+
+## Capabilities (the exact registry names for `needs`)
+
+- `fs.read`
+- `fs.write`
+- `peers`
+- `net`
+- `ledger.read`
+- `location`
+- `notify`
+
+## The language map: which language owns which component
+
+| language | runtime | owns | feature | role | status |
+|---|---|---|---|---|---|
+| C | `c` | view | view and model | primary | runs |
+| COBOL | `sutra` | money | city revenue | primary | runs |
+| FORTRAN | `trebago` | numeric | traffic and utility models | primary | runs |
+| Ada | `eve` | limits | service level limits | primary | runs |
+| APL | `kron` | arrays | district grid | primary | runs |
+| MUMPS | `myra` | records | ward and street tree | primary | runs |
+| Elixir | `-` | faults | fault handling | primary | planned: needs Lingua front-end |
+| JCL | `-` | jobs | jobs | primary | planned: needs Lingua front-end |
+
+## The runtime rules (how each named runtime's source must look)
+
+- **c** (C): the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
+- **sutra** (COBOL): the pillar (COBOL): records and procedures. A record with PIC pictures, then 'procedure division.' with COMPUTE and IF. A value that does not fit its picture is refused, never cut.
+- **trebago** (FORTRAN): the pillar (FORTRAN): exact numerics. 'trebago <entry>' then 'in  <args>' / 'out <result>' / assignments / 'end'. Integer only; sums via sum(i, expr).
+- **eve** (Ada): the pillar (Ada): ranges and limits. A package line 'eve <app>', domain declarations '<name> = <lo> .. <hi>', and blocks '<block> { <arg>: <domain> <lo> .. <hi> }'. It declares what is allowed; it cannot compute.
+- **kron** (APL): the pillar (APL/K): exact array arithmetic as ONE expression line '<first-row-answer>|<expr with _arg names>'. Multiply, modulus, comparisons, min/max only. No floats.
+- **myra** (MUMPS): the pillar (MUMPS): records and indexes. One global line '^<GLOBAL>(<arg>:<pic>, ...) = <field>:<pic>! ...'. The pics are the field widths; the index is the first key.
+- **-** (Elixir): see docs/LANGUAGE_CATALOGUE.md for this tier
+
+## The spec's Logic clauses (what each component computes)
+
+- `service_level_ok` (a request answered within its declared days) in Ada as Eve + APL as KRON witnessed
+- `traffic_utility` (daily demand per district from history) in FORTRAN as Trebago + APL as KRON witnessed
+- `revenue` (city revenue per line in minor units) in COBOL as Sutra + FORTRAN as Trebago witnessed
+- `districts` grid in APL as KRON
+- `wards_streets` tree in MUMPS as MYRA
+
+## The entries and their exact checks
+
+| entry (pattern) | kind | args | language | exact check |
+|---|---|---|---|---|
+| `grade_band` | num | `value b1 b2 b3 b4` | kron | `check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4` |
+
+## The manifest contract
+
+```
+zxapp 1
+id arcology
+matrix 325
+name Arcology
+needs fs.read
+needs fs.write
+needs peers
+needs net
+needs ledger.read
+needs location
+needs notify
+provides <entry> num|truth <arg> <arg> ...
+logic <runtime> <entry> <<
+<source>
+.
+check <entry> <arg>=<int>,... = <answer>,...
+```
+
