@@ -30,6 +30,10 @@ cd "$K"
 
 vinea() {
     for f in src/vinea/vna_*.c; do echo "$f"; done
+    # SCP-144: the lattice binding the handshake mixes in (vna_session.c
+    # includes scp144.h), so the hosted node derives the same session keys
+    # as the kernel does.
+    echo src/scp144/scp144.c
     # category 5: ML-DSA-87 identities, ML-KEM-1024 sessions (pqsec)
     echo src/pqsec/pq_mldsa87.c
     echo src/pqsec/pq_mlkem1024.c

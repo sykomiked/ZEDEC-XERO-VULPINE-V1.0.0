@@ -48,4 +48,4 @@ ZXV_INCLUDES := \
     -Ikernel/src/dharana -Ikernel/src/epu -Ikernel/src/fs -Ikernel/src/legal_engine \
     -Ikernel/src/macgyver -Ikernel/src/panopticon -Ikernel/src/rce -Ikernel/src/rur \
     -Ikernel/src/sutra -Ikernel/src/ubh -Ikernel/src/zxpkg -Ikernel/src/sched \
-    -Igui
+    -Ikernel/src/theme -Igui

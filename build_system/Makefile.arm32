@@ -95,6 +95,7 @@ LDFLAGS = -T kernel/arch/arm32/linker.ld -nostdlib -static --gc-sections
 LIBGCC = $(shell $(CC) -print-libgcc-file-name)
 
 KERNEL_SRC = \
+    kernel/src/scp144/scp144.c \
     kernel/arch/arm32/uart_pl011.c \
     kernel/arch/arm32/kernel_main_arm32.c \
     kernel/arch/arm32/arm32_mmu.c \

@@ -148,7 +148,7 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -Ikernel/src/panopticon -Ikernel/src/rce -Ikernel/src/rur -Ikernel/src/sutra \
          -Ikernel/src/ubh -Ikernel/src/zxpkg \
          -Ikernel/src/sched \
-         -Igui
+         -Ikernel/src/theme -Igui
 #
 # TWO OF THE -I PATHS ABOVE ARE LOAD-BEARING AND WERE MEASURED, NOT GUESSED:
 #
@@ -229,6 +229,7 @@ ARM64_ARCH_OBJS = \
 
 # Shared kernel source objects (platform-independent)
 KERNEL_SRCS = \
+    kernel/src/scp144/scp144.c \
     kernel/src/virtio/vring.c \
     kernel/src/virtio/virtio_bus.c \
     kernel/src/virtio/virtio_gpu.c \

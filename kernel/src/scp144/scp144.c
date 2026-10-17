@@ -56,7 +56,7 @@ void scp144_lattice_bind(const uint8_t init_id[32],
     {
         uint64_t norm = 0;
         uint8_t residues[4];
-        uint8_t fold[64 + 4];
+        uint8_t fold[64 + 8];
         unsigned pos = 11;
 
         while (v > 0 && pos > 0) {
