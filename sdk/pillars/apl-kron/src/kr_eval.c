@@ -717,7 +717,7 @@ static int32_t grade(E *e, const kr_node *nd, int down, const kr_value *X, uint6
             uint64_t mid = lo + width < n ? lo + width : n, hi = lo + 2u * width < n ? lo + 2u * width : n;
             uint64_t i = lo, j = mid, k = lo;
             while (i < mid && j < hi) {
-                int c;
+                int c = 0;
                 if ((st = cmp_cells(e, nd, X, a[j], a[i], w, &c)) != ZXV_OK) break;
                 /* take from the right half only when strictly before: stable */
                 if (down ? c > 0 : c < 0) t[k++] = a[j++];

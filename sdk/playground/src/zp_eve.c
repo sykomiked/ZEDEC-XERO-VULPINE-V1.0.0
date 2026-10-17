@@ -436,10 +436,12 @@ void zp_lang_eve(zp_step *s, const char *src, size_t len) {
         const char *in = zp_input(s, lv->path[i]);
         if (!in) {
             if (sens && is_sensor(sens, lv->path[i]))
-                snprintf(why, sizeof why, "the sensor reading %s is missing; nothing is proposed until both readings are in",
-                         lv->path[i]);
+                snprintf(why, sizeof why,
+                         "the sensor reading %.*s is missing; nothing is proposed until both readings are in",
+                         (int) (sizeof why - 100), lv->path[i]);
             else
-                snprintf(why, sizeof why, "needs an input named %s", lv->path[i]);
+                snprintf(why, sizeof why, "needs an input named %.*s",
+                         (int) (sizeof why - 40), lv->path[i]);
             zp_pending(s, why);
             missing++;
             continue;
