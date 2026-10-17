@@ -4,6 +4,7 @@
 #include "vna_wire.h"
 #include "vna_agree.h"
 #include "vna_space.h"
+#include "../ubh/ubh.h"
 
 /* ---- schemas: the single declaration of every wire record ---- */
 #define M vna_msg_t
@@ -86,7 +87,7 @@ const vna_schema_t vna_b_hk_schema = {"body_hk", 0x0007, 1, hk_fields, 3};
 #define R vna_rec_t
 static const vna_field_t rec_fields[] = {
     VNA_FCONST(R, magic, VNA_REC_MAGIC),
-    VNA_FU8(R, rtype, VNA_REC_SPACE_EV, VNA_AXIS_NONE),
+    VNA_FU8(R, rtype, VNA_REC_ENV, VNA_AXIS_NONE),
     VNA_FFIX(R, key, VNA_AXIS_NONE),
     VNA_FFIX(R, publisher, VNA_AXIS_PROVENANCE),
     VNA_FU64(R, pow, 0, VNA_AXIS_PROVENANCE),
@@ -262,6 +263,15 @@ vna_status_t vna_rec_verify(vna_verifier_t *v, const uint8_t *buf, uint32_t len,
     }
     if (r->rtype == VNA_REC_SPACE || r->rtype == VNA_REC_SPACE_EV)
         return vna_space_rec_check(r); /* vna_space.c: payload and key binding */
+    if (r->rtype == VNA_REC_ENV) {
+        /* one whole UBH-168 envelope: the first 21-octet frame is a valid
+         * header; the payload is exactly the envelope. */
+        ubh_168_header_t hdr;
+        if (r->payload_len != 168 || !ubh_168_header_unpack(&hdr, r->payload) ||
+            !ubh_168_header_validate(&hdr))
+            return VNA_ERR_PARSE;
+        return VNA_OK;
+    }
     return VNA_ERR_PARSE;
 }
 

@@ -1099,7 +1099,7 @@ verify-all: test
 	else echo "[SKIP] install_security (installer not present)"; fi; \
 	echo "=== A/B signed update + probation + auto-rollback ==="; \
 	if [ -f userapp/hello_signed.h ]; then \
-		gcc -std=c11 -Wall -Werror -Wextra -DZXVFS_HOST -Isrc/loader -Isrc/zxvfs -Isrc/robin_debanks -Iinclude -Iuserapp \
+		gcc -std=c11 -Wall -Werror -Wextra -DZXVFS_HOST -Isrc/loader -Isrc/zxvfs -Isrc/robin_debanks -Iinclude -Iuserapp -Isrc/modbind \
 			src/loader/test_abupdate.c src/loader/abupdate.c src/loader/zsp.c src/zxvfs/zxvfs.c \
 			src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c src/provenance/test_signer.c \
 			-o /tmp/test_abupdate -lm && \
@@ -2185,7 +2185,7 @@ test-vinea:
 # Vinea spaces (src/vinea/vna_space.h): CID-anchored public spaces and the synced watch hall.
 .PHONY: test-vinea-space
 test-vinea-space:
-	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/zcapital -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/surplus -Isrc/modbind -Iinclude src/vinea/test_vinea_space.c $(VINEA_SRCS) src/lpres/lpres.c src/tls/aead.c src/tls/hkdf.c src/robin_debanks/sha256.c src/ubh/ubh.c src/event_space/event_envelope.c -o /tmp/test_vinea_space -lm && /tmp/test_vinea_space > /tmp/test_vinea_space.log 2>&1 && echo "[PASS] test_vinea_space" || { tail -40 /tmp/test_vinea_space.log; echo "[FAIL] test_vinea_space"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/zcapital -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/surplus -Isrc/modbind -Iinclude src/vinea/test_vinea_space.c $(VINEA_SRCS) src/lpres/lpres.c src/lpres/lpres_hex.c src/tls/aead.c src/tls/hkdf.c src/robin_debanks/sha256.c src/ubh/ubh.c src/event_space/event_envelope.c -o /tmp/test_vinea_space -lm && /tmp/test_vinea_space > /tmp/test_vinea_space.log 2>&1 && echo "[PASS] test_vinea_space" || { tail -40 /tmp/test_vinea_space.log; echo "[FAIL] test_vinea_space"; exit 1; }
 
 # Vinea door (src/vinea/vna_door.h): the seed's plain-http door — the
 # doorway, files and CID blocks, and the L2 bus on one pipe.

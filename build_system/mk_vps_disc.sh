@@ -57,6 +57,19 @@ sgdisk --new=0:"$newstart":"$newend" --typecode=0:"$sguid" --change-name=0:"$sna
 dd if="$SWARM" of="$OUT" bs=1M iflag=skip_bytes oflag=seek_bytes \
    skip=$((sstart * 512)) seek=$((newstart * 512)) conv=notrunc status=none
 
+# The node's persistent store: a ZXV_DATA partition (HW_GPT_ZXV_DATA,
+# type 5A585653-5741-4D53-9000-000000000002) the kernel mounts as ZXVFS —
+# blank is formatted at boot — and where the signed A/B update slots live.
+# 128 MiB: room for staged .zsp packages, the ledger and fetched content.
+dsects=$((128 * 1024 * 1024 / 512))
+dstart=$(( (newend + 33 + 2048 + 2047) / 2048 * 2048 ))
+dend=$((dstart + dsects - 1))
+dtotal=$((dend + 33 + 1))
+truncate -s $((dtotal * 512)) "$OUT"
+sgdisk --move-second-header "$OUT" >/dev/null
+sgdisk --new=0:"$dstart":"$dend" --typecode=0:5A585653-5741-4D53-9000-000000000002 \
+       --change-name=0:ZXV_DATA "$OUT" >/dev/null
+
 # sgdisk -v reports problems on stdout but still exits 0; the text is the
 # check.
 sgdisk --move-second-header "$OUT" >/dev/null
@@ -65,4 +78,4 @@ sgdisk -v "$OUT" 2>&1 | grep -q "No problems found" || {
     sgdisk -v "$OUT" >&2
     exit 1
 }
-echo "mk_vps_disc: $OUT  core+swarm partition '$sname' sectors $newstart..$newend"
+echo "mk_vps_disc: $OUT  core+swarm partition '$sname' sectors $newstart..$newend data $dstart..$dend"

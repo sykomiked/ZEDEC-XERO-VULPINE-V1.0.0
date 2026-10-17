@@ -34,6 +34,9 @@ int hw_gpt_find_type(hw_blk_t *b, const uint8_t type[16], hw_part_t *out, uint8_
 /* The type of a swarm disc's model partition (mk_golden_disc.sh). */
 extern const uint8_t HW_GPT_ZXV_SWARM[16];
 
+/* The type of a node's ZXVFS data partition (mk_vps_disc.sh). */
+extern const uint8_t HW_GPT_ZXV_DATA[16];
+
 /* A block_device_t over blocks [base, base+count) of a 512-byte-sector disk. */
 typedef struct hw_bdev {
     block_device_t bd;

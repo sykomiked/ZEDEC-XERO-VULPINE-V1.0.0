@@ -364,7 +364,13 @@ SRCS := \
     kernel/src/pqsec/mldsa/fips202.c \
     kernel/src/ipfs_node/ipfsn_dir.c \
     kernel/src/ipfs_node/ipfsn_multiformats.c \
+    kernel/src/ipfs_node/ipfsn_net.c \
+    kernel/src/ipfs_node/ipfsn_store.c \
+    kernel/src/ipfs_node/ipfsn_ubh.c \
     kernel/src/ipfs_node/ipfsn_unixfs.c \
+    kernel/src/aipi/aipi.c \
+    kernel/src/aipi/aipi_vna.c \
+    kernel/src/timesvc/sntp.c \
     kernel/src/nlb/nlb.c \
     kernel/src/onepolicy/onepolicy.c \
     kernel/src/orbital_compat/orbital_compat.c \
@@ -663,6 +669,14 @@ CFLAGS += -I$(ZXV_GENDIR)
 # gateways — the browser fetches them cross-origin over https.
 ZXV_DOORWAY_HDR := $(ZXV_GENDIR)/zxv_doorway_blobs.h
 $(shell python3 $(CURDIR)/tools/web/gen_doorway_blobs.py $(CURDIR) $(CURDIR)/$(ZXV_DOORWAY_HDR))
+
+# The curriculum CAR (build_system/mk_curriculum_car.py over docs/curriculum):
+# rebuilt deterministically every parse and embedded so each fleet node can
+# slice, announce and serve its shard files over authenticated sessions.
+ZXV_CUR_CAR := $(ZXV_GENDIR)/zxv-curriculum.car
+ZXV_CURRICULUM_HDR := $(ZXV_GENDIR)/zxv_curriculum_blob.h
+$(shell python3 $(CURDIR)/build_system/mk_curriculum_car.py $(CURDIR)/$(ZXV_CUR_CAR) >/dev/null)
+$(shell python3 $(CURDIR)/tools/vps/gen_curriculum_blob.py $(CURDIR)/$(ZXV_CUR_CAR) $(CURDIR)/$(ZXV_CURRICULUM_HDR))
 
 # The seed static-lease map (tools/vps/gen_seedmap.py over
 # build_system/vps_seeds.conf): providers that assign fixed addresses

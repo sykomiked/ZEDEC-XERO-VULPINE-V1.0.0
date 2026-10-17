@@ -39,6 +39,8 @@
 #include "hwplat_x86.h"       /* standard class drivers (kernel/src/hwdrv) */
 #include "acpi_x86.h"         /* ACPI tables, AML interpreter, power management */
 #include "hwdrv/hw_storage.h" /* GPT + FAT32 on those disks */
+#include "zxvfs/zxvfs.h"      /* the node's persistent copy-on-write FS */
+#include "loader/abupdate.h"  /* signed A/B slots on top of it */
 #include "hwdrv/hw_models.h"  /* golden disc models, checked after boot */
 #include "swarmnet/swarmnet.h"  /* missing swarm discs over the network */
 #include "vna_host.h"           /* the Vinea (Web4) node, over the same link */
@@ -240,6 +242,8 @@ static uint64_t handoff_rsdp(void)
 /* Milliseconds and the heartbeat for the swarm-disc fetch (swarmnet.h), which
  * polls instead of halting. */
 static uint64_t g_heartbeat_next;
+static zxvfs_t *g_zxvfs; /* set once the ZXV_DATA partition mounts */
+static ab_state_t *g_ab; /* the A/B slot state on it (NULL: unreadable) */
 
 static uint64_t x86_ms(void *ctx)
 {
@@ -560,6 +564,42 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
          * reports; a failure is logged and the boot goes on. */
         boot_msg("[BOOT] ACPI: tables and AML namespace...");
         acpi_x86_boot(hp, tsc_per_us, hw_log_line);
+
+        /* The node's persistent store: a ZXV_DATA-typed partition on any
+         * registered disk becomes ZXVFS (blank is formatted, same as arm64),
+         * and the signed A/B slots live on it — a probation tick runs now so
+         * an update that never confirms rolls itself back. */
+        {
+            static zxvfs_t zfs;
+            static hw_bdev_t zdev;
+            static ab_state_t zab;
+            static uint8_t zscratch[4096];
+            int mounted = 0;
+            for (uint32_t i = 0; i < HW_MAX_BLK && !mounted; i++) {
+                hw_blk_t *b = hreg.blk[i];
+                hw_part_t p;
+                if (!b) continue;
+                if (hw_gpt_find_type(b, HW_GPT_ZXV_DATA, &p, zscratch) == HW_GPT_OK &&
+                    hw_bdev_init(&zdev, b, p.first, p.last - p.first + 1u) == 0) {
+                    int mrc = zxvfs_mount(&zfs, &zdev.bd);
+                    if (mrc != 0 && zxvfs_probe_blank(&zdev.bd) > 0 && zxvfs_format(&zdev.bd) == 0)
+                        mrc = zxvfs_mount(&zfs, &zdev.bd);
+                    mounted = (mrc == 0);
+                }
+            }
+            if (mounted) {
+                bool rolled = false;
+                g_zxvfs = &zfs;
+                if (ab_init(&zfs, &zab) == AB_OK) {
+                    g_ab = &zab;
+                    (void) ab_boot_tick(&zfs, &zab, &rolled);
+                    uart_puts(rolled ? "  [AB] probation expired; rolled back\n"
+                                     : "  [AB] ZXVFS up; A/B state loaded\n");
+                } else
+                    uart_puts("  [AB] ZXVFS up; A/B state unreadable\n");
+            } else
+                uart_puts("  [AB] no ZXV_DATA partition: running without persistence\n");
+        }
     }
     x86_mca_init(hw_log_line); /* after the IDT; one [OK] machine check line */
 

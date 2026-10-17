@@ -81,6 +81,12 @@ static int is_cisex_path(const vna_door_conn_t *c)
            (c->path_len == 6 || c->path[6] == '?');
 }
 
+static int is_smic_path(const vna_door_conn_t *c)
+{
+    return c->path_len >= 5 && c->path[0] == '/' && c->path[1] == 's' && c->path[2] == 'm' &&
+           c->path[3] == 'i' && c->path[4] == 'c' && (c->path_len == 5 || c->path[5] == '?');
+}
+
 static void on_request(vna_door_t *d, vna_door_conn_t *c)
 {
     /* the request line's method and target; anything else is refused */
@@ -104,7 +110,7 @@ static void on_request(vna_door_t *d, vna_door_conn_t *c)
     c->path[c->path_len] = 0;
 
     if (m_post) {
-        if (!is_l2_path(c) && !is_cisex_path(c)) {
+        if (!is_l2_path(c) && !is_cisex_path(c) && !is_smic_path(c)) {
             resp(c, "404 Not Found\r\n", "Content-Length: 0\r\n", 0);
             return;
         }
@@ -168,15 +174,17 @@ static void on_request(vna_door_t *d, vna_door_conn_t *c)
 
 static void on_body(vna_door_t *d, vna_door_conn_t *c)
 {
-    if (is_cisex_path(c)) {
+    if (is_cisex_path(c) || is_smic_path(c)) {
         /* delegated routing: the request is consumed, so c->rx is scratch
          * for the reply datagram */
+        vna_door_query_fn q = is_cisex_path(c) ? d->query : d->query2;
+        void *qc = is_cisex_path(c) ? d->qctx : d->qctx2;
         int32_t n;
-        if (!d->query) {
+        if (!q) {
             resp(c, "404 Not Found\r\n", "Content-Length: 0\r\n", 0);
             return;
         }
-        n = d->query(d->qctx, c->body, c->body_len, c->rx, VNA_DOOR_REQ_MAX - 400);
+        n = q(qc, c->body, c->body_len, c->rx, VNA_DOOR_REQ_MAX - 400);
         if (n < 0) {
             resp(c, "400 Bad Request\r\n", "Content-Length: 0\r\n", 0);
             return;
@@ -335,9 +343,9 @@ uint32_t vna_door_pull(vna_door_t *d, uint32_t c, uint8_t *out, uint32_t cap)
     vna_door_ent_t *e = log_next(d, k);
     if (e) {
         /* [u16le len][u64le tick][bytes] */
-        if (cap < 10 + e->len) {
+        if (cap < 10u + e->len) {
             /* stage what the caller's buffer cannot take whole */
-            uint32_t fl = 10 + e->len;
+            uint32_t fl = 10u + e->len;
             vna_put16(k->tx, (uint16_t) e->len);
             vna_put64(k->tx + 2, e->tick);
             vna_copy(k->tx + 10, e->bytes, e->len);

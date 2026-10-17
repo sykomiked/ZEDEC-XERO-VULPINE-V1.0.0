@@ -37,6 +37,12 @@ static uint64_t le64(const uint8_t *b)
 const uint8_t HW_GPT_ZXV_SWARM[16] = {0x53, 0x56, 0x58, 0x5A, 0x41, 0x57, 0x53, 0x4D,
                                       0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01};
 
+/* A node's persistent data partition (mk_vps_disc.sh, type
+ * 5A585653-5741-4D53-9000-000000000002): ZXVFS lives here, and with it the
+ * signed A/B update slots. Same vendor GUID family as the swarm type. */
+const uint8_t HW_GPT_ZXV_DATA[16] = {0x53, 0x56, 0x58, 0x5A, 0x41, 0x57, 0x53, 0x4D,
+                                     0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02};
+
 int hw_gpt_find_esp(hw_blk_t *b, hw_part_t *out, uint8_t *scratch)
 {
     return hw_gpt_find_type(b, ESP_GUID, out, scratch);

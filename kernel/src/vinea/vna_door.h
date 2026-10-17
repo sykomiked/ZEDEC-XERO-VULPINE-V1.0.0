@@ -26,6 +26,10 @@
  *                           index sync, want records, bounties. The host
  *                           registers d->query; the answer is the binary
  *                           reply datagram as application/octet-stream.
+ *   POST /smic              one 168-byte UBH-168 machine-integrity
+ *                           manifest envelope (smic_manifest.h). The host
+ *                           registers d->query2; the answer is a bounded
+ *                           ring-admission summary.
  *
  * Everything else is a file: the host's size/body callbacks serve the
  * doorway, the pack, /ipfs/<cid> blocks — whatever its tree holds. A body
@@ -42,7 +46,7 @@
 
 #define VNA_DOOR_CONNS        4u    /* connections held at once (one per listener) */
 #define VNA_DOOR_REQ_MAX      1536u /* the request head, bounded */
-#define VNA_DOOR_BODY_MAX     1024u /* one POSTed delta fits far inside */
+#define VNA_DOOR_BODY_MAX     8192u /* fits one SMIC_ATTEST_BYTES datagram */
 #define VNA_DOOR_PATH_MAX     96u
 #define VNA_DOOR_DELTAS       48u    /* the stream backlog ring */
 #define VNA_DOOR_STREAM_MS    30000u /* a stream ends here; the client resumes */
@@ -114,6 +118,8 @@ typedef struct {
     vna_door_gossip_fn gossip;
     vna_door_query_fn query;
     void *qctx;
+    vna_door_query_fn query2;
+    void *qctx2;
     uint64_t now;
 } vna_door_t;
 

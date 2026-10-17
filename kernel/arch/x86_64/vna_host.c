@@ -7,7 +7,25 @@
 #include "robin_debanks/sha256.h"
 #include "cisex_idx/cisex_rt.h"
 #include "vinea/vna_file.h"
+#include "vinea/vna_session.h"
+#include "vinea/vna_exchange.h"
+#include "smic/smic_core.h"
+#include "smic/smic_verify.h"
+#include "ipfs_node/ipfs_node.h"
+#include "aipi/aipi.h"
+#include "aipi/aipi_vna.h"
+#include "timesvc/sntp.h"
+#include "timesvc/timesvc.h"
+#include "event_space/event_space.h"
+#include "ipfs_node/ipfs_node.h"
+#include "swarm/swarm_denom.h"
+#include "chiglet/chiglet.h" /* the node's evidence judge (ISF mixture) */
+#include "oseq/oseq.h"       /* causal ordering + replay detection */
+#include "tensor/zt_gguf.h"
+#include "tensor/zt_model.h"
+#include "tensor/zt_tok.h"
 #include "zxv_doorway_blobs.h" /* the doorway files, generated into the build */
+#include "zxv_curriculum_blob.h" /* the deterministic curriculum CAR, generated */
 
 /* The door's file table: the committed doorway files as compiled-in blobs
  * (boot.json and boot.pack are seal-time artifacts — the browser fetches
@@ -58,6 +76,865 @@ static cisex_ent_t g_cisex_ents[VNAH_CISEX_N];
 static cisex_t g_cisex;
 static uint8_t g_cisex_region;
 
+/* The machine-integrity ring (smic_core.h) and the stateless UBH-168
+ * exchange order book (vna_exchange.h): like the CISEX index, one bounded
+ * instance per machine, filled by envelopes the fleet propagates as
+ * VNA_REC_ENV DHT records and by POST /smic through the door. */
+#define VNAH_SMIC_N 16u
+static smic_node_t g_smic_ents[VNAH_SMIC_N];
+static smic_t g_smic;
+static vna_exchange_t g_exch;
+static smic_hw_t g_self_hw;
+static uint8_t g_cur_digest[32];
+/* The causal registry: envelope dedup rides its 128-entry replay window,
+ * and each admitted record is a registered event so happens-before and
+ * causal-cycle queries exist over what the node has seen. */
+static oseq_registry_t g_oseq;
+static int32_t g_oseq_vna = -1;
+
+/* ===== sessions + files: the authenticated channel and what rides it ======
+ * Handshake datagrams (VNH1/2/3) and sealed session records share the Vinea
+ * port: the demux is the datagram's first four bytes — VNA_MSG and the VNH
+ * magics route by name, everything else is tried against sessions by sender
+ * address. Inside a session, record type 2 is a CHUNK_REQ and type 3 the
+ * CHUNK reply — the file layer's designed carrier (vna_file F6). The node
+ * carves the embedded curriculum CAR into eight shard files and also shares
+ * its ML-DSA-87 attestation; it announces its own slot's root and fetches
+ * whatever else providers announce. */
+#define VNAH_SLICE_N   VNAH_SHARD_N
+#define VNAH_SLICE_LEN ((CUR_CAR_LEN + VNAH_SLICE_N - 1u) / VNAH_SLICE_N)
+#define VNAH_SF_N      (VNAH_SLICE_N + 1u) /* shards + the attestation file */
+#define VNAH_SF_ATTEST VNAH_SLICE_N
+#define VNAH_SESS_N    9u
+#define VNAH_SESS_PT   (VNA_CHUNK_SIZE + 640u) /* chunk + proof + header */
+#define VNAH_REC_F_REQ 2u
+#define VNAH_REC_F_REP 3u
+#define VNAH_HS_POW    8u
+#define VNAH_FETCH_MS  4000ull /* give one fetch a bounded window */
+
+static uint8_t g_shard_leaves[VNAH_SLICE_N][1][32];
+static vna_shared_file_t g_sf[VNAH_SF_N];
+static vna_id_t g_sf_root[VNAH_SF_N];
+static uint32_t g_shard_len[VNAH_SLICE_N];
+static uint8_t g_shard_data[VNAH_SLICE_N][VNAH_SLICE_LEN];
+static vna_fetch_t g_fetch;
+static uint8_t g_fetch_bitmap[1]; /* (8 chunks + 7) / 8 */
+static uint64_t g_fetch_deadline;
+static uint8_t g_fetch_active;
+static vna_id_t g_fetch_root;
+static uint8_t g_fetch_data[VNA_CHUNK_SIZE * 8]; /* fetched file, verified chunks */
+static uint32_t g_fetch_size;
+
+/* What a node fetches it may re-serve: completed files land in a bounded
+ * external-share set and are announced like the node's own shard — that is
+ * the self-propagation loop, fetch to seeder. */
+#define VNAH_EXT_N 4u
+static vna_shared_file_t g_ext_sf[VNAH_EXT_N];
+static uint8_t g_ext_data[VNAH_EXT_N][VNA_CHUNK_SIZE * 8];
+static uint8_t g_ext_leaves[VNAH_EXT_N][8][32];
+static uint8_t g_ext_used[VNAH_EXT_N];
+static vna_sess_t g_sess[VNAH_SESS_N];
+static vna_hs_t g_hs[VNAH_SESS_N];
+static uint8_t g_hs_used[VNAH_SESS_N];
+static uint8_t g_sess_addr[VNAH_SESS_N][6];
+static vna_chunk_t g_chunk;
+static uint8_t g_sess_pt[VNAH_SESS_PT];
+static uint8_t g_sess_wire[VNA_SESS_REC_HDR + VNAH_SESS_PT + VNA_SESS_TAG];
+static uint8_t g_hs_wire[2048];
+static uint32_t g_sess_est, g_chunks_in, g_chunks_served, g_fetch_done;
+
+/* ===== chiglet: the node's evidence judge =================================
+ * Each audit cycle, every book member is scored by four INDEPENDENT evidence
+ * sources — verified settlements, agreement usage, SMIC ring admission and
+ * contact recency — each on its own axis so distinct sources stay distinct
+ * directions. DECIDED needs R >= 2 independent directions AND a clear
+ * margin; conflicting or thin evidence is honestly UNCERTAIN, never silently
+ * trusted or condemned. The verdict is advisory (CHG_CAP_ADVISE): a DECIDED
+ * SUSPECT peer is refused new sessions — the enforcement stays where it
+ * always was, the chiglet's read is the evidence. */
+#define CHG_L_CLEAR   0u
+#define CHG_L_SUSPECT 1u
+static chiglet_t g_chg;
+static uint32_t g_chg_decided, g_chg_uncertain;
+static uint8_t g_chg_suspect[VNAH_BOOK_CAP]; /* decided-SUSPECT flag per book slot */
+
+static void vna_chg_model(void)
+{
+    static chg_model_t m;
+    uint32_t d;
+    vna_zero(&m, sizeof m);
+    m.K = CHG_MAX_EXPERTS;
+    m.D = CHG_DIM;
+    m.L = 2;
+    /* evidence axes live on dims 3..6; label prototypes read them */
+    for (d = 3; d < 7; d++) {
+        m.proto[CHG_L_CLEAR][d] = SR_ONE;
+        m.proto[CHG_L_SUSPECT][d] = -SR_ONE;
+    }
+    m.R_min = SR_FROM_INT(2);
+    m.margin_min = SR_FROM_FLOAT(0.4);
+    vna_copy(m.label_name[CHG_L_CLEAR], "clear", 6);
+    vna_copy(m.label_name[CHG_L_SUSPECT], "suspect", 8);
+    m.loaded = false; /* the loader sets it */
+    (void) chg_load_model(&g_chg, &m);
+}
+
+/* one source's read in [-1, 1] Q32.32 onto its own axis */
+static void chg_axis(surplus_real_t ev[CHG_DIM], uint32_t axis, int32_t q)
+{
+    uint32_t d;
+    for (d = 0; d < CHG_DIM; d++) ev[d] = SR_ZERO;
+    ev[axis] = q > 0 ? SR_ONE : (q < 0 ? -SR_ONE : SR_ZERO);
+}
+
+/* Judge every book member on the audit cadence. */
+static void vna_chg_audit(vna_host_t *h, uint64_t now)
+{
+    surplus_real_t ev[4][CHG_DIM];
+    uint32_t i, r;
+    int32_t q;
+    for (i = 0; i < h->book.cap && i < VNAH_BOOK_CAP; i++) {
+        const vna_account_t *ac = &h->book.acct[i];
+        chg_result_t res;
+        if (!ac->used || !ac->member) {
+            g_chg_suspect[i] = 0;
+            continue;
+        }
+        /* source 1: verified settlements with this member (value they have
+         * issued to us, plus this cycle's contribution) */
+        {
+            uint64_t got = ac->contrib_total;
+            for (r = 0; r < VNA_FORMS; r++) got += ac->held[r];
+            q = got > 0 ? 1 : 0;
+        }
+        chg_axis(ev[0], 3, q);
+        /* source 2: the agreement has actually served it something */
+        {
+            const vna_usage_ent_t *ue = NULL;
+            uint32_t j;
+            for (j = 0; j < h->us.ucap; j++)
+                if (h->us.u[j].used && vna_id_eq(&h->us.u[j].peer, &ac->id)) ue = &h->us.u[j];
+            q = ue && (ue->chunks || ue->records || ue->compute) ? 1 : 0;
+        }
+        chg_axis(ev[1], 4, q);
+        /* source 3: the integrity ring's own four-valued admission */
+        {
+            const smic_node_t *sn = smic_find(&g_smic, ac->id.b);
+            q = !sn                                                                       ? 0
+                : sn->admitted == LPRES_STATE_TRUE                                        ? 1
+                : (sn->admitted == LPRES_STATE_FALSE || sn->admitted == LPRES_STATE_BOTH) ? -1
+                                                                                          : 0;
+        }
+        chg_axis(ev[2], 5, q);
+        /* source 4: the routing table still hears from it */
+        {
+            const vna_contact_t *ct = vna_rt_find(&h->node.rt, &ac->id);
+            q = !ct ? 0 : (now - ct->last_seen_ms) < 300000u ? 1 : -1;
+        }
+        chg_axis(ev[3], 6, q);
+        if (chg_infer(&g_chg, ev, 4, &res) != CHG_OK) continue;
+        if (res.state == CHG_DECIDED) {
+            g_chg_decided++;
+            g_chg_suspect[i] = (res.label == CHG_L_SUSPECT);
+        } else {
+            g_chg_uncertain++;
+            g_chg_suspect[i] = 0; /* uncertainty condemns nobody */
+        }
+    }
+}
+
+/* ===== zt executor: integer-only inference as the AIPI RUN substrate ======
+ * A served function's `module` is a GGUF model (AIPI_MODULE_MAX already
+ * bounds it to one raw block); the call input is the prompt, the output the
+ * generated text. The engine is deterministic integer math, so check()
+ * re-runs the generate and compares — a real CHECKER. certify() refuses:
+ * generative output has no certificate to issue. One shared arena, the host
+ * is single-threaded, so runs are exclusive by construction. */
+#define VNAH_ZT_ARENA (8u * 1024u * 1024u)
+#define VNAH_ZT_NCTX  384u
+#define VNAH_ZT_MAXT  160u
+static uint8_t g_zt_arena[VNAH_ZT_ARENA];
+static uint32_t g_zt_runs, g_zt_refused;
+
+typedef struct {
+    uint8_t *out;
+    uint32_t cap, len;
+    bool full;
+} zt_out_t;
+
+static bool zt_on_token(void *vctx, int32_t id, const uint8_t *piece, uint32_t len)
+{
+    zt_out_t *o = (zt_out_t *) vctx;
+    (void) id;
+    if (o->len > o->cap || len > o->cap - o->len) {
+        o->full = true;
+        return false;
+    }
+    vna_copy(o->out + o->len, piece, len);
+    o->len += len;
+    return true;
+}
+
+static int zt_run(void *vctx, const aipi_code_t *code, const uint8_t *in, uint32_t in_len,
+                  uint8_t *out, uint32_t cap, uint32_t *out_len)
+{
+    zt_gguf_t g;
+    zt_model_t m;
+    zt_tok_t t;
+    zt_model_state_t s;
+    zt_gen_params_t gp;
+    zt_gen_result_t res;
+    zt_out_t o;
+    uint64_t need, st_need, wk_need, off;
+    (void) vctx;
+    g_zt_runs++;
+    if (!code || !in || in_len == 0 || !out || !out_len) return AIPI_ERR_ARG;
+    if (zt_gguf_open(&g, code->module, code->module_len) != 0) return AIPI_ERR_MALFORMED;
+    need = zt_model_arena_bytes(&g);
+    if (!need || need > VNAH_ZT_ARENA / 2u) {
+        g_zt_refused++;
+        return AIPI_ERR_SPACE;
+    }
+    if (zt_model_load(&m, &g, g_zt_arena, need, NULL) != 0) return AIPI_ERR_MALFORMED;
+    off = need;
+    st_need = zt_model_state_bytes(&m, VNAH_ZT_NCTX, 8u, ZT_KV_Q16);
+    if (!st_need || off + st_need > VNAH_ZT_ARENA) {
+        g_zt_refused++;
+        return AIPI_ERR_SPACE;
+    }
+    if (zt_model_state_init(&s, &m, VNAH_ZT_NCTX, 8u, ZT_KV_Q16, g_zt_arena + off, st_need) != 0)
+        return AIPI_ERR_MALFORMED;
+    off += st_need;
+    need = zt_tok_arena_bytes(&g);
+    if (off + need > VNAH_ZT_ARENA || zt_tok_load(&t, &g, g_zt_arena + off, need) != 0)
+        return AIPI_ERR_MALFORMED;
+    off += need;
+    wk_need = zt_model_gen_work_bytes(&m, &t, in_len, VNAH_ZT_MAXT);
+    if (!wk_need || off + wk_need > VNAH_ZT_ARENA) {
+        g_zt_refused++;
+        return AIPI_ERR_SPACE;
+    }
+    vna_zero(&gp, sizeof gp);
+    gp.max_tokens = VNAH_ZT_MAXT;
+    gp.on_token = zt_on_token;
+    o.out = out;
+    o.cap = cap;
+    o.len = 0;
+    o.full = false;
+    gp.ctx = &o;
+    if (zt_model_generate(&m, &s, &t, in, in_len, &gp, g_zt_arena + off, wk_need, &res) != 0)
+        return AIPI_ERR_EXEC;
+    *out_len = o.len;
+    return AIPI_OK;
+}
+
+/* A generative model is a deterministic map (module, input) -> output on this
+ * integer engine, so the honest check is recompute-and-compare. */
+static int zt_check(void *vctx, const aipi_code_t *code, const uint8_t *in, uint32_t in_len,
+                    const uint8_t *out, uint32_t out_len, const uint8_t *cert, uint32_t cert_len)
+{
+    static uint8_t again[AIPI_IO_MAX];
+    uint32_t again_len = 0;
+    int r;
+    (void) cert;
+    (void) cert_len;
+    if (out_len > sizeof again) return AIPI_ERR_SPACE;
+    r = zt_run(vctx, code, in, in_len, again, sizeof again, &again_len);
+    if (r != AIPI_OK) return r;
+    return again_len == out_len && (out_len == 0 || vna_ct_eq(again, out, out_len)) ? 1 : 0;
+}
+
+static int zt_certify(void *vctx, const aipi_code_t *code, const uint8_t *in, uint32_t in_len,
+                      const uint8_t *out, uint32_t out_len, uint8_t *cert, uint32_t cap,
+                      uint32_t *cert_len)
+{
+    (void) vctx;
+    (void) code;
+    (void) in;
+    (void) in_len;
+    (void) out;
+    (void) out_len;
+    (void) cert;
+    (void) cap;
+    (void) cert_len;
+    return AIPI_ERR_UNSUPP;
+}
+
+static void sess_fetch_begin(vna_host_t *h, const vna_id_t *root, const vna_id_t *provider,
+                             const vna_provider_t *pv, uint64_t now);
+
+/* The record's replay identity: fold key|publisher|created into 32 bytes so
+ * oseq's window answers "have we already admitted this exact record". */
+static void env_replay_hash(const vna_id_t *key, const vna_id_t *pub, uint64_t created,
+                            uint8_t ph[32])
+{
+    uint32_t i;
+    for (i = 0; i < 32; i++) ph[i] = (uint8_t) (key->b[i] ^ pub->b[i]);
+    for (i = 0; i < 8; i++) ph[i] ^= (uint8_t) (created >> (i * 8));
+    for (i = 0; i < 8; i++) ph[8 + i] ^= (uint8_t) (created >> (i * 8));
+}
+
+static int env_seen(const vna_id_t *key, const vna_id_t *pub, uint64_t created)
+{
+    uint8_t ph[32];
+    env_replay_hash(key, pub, created, ph);
+    if (oseq_check_replay(&g_oseq, ph, 32)) return 1;
+    oseq_record_replay(&g_oseq, ph, 32);
+    if (g_oseq_vna >= 0) {
+        int32_t e = oseq_register_event(&g_oseq, (uint32_t) g_oseq_vna, "ubh168", 1, ph, 32,
+                                        (const uint32_t *) 0, 0);
+        if (e >= 0) (void) oseq_commit_event(&g_oseq, (uint32_t) e);
+    }
+    return 0;
+}
+
+/* Seal one UBH-168 envelope into a VNA_REC_ENV record and publish it under
+ * key — the fleet's propagation carrier: every record is ML-DSA-87-signed
+ * by its publisher and lands in the store of whoever holds the key's
+ * neighbourhood. Same pattern vna_node_announce uses. */
+static void vna_env_publish(vna_host_t *h, const vna_id_t *key, const uint8_t *env, uint64_t now,
+                            uint64_t ttl_ms)
+{
+    static uint8_t buf[VNA_REC_MAX];
+    uint8_t rnd[32];
+    int32_t len;
+    vna_rec_t *r = &h->node.rec;
+    r->rtype = VNA_REC_ENV;
+    r->key = *key;
+    r->created = now;
+    r->expires = now + ttl_ms;
+    vna_copy(r->payload, env, SMIC_ENV_BYTES);
+    r->payload_len = (uint16_t) SMIC_ENV_BYTES;
+    vna_drbg_gen(&h->node.rng, rnd, 32);
+    len = vna_rec_seal(r, h->node.idn, rnd, buf, sizeof buf);
+    if (len > 0 && vna_node_publish(&h->node, buf, (uint32_t) len, now, &h->ob) >= 0) h->env_pubs++;
+}
+
+/* One envelope payload into the ring: SMIC manifests drive the admission
+ * table, exchange envelopes the order book; both feed the CISEX index. */
+static void vna_env_ingest(vna_host_t *h, const uint8_t *payload, uint32_t len, uint64_t now)
+{
+    smic_hw_t hw;
+    vna_exch_rec_t er;
+    uint16_t mtype;
+    lpx_action_t a;
+    if (len != SMIC_ENV_BYTES) return;
+    if (smic_manifest_unpack(payload, &mtype, &hw) == SMIC_OK) {
+        a = smic_admit(&g_smic, &hw, now);
+        if (a == LPX_ACT_ESCALATE || a == LPX_ACT_ROLLBACK) h->smic_quar++;
+        h->smic_in++;
+        (void) cisex_observe(&g_cisex, hw.hw_digest, hw.region, LPRES_STATE_TRUE);
+        return;
+    }
+    if (vna_exch_unpack(payload, &er) == VNA_OK) {
+        (void) cisex_provide(&g_cisex, er.root_digest, er.domain, er.addr);
+        h->exch_in++;
+    }
+}
+
+/* A sealed record off the wire: schema-unpack and, when it carries an
+ * envelope, dispatch it. The node verified it before it landed. */
+static void vna_env_ingest_rec(vna_host_t *h, const uint8_t *bytes, uint32_t len, uint64_t now)
+{
+    vna_rec_t r;
+    uint32_t i;
+    if (vna_schema_unpack(&vna_rec_schema, bytes, len, &r, 0) < 0) return;
+    if (r.rtype == VNA_REC_ENV) {
+        if (env_seen(&r.key, &r.publisher, r.created)) return;
+        vna_env_ingest(h, r.payload, r.payload_len, now);
+        return;
+    }
+    if (r.rtype == VNA_REC_PROVIDER) {
+        /* a file we do not share, offered by someone: fetch it over a
+         * session — self-propagating content beyond the curriculum */
+        vna_provider_t pv;
+        for (i = 0; i < VNAH_SF_N; i++)
+            if (vna_id_eq(&r.key, &g_sf_root[i])) return;
+        if (vna_schema_unpack(&vna_provider_schema, r.payload, r.payload_len, &pv, 0) < 0) return;
+        if (pv.visibility != VNA_VIS_PUBLIC) return;
+        sess_fetch_begin(h, &r.key, &r.publisher, &pv, now);
+    }
+}
+
+/* What peers stored at this node, plus every finished lookup's found
+ * value — both are propagation ingress for the ring programs. */
+static void vna_env_sweep(vna_host_t *h, uint64_t now)
+{
+    uint32_t i;
+    for (i = 0; i < h->node.store_cap; i++) {
+        const vna_store_slot_t *s = &h->node.store[i];
+        if (s->used) vna_env_ingest_rec(h, s->rec, s->len, now);
+    }
+}
+
+/* The node's own SMIC manifest: identity = NodeID, inventory = this
+ * machine's profile. Filled once at start. */
+static void vna_smic_self(vna_host_t *h)
+{
+    sha256_ctx_t sc;
+    vna_zero(&g_self_hw, sizeof g_self_hw);
+    for (uint32_t i = 0; i < 32; i++) g_self_hw.node_id[i] = h->idn.id.b[i];
+    sha256_init(&sc);
+    sha256_update(&sc, (const uint8_t *) "zxv/smic/hw/v1", 14);
+    sha256_update(&sc, h->l->nic->mac, NET_MAC_LEN);
+    sha256_final(&sc, g_self_hw.hw_digest);
+    g_self_hw.caps = SMIC_CAP_VIRTIO_PCI | SMIC_CAP_INDEX | SMIC_CAP_VERIFIED;
+    g_self_hw.region = h->peer_index == 0xFFu ? h->shard_slot : h->peer_index;
+    g_self_hw.role = SMIC_ROLE_RELAY;
+    g_self_hw.disk_mb = 30720;
+    g_self_hw.net_mbps = 400;
+    if (h->peer_index == 8u) { /* the SIN anchor: warehouse + trunk */
+        g_self_hw.caps |= SMIC_CAP_DISK_900G | SMIC_CAP_NET_1G | SMIC_CAP_IPFS_PIN;
+        g_self_hw.role = SMIC_ROLE_MAINFRAME;
+        g_self_hw.disk_mb = 921600;
+        g_self_hw.net_mbps = 1000;
+    }
+    g_self_hw.octane = SWARM_OCTANE_MIDGRADE;
+    g_self_hw.arch = SMIC_ARCH_X86_64;
+}
+
+/* Our own epistemic listing on the order book: the curriculum root we
+ * serve, announced under the listing key so every peer's exchange learns
+ * the offer. witness stays zero until a spot audit fills it. */
+static void vna_exch_publish(vna_host_t *h, uint64_t now)
+{
+    vna_exch_rec_t er;
+    uint8_t env[SMIC_ENV_BYTES];
+    vna_id_t k;
+    uint32_t i;
+    vna_zero(&er, sizeof er);
+    er.kind = VNA_EXCH_T_LISTING;
+    vna_copy(er.root_digest, g_cur_digest, 32);
+    er.provider = h->idn.id;
+    er.file_size = 69763; /* zxv-curriculum.car */
+    er.n_chunks = 3;
+    for (i = 0; i < 4; i++) er.addr[i] = h->l->eth->ip[i];
+    er.addr[4] = (uint8_t) (VNAH_PORT >> 8);
+    er.addr[5] = (uint8_t) VNAH_PORT;
+    er.form = SWARM_CAP_INTELLECTUAL;
+    er.octane = g_self_hw.octane;
+    er.domain = (uint16_t) h->shard_slot;
+    er.armada = (uint8_t) (g_self_hw.region < 8 ? (1u << g_self_hw.region) : 0u);
+    if (vna_exch_pack(&er, env) == VNA_OK) {
+        vna_htag("zxv/exchange/listing/v1", er.root_digest, 32, k.b);
+        vna_env_publish(h, &k, env, now, VNAH_ENV_TTL);
+    }
+}
+
+/* ===== AIPI: the call broker and its bounded ipfs node =====================
+ * The node runs a RAM blockstore and the AIPI context so calls can be
+ * broadcast, claims verified, bounties escrowed and provider announcements
+ * exchanged — the broker's proper capacity on a node with no local model
+ * executor yet (zt_* inference lands as the exec backend). */
+#define VNAH_AIPI_BS_N   256u
+#define VNAH_AIPI_PINS   16u
+#define VNAH_AIPI_JOBS   8u
+#define VNAH_AIPI_MEMO   32u
+#define VNAH_AIPI_STORE  (2u << 20)
+#define VNAH_AIPI_BUDGET 1000000ull /* bounty escrow ceiling per node */
+
+static uint8_t g_aipi_store[VNAH_AIPI_STORE];
+static uint8_t g_aipi_net[IPFSN_BLOCK_MAX + 256u];
+static uint8_t g_aipi_mod[AIPI_MODULE_MAX];
+static uint8_t g_aipi_con[AIPI_CONTRACT_MAX];
+static ipfsn_memstore_t g_aipi_ms;
+static ipfsn_storage_ops_t g_aipi_sops;
+static ipfsn_bs_t g_aipi_bs;
+static ipfsn_bs_entry_t g_aipi_tab[VNAH_AIPI_BS_N];
+static ipfsn_pin_t g_aipi_pins[VNAH_AIPI_PINS];
+static ipfsn_node_t g_ipfs;
+static aipi_ctx_t g_aipi;
+static aipi_job_t g_aipi_jobs[VNAH_AIPI_JOBS];
+static aipi_memo_t g_aipi_memo[VNAH_AIPI_MEMO];
+static aipi_vna_t g_av;
+static uint64_t g_aipi_escrow;
+static bool g_aipi_on;
+static uint8_t g_self_attest[SMIC_ATTEST_BYTES];
+static ipfsn_cid_t g_attest_cid;
+static bool g_attest_ok;
+
+static int vna_book_learn(vna_host_t *h, const vna_id_t *id);
+static int vna_sendto(vna_host_t *h, const uint8_t addr[6], const uint8_t *data, uint32_t len);
+static int vna_contact_addr(vna_host_t *h, const vna_id_t *id, uint8_t addr[6]);
+static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, uint32_t len,
+                        uint64_t now);
+static void vna_sess_poll(vna_host_t *h, uint64_t now);
+static void vna_shard_setup(void);
+
+/* ===== timesvc: SNTP samples from three servers, Byzantine agreement =====
+ * Until the commit lands the node runs on its monotonic boot clock exactly
+ * as before; once it does, `now` becomes Unix ms — record created/expires
+ * are then comparable across nodes instead of each node counting from its
+ * own power-on. One lying or broken server cannot skew the epoch: commit
+ * needs two samples agreeing within tolerance and a strict majority, and
+ * the agreed time can never go below the build floor. */
+#define VNAH_SNTP_LPORT   49724u
+#define VNAH_SNTP_PIVOT_S 1740000000ll /* era anchor: within 68y of the truth */
+#define VNAH_SNTP_NSERV   3u
+static const uint8_t g_sntp_serv[VNAH_SNTP_NSERV][NET_IP_LEN] = {
+    {162, 159, 200, 1}, /* Cloudflare time.cloudflare.com */
+    {216, 239, 35, 0},  /* Google time.google.com */
+    {129, 6, 15, 28},   /* NIST time.nist.gov */
+};
+static int32_t g_sntp_sock = -1;
+static uint64_t g_sntp_nonce[VNAH_SNTP_NSERV];
+static int64_t g_sntp_t1_us[VNAH_SNTP_NSERV];
+static int64_t g_wall_off_ms; /* unix_ms - mono_ms once synced */
+static bool g_sntp_done;
+static timesvc_t g_ts;
+
+/* ===== event space: the node's self-supervision registry ===================
+ * Each running subsystem is a domain; the audit/heal cycle runs on the host
+ * cadence so queue, budget, fault-rate and quarantine invariants are checked
+ * continuously and healing actions (warn/suspend/quarantine/recover) are
+ * recorded by the framework itself. */
+static ev_sequencer_t g_seq;
+static ev_audit_t g_audit;
+static ev_healing_t g_heal;
+static int32_t g_dom_vna = -1, g_dom_door = -1, g_dom_aipi = -1, g_dom_smic = -1, g_dom_exch = -1;
+static uint32_t g_ev_worst; /* worst EV_HEAL_* action seen this boot */
+
+static uint64_t vna_now(vna_host_t *h)
+{
+    uint64_t m = h->l->clk.ms(h->l->clk.ctx);
+    return g_sntp_done ? (uint64_t) ((int64_t) m + g_wall_off_ms) : m;
+}
+
+static void sntp_rx(void *ctx, const uint8_t src_ip[NET_IP_LEN], uint16_t src_port,
+                    const uint8_t *data, uint32_t len)
+{
+    vna_host_t *h = (vna_host_t *) ctx;
+    sntp_sample_t s;
+    uint32_t i;
+    (void) src_ip;
+    (void) src_port;
+    if (g_sntp_done || !data || len < SNTP_PKT_LEN) return;
+    for (i = 0; i < VNAH_SNTP_NSERV; i++) {
+        if (sntp_parse_reply(data, len, g_sntp_nonce[i], g_sntp_t1_us[i],
+                             (int64_t) h->l->clk.ms(h->l->clk.ctx) * 1000, VNAH_SNTP_PIVOT_S,
+                             &s) != SNTP_OK)
+            continue;
+        (void) timesvc_add_sample(&g_ts, &s);
+        /* commit as soon as the service can agree; failures keep samples */
+        if (g_ts.n_samples >= 2u &&
+            timesvc_commit(&g_ts, (int64_t) h->l->clk.ms(h->l->clk.ctx) * 1000) == TIMESVC_SYNCED) {
+            g_wall_off_ms = g_ts.offset_us / 1000;
+            g_sntp_done = true;
+        }
+        return;
+    }
+}
+
+static int ah_reserve(void *ctx, uint64_t amount)
+{
+    (void) ctx;
+    if (amount > VNAH_AIPI_BUDGET || g_aipi_escrow > VNAH_AIPI_BUDGET - amount) return -1;
+    g_aipi_escrow += amount;
+    return 0;
+}
+
+static void ah_refund(void *ctx, uint64_t amount)
+{
+    (void) ctx;
+    g_aipi_escrow = amount > g_aipi_escrow ? 0 : g_aipi_escrow - amount;
+}
+
+static int ah_pay(void *ctx, const vna_id_t *executor, uint64_t amount, const ipfsn_cid_t *call)
+{
+    vna_host_t *h = (vna_host_t *) ctx;
+    (void) call;
+    ah_refund(ctx, amount); /* leaves escrow: owed to the executor now */
+    if (!vna_book_learn(h, executor)) return -1;
+    return vna_link_want_from(&h->link, executor, VNA_RES_COMPUTE, SWARM_CAP_SYSTEM, 1, amount) >= 0
+               ? 0
+               : -1;
+}
+
+static void ah_paid(void *ctx, const vna_id_t *caller, uint64_t amount, const ipfsn_cid_t *call)
+{
+    vna_host_t *h = (vna_host_t *) ctx;
+    (void) call;
+    if (amount == 0 || !vna_book_learn(h, caller)) return;
+    (void) vna_link_sell(&h->link, caller, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1,
+                         amount, "offer(compute, units: 1)", g_av.now);
+}
+
+/* Carve the embedded CAR into VNAH_SLICE_N contiguous shard files; each is
+ * its own Merkle-rooted vna_file (one 16 KiB chunk per slice on this
+ * archive). Slot VNAH_SF_ATTEST is filled at start with the attestation. */
+static void vna_shard_setup(void)
+{
+    uint32_t off = 0, i;
+    vna_zero(g_sf, sizeof g_sf);
+    for (i = 0; i < VNAH_SLICE_N; i++) {
+        uint32_t n = off < CUR_CAR_LEN
+                         ? (CUR_CAR_LEN - off < VNAH_SLICE_LEN ? CUR_CAR_LEN - off : VNAH_SLICE_LEN)
+                         : 0;
+        g_shard_len[i] = n;
+        vna_copy(g_shard_data[i], cur_car + off, n);
+        (void) vna_file_build(g_shard_data[i], n, VNA_CHUNK_SIZE, g_shard_leaves[i], 1,
+                              &g_sf_root[i]);
+        g_sf[i].root = g_sf_root[i];
+        g_sf[i].size = n;
+        g_sf[i].chunk_size = VNA_CHUNK_SIZE;
+        g_sf[i].n = 1;
+        g_sf[i].leaves = (const uint8_t(*)[32]) g_shard_leaves[i];
+        g_sf[i].data = g_shard_data[i];
+        off += n;
+    }
+}
+
+/* The attestation datagram as a shared file: peers fetch it by its root to
+ * verify this node's manifest signature offline. */
+static void vna_attest_share(void)
+{
+    static uint8_t att_leaves[1][32];
+    (void) vna_file_build(g_self_attest, SMIC_ATTEST_BYTES, VNA_CHUNK_SIZE, att_leaves, 1,
+                          &g_sf_root[VNAH_SF_ATTEST]);
+    g_sf[VNAH_SF_ATTEST].root = g_sf_root[VNAH_SF_ATTEST];
+    g_sf[VNAH_SF_ATTEST].size = SMIC_ATTEST_BYTES;
+    g_sf[VNAH_SF_ATTEST].chunk_size = VNA_CHUNK_SIZE;
+    g_sf[VNAH_SF_ATTEST].n = 1;
+    g_sf[VNAH_SF_ATTEST].leaves = (const uint8_t(*)[32]) att_leaves;
+    g_sf[VNAH_SF_ATTEST].data = g_self_attest;
+}
+
+static int sess_slot(const vna_id_t *peer)
+{
+    uint32_t i;
+    for (i = 0; i < VNAH_SESS_N; i++)
+        if (g_sess[i].established && vna_id_eq(&g_sess[i].peer, peer)) return (int) i;
+    return -1;
+}
+
+static int sess_slot_addr(const uint8_t a[6])
+{
+    uint32_t i, j;
+    for (i = 0; i < VNAH_SESS_N; i++) {
+        if (!g_sess[i].established) continue;
+        for (j = 0; j < 6 && g_sess_addr[i][j] == a[j]; j++) {
+        }
+        if (j == 6) return (int) i;
+    }
+    return -1;
+}
+
+static int sess_free(void)
+{
+    uint32_t i;
+    for (i = 0; i < VNAH_SESS_N; i++)
+        if (!g_sess[i].established && !g_hs_used[i]) return (int) i;
+    return -1;
+}
+
+static void sess_send(vna_host_t *h, int i, uint8_t type, const uint8_t *pt, uint32_t len)
+{
+    int32_t n = vna_sess_seal(&g_sess[i], type, pt, len, g_sess_wire, sizeof g_sess_wire);
+    if (n > 0) (void) vna_sendto(h, g_sess_addr[i], g_sess_wire, (uint32_t) n);
+}
+
+/* Open a session to a peer when none exists and none is in flight. */
+static void sess_ensure(vna_host_t *h, const vna_id_t *peer, uint64_t now)
+{
+    uint8_t addr[6], rnd[128];
+    int32_t l;
+    int i;
+    (void) now;
+    /* the chiglet's decided verdict: a member it judged SUSPECT on
+     * independent evidence gets no new session (advice enforced at the
+     * edge; the evidence itself stays in the audit record) */
+    for (i = 0; i < (int) h->book.cap && i < (int) VNAH_BOOK_CAP; i++)
+        if (h->book.acct[i].used && vna_id_eq(&h->book.acct[i].id, peer) && g_chg_suspect[i])
+            return;
+    if (sess_slot(peer) >= 0) return;
+    i = sess_free();
+    if (i < 0 || !vna_contact_addr(h, peer, addr)) return;
+    vna_drbg_gen(&h->node.rng, rnd, sizeof rnd);
+    l = vna_hs_initiate(&g_hs[i], &h->idn, peer, VNAH_HS_POW, VNA_FEAT_UBH168, rnd, g_hs_wire,
+                        sizeof g_hs_wire);
+    if (l <= 0) return;
+    vna_copy(g_sess_addr[i], addr, 6);
+    g_hs_used[i] = 1;
+    (void) vna_sendto(h, addr, g_hs_wire, (uint32_t) l);
+}
+
+/* Ask the session's peer for the next chunk the active fetch still needs. */
+static void sess_fetch_step(vna_host_t *h, int si)
+{
+    int32_t next, ql;
+    vna_chunk_req_t req;
+    if (!g_fetch_active || si < 0) return;
+    next = vna_fetch_next(&g_fetch);
+    if (next < 0) return;
+    vna_zero(&req, sizeof req);
+    req.magic = VNA_CHUNKREQ_MAGIC;
+    req.root = g_fetch_root;
+    req.index = (uint32_t) next;
+    ql = vna_schema_pack(&vna_chunk_req_schema, &req, g_sess_pt, sizeof g_sess_pt, true);
+    if (ql > 0) sess_send(h, si, VNAH_REC_F_REQ, g_sess_pt, (uint32_t) ql);
+}
+
+/* A provider record for a file we do not share: start a fetch through the
+ * provider's session (established on demand). */
+static void sess_fetch_begin(vna_host_t *h, const vna_id_t *root, const vna_id_t *provider,
+                             const vna_provider_t *pv, uint64_t now)
+{
+    int si;
+    if (g_fetch_active || pv->chunk_size != VNA_CHUNK_SIZE || pv->n_chunks > 8u ||
+        pv->file_size > sizeof g_fetch_data)
+        return;
+    if (vna_fetch_init(&g_fetch, root, pv->file_size, pv->chunk_size, g_fetch_bitmap,
+                       sizeof g_fetch_bitmap) != VNA_OK)
+        return;
+    g_fetch_root = *root;
+    g_fetch_size = (uint32_t) pv->file_size;
+    g_fetch_deadline = now + VNAH_FETCH_MS;
+    g_fetch_active = 1;
+    si = sess_slot(provider);
+    if (si < 0)
+        sess_ensure(h, provider, now); /* the poll asks once the session lands */
+    else
+        sess_fetch_step(h, si);
+}
+
+static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, uint32_t len,
+                        uint64_t now)
+{
+    uint32_t magic = (uint32_t) data[0] | ((uint32_t) data[1] << 8) | ((uint32_t) data[2] << 16) |
+                     ((uint32_t) data[3] << 24);
+    uint8_t rnd[128];
+    int32_t l;
+    int i, j;
+    if (magic == VNA_HS1_MAGIC) {
+        vna_id_t claimed;
+        i = sess_free(); /* responder: take a free slot and answer M2 */
+        if (i < 0) return;
+        /* the claimed initiator is unauthenticated until M3, but it lets the
+         * agreement refuse non-members before any expensive handshake work */
+        if (vna_hs_peek_initiator(data, len, &claimed) == VNA_OK &&
+            vna_agree_check(&h->agr, &h->us, &claimed, vna_book_trust(&h->book, &claimed),
+                            VNA_RES_FILE, NULL, 1, 0, now, false) != VNA_OK)
+            return;
+        vna_drbg_gen(&h->node.rng, rnd, sizeof rnd);
+        l = vna_hs_respond(&g_hs[i], &h->idn, VNAH_HS_POW, VNA_FEAT_UBH168, data, len, rnd,
+                           g_hs_wire, sizeof g_hs_wire);
+        if (l > 0) {
+            g_hs_used[i] = 1;
+            vna_copy(g_sess_addr[i], a, 6);
+            (void) vna_sendto(h, a, g_hs_wire, (uint32_t) l);
+        }
+        return;
+    }
+    if (magic == VNA_HS2_MAGIC) {
+        /* we initiated: find the slot whose in-flight M1 this M2 answers */
+        for (i = 0; i < (int) VNAH_SESS_N; i++) {
+            if (!g_hs_used[i] || !g_hs[i].initiator || g_hs[i].state != VNA_HS_SENT_M1) continue;
+            for (j = 0; j < 6 && g_sess_addr[i][j] == a[j]; j++) {
+            }
+            if (j != 6) continue;
+            vna_drbg_gen(&h->node.rng, rnd, 32);
+            l = vna_hs_initiator_finish(&g_hs[i], data, len, rnd, g_hs_wire, sizeof g_hs_wire,
+                                        &g_sess[i]);
+            if (l > 0) {
+                (void) vna_sendto(h, a, g_hs_wire, (uint32_t) l);
+                g_sess[i].established = true;
+                g_sess_est++;
+            }
+            vna_hs_clear(&g_hs[i]);
+            g_hs_used[i] = 0;
+            return;
+        }
+        return;
+    }
+    if (magic == VNA_HS3_MAGIC) {
+        /* we responded: finish against the in-flight responder that verifies */
+        for (i = 0; i < (int) VNAH_SESS_N; i++) {
+            if (!g_hs_used[i] || g_hs[i].initiator || g_hs[i].state != VNA_HS_SENT_M2) continue;
+            if (vna_hs_responder_finish(&g_hs[i], data, len, &g_sess[i]) == VNA_OK) {
+                vna_copy(g_sess_addr[i], a, 6);
+                g_sess[i].established = true;
+                g_sess_est++;
+            }
+            vna_hs_clear(&g_hs[i]);
+            g_hs_used[i] = 0;
+            return;
+        }
+        return;
+    }
+    /* not a handshake: a sealed record for an established session */
+    i = sess_slot_addr(a);
+    if (i < 0) return;
+    {
+        uint8_t type = 0;
+        uint32_t pl = 0;
+        if (vna_sess_open(&g_sess[i], data, len, g_sess_pt, sizeof g_sess_pt, &type, &pl) != VNA_OK)
+            return;
+        if (type == VNAH_REC_F_REQ) {
+            int32_t rl = -1;
+            uint64_t trust = vna_book_trust(&h->book, &g_sess[i].peer);
+            for (j = 0; j < (int) VNAH_SF_N && rl <= 0; j++)
+                rl = vna_file_serve(&g_sf[j], &h->agr, &h->us, &g_sess[i].peer, trust, g_sess_pt,
+                                    pl, now, &g_chunk, g_sess_pt, sizeof g_sess_pt);
+            for (j = 0; j < (int) VNAH_EXT_N && rl <= 0; j++)
+                if (g_ext_used[j])
+                    rl = vna_file_serve(&g_ext_sf[j], &h->agr, &h->us, &g_sess[i].peer, trust,
+                                        g_sess_pt, pl, now, &g_chunk, g_sess_pt, sizeof g_sess_pt);
+            if (rl > 0) {
+                g_chunks_served++;
+                sess_send(h, i, VNAH_REC_F_REP, g_sess_pt, (uint32_t) rl);
+            }
+            return;
+        }
+        if (type == VNAH_REC_F_REP) {
+            if (!g_fetch_active) return;
+            if (vna_fetch_accept(&g_fetch, g_sess_pt, pl, &g_chunk) == VNA_OK &&
+                g_chunk.index < 8u &&
+                (uint64_t) g_chunk.index * VNA_CHUNK_SIZE + g_chunk.data_len <=
+                    sizeof g_fetch_data) {
+                vna_copy(g_fetch_data + (uint64_t) g_chunk.index * VNA_CHUNK_SIZE, g_chunk.data,
+                         g_chunk.data_len);
+                g_chunks_in++;
+                if (vna_fetch_complete(&g_fetch)) {
+                    uint32_t e;
+                    g_fetch_active = 0;
+                    g_fetch_done++;
+                    /* become a seeder for what we just verified */
+                    for (e = 0; e < VNAH_EXT_N; e++)
+                        if (!g_ext_used[e]) break;
+                    if (e < VNAH_EXT_N) {
+                        vna_copy(g_ext_data[e], g_fetch_data, g_fetch_size);
+                        if (vna_file_build(g_ext_data[e], g_fetch_size, VNA_CHUNK_SIZE,
+                                           g_ext_leaves[e], 8, &g_ext_sf[e].root) == g_fetch.n &&
+                            vna_id_eq(&g_ext_sf[e].root, &g_fetch_root)) {
+                            g_ext_sf[e].size = g_fetch_size;
+                            g_ext_sf[e].chunk_size = VNA_CHUNK_SIZE;
+                            g_ext_sf[e].n = g_fetch.n;
+                            g_ext_sf[e].leaves = (const uint8_t(*)[32]) g_ext_leaves[e];
+                            g_ext_sf[e].data = g_ext_data[e];
+                            g_ext_used[e] = 1;
+                        }
+                    }
+                } else
+                    sess_fetch_step(h, i);
+            }
+            return;
+        }
+    }
+}
+
+/* Session upkeep on the host cadence: handshakes to book members, the active
+ * fetch's next request, and fetch expiry. */
+static void vna_sess_poll(vna_host_t *h, uint64_t now)
+{
+    uint32_t i;
+    for (i = 0; i < h->book.cap; i++) {
+        const vna_account_t *ac = &h->book.acct[i];
+        if (ac->used && ac->member) sess_ensure(h, &ac->id, now);
+    }
+    if (!g_fetch_active) return;
+    if (now > g_fetch_deadline) g_fetch_active = 0;
+}
+
 static int32_t door_cisex(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t *out,
                           uint32_t cap)
 {
@@ -66,6 +943,75 @@ static int32_t door_cisex(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t
     if (cisex_rt_handle(&g_cisex, in, in_len, g_cisex_region, out, cap, &n) != IPFSN_OK)
         return -1;
     return (int32_t) n;
+}
+
+/* The door's POST /smic: an empty body asks for the ring summary; a
+ * 168-byte manifest envelope is admitted and re-published to the fleet
+ * under its own key, so a manifest POSTed to one node propagates. The
+ * reply is the lpx action byte the admission produced. */
+static int32_t door_smic(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t *out, uint32_t cap)
+{
+    vna_host_t *h = (vna_host_t *) ctx;
+    smic_hw_t hw;
+    uint16_t mtype;
+    lpx_action_t a;
+    uint64_t now;
+    if (in_len == 0) {
+        /* ring summary: one row per registered node, "region,role,admitted,
+         * quarantined" — single digits stay inside a byte each */
+        uint32_t n = 0, i;
+        for (i = 0; i < g_smic.cap && n + 8 <= cap; i++) {
+            const smic_node_t *e = &g_smic.ents[i];
+            if (!e->used) continue;
+            out[n++] = (uint8_t) ('0' + (e->region & 15));
+            out[n++] = (uint8_t) ',';
+            out[n++] = (uint8_t) ('0' + (e->role & 7));
+            out[n++] = (uint8_t) ',';
+            out[n++] = (uint8_t) ('0' + ((uint8_t) e->admitted & 3));
+            out[n++] = (uint8_t) ',';
+            out[n++] = (uint8_t) ('0' + (e->quarantined & 1));
+            out[n++] = (uint8_t) '\n';
+        }
+        /* then the node's own attestation CID: pull the datagram from the
+         * blockstore and verify the manifest signature offline */
+        if (g_attest_ok && n + 8 + IPFSN_CID_STR_MAX <= cap) {
+            char ct[IPFSN_CID_STR_MAX];
+            uint32_t m;
+            if (ipfsn_ubh_cid_to_text(&g_attest_cid, ct, sizeof ct) == 0) {
+                const char *tag = "attest: ";
+                for (m = 0; tag[m]; m++) out[n++] = (uint8_t) tag[m];
+                for (m = 0; ct[m] && n < cap; m++) out[n++] = (uint8_t) ct[m];
+                out[n++] = (uint8_t) '\n';
+            }
+        }
+        return (int32_t) n;
+    }
+    /* Two ingress shapes: the bare 168-byte manifest envelope (the door
+     * channel is authenticated), or the full attestation datagram — envelope
+     * + ML-DSA-87 pk + sig — verified against its own embedded key before
+     * the manifest is even unpacked for admission. */
+    if (in_len == SMIC_ATTEST_BYTES) {
+        if (smic_attest_verify(in, in_len, &mtype, &hw) != SMIC_OK) return -1;
+    } else {
+        if (in_len != SMIC_ENV_BYTES) return -1;
+        if (smic_manifest_unpack(in, &mtype, &hw) != SMIC_OK) return -1;
+    }
+    now = vna_now(h);
+    a = smic_admit(&g_smic, &hw, now);
+    if (a == LPX_ACT_ESCALATE || a == LPX_ACT_ROLLBACK) h->smic_quar++;
+    h->smic_in++;
+    (void) cisex_observe(&g_cisex, hw.hw_digest, hw.region, LPRES_STATE_TRUE);
+    {
+        vna_id_t k;
+        uint8_t env[SMIC_ENV_BYTES];
+        if (smic_manifest_pack(mtype, &hw, env) == SMIC_OK) {
+            vna_htag("zxv/smic/manifest/v1", hw.node_id, 32, k.b);
+            vna_env_publish(h, &k, env, now, VNAH_ENV_TTL);
+        }
+    }
+    if (cap < 1) return 0;
+    out[0] = (uint8_t) a;
+    return 1;
 }
 
 static uint32_t door_src_len(const vna_host_t *h)
@@ -168,9 +1114,19 @@ static void vna_rx(void *ctx, const uint8_t src_ip[NET_IP_LEN], uint16_t src_por
     for (i = 0; i < 4 && i < NET_IP_LEN; i++) a[i] = src_ip[i];
     a[4] = (uint8_t) (src_port >> 8);
     a[5] = (uint8_t) src_port;
+    /* Demux on the first four bytes: the handshake magics and anything from a
+     * session'd peer go to the session layer; VNA_MSG goes to the node. */
+    if (len >= 4) {
+        uint32_t magic = (uint32_t) data[0] | ((uint32_t) data[1] << 8) |
+                         ((uint32_t) data[2] << 16) | ((uint32_t) data[3] << 24);
+        if (magic == VNA_HS1_MAGIC || magic == VNA_HS2_MAGIC || magic == VNA_HS3_MAGIC ||
+            (magic != VNA_MSG_MAGIC && sess_slot_addr(a) >= 0)) {
+            vna_sess_rx(h, a, data, len, vna_now(h));
+            return;
+        }
+    }
     h->recv++;
-    if (vna_node_handle(&h->node, data, len, a, 6, h->l->clk.ms(h->l->clk.ctx), &h->ob) != VNA_OK)
-        h->refused++;
+    if (vna_node_handle(&h->node, data, len, a, 6, vna_now(h), &h->ob) != VNA_OK) h->refused++;
 }
 
 /* Send one datagram to a six-byte Vinea address. 0 = on the wire; -1 = the
@@ -256,17 +1212,14 @@ static void vna_drain_link(vna_host_t *h, uint64_t now)
  * announce our own primary epistemic shard + curriculum root and query the
  * next Fibonacci-adjacent complementary shard ((slot + {1,2,3,5}) & 7) across
  * the UBH-168 post-quantum mesh. */
-static void vna_shard_key(uint8_t slot, vna_id_t *out)
-{
-    uint8_t s = (uint8_t) (slot & 7u);
-    vna_htag("zxv/epistemic/shard/v1", &s, 1, out->b);
-}
-
-static void vna_reap_lookups(vna_host_t *h)
+static void vna_reap_lookups(vna_host_t *h, uint64_t now)
 {
     for (int32_t i = 0; i < (int32_t) VNA_NODE_LOOKUPS; i++) {
-        if (h->node.lks[i].used && vna_node_lookup_done(&h->node, i))
+        if (h->node.lks[i].used && vna_node_lookup_done(&h->node, i)) {
+            const vna_node_lookup_t *lk = vna_node_lookup_get(&h->node, i);
+            if (lk && lk->value_len) vna_env_ingest_rec(h, lk->value, lk->value_len, now);
             vna_node_lookup_release(&h->node, i);
+        }
     }
 }
 
@@ -274,33 +1227,55 @@ static void vna_epistemic_sync(vna_host_t *h, uint64_t now)
 {
     static const uint8_t fib_step[4] = {1u, 2u, 3u, 5u};
     vna_provider_t pv;
-    vna_id_t own_key, cur_key, comp_key;
+    vna_id_t cur_key, comp_key;
     uint8_t comp_slot;
     uint32_t i;
 
-    vna_reap_lookups(h);
+    vna_reap_lookups(h, now);
     vna_zero(&pv, sizeof pv);
-    pv.file_size = 69763u; /* zxv-curriculum.car */
     pv.chunk_size = VNA_CHUNK_SIZE;
-    pv.n_chunks = 3u;
+    pv.n_chunks = 1u;
     pv.visibility = VNA_VIS_PUBLIC;
     for (i = 0; i < 4; i++) pv.addr[i] = h->l->eth->ip[i];
     pv.addr[4] = (uint8_t) (VNAH_PORT >> 8);
     pv.addr[5] = (uint8_t) VNAH_PORT;
     pv.addr_len = 6;
 
-    vna_shard_key(h->shard_slot, &own_key);
-    if (vna_node_announce(&h->node, &own_key, &pv, now, VNAH_SHARD_TTL, &h->ob) >= 0)
+    /* the shard file this node announces: its real Merkle root is the DHT
+     * key, so any node that carves the same CAR derives the same roots */
+    pv.file_size = g_shard_len[h->shard_slot];
+    if (vna_node_announce(&h->node, &g_sf_root[h->shard_slot], &pv, now, VNAH_SHARD_TTL, &h->ob) >=
+        0)
         h->shard_announces++;
-
+    if (g_attest_ok) {
+        pv.file_size = SMIC_ATTEST_BYTES;
+        if (vna_node_announce(&h->node, &g_sf_root[VNAH_SF_ATTEST], &pv, now, VNAH_SHARD_TTL,
+                              &h->ob) >= 0)
+            h->shard_announces++;
+    }
+    /* files this node fetched and now re-serves */
+    for (i = 0; i < VNAH_EXT_N; i++) {
+        if (!g_ext_used[i]) continue;
+        pv.file_size = g_ext_sf[i].size;
+        pv.n_chunks = g_ext_sf[i].n;
+        if (vna_node_announce(&h->node, &g_ext_sf[i].root, &pv, now, VNAH_SHARD_TTL, &h->ob) >= 0)
+            h->shard_announces++;
+    }
+    pv.n_chunks = 1u;
+    /* the curriculum beacon stays: the CID names the whole archive the
+     * shards are carved from */
+    pv.file_size = CUR_CAR_LEN;
+    pv.n_chunks = VNAH_SLICE_N;
     vna_htag("zxv/epistemic/curriculum/v1", (const uint8_t *) g_curriculum_cid,
              (uint32_t) (sizeof g_curriculum_cid - 2), cur_key.b);
     if (vna_node_announce(&h->node, &cur_key, &pv, now, VNAH_SHARD_TTL, &h->ob) >= 0)
         h->shard_announces++;
 
+    /* the complementary shard's provider: its file root is computable, so
+     * the lookup goes straight at it */
     comp_slot = (uint8_t) ((h->shard_slot + fib_step[h->shard_cursor & 3u]) & (VNAH_SHARD_N - 1u));
     h->shard_cursor++;
-    vna_shard_key(comp_slot, &comp_key);
+    comp_key = g_sf_root[comp_slot];
     if (vna_node_lookup(&h->node, &comp_key, VNA_LK_FIND_VALUE, now, &h->ob) >= 0)
         h->shard_queries++;
 }
@@ -461,11 +1436,13 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
     vna_node_cfg_default(&cfg);
     cfg.ubh = true; /* enforce UBH-168 21-octet framing across all ZXV peers */
     h->shard_slot = (uint8_t) (h->idn.id.b[0] & (VNAH_SHARD_N - 1u));
+    h->peer_index = 0xFF;
     if (peers) {
         for (i = 0; i < npeer; i++) {
             if (peers[i][0] == l->eth->ip[0] && peers[i][1] == l->eth->ip[1] &&
                 peers[i][2] == l->eth->ip[2] && peers[i][3] == l->eth->ip[3]) {
                 h->shard_slot = (uint8_t) (i & (VNAH_SHARD_N - 1u));
+                h->peer_index = (uint8_t) i;
                 break;
             }
         }
@@ -484,7 +1461,7 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
         uart_puts("  [VNA] node init failed\n");
         return 0;
     }
-    now = l->clk.ms(l->clk.ctx);
+    now = vna_now(h);
     h->last_cycle = now; /* the first settle runs one full cycle in */
     /* the wall clock as a floor: no message seq a peer may still hold is
      * ever reused after a restart */
@@ -496,6 +1473,10 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
      * agreement is the seed role itself: serve the network (records, file
      * chunks, routing) to anyone, bounded by the per-peer quotas. */
     vna_book_init(&h->book, &h->idn, h->acct, VNAH_BOOK_CAP);
+    chg_init(&g_chg, CHG_CAP_INFER | CHG_CAP_ADVISE);
+    vna_chg_model();
+    oseq_registry_init(&g_oseq);
+    g_oseq_vna = oseq_register_node(&g_oseq, "vna", 1);
     sha256_init(&c);
     sha256_update(&c, (const uint8_t *) "zxv/vinea/gate/v1", 17);
     sha256_update(&c, iseed, sizeof iseed);
@@ -536,6 +1517,11 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
     }
     vna_outbox_init(&h->ob, h->obuf, VNAH_OBUF_CAP);
     net_udp_hook(&l->net, VNAH_PORT, vna_rx, h);
+    /* the timesvc channel: a second UDP socket so SNTP replies never reach
+     * the VNA hook */
+    g_sntp_sock = net_socket(&l->net, SOCK_UDP);
+    if (g_sntp_sock >= 0 && net_bind(&l->net, g_sntp_sock, VNAH_SNTP_LPORT) == 0)
+        net_udp_hook(&l->net, VNAH_SNTP_LPORT, sntp_rx, h);
 
     /* The bus and the door. Every seed opens the same canonical space —
      * create_at with the bus's own constants lands all five on one CID —
@@ -561,6 +1547,77 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
         cisex_init(&g_cisex, g_cisex_ents, VNAH_CISEX_N);
         g_cisex_region = h->shard_slot;
         h->door.query = door_cisex;
+        /* The ring programs: the machine-integrity ring admits this node's
+         * own manifest first, and the exchange order book opens bound to
+         * the trade book and the curriculum root. Both propagate as
+         * VNA_REC_ENV records. */
+        smic_init(&g_smic, g_smic_ents, VNAH_SMIC_N);
+        vna_shard_setup(); /* the CAR becomes eight Merkle-rooted shard files */
+        vna_smic_self(h);
+        (void) smic_admit(&g_smic, &g_self_hw, now);
+        {
+            ipfsn_cid_t cc;
+            if (ipfsn_cid_parse(g_curriculum_cid, (uint32_t) (sizeof g_curriculum_cid - 2), &cc) ==
+                IPFSN_OK)
+                vna_copy(g_cur_digest, cc.digest, 32);
+            vna_exch_init(&g_exch, &h->book, g_cur_digest, h->shard_slot);
+        }
+        h->door.query2 = door_smic;
+        h->door.qctx2 = h;
+        /* self-supervision: one domain per running ring program */
+        {
+            char nid[9];
+            uint32_t k;
+            for (k = 0; k < 8; k++) {
+                uint8_t n = h->idn.id.b[k] & 15;
+                nid[k] = (char) (n < 10 ? '0' + n : 'a' + n - 10);
+            }
+            nid[8] = 0;
+            ev_seq_init(&g_seq, nid);
+            ev_audit_init(&g_audit);
+            ev_healing_init(&g_heal);
+            g_dom_vna = ev_seq_create_domain(&g_seq, "vnea", 64, 4096, EV_CONSISTENCY_CAUSAL);
+            g_dom_door = ev_seq_create_domain(&g_seq, "door", 64, 2048, EV_CONSISTENCY_LOCAL);
+            g_dom_aipi = ev_seq_create_domain(&g_seq, "aipi", 64, 2048, EV_CONSISTENCY_LOCAL);
+            g_dom_smic = ev_seq_create_domain(&g_seq, "smic", 64, 2048, EV_CONSISTENCY_CAUSAL);
+            g_dom_exch = ev_seq_create_domain(&g_seq, "cisex", 64, 2048, EV_CONSISTENCY_LOCAL);
+        }
+        /* AIPI: the call broker — bounded RAM blockstore, job/memo tables,
+         * escrow against the trade book. serve(true) takes calls; without
+         * an exec backend each call is refused BUSY rather than failed. */
+        g_aipi_ms.buf = g_aipi_store;
+        g_aipi_ms.cap = sizeof g_aipi_store;
+        ipfsn_memstore_ops(&g_aipi_ms, &g_aipi_sops);
+        if (ipfsn_bs_init(&g_aipi_bs, &g_aipi_sops, g_aipi_tab, VNAH_AIPI_BS_N, NULL, 0) ==
+                IPFSN_OK &&
+            ipfsn_node_init(&g_ipfs, &g_aipi_bs, g_aipi_pins, VNAH_AIPI_PINS, g_aipi_net,
+                            sizeof g_aipi_net) == IPFSN_OK &&
+            aipi_init(&g_aipi, &g_ipfs, g_aipi_jobs, VNAH_AIPI_JOBS, g_aipi_memo, VNAH_AIPI_MEMO,
+                      g_aipi_mod, g_aipi_con) == AIPI_OK) {
+            aipi_vna_econ_t ec = {h, ah_reserve, ah_pay, ah_refund, ah_paid};
+            /* the integer engine is the RUN/CHECKER executor: module = GGUF */
+            g_aipi.exec.run = zt_run;
+            g_aipi.exec.check = zt_check;
+            g_aipi.exec.certify = zt_certify;
+            if (aipi_vna_init(&g_av, &g_aipi, &h->node, &h->ob, &ec) == AIPI_OK) {
+                aipi_vna_serve(&g_av, true, 1);
+                g_aipi_on = true;
+            }
+            /* the node's own attestation: manifest + ML-DSA-87 pk + sig,
+             * stored as a public block so any peer can pull the signed
+             * datagram by CID and verify it offline */
+            {
+                uint32_t alen = 0;
+                if (smic_attest(&g_self_hw, SMIC_T_MANIFEST, h->idn.pk, h->idn.sk, g_self_attest,
+                                sizeof g_self_attest, &alen) == SMIC_OK &&
+                    ipfsn_cid_sha256(IPFSN_MC_RAW, g_self_attest, alen, &g_attest_cid) ==
+                        IPFSN_OK &&
+                    ipfsn_bs_put(&g_aipi_bs, &g_attest_cid, g_self_attest, alen, IPFSN_VIS_PUBLIC,
+                                 NULL) == IPFSN_OK)
+                    g_attest_ok = true;
+            }
+            if (g_attest_ok) vna_attest_share();
+        }
         for (i = 0; i < VNA_DOOR_CONNS; i++) {
             h->door_slot[i] = -1;
             h->door_tx_len[i] = h->door_tx_off[i] = 0;
@@ -598,6 +1655,32 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
             if (vna_node_bootstrap(&h->node, a, 6, now, &h->ob) == VNA_OK) h->seeds++;
         }
         vna_epistemic_sync(h, now);
+        /* the ring programs announce themselves: our machine-integrity
+         * manifest under its own key, our curriculum listing on the order
+         * book — both VNA_REC_ENV records the fleet carries forward */
+        {
+            vna_id_t k;
+            uint8_t env[SMIC_ENV_BYTES];
+            if (smic_manifest_pack(SMIC_T_MANIFEST, &g_self_hw, env) == SMIC_OK) {
+                vna_htag("zxv/smic/manifest/v1", g_self_hw.node_id, 32, k.b);
+                vna_env_publish(h, &k, env, now, VNAH_ENV_TTL);
+            }
+            vna_exch_publish(h, now);
+        }
+        /* SNTP requests to the three time servers, each with its own nonce:
+         * two agreeing replies commit the node to Unix ms via timesvc. */
+        if (g_sntp_sock >= 0) {
+            uint32_t si;
+            timesvc_init(&g_ts, 0);
+            for (si = 0; si < VNAH_SNTP_NSERV; si++) {
+                uint8_t pkt[SNTP_PKT_LEN];
+                vna_drbg_gen(&h->node.rng, (uint8_t *) &g_sntp_nonce[si], 8);
+                g_sntp_t1_us[si] = (int64_t) now * 1000;
+                if (sntp_build_request(pkt, g_sntp_nonce[si]) == SNTP_PKT_LEN &&
+                    net_connect(&l->net, g_sntp_sock, g_sntp_serv[si], SNTP_PORT) == 0)
+                    (void) net_send(&l->net, g_sntp_sock, pkt, SNTP_PKT_LEN);
+            }
+        }
         vna_flush(h);
     }
     return 1;
@@ -607,6 +1690,7 @@ void vna_host_pump(vna_host_t *h, uint64_t now)
 {
     uint32_t i;
     if (!h || !h->up) return;
+    if (g_sntp_done) now = (uint64_t) ((int64_t) now + g_wall_off_ms);
 
     sn_pump(h->l); /* NIC frames -> stack; the hook hands datagrams to the node */
 
@@ -616,9 +1700,19 @@ void vna_host_pump(vna_host_t *h, uint64_t now)
         vna_link_tick(&h->link, now); /* L2: resend what is still waiting */
     }
     if (now >= h->last_cycle + VNAH_CYCLE_MS) {
+        ev_heal_action_t wa;
         h->last_cycle = now;
         vna_settle(h, now);
+        /* the audit/heal cycle: replenish budgets, then check every domain's
+         * invariants and let the healing engine act on the worst result */
+        ev_seq_replenish(&g_seq);
+        wa = ev_self_audit_heal_system(&g_seq, &g_audit, &g_heal);
+        if ((uint32_t) wa > g_ev_worst) g_ev_worst = (uint32_t) wa;
     }
+    vna_env_sweep(h, now); /* envelopes peers stored at this node */
+    vna_chg_audit(h, now); /* the evidence judge reads every member */
+    vna_sess_poll(h, now); /* handshakes, the active fetch, expiry */
+    if (g_aipi_on) aipi_vna_tick(&g_av, now);
     vna_drain_link(h, now);
 
     /* The bus and the door. The space ticks (host lookups, presence,
