@@ -298,3 +298,110 @@ uint32_t sn_fetch_gateways(sn_fetch_t *f, sn_link_t *l, const hw_models_t *m)
     f->clk = l->clk;
     return f->nhttp;
 }
+
+/* POST body to the gateway (or any host the sn_http_t is pointed at):
+ * the door's /cisex merges posted envelopes, so the fleet's records
+ * cross over HTTP. Returns 0 on a 200 with a body within cap; the
+ * response lands in resp/resp_len. */
+int sn_http_post(sn_http_t *h, const char *path, const uint8_t *body, uint32_t body_len,
+                 uint8_t *resp, uint32_t resp_cap, uint32_t *resp_len, const char **why)
+{
+    sn_link_t *l = h->l;
+    char req[512];
+    uint32_t n = 0;
+    *resp_len = 0;
+    if (gw_connect(h, why)) return -1;
+    n = put(req, n, sizeof req, "POST ");
+    n = put(req, n, sizeof req, path);
+    n = put(req, n, sizeof req, " HTTP/1.1\r\nHost: ");
+    n = put(req, n, sizeof req, h->host);
+    n = put(req, n, sizeof req, "\r\nContent-Length: ");
+    {
+        char digits[12];
+        unsigned d = 0;
+        uint32_t v = body_len;
+        if (!v) digits[d++] = '0';
+        while (v) {
+            digits[d++] = (char) ('0' + (v % 10));
+            v /= 10;
+        }
+        while (d) n = put(req, n, sizeof req, (char[2]){digits[--d], 0});
+    }
+    n = put(req, n, sizeof req, "\r\nUser-Agent: ZXV-swarmnet\r\n\r\n");
+    if (n + 1 >= sizeof req || body_len > 512) {
+        *why = "request too long";
+        return -1;
+    }
+    uint32_t stall = h->stall_ms ? h->stall_ms : SN_STALL_MS;
+    uint32_t sent = 0;
+    uint64_t last = now(l);
+    h->timed_out = 0;
+    while (sent < n) {
+        int32_t k = net_send(&l->net, h->sock, req + sent, n - sent);
+        if (k > 0) {
+            sent += (uint32_t) k;
+            last = now(l);
+        } else if (now(l) - last > stall) {
+            drop(h);
+            h->timed_out = 1;
+            *why = "the gateway stopped accepting the request";
+            return -1;
+        }
+        sn_pump(l);
+    }
+    sent = 0;
+    while (sent < body_len) {
+        int32_t k = net_send(&l->net, h->sock, body + sent, body_len - sent);
+        if (k > 0) {
+            sent += (uint32_t) k;
+            last = now(l);
+        } else if (now(l) - last > stall) {
+            drop(h);
+            h->timed_out = 1;
+            *why = "the gateway stopped accepting the body";
+            return -1;
+        }
+        sn_pump(l);
+    }
+    /* the response head */
+    uint32_t hn = 0, he = 0;
+    uint64_t start = now(l);
+    while (he == 0) {
+        int32_t k = net_recv(&l->net, h->sock, h->head + hn, sizeof h->head - hn);
+        if (k > 0) hn += (uint32_t) k;
+        if (hn >= 4 && !memcmp(h->head + hn - 4, "\r\n\r\n", 4)) he = 1;
+        if (now(l) - start > stall) {
+            drop(h);
+            *why = "the gateway did not answer";
+            return -1;
+        }
+        sn_pump(l);
+    }
+    sn_head_t hd;
+    if (sn_http_head(h->head, hn, &hd) < 0) {
+        drop(h);
+        *why = "malformed HTTP response";
+        return -1;
+    }
+    if (hd.status != 200 || hd.chunked || !hd.has_length || hd.length > resp_cap) {
+        drop(h);
+        *why = hd.status != 200 ? "the node did not answer 200" : "the node's reply is too large";
+        return -1;
+    }
+    /* the body */
+    uint32_t got = 0;
+    start = now(l);
+    while (got < hd.length) {
+        int32_t k = net_recv(&l->net, h->sock, resp + got, hd.length - got);
+        if (k > 0)
+            got += (uint32_t) k;
+        else if (now(l) - start > stall) {
+            drop(h);
+            *why = "the node's reply stalled";
+            return -1;
+        }
+        sn_pump(l);
+    }
+    *resp_len = got;
+    return 0;
+}

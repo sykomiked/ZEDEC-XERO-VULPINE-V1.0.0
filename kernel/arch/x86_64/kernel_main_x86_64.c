@@ -691,16 +691,40 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
             if (sn_sealed()) {
                 uart_puts("  [SEAL] the network was sealed; attach the missing discs\n");
             } else if (sn_link_up(&link, hp, &hreg, &clk, 0)) {
-                if (models.npeer &&
-                    vna_host_start(&vna, &link, models.peer, models.npeer, door_src_of(&models),
-                                   x86_has_rdrand() ? x86_rdrand32 : 0)) {
-                    vna_report_next = x86_ms(0) + 60000u;
-                    vna.card_check = card_seat;
-                    {
-                        static struct card_ctx_t card_ctx;
-                        card_ctx.vino = vino;
-                        card_ctx.mac = link.nic->mac;
-                        vna.card_ctx = &card_ctx;
+                if (models.npeer) {
+                    static uint8_t ident_seed[32];
+                    uint8_t *iseed = 0;
+                    if (g_zxvfs) {
+                        int r = zxvfs_read(g_zxvfs, "identity.seed", ident_seed, 32);
+                        if (r == 32) {
+                            iseed = ident_seed;
+                        } else if (x86_has_rdrand()) {
+                            /* first boot: generate the identity secret from
+                             * hardware entropy and persist it (the audit's
+                             * finding 1: the MAC alone must never key the
+                             * node's signatures) */
+                            uint32_t e[8];
+                            for (uint32_t ei = 0; ei < 8; ei++) e[ei] = x86_rdrand32();
+                            for (uint32_t ei = 0; ei < 8; ei++) {
+                                ident_seed[ei * 4 + 0] = (uint8_t) (e[ei] >> 0);
+                                ident_seed[ei * 4 + 1] = (uint8_t) (e[ei] >> 8);
+                                ident_seed[ei * 4 + 2] = (uint8_t) (e[ei] >> 16);
+                                ident_seed[ei * 4 + 3] = (uint8_t) (e[ei] >> 24);
+                            }
+                            if (zxvfs_write(g_zxvfs, "identity.seed", ident_seed, 32) == 0)
+                                iseed = ident_seed;
+                        }
+                    }
+                    if (vna_host_start(&vna, &link, models.peer, models.npeer, door_src_of(&models),
+                                       x86_has_rdrand() ? x86_rdrand32 : 0, iseed)) {
+                        vna_report_next = x86_ms(0) + 60000u;
+                        vna.card_check = card_seat;
+                        {
+                            static struct card_ctx_t card_ctx;
+                            card_ctx.vino = vino;
+                            card_ctx.mac = link.nic->mac;
+                            vna.card_ctx = &card_ctx;
+                        }
                     }
                 }
                 if (missing && models.cid[0]) {

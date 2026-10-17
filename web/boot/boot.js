@@ -353,7 +353,13 @@ async function boot()
         body.set(sig, 41);
         const r = await fetch('/card',
                               {method : 'POST', body : new Blob([ body ], {type : 'text/plain'})});
-        return (await r.arrayBuffer())[0] || 0;
+        /* fail closed: a non-200, an empty body or a malformed reply is a
+         * refusal, never a success (the audit's finding 3) */
+        if (!r.ok) return 1;
+        const ab = await r.arrayBuffer();
+        const b = new Uint8Array(ab);
+        if (!b.length || b[0] !== 0) return 1;
+        return 0;
     };
     function hexToBytes(h)
     {
@@ -409,8 +415,12 @@ async function boot()
         body[1 + idb.length] = pinb.length;
         body.set(pinb, 2 + idb.length);
         fetch('/card', {method : 'POST', body : new Blob([ body ], {type : 'text/plain'})})
-            .then((r) => r.arrayBuffer())
-            .then((ab) => zb.zb_card_result(ab.byteLength ? ab[0] : 1))
+            .then(async (r) => {
+                if (!r.ok) return 1;
+                const b = new Uint8Array(await r.arrayBuffer());
+                return b.length ? b[0] : 1;
+            })
+            .then((st) => zb.zb_card_result(st))
             .catch(() => zb.zb_card_result(1))
             .finally(() => { cardBusy = false; });
     }

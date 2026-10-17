@@ -154,6 +154,11 @@ typedef struct sn_http {
 
 /* GET path into buf. 0 = 200 with the whole body in buf (*len); otherwise
  * negative with *why set. A failed request closes the connection. */
+/* POST body to the node's door: the scenic mesh bypass — the record
+ * plane crosses the open HTTP while the UDP sessions wait. */
+int sn_http_post(sn_http_t *h, const char *path, const uint8_t *body, uint32_t body_len,
+                 uint8_t *resp, uint32_t resp_cap, uint32_t *resp_len, const char **why);
+
 int sn_http_get(sn_http_t *h, const char *path, uint8_t *buf, uint32_t cap, uint32_t *len,
                 const char **why);
 /* After a request: a timeout (h->timed_out) doubles this gateway's patience

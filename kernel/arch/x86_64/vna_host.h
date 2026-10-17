@@ -114,10 +114,12 @@ typedef struct {
     uint64_t served_file[VNAH_USAGE_CAP]; /* chunk units already sold, per slot  */
     uint64_t earned_posted;               /* held_in already handed to the bridge */
     uint64_t last_cycle;
+    uint64_t next_mesh;      /* the scenic HTTP bypass's cadence */
     uint64_t imported_total; /* compute imported through the gate    */
     uint32_t sold, earn_cycles, refused_econ;
     uint32_t (*entropy)(void); /* a hardware u32 source; 0 when the CPU has none */
     uint32_t seeds, sent, recv, refused, dropped_tx, dropped_ob;
+    uint32_t mesh_posts; /* the scenic HTTP bypass: envelopes posted to seeds */
     /* the bus and the door: the shared L2 state space every seed opens on
      * the same canonical CID, and the plain-http front that serves the
      * doorway and carries browser deltas onto it (vna_door.h). Each door
@@ -156,7 +158,7 @@ typedef struct {
  * boot.pack, which the door does not carry. 1 = running; 0 = refused
  * (logged). */
 int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32_t npeer,
-                   const char *door_src, uint32_t (*entropy)(void));
+                   const char *door_src, uint32_t (*entropy)(void), const uint8_t persist_seed[32]);
 
 /* The idle-loop hook: drain the NIC (hooked datagrams reach the node inside
  * sn_pump), tick the node and the trade loop at VNAH_TICK_MS, run one settle

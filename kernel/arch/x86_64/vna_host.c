@@ -1071,6 +1071,91 @@ static void sess_fetch_step(vna_host_t *h, int si)
  * envelopes under digest-derived keys — every node's index converges on
  * the same verified evidence, and a peer's merge kjoins our regional
  * observations into its own. */
+/* The scenic mesh bypass: the record plane crosses the open HTTP while
+ * the UDP sessions wait on the firewall. Every settle, the node posts
+ * its top CISEX envelopes (CISEX_OP_IDX) to each seed's door /cisex —
+ * the peers merge them, so the armada masks and the index propagate
+ * over port 80 today. The UDP path takes over when the firewall opens. */
+static void vna_http_mesh(vna_host_t *h, uint64_t now)
+{
+    static sn_http_t mh;
+    uint32_t top[CISEX_RT_MAX_ENV];
+    uint64_t tr[CISEX_RT_MAX_ENV];
+    uint32_t i, n = 0, k, p;
+    static const char *why;
+    (void) now;
+    for (i = 0; i < g_cisex.count; i++) {
+        const cisex_ent_t *e = cisex_at(&g_cisex, i);
+        uint64_t r;
+        uint32_t j;
+        if (!e || !e->used) continue;
+        r = cisex_rank(e);
+        if (r == 0) continue;
+        for (j = n; j > 0 && tr[j - 1] < r; j--) {
+            if (j < CISEX_RT_MAX_ENV) {
+                tr[j] = tr[j - 1];
+                top[j] = top[j - 1];
+            }
+        }
+        if (j < CISEX_RT_MAX_ENV) {
+            tr[j] = r;
+            top[j] = i;
+            if (n < CISEX_RT_MAX_ENV) n++;
+        }
+    }
+    if (!n) return;
+    for (p = 0; p < h->nseed_addr; p++) {
+        const uint8_t *s = h->seed_addr[p];
+        uint32_t d = 0;
+        for (i = 0; i < 4; i++) d = d * 256 + s[i];
+        mh.l = &h->l;
+        mh.port = 80; /* the door */
+        mh.ip[0] = s[0];
+        mh.ip[1] = s[1];
+        mh.ip[2] = s[2];
+        mh.ip[3] = s[3];
+        mh.resolved = 1;
+        mh.sock = -1;
+        mh.stall_ms = 1000; /* hard bound: the mesh never blocks the settle */
+        mh.bad = 0;
+        {
+            unsigned q = 0;
+            uint8_t *hst = (uint8_t *) mh.host;
+            for (i = 0; i < 4; i++) {
+                uint32_t v = s[i];
+                char tmp[4];
+                unsigned t = 0;
+                if (!v) tmp[t++] = '0';
+                while (v) {
+                    tmp[t++] = (char) ('0' + (v % 10));
+                    v /= 10;
+                }
+                while (t) hst[q++] = tmp[--t];
+                if (i < 3) hst[q++] = '.';
+            }
+            hst[q] = 0;
+        }
+        for (k = 0; k < n && k < 4; k++) {
+            const cisex_ent_t *e = cisex_at(&g_cisex, top[k]);
+            uint8_t env[CISEX_ENV_BYTES];
+            uint8_t body[2 + CISEX_ENV_BYTES];
+            uint8_t resp[4];
+            uint32_t rlen = 0;
+            if (!e) continue;
+            if (cisex_pack_idx(e, g_cisex_region, env) != IPFSN_OK) continue;
+            body[0] = CISEX_OP_IDX;
+            body[1] = g_cisex_region;
+            for (i = 0; i < CISEX_ENV_BYTES; i++) body[2 + i] = env[i];
+            if (sn_http_post(&mh, "/cisex", body, 2 + CISEX_ENV_BYTES, resp, sizeof resp, &rlen,
+                             &why) == 0) {
+                h->mesh_posts++;
+            } else {
+                break; /* the peer is away; try the next seed */
+            }
+        }
+    }
+}
+
 static void cisex_idx_sync(vna_host_t *h, uint64_t now)
 {
     uint32_t top[CISEX_RT_MAX_ENV];
@@ -2173,7 +2258,7 @@ static void vna_flush(vna_host_t *h)
 }
 
 int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32_t npeer,
-                   const char *door_src, uint32_t (*entropy)(void))
+                   const char *door_src, uint32_t (*entropy)(void), const uint8_t persist_seed[32])
 {
     uint8_t iseed[32], dseed[32], a[6];
     sha256_ctx_t c;
@@ -2201,12 +2286,23 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
     h->shard_announces = h->shard_queries = 0;
     h->up = 0;
 
-    /* One NodeID per machine: the seed is the MAC folded through SHA-256, so
-     * it is stable across reboots and cannot collide with another NIC. */
+    /* One NodeID per machine: the seed mixes the MAC (stable across
+     * reboots) with a PERSISTED secret generated from hardware entropy on
+     * first boot — a MAC is an identifier, not a secret; without the
+     * persisted secret anyone who knows the MAC could reproduce the
+     * signing key (the October 2026 audit, finding 1). The persisted
+     * secret lives on the ZXV_DATA partition (identity.seed), generated
+     * by kernel_main when the partition mounts. No entropy and no
+     * persisted secret falls back to the MAC alone with a loud warning:
+     * that context is the air-gapped bring-up only. */
     sha256_init(&c);
     sha256_update(&c, (const uint8_t *) "zxv/vinea/node/v1", 17);
     sha256_update(&c, l->nic->mac, NET_MAC_LEN);
+    if (persist_seed) sha256_update(&c, persist_seed, 32);
     sha256_final(&c, iseed);
+    if (!entropy && !persist_seed)
+        uart_puts("  [VNA] WARNING: no entropy and no persisted identity secret; "
+                  "the signing key derives from the MAC alone (bring-up only)\n");
     if (vna_identity_create(&h->idn, iseed, 0, 1) != VNA_OK) {
         uart_puts("  [VNA] identity creation failed\n");
         return 0;
@@ -2521,7 +2617,13 @@ void vna_host_pump(vna_host_t *h, uint64_t now)
     if (g_sntp_done) now = (uint64_t) ((int64_t) now + g_wall_off_ms);
 
     sn_pump(h->l); /* NIC frames -> stack; the hook hands datagrams to the node */
-
+    /* the scenic mesh bypass rides the pump's idle context: every
+     * minute, post the top envelopes to the seeds' doors over HTTP —
+     * bounded by the 1s stall, so it never blocks the node */
+    if (now >= h->next_mesh) {
+        h->next_mesh = now + 60000;
+        vna_http_mesh(h, now);
+    }
     if (now >= h->last_tick + VNAH_TICK_MS) {
         h->last_tick = now;
         /* demand velocity: decay every entry, then let a hot root with
