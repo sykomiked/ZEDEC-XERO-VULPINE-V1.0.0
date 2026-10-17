@@ -115,6 +115,45 @@ def testbed_test(out_path, prompt):
     except Exception as e:
         return "testbed error: %s" % e
 
+VLLM_URL = os.environ.get("VLLM_URL", "")
+VLLM_MODEL = os.environ.get("VLLM_MODEL", "Qwen/Qwen2.5-Coder-32B-Instruct-AWQ")
+
+
+def run_vllm(task, prompt, out_path, ph, n):
+    """Draft via the vLLM OpenAI-compatible API (the A6000's 32B coder)."""
+    import json as _json
+    import urllib.request
+    body = _json.dumps({
+        "model": VLLM_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": n,
+        "temperature": 0.6,
+        "top_p": 0.9,
+    }).encode()
+    log("task %s: vllm %s (tokens=%d, prompt sha256 %s)" % (task["id"], VLLM_MODEL, n, ph))
+    t0 = time.time()
+    try:
+        req = urllib.request.Request(VLLM_URL.rstrip("/") + "/v1/chat/completions", data=body,
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=3600) as r:
+            d = _json.loads(r.read())
+        text = d["choices"][0]["message"]["content"]
+    except Exception as e:
+        log("task %s: vllm error %s" % (task["id"], e))
+        return False
+    dt = time.time() - t0
+    with open(out_path, "w") as f:
+        f.write("# ZXV agent_loop result\n# task: %s\n# model: %s\n# prompt sha256: %s\n"
+                "# tokens: %d, %.1fs\n\n%s\n" % (task["title"], VLLM_MODEL, ph, n, dt, text))
+    with open(STATE, "a") as f:
+        f.write("%d\n" % task["id"])
+    verdict = testbed_test(out_path, prompt)
+    if verdict:
+        log("task %s: %s" % (task["id"], verdict))
+    log("task %s: done -> %s (%.1fs)" % (task["id"], os.path.basename(out_path), dt))
+    return True
+
+
 def run_task(task):
     prompt = prompt_for(task)
     ph = hashlib.sha256(prompt.encode()).hexdigest()[:16]
@@ -124,6 +163,11 @@ def run_task(task):
         log("task %s already has a result file; skipping" % task["id"])
         return True
     n = task.get("tokens", MAX_TOKENS)
+    # the vLLM backend: the A6000's Qwen2.5-Coder-32B (VLLM_URL set) drafts
+    # far better manifests than the local 1.5B — the same task, the same
+    # verdict gate, a stronger pen
+    if VLLM_URL:
+        return run_vllm(task, prompt, out_path, ph, n)
     cmd = [
         LLAMA_BIN,
         "-m", LLAMA_MODEL,
@@ -177,7 +221,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--once", action="store_true")
     args = ap.parse_args()
-    if not os.path.exists(LLAMA_BIN):
+    if not VLLM_URL and not os.path.exists(LLAMA_BIN):
         sys.exit("llama-cli not found at %s (set LLAMA_BIN)" % LLAMA_BIN)
     if not os.path.exists(LLAMA_MODEL):
         sys.exit("model not found at %s (set LLAMA_MODEL)" % LLAMA_MODEL)
