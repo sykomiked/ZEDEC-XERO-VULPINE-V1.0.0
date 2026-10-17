@@ -1,0 +1,10 @@
+# T3 — bearing: the inter-app contracts
+zxapp 1
+id bearing_t3
+matrix 1
+name Bearing T3
+# consumes app:binnacle
+# consumes app:tradewind
+# consumes app:chainman
+# consumes app:pannier
+# consumes app:waymark

@@ -1,0 +1,10 @@
+# T3 — consonance: the inter-app contracts
+zxapp 1
+id consonance_t3
+matrix 1
+name Consonance T3
+# consumes app:handfast
+# consumes app:isthmus
+# consumes app:shallows
+# consumes app:assize
+# consumes app:sealwax

@@ -1,0 +1,10 @@
+# T3 — vigil: the inter-app contracts
+zxapp 1
+id vigil_t3
+matrix 1
+name Vigil T3
+# consumes app:headland
+# consumes app:verderer
+# consumes app:escapement
+# consumes app:wake
+# consumes app:tidewatch

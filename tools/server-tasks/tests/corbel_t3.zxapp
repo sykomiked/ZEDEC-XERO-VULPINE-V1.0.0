@@ -1,0 +1,10 @@
+# T3 — corbel: the inter-app contracts
+zxapp 1
+id corbel_t3
+matrix 1
+name Corbel T3
+# consumes app:varve
+# consumes app:chainman
+# consumes app:billow
+# consumes app:waymark
+# consumes app:fieldguide

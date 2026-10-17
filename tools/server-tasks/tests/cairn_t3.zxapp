@@ -1,0 +1,9 @@
+# T3 — cairn: the inter-app contracts
+zxapp 1
+id cairn_t3
+matrix 1
+name Cairn T3
+# consumes app:witness
+# consumes app:twelvefold
+# consumes app:hamlet
+# consumes app:sealwax

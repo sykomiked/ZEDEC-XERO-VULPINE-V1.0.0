@@ -1,0 +1,9 @@
+# T3 — grotto: the inter-app contracts
+zxapp 1
+id grotto_t3
+matrix 1
+name Grotto T3
+# consumes app:lockbox
+# consumes app:banker
+# consumes app:gatehouse
+# consumes app:hamper

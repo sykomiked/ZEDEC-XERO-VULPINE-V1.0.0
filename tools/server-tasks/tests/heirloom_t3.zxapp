@@ -1,0 +1,6 @@
+# T3 — heirloom: the inter-app contracts
+zxapp 1
+id heirloom_t3
+matrix 1
+name Heirloom T3
+# consumes app:coffer

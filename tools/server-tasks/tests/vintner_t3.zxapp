@@ -1,0 +1,9 @@
+# T3 — vintner: the inter-app contracts
+zxapp 1
+id vintner_t3
+matrix 1
+name Vintner T3
+# consumes app:coffer
+# consumes app:gleaner
+# consumes app:ninefold
+# consumes app:gatehouse

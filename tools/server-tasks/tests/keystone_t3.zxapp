@@ -1,0 +1,10 @@
+# T3 — keystone: the inter-app contracts
+zxapp 1
+id keystone_t3
+matrix 1
+name Keystone T3
+# consumes app:hollow
+# consumes app:talisman
+# consumes app:crown
+# consumes app:satchel
+# consumes app:typecase

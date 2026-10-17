@@ -1,0 +1,10 @@
+# T3 — ninefold: the inter-app contracts
+zxapp 1
+id ninefold_t3
+matrix 1
+name Ninefold T3
+# consumes app:coffer
+# consumes app:tally
+# consumes app:toolchest
+# consumes app:murmuration
+# consumes app:vintner

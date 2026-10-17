@@ -1,0 +1,8 @@
+# T3 — luthier: the inter-app contracts
+zxapp 1
+id luthier_t3
+matrix 1
+name Luthier T3
+# consumes app:warble
+# consumes app:birdsong
+# consumes app:fiddlehead

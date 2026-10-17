@@ -1,0 +1,10 @@
+# T3 — firstlight: the inter-app contracts
+zxapp 1
+id firstlight_t3
+matrix 1
+name Firstlight T3
+# consumes app:rill
+# consumes app:scree
+# consumes app:hornbook
+# consumes app:cubby
+# consumes app:primer

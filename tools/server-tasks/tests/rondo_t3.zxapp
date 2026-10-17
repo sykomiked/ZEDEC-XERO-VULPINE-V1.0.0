@@ -1,0 +1,10 @@
+# T3 — rondo: the inter-app contracts
+zxapp 1
+id rondo_t3
+matrix 1
+name Rondo T3
+# consumes app:poultice
+# consumes app:escapement
+# consumes app:taper
+# consumes app:apothecary
+# consumes app:wellspring

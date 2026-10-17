@@ -1,0 +1,10 @@
+# T3 — ostinato: the inter-app contracts
+zxapp 1
+id ostinato_t3
+matrix 1
+name Ostinato T3
+# consumes app:cooper
+# consumes app:mercer
+# consumes app:ratchet
+# consumes app:neap
+# consumes app:caravan

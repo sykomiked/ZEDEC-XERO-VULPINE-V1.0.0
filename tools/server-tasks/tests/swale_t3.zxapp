@@ -1,0 +1,9 @@
+# T3 — swale: the inter-app contracts
+zxapp 1
+id swale_t3
+matrix 1
+name Swale T3
+# consumes app:kettle
+# consumes app:tallystick
+# consumes app:tally
+# consumes app:larder

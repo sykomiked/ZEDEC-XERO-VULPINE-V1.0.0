@@ -1,0 +1,10 @@
+# T3 — meridian: the inter-app contracts
+zxapp 1
+id meridian_t3
+matrix 1
+name Meridian T3
+# consumes app:binnacle
+# consumes app:chandler
+# consumes app:chainman
+# consumes app:isobar
+# consumes app:waymark

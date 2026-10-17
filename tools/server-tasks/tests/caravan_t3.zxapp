@@ -1,0 +1,9 @@
+# T3 — caravan: the inter-app contracts
+zxapp 1
+id caravan_t3
+matrix 1
+name Caravan T3
+# consumes app:gatehouse
+# consumes app:assay
+# consumes app:ninefold
+# consumes app:pce_strat

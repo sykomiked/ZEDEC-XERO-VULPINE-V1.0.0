@@ -1,0 +1,9 @@
+# T3 — lode: the inter-app contracts
+zxapp 1
+id lode_t3
+matrix 1
+name Lode T3
+# consumes app:pinhole
+# consumes app:witness
+# consumes app:coffer
+# consumes app:relief

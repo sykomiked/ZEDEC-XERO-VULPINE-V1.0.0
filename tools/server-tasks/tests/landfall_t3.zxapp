@@ -1,0 +1,10 @@
+# T3 — landfall: the inter-app contracts
+zxapp 1
+id landfall_t3
+matrix 1
+name Landfall T3
+# consumes app:binnacle
+# consumes app:verderer
+# consumes app:chainman
+# consumes app:fell
+# consumes app:waymark

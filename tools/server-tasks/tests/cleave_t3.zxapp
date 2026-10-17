@@ -1,0 +1,9 @@
+# T3 — cleave: the inter-app contracts
+zxapp 1
+id cleave_t3
+matrix 1
+name Cleave T3
+# consumes app:swage
+# consumes app:compositor
+# consumes app:gauntlet
+# consumes app:whetstone

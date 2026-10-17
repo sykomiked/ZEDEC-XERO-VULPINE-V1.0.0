@@ -1,0 +1,9 @@
+# T3 — shipwright: the inter-app contracts
+zxapp 1
+id shipwright_t3
+matrix 1
+name Shipwright T3
+# consumes app:wake
+# consumes app:weatherglass
+# consumes app:understory
+# consumes app:watchfire

@@ -1,0 +1,7 @@
+# T3 — belvedere: the inter-app contracts
+zxapp 1
+id belvedere_t3
+matrix 1
+name Belvedere T3
+# consumes app:seedbank
+# consumes app:meadow

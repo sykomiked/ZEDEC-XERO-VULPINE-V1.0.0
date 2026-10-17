@@ -1,0 +1,10 @@
+# T3 — parsec: the inter-app contracts
+zxapp 1
+id parsec_t3
+matrix 1
+name Parsec T3
+# consumes app:astrolabe
+# consumes app:tintype
+# consumes app:cupel
+# consumes app:orrery
+# consumes app:pinhole

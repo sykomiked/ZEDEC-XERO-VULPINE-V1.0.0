@@ -1,0 +1,10 @@
+# T3 — distaff: the inter-app contracts
+zxapp 1
+id distaff_t3
+matrix 1
+name Distaff T3
+# consumes app:heddle
+# consumes app:tributary
+# consumes app:pannier
+# consumes app:moraine
+# consumes app:ramble

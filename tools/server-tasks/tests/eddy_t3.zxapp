@@ -1,0 +1,9 @@
+# T3 — eddy: the inter-app contracts
+zxapp 1
+id eddy_t3
+matrix 1
+name Eddy T3
+# consumes app:coffer
+# consumes app:larder
+# consumes app:furrow
+# consumes app:tally

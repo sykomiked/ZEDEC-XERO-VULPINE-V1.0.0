@@ -1,0 +1,7 @@
+# T3 — gavel: the inter-app contracts
+zxapp 1
+id gavel_t3
+matrix 1
+name Gavel T3
+# consumes app:coffer
+# consumes app:toolchest

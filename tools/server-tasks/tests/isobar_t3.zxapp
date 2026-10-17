@@ -1,0 +1,9 @@
+# T3 — isobar: the inter-app contracts
+zxapp 1
+id isobar_t3
+matrix 1
+name Isobar T3
+# consumes app:weatherglass
+# consumes app:homestead
+# consumes app:furrow
+# consumes app:trellis

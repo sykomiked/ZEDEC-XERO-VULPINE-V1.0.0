@@ -1,0 +1,6 @@
+# T3 — lamplight: the inter-app contracts
+zxapp 1
+id lamplight_t3
+matrix 1
+name Lamplight T3
+# consumes app:kitling

@@ -1,0 +1,9 @@
+# T3 — shingle: the inter-app contracts
+zxapp 1
+id shingle_t3
+matrix 1
+name Shingle T3
+# consumes app:satchel
+# consumes app:gatehouse
+# consumes app:witness
+# consumes app:seedbank

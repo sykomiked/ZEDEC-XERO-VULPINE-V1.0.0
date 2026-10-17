@@ -1,0 +1,9 @@
+# T3 — portolan: the inter-app contracts
+zxapp 1
+id portolan_t3
+matrix 1
+name Portolan T3
+# consumes app:chainman
+# consumes app:binnacle
+# consumes app:varve
+# consumes app:waymark

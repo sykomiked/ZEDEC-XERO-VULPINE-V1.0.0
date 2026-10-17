@@ -1,0 +1,8 @@
+# T3 — seedbank: the inter-app contracts
+zxapp 1
+id seedbank_t3
+matrix 1
+name Seedbank T3
+# consumes app:keystone
+# consumes app:tideturn
+# consumes app:used_share

@@ -1,0 +1,9 @@
+# T3 — tintype: the inter-app contracts
+zxapp 1
+id tintype_t3
+matrix 1
+name Tintype T3
+# consumes app:glint
+# consumes app:gesso
+# consumes app:pinhole
+# consumes app:glimpse

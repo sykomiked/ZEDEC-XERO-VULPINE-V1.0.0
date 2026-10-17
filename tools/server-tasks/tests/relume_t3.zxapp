@@ -1,0 +1,10 @@
+# T3 — relume: the inter-app contracts
+zxapp 1
+id relume_t3
+matrix 1
+name Relume T3
+# consumes app:thaw
+# consumes app:cartulary
+# consumes app:fell
+# consumes app:keepsake
+# consumes app:lifeboat

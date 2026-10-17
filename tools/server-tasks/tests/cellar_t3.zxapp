@@ -1,0 +1,6 @@
+# T3 — cellar: the inter-app contracts
+zxapp 1
+id cellar_t3
+matrix 1
+name Cellar T3
+# consumes app:used_share

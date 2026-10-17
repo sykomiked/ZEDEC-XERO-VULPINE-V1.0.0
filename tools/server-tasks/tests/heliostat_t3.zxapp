@@ -1,0 +1,10 @@
+# T3 — heliostat: the inter-app contracts
+zxapp 1
+id heliostat_t3
+matrix 1
+name Heliostat T3
+# consumes app:furnace
+# consumes app:levin
+# consumes app:neap
+# consumes app:watershed
+# consumes app:understory

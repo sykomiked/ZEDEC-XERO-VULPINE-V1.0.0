@@ -1,0 +1,9 @@
+# T3 — lapidary: the inter-app contracts
+zxapp 1
+id lapidary_t3
+matrix 1
+name Lapidary T3
+# consumes app:mockingbird
+# consumes app:burin
+# consumes app:trestle
+# consumes app:witness

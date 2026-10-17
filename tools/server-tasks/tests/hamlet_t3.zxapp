@@ -1,0 +1,8 @@
+# T3 — hamlet: the inter-app contracts
+zxapp 1
+id hamlet_t3
+matrix 1
+name Hamlet T3
+# consumes app:assay
+# consumes app:kitling
+# consumes app:murmuration

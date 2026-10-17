@@ -1,0 +1,10 @@
+# T3 — loom: the inter-app contracts
+zxapp 1
+id loom_t3
+matrix 1
+name Loom T3
+# consumes app:trestle
+# consumes app:treadle
+# consumes app:twelvefold
+# consumes app:satchel
+# consumes app:bramble

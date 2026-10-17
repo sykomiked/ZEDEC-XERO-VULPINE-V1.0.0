@@ -1,0 +1,10 @@
+# T3 — spire: the inter-app contracts
+zxapp 1
+id spire_t3
+matrix 1
+name Spire T3
+# consumes app:collier
+# consumes app:massif
+# consumes app:chainman
+# consumes app:cupel
+# consumes app:understory

@@ -1,0 +1,10 @@
+# T3 — illumine: the inter-app contracts
+zxapp 1
+id illumine_t3
+matrix 1
+name Illumine T3
+# consumes app:spindrift
+# consumes app:bindery
+# consumes app:meander
+# consumes app:folio
+# consumes app:typecase

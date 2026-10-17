@@ -1,0 +1,10 @@
+# T3 — fulgurite: the inter-app contracts
+zxapp 1
+id fulgurite_t3
+matrix 1
+name Fulgurite T3
+# consumes app:whetstone
+# consumes app:graft
+# consumes app:joinery
+# consumes app:cellar
+# consumes app:gauntlet

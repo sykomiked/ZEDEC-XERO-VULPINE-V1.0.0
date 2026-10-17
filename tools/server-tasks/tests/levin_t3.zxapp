@@ -1,0 +1,9 @@
+# T3 — levin: the inter-app contracts
+zxapp 1
+id levin_t3
+matrix 1
+name Levin T3
+# consumes app:homestead
+# consumes app:brazier
+# consumes app:mockingbird
+# consumes app:tally

@@ -1,0 +1,9 @@
+# T3 — glen: the inter-app contracts
+zxapp 1
+id glen_t3
+matrix 1
+name Glen T3
+# consumes app:solstice
+# consumes app:kindred
+# consumes app:shepherd
+# consumes app:heirloom

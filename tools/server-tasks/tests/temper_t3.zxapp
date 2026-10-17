@@ -1,0 +1,6 @@
+# T3 — temper: the inter-app contracts
+zxapp 1
+id temper_t3
+matrix 1
+name Temper T3
+# consumes app:swarm_shares

@@ -1,0 +1,9 @@
+# T3 — flue: the inter-app contracts
+zxapp 1
+id flue_t3
+matrix 1
+name Flue T3
+# consumes app:keepsake
+# consumes app:cove
+# consumes app:seedbank
+# consumes app:belvedere

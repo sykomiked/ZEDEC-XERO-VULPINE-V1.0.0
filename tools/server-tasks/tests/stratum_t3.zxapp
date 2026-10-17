@@ -1,0 +1,9 @@
+# T3 — stratum: the inter-app contracts
+zxapp 1
+id stratum_t3
+matrix 1
+name Stratum T3
+# consumes app:quarry
+# consumes app:broadsheet
+# consumes app:lore
+# consumes app:sieve

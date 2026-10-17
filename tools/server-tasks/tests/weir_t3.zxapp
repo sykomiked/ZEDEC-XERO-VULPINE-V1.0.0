@@ -1,0 +1,9 @@
+# T3 — weir: the inter-app contracts
+zxapp 1
+id weir_t3
+matrix 1
+name Weir T3
+# consumes app:understory
+# consumes app:homestead
+# consumes app:wake
+# consumes app:tally

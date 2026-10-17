@@ -1,0 +1,9 @@
+# T3 — buckram: the inter-app contracts
+zxapp 1
+id buckram_t3
+matrix 1
+name Buckram T3
+# consumes app:ratchet
+# consumes app:updraft
+# consumes app:pavise
+# consumes app:tideturn

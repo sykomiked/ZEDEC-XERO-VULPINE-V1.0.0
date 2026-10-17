@@ -1,0 +1,6 @@
+# T3 — reckoner: the inter-app contracts
+zxapp 1
+id reckoner_t3
+matrix 1
+name Reckoner T3
+# consumes app:coffer

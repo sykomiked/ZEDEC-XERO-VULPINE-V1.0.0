@@ -1,0 +1,10 @@
+# T3 — pinion: the inter-app contracts
+zxapp 1
+id pinion_t3
+matrix 1
+name Pinion T3
+# consumes app:ratchet
+# consumes app:gearwright
+# consumes app:escapement
+# consumes app:treadle
+# consumes app:tidewatch

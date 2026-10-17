@@ -1,0 +1,10 @@
+# T3 — paisley: the inter-app contracts
+zxapp 1
+id paisley_t3
+matrix 1
+name Paisley T3
+# consumes app:tiler
+# consumes app:limner
+# consumes app:heddle
+# consumes app:cirque
+# consumes app:burin

@@ -1,0 +1,10 @@
+# T3 — wardian: the inter-app contracts
+zxapp 1
+id wardian_t3
+matrix 1
+name Wardian T3
+# consumes app:dibber
+# consumes app:weir
+# consumes app:isobar
+# consumes app:fen
+# consumes app:homestead

@@ -1,0 +1,8 @@
+# T3 — relief: the inter-app contracts
+zxapp 1
+id relief_t3
+matrix 1
+name Relief T3
+# consumes app:kitling
+# consumes app:trellis
+# consumes app:coffer

@@ -1,0 +1,9 @@
+# T3 — reedbed: the inter-app contracts
+zxapp 1
+id reedbed_t3
+matrix 1
+name Reedbed T3
+# consumes app:understory
+# consumes app:homestead
+# consumes app:gleaner
+# consumes app:sounding

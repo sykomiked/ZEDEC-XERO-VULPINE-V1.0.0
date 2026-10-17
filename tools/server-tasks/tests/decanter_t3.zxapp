@@ -1,0 +1,9 @@
+# T3 — decanter: the inter-app contracts
+zxapp 1
+id decanter_t3
+matrix 1
+name Decanter T3
+# consumes app:vintner
+# consumes app:forage
+# consumes app:coffer
+# consumes app:seedbank

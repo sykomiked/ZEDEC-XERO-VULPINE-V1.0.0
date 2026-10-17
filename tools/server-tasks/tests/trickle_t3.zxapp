@@ -1,0 +1,6 @@
+# T3 — trickle: the inter-app contracts
+zxapp 1
+id trickle_t3
+matrix 1
+name Trickle T3
+# consumes app:coffer

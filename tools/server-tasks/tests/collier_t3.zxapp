@@ -1,0 +1,10 @@
+# T3 — collier: the inter-app contracts
+zxapp 1
+id collier_t3
+matrix 1
+name Collier T3
+# consumes app:scent
+# consumes app:furrow
+# consumes app:quarry
+# consumes app:gleaner
+# consumes app:magpie

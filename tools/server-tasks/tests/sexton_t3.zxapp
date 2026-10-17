@@ -1,0 +1,9 @@
+# T3 — sexton: the inter-app contracts
+zxapp 1
+id sexton_t3
+matrix 1
+name Sexton T3
+# consumes app:lifeboat
+# consumes app:wake
+# consumes app:tidewatch
+# consumes app:commons

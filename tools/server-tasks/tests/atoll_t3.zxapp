@@ -1,0 +1,9 @@
+# T3 — atoll: the inter-app contracts
+zxapp 1
+id atoll_t3
+matrix 1
+name Atoll T3
+# consumes app:waymark
+# consumes app:weatherglass
+# consumes app:fieldguide
+# consumes app:tallystick

@@ -1,0 +1,10 @@
+# T3 — spindrift: the inter-app contracts
+zxapp 1
+id spindrift_t3
+matrix 1
+name Spindrift T3
+# consumes app:talewind
+# consumes app:folio
+# consumes app:gesso
+# consumes app:seedbank
+# consumes app:cutwater

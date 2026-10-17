@@ -1,0 +1,10 @@
+# T3 — stereoscope: the inter-app contracts
+zxapp 1
+id stereoscope_t3
+matrix 1
+name Stereoscope T3
+# consumes app:tintype
+# consumes app:limner
+# consumes app:cartulary
+# consumes app:mercer
+# consumes app:pinhole

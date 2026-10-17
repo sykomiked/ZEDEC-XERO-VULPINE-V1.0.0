@@ -1,0 +1,10 @@
+# T3 — hornpipe: the inter-app contracts
+zxapp 1
+id hornpipe_t3
+matrix 1
+name Hornpipe T3
+# consumes app:courser
+# consumes app:shipwright
+# consumes app:fell
+# consumes app:escapement
+# consumes app:wellspring

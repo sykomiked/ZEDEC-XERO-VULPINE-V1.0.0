@@ -1,0 +1,10 @@
+# T3 — rapids: the inter-app contracts
+zxapp 1
+id rapids_t3
+matrix 1
+name Rapids T3
+# consumes app:watchfire
+# consumes app:wellspring
+# consumes app:waymark
+# consumes app:halloo
+# consumes app:hark

@@ -1,0 +1,6 @@
+# T3 — assay: the inter-app contracts
+zxapp 1
+id assay_t3
+matrix 1
+name Assay T3
+# consumes app:pce_prob

@@ -1,0 +1,9 @@
+# T3 — cupel: the inter-app contracts
+zxapp 1
+id cupel_t3
+matrix 1
+name Cupel T3
+# consumes app:furrow
+# consumes app:relief
+# consumes app:retort
+# consumes app:gnomon

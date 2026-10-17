@@ -1,0 +1,8 @@
+# T3 — limner: the inter-app contracts
+zxapp 1
+id limner_t3
+matrix 1
+name Limner T3
+# consumes app:gesso
+# consumes app:bellows
+# consumes app:dyer

@@ -1,0 +1,10 @@
+# T3 — rigging: the inter-app contracts
+zxapp 1
+id rigging_t3
+matrix 1
+name Rigging T3
+# consumes app:tributary
+# consumes app:swell
+# consumes app:gearwright
+# consumes app:flue
+# consumes app:murmuration

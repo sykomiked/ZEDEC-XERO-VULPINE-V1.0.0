@@ -1,0 +1,9 @@
+# T3 — sedge: the inter-app contracts
+zxapp 1
+id sedge_t3
+matrix 1
+name Sedge T3
+# consumes app:wellspring
+# consumes app:bowline
+# consumes app:watchfire
+# consumes app:fieldguide

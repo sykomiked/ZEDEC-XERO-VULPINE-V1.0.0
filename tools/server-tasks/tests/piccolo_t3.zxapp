@@ -1,0 +1,10 @@
+# T3 — piccolo: the inter-app contracts
+zxapp 1
+id piccolo_t3
+matrix 1
+name Piccolo T3
+# consumes app:dibber
+# consumes app:skep
+# consumes app:fen
+# consumes app:coppice
+# consumes app:fieldguide

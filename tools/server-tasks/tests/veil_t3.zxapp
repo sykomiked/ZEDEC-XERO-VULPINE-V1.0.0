@@ -1,0 +1,9 @@
+# T3 — veil: the inter-app contracts
+zxapp 1
+id veil_t3
+matrix 1
+name Veil T3
+# consumes app:rainshadow
+# consumes app:pavise
+# consumes app:warding
+# consumes app:gatehouse

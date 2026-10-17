@@ -1,0 +1,9 @@
+# T3 — glazier: the inter-app contracts
+zxapp 1
+id glazier_t3
+matrix 1
+name Glazier T3
+# consumes app:witness
+# consumes app:seedbank
+# consumes app:reckoner
+# consumes app:belvedere

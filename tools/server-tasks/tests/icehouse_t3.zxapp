@@ -1,0 +1,9 @@
+# T3 — icehouse: the inter-app contracts
+zxapp 1
+id icehouse_t3
+matrix 1
+name Icehouse T3
+# consumes app:keepsake
+# consumes app:cellar
+# consumes app:seedbank
+# consumes app:hamper

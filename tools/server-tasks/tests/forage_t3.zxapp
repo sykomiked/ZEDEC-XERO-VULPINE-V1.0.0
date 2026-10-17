@@ -1,0 +1,10 @@
+# T3 — forage: the inter-app contracts
+zxapp 1
+id forage_t3
+matrix 1
+name Forage T3
+# consumes app:coffer
+# consumes app:ramble
+# consumes app:fairground
+# consumes app:murmuration
+# consumes app:hamlet

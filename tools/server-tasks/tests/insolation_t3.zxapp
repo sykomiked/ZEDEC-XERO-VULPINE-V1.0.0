@@ -1,0 +1,10 @@
+# T3 — insolation: the inter-app contracts
+zxapp 1
+id insolation_t3
+matrix 1
+name Insolation T3
+# consumes app:isobar
+# consumes app:levin
+# consumes app:neap
+# consumes app:understory
+# consumes app:brazier

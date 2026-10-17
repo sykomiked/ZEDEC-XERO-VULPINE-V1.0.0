@@ -1,0 +1,9 @@
+# T3 — cartulary: the inter-app contracts
+zxapp 1
+id cartulary_t3
+matrix 1
+name Cartulary T3
+# consumes app:banker
+# consumes app:scent
+# consumes app:keepsake
+# consumes app:witness

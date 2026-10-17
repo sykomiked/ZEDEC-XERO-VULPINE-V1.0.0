@@ -1,0 +1,9 @@
+# T3 — skillet: the inter-app contracts
+zxapp 1
+id skillet_t3
+matrix 1
+name Skillet T3
+# consumes app:larder
+# consumes app:wellspring
+# consumes app:kettle
+# consumes app:sundial

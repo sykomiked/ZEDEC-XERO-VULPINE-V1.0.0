@@ -1,0 +1,9 @@
+# T3 — stationer: the inter-app contracts
+zxapp 1
+id stationer_t3
+matrix 1
+name Stationer T3
+# consumes app:folio
+# consumes app:sealwax
+# consumes app:burin
+# consumes app:platen

@@ -1,0 +1,10 @@
+# T3 — syzygy: the inter-app contracts
+zxapp 1
+id syzygy_t3
+matrix 1
+name Syzygy T3
+# consumes app:handfast
+# consumes app:fellowcraft
+# consumes app:isthmus
+# consumes app:assize
+# consumes app:sealwax

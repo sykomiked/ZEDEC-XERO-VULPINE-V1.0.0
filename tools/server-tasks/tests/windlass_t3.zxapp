@@ -1,0 +1,10 @@
+# T3 — windlass: the inter-app contracts
+zxapp 1
+id windlass_t3
+matrix 1
+name Windlass T3
+# consumes app:collier
+# consumes app:ratchet
+# consumes app:rapids
+# consumes app:neap
+# consumes app:understory

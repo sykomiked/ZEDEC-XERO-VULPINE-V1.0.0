@@ -1,0 +1,10 @@
+# T3 — stoker: the inter-app contracts
+zxapp 1
+id stoker_t3
+matrix 1
+name Stoker T3
+# consumes app:granary
+# consumes app:retort
+# consumes app:temper
+# consumes app:brazier
+# consumes app:hatchery

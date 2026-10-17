@@ -1,0 +1,10 @@
+# T3 — apse: the inter-app contracts
+zxapp 1
+id apse_t3
+matrix 1
+name Apse T3
+# consumes app:tarn
+# consumes app:spindrift
+# consumes app:escapement
+# consumes app:bonfire
+# consumes app:coffer

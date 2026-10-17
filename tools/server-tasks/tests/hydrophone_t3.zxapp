@@ -1,0 +1,10 @@
+# T3 — hydrophone: the inter-app contracts
+zxapp 1
+id hydrophone_t3
+matrix 1
+name Hydrophone T3
+# consumes app:shipwright
+# consumes app:atoll
+# consumes app:updraft
+# consumes app:chandler
+# consumes app:verderer

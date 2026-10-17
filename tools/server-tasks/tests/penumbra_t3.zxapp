@@ -1,0 +1,10 @@
+# T3 — penumbra: the inter-app contracts
+zxapp 1
+id penumbra_t3
+matrix 1
+name Penumbra T3
+# consumes app:loupe
+# consumes app:pavise
+# consumes app:compositor
+# consumes app:sounding
+# consumes app:pawprint

@@ -1,0 +1,9 @@
+# T3 — chronometer: the inter-app contracts
+zxapp 1
+id chronometer_t3
+matrix 1
+name Chronometer T3
+# consumes app:escapement
+# consumes app:cartulary
+# consumes app:tributary
+# consumes app:solstice

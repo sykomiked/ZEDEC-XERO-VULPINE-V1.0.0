@@ -1,0 +1,9 @@
+# T3 — tiler: the inter-app contracts
+zxapp 1
+id tiler_t3
+matrix 1
+name Tiler T3
+# consumes app:hollow
+# consumes app:wake
+# consumes app:tidewatch
+# consumes app:furrow

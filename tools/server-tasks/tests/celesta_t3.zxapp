@@ -1,0 +1,10 @@
+# T3 — celesta: the inter-app contracts
+zxapp 1
+id celesta_t3
+matrix 1
+name Celesta T3
+# consumes app:massif
+# consumes app:icehouse
+# consumes app:isobar
+# consumes app:fell
+# consumes app:weatherglass

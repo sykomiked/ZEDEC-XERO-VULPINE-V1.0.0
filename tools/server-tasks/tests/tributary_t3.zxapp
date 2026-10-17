@@ -1,0 +1,9 @@
+# T3 — tributary: the inter-app contracts
+zxapp 1
+id tributary_t3
+matrix 1
+name Tributary T3
+# consumes app:retort
+# consumes app:murmuration
+# consumes app:assay
+# consumes app:twelvefold

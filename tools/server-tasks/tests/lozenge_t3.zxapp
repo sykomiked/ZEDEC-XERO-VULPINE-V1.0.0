@@ -1,0 +1,9 @@
+# T3 — lozenge: the inter-app contracts
+zxapp 1
+id lozenge_t3
+matrix 1
+name Lozenge T3
+# consumes app:skep
+# consumes app:sheaf
+# consumes app:neap
+# consumes app:fairground

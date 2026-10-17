@@ -1,0 +1,10 @@
+# T3 — armillary: the inter-app contracts
+zxapp 1
+id armillary_t3
+matrix 1
+name Armillary T3
+# consumes app:caliper
+# consumes app:ratchet
+# consumes app:escapement
+# consumes app:gearwright
+# consumes app:mockingbird

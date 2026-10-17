@@ -1,0 +1,6 @@
+# T3 — kinetoscope: the inter-app contracts
+zxapp 1
+id kinetoscope_t3
+matrix 1
+name Kinetoscope T3
+# consumes app:witness

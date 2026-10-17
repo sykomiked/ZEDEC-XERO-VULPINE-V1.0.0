@@ -1,0 +1,10 @@
+# T3 — caravel: the inter-app contracts
+zxapp 1
+id caravel_t3
+matrix 1
+name Caravel T3
+# consumes app:mercer
+# consumes app:lode
+# consumes app:neap
+# consumes app:pannier
+# consumes app:fairground

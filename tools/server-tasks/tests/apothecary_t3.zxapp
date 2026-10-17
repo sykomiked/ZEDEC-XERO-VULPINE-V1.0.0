@@ -1,0 +1,9 @@
+# T3 — apothecary: the inter-app contracts
+zxapp 1
+id apothecary_t3
+matrix 1
+name Apothecary T3
+# consumes app:lockbox
+# consumes app:sealwax
+# consumes app:wellspring
+# consumes app:watchfire

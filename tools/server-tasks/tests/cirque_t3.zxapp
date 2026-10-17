@@ -1,0 +1,9 @@
+# T3 — cirque: the inter-app contracts
+zxapp 1
+id cirque_t3
+matrix 1
+name Cirque T3
+# consumes app:relief
+# consumes app:burin
+# consumes app:gnomon
+# consumes app:folio

@@ -1,0 +1,9 @@
+# T3 — silt: the inter-app contracts
+zxapp 1
+id silt_t3
+matrix 1
+name Silt T3
+# consumes app:sealwax
+# consumes app:broadsheet
+# consumes app:witness
+# consumes app:banker

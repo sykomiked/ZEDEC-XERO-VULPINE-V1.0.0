@@ -1,0 +1,9 @@
+# T3 — verger: the inter-app contracts
+zxapp 1
+id verger_t3
+matrix 1
+name Verger T3
+# consumes app:solstice
+# consumes app:kindred
+# consumes app:trickle
+# consumes app:bonfire

@@ -1,0 +1,9 @@
+# T3 — loupe: the inter-app contracts
+zxapp 1
+id loupe_t3
+matrix 1
+name Loupe T3
+# consumes app:scent
+# consumes app:wake
+# consumes app:witness
+# consumes app:pawprint

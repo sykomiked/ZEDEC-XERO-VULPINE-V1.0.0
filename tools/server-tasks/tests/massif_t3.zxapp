@@ -1,0 +1,10 @@
+# T3 — massif: the inter-app contracts
+zxapp 1
+id massif_t3
+matrix 1
+name Massif T3
+# consumes app:tidewatch
+# consumes app:warren
+# consumes app:trellis
+# consumes app:retort
+# consumes app:gait

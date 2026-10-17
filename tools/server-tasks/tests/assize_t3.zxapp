@@ -1,0 +1,9 @@
+# T3 — assize: the inter-app contracts
+zxapp 1
+id assize_t3
+matrix 1
+name Assize T3
+# consumes app:witness
+# consumes app:broadsheet
+# consumes app:sealwax
+# consumes app:twelvefold

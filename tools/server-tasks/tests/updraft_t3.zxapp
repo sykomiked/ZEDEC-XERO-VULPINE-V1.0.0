@@ -1,0 +1,9 @@
+# T3 — updraft: the inter-app contracts
+zxapp 1
+id updraft_t3
+matrix 1
+name Updraft T3
+# consumes app:aerie
+# consumes app:sounding
+# consumes app:trellis
+# consumes app:commons

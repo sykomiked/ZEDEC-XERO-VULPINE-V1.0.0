@@ -1,0 +1,7 @@
+# T3 — gazette: the inter-app contracts
+zxapp 1
+id gazette_t3
+matrix 1
+name Gazette T3
+# consumes app:caravan
+# consumes app:seedbank

@@ -1,0 +1,6 @@
+# T3 — gnomon: the inter-app contracts
+zxapp 1
+id gnomon_t3
+matrix 1
+name Gnomon T3
+# consumes app:number_classics

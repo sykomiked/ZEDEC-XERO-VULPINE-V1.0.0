@@ -1,0 +1,10 @@
+# T3 — galliard: the inter-app contracts
+zxapp 1
+id galliard_t3
+matrix 1
+name Galliard T3
+# consumes app:courser
+# consumes app:mummer
+# consumes app:tarn
+# consumes app:tintype
+# consumes app:wellspring

@@ -1,0 +1,9 @@
+# T3 — joinery: the inter-app contracts
+zxapp 1
+id joinery_t3
+matrix 1
+name Joinery T3
+# consumes app:toolchest
+# consumes app:coffer
+# consumes app:fairground
+# consumes app:trellis

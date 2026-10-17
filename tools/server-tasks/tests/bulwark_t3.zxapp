@@ -1,0 +1,9 @@
+# T3 — bulwark: the inter-app contracts
+zxapp 1
+id bulwark_t3
+matrix 1
+name Bulwark T3
+# consumes app:pavise
+# consumes app:warding
+# consumes app:moraine
+# consumes app:lockbox

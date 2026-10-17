@@ -1,0 +1,10 @@
+# T3 — viaduct: the inter-app contracts
+zxapp 1
+id viaduct_t3
+matrix 1
+name Viaduct T3
+# consumes app:shallows
+# consumes app:neap
+# consumes app:mercer
+# consumes app:trickle
+# consumes app:coffer

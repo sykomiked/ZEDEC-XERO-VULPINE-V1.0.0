@@ -1,0 +1,10 @@
+# T3 — chintz: the inter-app contracts
+zxapp 1
+id chintz_t3
+matrix 1
+name Chintz T3
+# consumes app:fen
+# consumes app:dibber
+# consumes app:tintype
+# consumes app:bindery
+# consumes app:fieldguide

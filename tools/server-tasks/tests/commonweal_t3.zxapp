@@ -1,0 +1,10 @@
+# T3 — commonweal: the inter-app contracts
+zxapp 1
+id commonweal_t3
+matrix 1
+name Commonweal T3
+# consumes app:serac
+# consumes app:decanter
+# consumes app:skep
+# consumes app:neap
+# consumes app:ninefold

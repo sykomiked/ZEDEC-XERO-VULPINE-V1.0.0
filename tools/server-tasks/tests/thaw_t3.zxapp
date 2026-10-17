@@ -1,0 +1,9 @@
+# T3 — thaw: the inter-app contracts
+zxapp 1
+id thaw_t3
+matrix 1
+name Thaw T3
+# consumes app:lifeboat
+# consumes app:keepsake
+# consumes app:ferry
+# consumes app:lockbox

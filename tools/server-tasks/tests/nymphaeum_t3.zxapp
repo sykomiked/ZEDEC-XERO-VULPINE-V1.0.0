@@ -1,0 +1,10 @@
+# T3 — nymphaeum: the inter-app contracts
+zxapp 1
+id nymphaeum_t3
+matrix 1
+name Nymphaeum T3
+# consumes app:weir
+# consumes app:alembic
+# consumes app:poultice
+# consumes app:understory
+# consumes app:homestead

@@ -1,0 +1,9 @@
+# T3 — caldera: the inter-app contracts
+zxapp 1
+id caldera_t3
+matrix 1
+name Caldera T3
+# consumes app:wake
+# consumes app:weatherglass
+# consumes app:watchfire
+# consumes app:trellis

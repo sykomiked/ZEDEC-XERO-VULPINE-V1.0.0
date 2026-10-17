@@ -1,0 +1,10 @@
+# T3 — aureole: the inter-app contracts
+zxapp 1
+id aureole_t3
+matrix 1
+name Aureole T3
+# consumes app:cairn
+# consumes app:assize
+# consumes app:silt
+# consumes app:witness
+# consumes app:solstice

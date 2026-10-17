@@ -1,0 +1,9 @@
+# T3 — gust: the inter-app contracts
+zxapp 1
+id gust_t3
+matrix 1
+name Gust T3
+# consumes app:cubby
+# consumes app:weatherglass
+# consumes app:shepherd
+# consumes app:den

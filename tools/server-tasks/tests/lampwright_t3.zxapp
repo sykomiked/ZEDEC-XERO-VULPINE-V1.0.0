@@ -1,0 +1,9 @@
+# T3 — lampwright: the inter-app contracts
+zxapp 1
+id lampwright_t3
+matrix 1
+name Lampwright T3
+# consumes app:relief
+# consumes app:homestead
+# consumes app:dyer
+# consumes app:tint

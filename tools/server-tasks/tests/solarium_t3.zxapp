@@ -1,0 +1,10 @@
+# T3 — solarium: the inter-app contracts
+zxapp 1
+id solarium_t3
+matrix 1
+name Solarium T3
+# consumes app:dibber
+# consumes app:fen
+# consumes app:isobar
+# consumes app:homestead
+# consumes app:weatherglass

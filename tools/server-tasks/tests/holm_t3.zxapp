@@ -1,0 +1,9 @@
+# T3 — holm: the inter-app contracts
+zxapp 1
+id holm_t3
+matrix 1
+name Holm T3
+# consumes app:gatehouse
+# consumes app:hedgerow
+# consumes app:cellar
+# consumes app:keystone

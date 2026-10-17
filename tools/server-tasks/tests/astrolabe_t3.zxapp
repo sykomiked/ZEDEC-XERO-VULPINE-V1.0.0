@@ -1,0 +1,9 @@
+# T3 — astrolabe: the inter-app contracts
+zxapp 1
+id astrolabe_t3
+matrix 1
+name Astrolabe T3
+# consumes app:pinhole
+# consumes app:weatherglass
+# consumes app:orrery
+# consumes app:sundial

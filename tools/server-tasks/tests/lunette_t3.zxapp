@@ -1,0 +1,10 @@
+# T3 — lunette: the inter-app contracts
+zxapp 1
+id lunette_t3
+matrix 1
+name Lunette T3
+# consumes app:handfast
+# consumes app:silt
+# consumes app:mummer
+# consumes app:bonfire
+# consumes app:kindred

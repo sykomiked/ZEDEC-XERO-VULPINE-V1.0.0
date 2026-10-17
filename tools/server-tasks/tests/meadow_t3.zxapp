@@ -1,0 +1,9 @@
+# T3 — meadow: the inter-app contracts
+zxapp 1
+id meadow_t3
+matrix 1
+name Meadow T3
+# consumes app:seedbank
+# consumes app:gatehouse
+# consumes app:trellis
+# consumes app:commons

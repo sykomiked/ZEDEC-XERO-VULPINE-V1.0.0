@@ -1,0 +1,10 @@
+# T3 — sanctum: the inter-app contracts
+zxapp 1
+id sanctum_t3
+matrix 1
+name Sanctum T3
+# consumes app:warding
+# consumes app:pavise
+# consumes app:neap
+# consumes app:heirloom
+# consumes app:lockbox

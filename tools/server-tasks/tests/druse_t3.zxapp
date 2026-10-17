@@ -1,0 +1,10 @@
+# T3 — druse: the inter-app contracts
+zxapp 1
+id druse_t3
+matrix 1
+name Druse T3
+# consumes app:moraine
+# consumes app:grotto
+# consumes app:cartulary
+# consumes app:cellar
+# consumes app:seedbank

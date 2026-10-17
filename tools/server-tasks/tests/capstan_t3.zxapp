@@ -1,0 +1,10 @@
+# T3 — capstan: the inter-app contracts
+zxapp 1
+id capstan_t3
+matrix 1
+name Capstan T3
+# consumes app:isobar
+# consumes app:ratchet
+# consumes app:levin
+# consumes app:neap
+# consumes app:understory

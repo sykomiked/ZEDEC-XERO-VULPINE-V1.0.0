@@ -1,0 +1,9 @@
+# T3 — freshet: the inter-app contracts
+zxapp 1
+id freshet_t3
+matrix 1
+name Freshet T3
+# consumes app:satchel
+# consumes app:joinery
+# consumes app:graft
+# consumes app:whetstone

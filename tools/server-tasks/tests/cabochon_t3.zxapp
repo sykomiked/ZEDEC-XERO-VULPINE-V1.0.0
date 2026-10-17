@@ -1,0 +1,10 @@
+# T3 — cabochon: the inter-app contracts
+zxapp 1
+id cabochon_t3
+matrix 1
+name Cabochon T3
+# consumes app:neap
+# consumes app:mercer
+# consumes app:cartulary
+# consumes app:coffer
+# consumes app:larder

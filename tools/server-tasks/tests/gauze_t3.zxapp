@@ -1,0 +1,10 @@
+# T3 — gauze: the inter-app contracts
+zxapp 1
+id gauze_t3
+matrix 1
+name Gauze T3
+# consumes app:apothecary
+# consumes app:rapids
+# consumes app:poultice
+# consumes app:sedge
+# consumes app:watchfire

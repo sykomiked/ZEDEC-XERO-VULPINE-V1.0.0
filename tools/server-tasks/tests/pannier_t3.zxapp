@@ -1,0 +1,9 @@
+# T3 — pannier: the inter-app contracts
+zxapp 1
+id pannier_t3
+matrix 1
+name Pannier T3
+# consumes app:rookery
+# consumes app:trellis
+# consumes app:pollen
+# consumes app:caravan

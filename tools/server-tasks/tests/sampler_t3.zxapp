@@ -1,0 +1,10 @@
+# T3 — sampler: the inter-app contracts
+zxapp 1
+id sampler_t3
+matrix 1
+name Sampler T3
+# consumes app:cartulary
+# consumes app:bindery
+# consumes app:varve
+# consumes app:silt
+# consumes app:glint

@@ -1,0 +1,9 @@
+# T3 — warding: the inter-app contracts
+zxapp 1
+id warding_t3
+matrix 1
+name Warding T3
+# consumes app:threshold
+# consumes app:gatehouse
+# consumes app:lockbox
+# consumes app:homestead

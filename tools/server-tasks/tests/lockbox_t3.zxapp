@@ -1,0 +1,6 @@
+# T3 — lockbox: the inter-app contracts
+zxapp 1
+id lockbox_t3
+matrix 1
+name Lockbox T3
+# consumes app:coffer

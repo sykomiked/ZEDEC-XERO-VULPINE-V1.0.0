@@ -1,0 +1,7 @@
+# T3 — rookery: the inter-app contracts
+zxapp 1
+id rookery_t3
+matrix 1
+name Rookery T3
+# consumes app:coffer
+# consumes app:lockbox

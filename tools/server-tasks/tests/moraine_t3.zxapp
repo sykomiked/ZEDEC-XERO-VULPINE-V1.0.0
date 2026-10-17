@@ -1,0 +1,9 @@
+# T3 — moraine: the inter-app contracts
+zxapp 1
+id moraine_t3
+matrix 1
+name Moraine T3
+# consumes app:lockbox
+# consumes app:gatehouse
+# consumes app:heirloom
+# consumes app:witness

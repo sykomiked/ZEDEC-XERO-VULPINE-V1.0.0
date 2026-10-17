@@ -1,0 +1,9 @@
+# T3 — headland: the inter-app contracts
+zxapp 1
+id headland_t3
+matrix 1
+name Headland T3
+# consumes app:wake
+# consumes app:tidewatch
+# consumes app:sounding
+# consumes app:watchfire

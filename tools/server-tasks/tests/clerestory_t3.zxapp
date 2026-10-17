@@ -1,0 +1,10 @@
+# T3 — clerestory: the inter-app contracts
+zxapp 1
+id clerestory_t3
+matrix 1
+name Clerestory T3
+# consumes app:lectern
+# consumes app:stratum
+# consumes app:bindery
+# consumes app:quarry
+# consumes app:quillon

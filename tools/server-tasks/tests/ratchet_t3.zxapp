@@ -1,0 +1,9 @@
+# T3 — ratchet: the inter-app contracts
+zxapp 1
+id ratchet_t3
+matrix 1
+name Ratchet T3
+# consumes app:tidewatch
+# consumes app:treadle
+# consumes app:homestead
+# consumes app:mockingbird

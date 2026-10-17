@@ -1,0 +1,9 @@
+# T3 — creel: the inter-app contracts
+zxapp 1
+id creel_t3
+matrix 1
+name Creel T3
+# consumes app:coffer
+# consumes app:waymark
+# consumes app:weatherglass
+# consumes app:understory

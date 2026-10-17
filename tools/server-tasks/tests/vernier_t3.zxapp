@@ -1,0 +1,10 @@
+# T3 — vernier: the inter-app contracts
+zxapp 1
+id vernier_t3
+matrix 1
+name Vernier T3
+# consumes app:lode
+# consumes app:caliper
+# consumes app:tintype
+# consumes app:cartulary
+# consumes app:gridmark

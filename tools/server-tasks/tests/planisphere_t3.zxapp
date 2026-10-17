@@ -1,0 +1,10 @@
+# T3 — planisphere: the inter-app contracts
+zxapp 1
+id planisphere_t3
+matrix 1
+name Planisphere T3
+# consumes app:plinth
+# consumes app:fusee
+# consumes app:muster
+# consumes app:overture
+# consumes app:thicket

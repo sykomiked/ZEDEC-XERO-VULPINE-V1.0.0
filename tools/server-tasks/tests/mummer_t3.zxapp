@@ -1,0 +1,10 @@
+# T3 — mummer: the inter-app contracts
+zxapp 1
+id mummer_t3
+matrix 1
+name Mummer T3
+# consumes app:folio
+# consumes app:footlight
+# consumes app:warble
+# consumes app:bonfire
+# consumes app:kinetoscope

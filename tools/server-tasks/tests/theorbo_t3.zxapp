@@ -1,0 +1,8 @@
+# T3 — theorbo: the inter-app contracts
+zxapp 1
+id theorbo_t3
+matrix 1
+name Theorbo T3
+# consumes app:luthier
+# consumes app:swell
+# consumes app:fiddlehead

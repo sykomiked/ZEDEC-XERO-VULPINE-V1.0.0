@@ -1,0 +1,9 @@
+# T3 — lagoon: the inter-app contracts
+zxapp 1
+id lagoon_t3
+matrix 1
+name Lagoon T3
+# consumes app:heirloom
+# consumes app:coffer
+# consumes app:cubby
+# consumes app:shepherd

@@ -1,0 +1,9 @@
+# T3 — poultice: the inter-app contracts
+zxapp 1
+id poultice_t3
+matrix 1
+name Poultice T3
+# consumes app:solstice
+# consumes app:bowline
+# consumes app:wellspring
+# consumes app:watchfire

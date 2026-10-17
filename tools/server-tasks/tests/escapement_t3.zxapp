@@ -1,0 +1,9 @@
+# T3 — escapement: the inter-app contracts
+zxapp 1
+id escapement_t3
+matrix 1
+name Escapement T3
+# consumes app:treadle
+# consumes app:solstice
+# consumes app:tallystick
+# consumes app:sundial

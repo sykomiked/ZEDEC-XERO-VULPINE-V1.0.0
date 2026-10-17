@@ -1,0 +1,10 @@
+# T3 — bevel: the inter-app contracts
+zxapp 1
+id bevel_t3
+matrix 1
+name Bevel T3
+# consumes app:silt
+# consumes app:warding
+# consumes app:cartulary
+# consumes app:gatehouse
+# consumes app:broadsheet

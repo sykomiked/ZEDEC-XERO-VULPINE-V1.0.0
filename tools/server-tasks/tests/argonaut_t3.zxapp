@@ -1,0 +1,10 @@
+# T3 — argonaut: the inter-app contracts
+zxapp 1
+id argonaut_t3
+matrix 1
+name Argonaut T3
+# consumes app:neap
+# consumes app:eddy
+# consumes app:holm
+# consumes app:mercer
+# consumes app:larder

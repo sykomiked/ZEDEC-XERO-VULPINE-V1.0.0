@@ -1,0 +1,9 @@
+# T3 — plinth: the inter-app contracts
+zxapp 1
+id plinth_t3
+matrix 1
+name Plinth T3
+# consumes app:cellar
+# consumes app:ferry
+# consumes app:lockbox
+# consumes app:lifeboat

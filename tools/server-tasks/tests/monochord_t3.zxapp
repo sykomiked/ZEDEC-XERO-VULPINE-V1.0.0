@@ -1,0 +1,10 @@
+# T3 — monochord: the inter-app contracts
+zxapp 1
+id monochord_t3
+matrix 1
+name Monochord T3
+# consumes app:cupel
+# consumes app:alembic
+# consumes app:tintype
+# consumes app:stratum
+# consumes app:retort

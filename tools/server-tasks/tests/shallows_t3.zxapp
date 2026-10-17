@@ -1,0 +1,9 @@
+# T3 — shallows: the inter-app contracts
+zxapp 1
+id shallows_t3
+matrix 1
+name Shallows T3
+# consumes app:parley
+# consumes app:ticker
+# consumes app:halloo
+# consumes app:wordhoard

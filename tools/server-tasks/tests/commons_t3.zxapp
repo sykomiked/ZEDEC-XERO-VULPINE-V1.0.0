@@ -1,0 +1,6 @@
+# T3 — commons: the inter-app contracts
+zxapp 1
+id commons_t3
+matrix 1
+name Commons T3
+# consumes app:kitling

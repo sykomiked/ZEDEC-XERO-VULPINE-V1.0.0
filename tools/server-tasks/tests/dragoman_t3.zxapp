@@ -1,0 +1,10 @@
+# T3 — dragoman: the inter-app contracts
+zxapp 1
+id dragoman_t3
+matrix 1
+name Dragoman T3
+# consumes app:colonnade
+# consumes app:flint
+# consumes app:primer
+# consumes app:scriptorium
+# consumes app:toolchest

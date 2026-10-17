@@ -1,0 +1,9 @@
+# T3 — heddle: the inter-app contracts
+zxapp 1
+id heddle_t3
+matrix 1
+name Heddle T3
+# consumes app:burin
+# consumes app:platen
+# consumes app:dyer
+# consumes app:furrow

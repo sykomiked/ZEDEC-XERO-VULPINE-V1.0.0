@@ -1,0 +1,10 @@
+# T3 — damper: the inter-app contracts
+zxapp 1
+id damper_t3
+matrix 1
+name Damper T3
+# consumes app:wake
+# consumes app:brazier
+# consumes app:homestead
+# consumes app:watchfire
+# consumes app:conch

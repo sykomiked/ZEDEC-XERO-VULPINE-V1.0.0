@@ -1,0 +1,9 @@
+# T3 — athanor: the inter-app contracts
+zxapp 1
+id athanor_t3
+matrix 1
+name Athanor T3
+# consumes app:alembic
+# consumes app:bourn
+# consumes app:damper
+# consumes app:cupel

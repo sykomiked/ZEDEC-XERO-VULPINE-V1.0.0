@@ -1,0 +1,10 @@
+# T3 — counterpoint: the inter-app contracts
+zxapp 1
+id counterpoint_t3
+matrix 1
+name Counterpoint T3
+# consumes app:neap
+# consumes app:escapement
+# consumes app:fellowcraft
+# consumes app:isthmus
+# consumes app:larder

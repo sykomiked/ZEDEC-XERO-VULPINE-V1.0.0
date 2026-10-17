@@ -1,0 +1,10 @@
+# T3 — equant: the inter-app contracts
+zxapp 1
+id equant_t3
+matrix 1
+name Equant T3
+# consumes app:assize
+# consumes app:isthmus
+# consumes app:handfast
+# consumes app:twelvefold
+# consumes app:plumbline

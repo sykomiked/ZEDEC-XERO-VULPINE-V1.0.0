@@ -1,0 +1,10 @@
+# T3 — azimuth: the inter-app contracts
+zxapp 1
+id azimuth_t3
+matrix 1
+name Azimuth T3
+# consumes app:tradewind
+# consumes app:binnacle
+# consumes app:chainman
+# consumes app:waymark
+# consumes app:nightjar

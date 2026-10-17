@@ -1,0 +1,10 @@
+# T3 — volute: the inter-app contracts
+zxapp 1
+id volute_t3
+matrix 1
+name Volute T3
+# consumes app:creel
+# consumes app:shipwright
+# consumes app:cupel
+# consumes app:escapement
+# consumes app:vintner

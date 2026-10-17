@@ -1,0 +1,10 @@
+# T3 — chorale: the inter-app contracts
+zxapp 1
+id chorale_t3
+matrix 1
+name Chorale T3
+# consumes app:cairn
+# consumes app:assize
+# consumes app:isthmus
+# consumes app:neap
+# consumes app:witness

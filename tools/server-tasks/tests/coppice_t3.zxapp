@@ -1,0 +1,9 @@
+# T3 — coppice: the inter-app contracts
+zxapp 1
+id coppice_t3
+matrix 1
+name Coppice T3
+# consumes app:gleaner
+# consumes app:ninefold
+# consumes app:waymark
+# consumes app:understory

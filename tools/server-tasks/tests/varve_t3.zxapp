@@ -1,0 +1,9 @@
+# T3 — varve: the inter-app contracts
+zxapp 1
+id varve_t3
+matrix 1
+name Varve T3
+# consumes app:lore
+# consumes app:solstice
+# consumes app:keepsake
+# consumes app:fieldguide

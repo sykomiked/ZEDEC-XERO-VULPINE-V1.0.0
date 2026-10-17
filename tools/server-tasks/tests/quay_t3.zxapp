@@ -1,0 +1,10 @@
+# T3 — quay: the inter-app contracts
+zxapp 1
+id quay_t3
+matrix 1
+name Quay T3
+# consumes app:chandler
+# consumes app:pannier
+# consumes app:neap
+# consumes app:silt
+# consumes app:caravan

@@ -1,0 +1,9 @@
+# T3 — swell: the inter-app contracts
+zxapp 1
+id swell_t3
+matrix 1
+name Swell T3
+# consumes app:fiddlehead
+# consumes app:warble
+# consumes app:trellis
+# consumes app:sundial

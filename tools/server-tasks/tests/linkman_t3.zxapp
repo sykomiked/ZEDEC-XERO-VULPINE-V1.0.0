@@ -1,0 +1,9 @@
+# T3 — linkman: the inter-app contracts
+zxapp 1
+id linkman_t3
+matrix 1
+name Linkman T3
+# consumes app:sounding
+# consumes app:lodestone
+# consumes app:trellis
+# consumes app:signpost

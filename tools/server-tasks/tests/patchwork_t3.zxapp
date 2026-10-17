@@ -1,0 +1,10 @@
+# T3 — patchwork: the inter-app contracts
+zxapp 1
+id patchwork_t3
+matrix 1
+name Patchwork T3
+# consumes app:varve
+# consumes app:cartulary
+# consumes app:glen
+# consumes app:spindrift
+# consumes app:kindred

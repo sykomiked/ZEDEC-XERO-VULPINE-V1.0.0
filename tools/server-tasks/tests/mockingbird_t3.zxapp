@@ -1,0 +1,10 @@
+# T3 — mockingbird: the inter-app contracts
+zxapp 1
+id mockingbird_t3
+matrix 1
+name Mockingbird T3
+# consumes app:kitling
+# consumes app:relief
+# consumes app:trellis
+# consumes app:caravan
+# consumes app:hollow

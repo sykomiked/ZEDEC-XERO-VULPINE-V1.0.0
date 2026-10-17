@@ -1,0 +1,10 @@
+# T3 — luminaire: the inter-app contracts
+zxapp 1
+id luminaire_t3
+matrix 1
+name Luminaire T3
+# consumes app:levin
+# consumes app:wisp
+# consumes app:escapement
+# consumes app:homestead
+# consumes app:brazier

@@ -1,0 +1,9 @@
+# T3 — bodkin: the inter-app contracts
+zxapp 1
+id bodkin_t3
+matrix 1
+name Bodkin T3
+# consumes app:burin
+# consumes app:relief
+# consumes app:fairground
+# consumes app:tally

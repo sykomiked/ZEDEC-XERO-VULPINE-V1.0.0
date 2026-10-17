@@ -1,0 +1,10 @@
+# T3 — mercer: the inter-app contracts
+zxapp 1
+id mercer_t3
+matrix 1
+name Mercer T3
+# consumes app:coffer
+# consumes app:tallystick
+# consumes app:fairground
+# consumes app:tally
+# consumes app:talisman

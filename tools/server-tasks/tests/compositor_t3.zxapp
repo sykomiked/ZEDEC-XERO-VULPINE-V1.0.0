@@ -1,0 +1,9 @@
+# T3 — compositor: the inter-app contracts
+zxapp 1
+id compositor_t3
+matrix 1
+name Compositor T3
+# consumes app:flint
+# consumes app:joinery
+# consumes app:pawprint
+# consumes app:colonnade

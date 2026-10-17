@@ -1,0 +1,10 @@
+# T3 — vesper: the inter-app contracts
+zxapp 1
+id vesper_t3
+matrix 1
+name Vesper T3
+# consumes app:crier
+# consumes app:updraft
+# consumes app:fell
+# consumes app:trellis
+# consumes app:watchfire

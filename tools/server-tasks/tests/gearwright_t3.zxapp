@@ -1,0 +1,9 @@
+# T3 — gearwright: the inter-app contracts
+zxapp 1
+id gearwright_t3
+matrix 1
+name Gearwright T3
+# consumes app:treadle
+# consumes app:homestead
+# consumes app:mockingbird
+# consumes app:pivot

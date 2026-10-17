@@ -1,0 +1,10 @@
+# T3 — annulus: the inter-app contracts
+zxapp 1
+id annulus_t3
+matrix 1
+name Annulus T3
+# consumes app:sedge
+# consumes app:apothecary
+# consumes app:alembic
+# consumes app:wellspring
+# consumes app:watchfire

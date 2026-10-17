@@ -1,0 +1,9 @@
+# T3 — tatting: the inter-app contracts
+zxapp 1
+id tatting_t3
+matrix 1
+name Tatting T3
+# consumes app:icehouse
+# consumes app:pannier
+# consumes app:verderer
+# consumes app:caravan

@@ -1,0 +1,10 @@
+# T3 — watershed: the inter-app contracts
+zxapp 1
+id watershed_t3
+matrix 1
+name Watershed T3
+# consumes app:fairground
+# consumes app:bowline
+# consumes app:coffer
+# consumes app:hamlet
+# consumes app:meadow

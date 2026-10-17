@@ -1,0 +1,9 @@
+# T3 — rainshadow: the inter-app contracts
+zxapp 1
+id rainshadow_t3
+matrix 1
+name Rainshadow T3
+# consumes app:orrery
+# consumes app:sundial
+# consumes app:waymark
+# consumes app:pinhole

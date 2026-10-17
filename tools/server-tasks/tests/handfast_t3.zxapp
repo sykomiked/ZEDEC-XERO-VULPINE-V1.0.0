@@ -1,0 +1,9 @@
+# T3 — handfast: the inter-app contracts
+zxapp 1
+id handfast_t3
+matrix 1
+name Handfast T3
+# consumes app:witness
+# consumes app:commons
+# consumes app:kindred
+# consumes app:sealwax

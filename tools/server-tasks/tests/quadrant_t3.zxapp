@@ -1,0 +1,10 @@
+# T3 — quadrant: the inter-app contracts
+zxapp 1
+id quadrant_t3
+matrix 1
+name Quadrant T3
+# consumes app:updraft
+# consumes app:linkman
+# consumes app:tributary
+# consumes app:astrolabe
+# consumes app:aerie

@@ -1,0 +1,9 @@
+# T3 — furnace: the inter-app contracts
+zxapp 1
+id furnace_t3
+matrix 1
+name Furnace T3
+# consumes app:brazier
+# consumes app:weatherglass
+# consumes app:understory
+# consumes app:homestead

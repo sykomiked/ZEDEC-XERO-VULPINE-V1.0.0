@@ -1,0 +1,9 @@
+# T3 — barbican: the inter-app contracts
+zxapp 1
+id barbican_t3
+matrix 1
+name Barbican T3
+# consumes app:pavise
+# consumes app:warding
+# consumes app:loupe
+# consumes app:hedgerow

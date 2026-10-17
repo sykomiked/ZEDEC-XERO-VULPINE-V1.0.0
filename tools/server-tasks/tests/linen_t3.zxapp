@@ -1,0 +1,10 @@
+# T3 — linen: the inter-app contracts
+zxapp 1
+id linen_t3
+matrix 1
+name Linen T3
+# consumes app:dibber
+# consumes app:sheaf
+# consumes app:coppice
+# consumes app:glebe
+# consumes app:understory

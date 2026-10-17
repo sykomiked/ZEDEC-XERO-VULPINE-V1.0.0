@@ -1,0 +1,10 @@
+# T3 — tracery: the inter-app contracts
+zxapp 1
+id tracery_t3
+matrix 1
+name Tracery T3
+# consumes app:coppice
+# consumes app:verderer
+# consumes app:chainman
+# consumes app:fen
+# consumes app:understory

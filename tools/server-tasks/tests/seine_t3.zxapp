@@ -1,0 +1,10 @@
+# T3 — seine: the inter-app contracts
+zxapp 1
+id seine_t3
+matrix 1
+name Seine T3
+# consumes app:tributary
+# consumes app:updraft
+# consumes app:verderer
+# consumes app:millrace
+# consumes app:trellis

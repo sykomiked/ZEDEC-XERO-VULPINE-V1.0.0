@@ -1,0 +1,6 @@
+# T3 — satchel: the inter-app contracts
+zxapp 1
+id satchel_t3
+matrix 1
+name Satchel T3
+# consumes app:witness

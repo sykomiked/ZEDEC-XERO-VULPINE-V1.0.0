@@ -1,0 +1,9 @@
+# T3 — isthmus: the inter-app contracts
+zxapp 1
+id isthmus_t3
+matrix 1
+name Isthmus T3
+# consumes app:commons
+# consumes app:witness
+# consumes app:twelvefold
+# consumes app:sealwax

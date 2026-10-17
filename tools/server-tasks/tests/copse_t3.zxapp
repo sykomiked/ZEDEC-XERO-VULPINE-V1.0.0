@@ -1,0 +1,9 @@
+# T3 — copse: the inter-app contracts
+zxapp 1
+id copse_t3
+matrix 1
+name Copse T3
+# consumes app:relief
+# consumes app:tally
+# consumes app:gnomon
+# consumes app:bowline

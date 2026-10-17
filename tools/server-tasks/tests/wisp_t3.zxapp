@@ -1,0 +1,9 @@
+# T3 — wisp: the inter-app contracts
+zxapp 1
+id wisp_t3
+matrix 1
+name Wisp T3
+# consumes app:brazier
+# consumes app:waymark
+# consumes app:watchfire
+# consumes app:lifeboat

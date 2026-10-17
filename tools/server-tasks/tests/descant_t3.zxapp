@@ -1,0 +1,10 @@
+# T3 — descant: the inter-app contracts
+zxapp 1
+id descant_t3
+matrix 1
+name Descant T3
+# consumes app:hornbook
+# consumes app:lectern
+# consumes app:dibber
+# consumes app:freshet
+# consumes app:sapling

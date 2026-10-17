@@ -1,0 +1,9 @@
+# T3 — pavise: the inter-app contracts
+zxapp 1
+id pavise_t3
+matrix 1
+name Pavise T3
+# consumes app:gatehouse
+# consumes app:lockbox
+# consumes app:witness
+# consumes app:hedgerow

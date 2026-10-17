@@ -1,0 +1,10 @@
+# T3 — consort: the inter-app contracts
+zxapp 1
+id consort_t3
+matrix 1
+name Consort T3
+# consumes app:linkman
+# consumes app:watershed
+# consumes app:handfast
+# consumes app:tributary
+# consumes app:kindred

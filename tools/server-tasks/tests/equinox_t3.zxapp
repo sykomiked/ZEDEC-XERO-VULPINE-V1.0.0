@@ -1,0 +1,10 @@
+# T3 — equinox: the inter-app contracts
+zxapp 1
+id equinox_t3
+matrix 1
+name Equinox T3
+# consumes app:escapement
+# consumes app:varve
+# consumes app:cartulary
+# consumes app:solstice
+# consumes app:heirloom

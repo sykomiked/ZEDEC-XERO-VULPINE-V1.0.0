@@ -1,0 +1,10 @@
+# T3 — meander: the inter-app contracts
+zxapp 1
+id meander_t3
+matrix 1
+name Meander T3
+# consumes app:glyphwright
+# consumes app:burin
+# consumes app:typecase
+# consumes app:quillon
+# consumes app:runebook

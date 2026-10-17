@@ -1,0 +1,9 @@
+# T3 — trowel: the inter-app contracts
+zxapp 1
+id trowel_t3
+matrix 1
+name Trowel T3
+# consumes app:cellar
+# consumes app:bowline
+# consumes app:tallystick
+# consumes app:homestead
