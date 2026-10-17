@@ -1,0 +1,16 @@
+# the lattice-determined checks for satchel (app index 7)
+# every value below is computed from the 144-dim ladder, no model
+zxapp 1
+id satchel_lattice
+matrix 7
+name Satchel Lattice
+provides limit_excess num a0 a1
+provides count_ok truth a0 a1
+provides exact_total num a0 a1 a2 a3 a4
+provides share_x100 num a0 a1
+provides composite_key num a0 a1
+check limit_excess 0,1 = 1
+check count_ok 0,1 = both
+check exact_total 0,1,0,1,0 = 4
+check share_x100 0,1 = 1
+check composite_key 0,1 = 1
