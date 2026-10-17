@@ -224,6 +224,9 @@ vena                             settlement
 vhub                             settlement
 vinea/vna_econ                   settlement # agreements priced in swarm budgets
 vinea/vna_link                   settlement # includes vna_econ.h
+vinea/vna_exchange               settlement # 168-byte UBH-168 epistemic order book, spot audit & octane standing gate
+cisex_idx                        settlement # CISEX global IPFS index: dag-pb crawl, UBH-168 index records, EpistemicRank
+smic                             settlement # sovereign hardware provisioning: UBH-168 manifests, ML-DSA attestation, lpres ring admission
 vino                             settlement
 vino_stores                      settlement
 allotment                        settlement # Crown Allotment: ballots and the endowment on pay_util

@@ -131,6 +131,7 @@ SRCS := \
     kernel/arch/x86_64/x86_userspace.c \
     kernel/src/pmm/pmm.c \
     kernel/src/lpres/lpres.c \
+    kernel/src/lpres/lpres_hex.c \
     kernel/arch/x86_64/kernel_main_x86_64.c \
     kernel/arch/x86_64/hwplat_x86.c \
     kernel/arch/x86_64/bootmem_x86.c \
@@ -346,6 +347,12 @@ SRCS := \
     kernel/src/vinea/vna_kad.c \
     kernel/src/vinea/vna_lan.c \
     kernel/src/vinea/vna_link.c \
+    kernel/src/vinea/vna_exchange.c \
+    kernel/src/cisex_idx/cisex_idx.c \
+    kernel/src/cisex_idx/cisex_rt.c \
+    kernel/src/smic/smic_manifest.c \
+    kernel/src/smic/smic_verify.c \
+    kernel/src/smic/smic_core.c \
     kernel/src/vinea/vna_node.c \
     kernel/src/vinea/vna_schema.c \
     kernel/src/vinea/vna_session.c \
