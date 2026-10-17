@@ -92,6 +92,7 @@ def run_task(task):
         "--top-p", "0.9",
         "--seed", LLAMA_SEED,
         "-c", LLAMA_CTX,
+        "--single-turn",
         "--no-display-prompt",
     ]
     if LLAMA_NGPU != "0":
