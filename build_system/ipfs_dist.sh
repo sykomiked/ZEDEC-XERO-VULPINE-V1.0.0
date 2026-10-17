@@ -55,8 +55,15 @@ for pass in 1 2; do
   for a in "${ARCHS[@]}"; do
     GOLDEN_LAYERS="$OUT/layers$pass" bash build_system/mk_golden_disc.sh "$a"
   done
+  # the web app tree: the doorway, the boot and its files, the icons,
+  # the bank, the docs, and the seal-time boot.json/boot.pack built over
+  # the staged tree — the bucket's root carries the browser app whole.
+  rm -rf "$OUT/tree$pass"; mkdir -p "$OUT/tree$pass"
+  python3 tools/web/stage_release_tree.py "$OUT/tree$pass" \
+    --web web/intro web/boot --icons zxv-brand/app-icons/zxvg \
+    --bank build/seedbank/icons-fonts.bank --docs docs
   python3 build_system/mk_bucket.py --discs dist/discs --out "$OUT/pass$pass" \
-    --architecture "$DOC" --layers "$OUT/layers$pass"
+    --architecture "$DOC" --layers "$OUT/layers$pass" --tree "$OUT/tree$pass"
   { for a in "${ARCHS[@]}"; do
       (cd dist/discs && sha256sum "zxv-$a-disc1-core.img"); done
     echo "layers $(cat "$OUT/layers$pass/L2.cid")"
