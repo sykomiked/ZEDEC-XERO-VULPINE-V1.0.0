@@ -1,0 +1,15 @@
+# The curzi8889 MCP server packaging: the PyPI + npm distribution.
+name = "curzi8889-mcp"
+version = "0.1.0"
+description = "Model Context Protocol server for the ZXV 36n9/9n63 planes: seed banks, CISEX search, telemetry, spaces"
+license = "Apache-2.0"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["curzi8889_mcp"]
+
+[project.scripts]
+curzi8889-mcp = "curzi8889_mcp:main"
