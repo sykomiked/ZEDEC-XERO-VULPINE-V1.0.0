@@ -103,3 +103,16 @@ Truth entries use the four values: `true`, `false`, `both`, `neither` —
 never 0/1. `both` is a claim that holds and is contradicted; `neither` is
 one with no evidence. The kernel's conjoin/disjoin follow its chain
 ordering (`lpres_conjoin`/`lpres_disjoin`), never Belnap's lattice.
+
+## The unsolved bridge (a genuine architectural finding)
+
+A truth entry implemented in **two** runtimes (the real apps' `fee_ok` in
+Sutra + Kron + Eve) hits a type boundary: the Eve block answers a **truth**
+while the Kron expression answers a **number** (0/1), and the kernel's
+join reads those as a disagreement (BOTH) where the meaning is the same.
+The `∧` operator is not in the tokenizer's accepted spelling, so the
+logical (truth-valued) AND is not reachable from Kron today. Until that
+bridge exists, a truth entry is authored in ONE runtime and the second
+runtime is omitted; the check then expects the single language's values.
+This is the one place the four-valued design and the pillar runtimes do
+not yet meet, and it is named here rather than hidden.
