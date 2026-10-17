@@ -48,8 +48,10 @@ static uint32_t build(uint8_t *buf, uint32_t cap, const uint8_t *const *digests,
         e[33] = (uint8_t) (off >> 16);
         e[34] = (uint8_t) (off >> 8);
         e[35] = (uint8_t) off;
-        e[36] = (uint8_t) (seeds_len[i] >> 8);
-        e[37] = (uint8_t) seeds_len[i];
+        e[36] = (uint8_t) (seeds_len[i] >> 24);
+        e[37] = (uint8_t) (seeds_len[i] >> 16);
+        e[38] = (uint8_t) (seeds_len[i] >> 8);
+        e[39] = (uint8_t) seeds_len[i];
         if (at + seeds_len[i] > cap) return 0;
         memcpy(buf + at, seeds[i], seeds_len[i]);
         at += (seeds_len[i] + SB_ALIGN - 1) & ~(SB_ALIGN - 1u);

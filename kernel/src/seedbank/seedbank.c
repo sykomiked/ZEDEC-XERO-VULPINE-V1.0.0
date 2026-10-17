@@ -11,10 +11,6 @@ static uint32_t rd32(const uint8_t *p)
            (uint32_t) p[3];
 }
 
-static uint16_t rd16(const uint8_t *p)
-{
-    return (uint16_t) (((uint16_t) p[0] << 8) | (uint16_t) p[1]);
-}
 
 static int digest_cmp(const uint8_t a[SB_DIGEST_LEN], const uint8_t b[SB_DIGEST_LEN])
 {
@@ -66,7 +62,7 @@ const uint8_t *sb_find(const sb_bank_t *b, const uint8_t digest[SB_DIGEST_LEN],
         c = digest_cmp(t, digest);
         if (c == 0) {
             uint32_t off = rd32(t + 32);
-            uint32_t n = rd16(t + 36);
+            uint32_t n = rd32(t + 36);
             if ((uint64_t) b->payload_off + off + n > b->len) return NULL;
             if (out_len) *out_len = n;
             return b->base + b->payload_off + off;

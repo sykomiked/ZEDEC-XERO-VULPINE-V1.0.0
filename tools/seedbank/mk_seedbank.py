@@ -15,7 +15,7 @@ import sys
 
 SB_ALIGN = 16
 SB_HEADER = 32
-SB_ENTRY = 38
+SB_ENTRY = 40
 
 
 def main():
@@ -56,10 +56,10 @@ def main():
     at = payload_off
     for digest, data in entries:
         off = at - payload_off
-        assert len(data) <= 0xFFFF, "a seed larger than 65535 bytes"
+        
         buf += digest
         buf += struct.pack(">I", off)
-        buf += struct.pack(">H", len(data))
+        buf += struct.pack(">I", len(data))
         at += len(data)
         at = (at + SB_ALIGN - 1) & ~(SB_ALIGN - 1)
     payload = bytearray(b"\x00" * (at - payload_off))

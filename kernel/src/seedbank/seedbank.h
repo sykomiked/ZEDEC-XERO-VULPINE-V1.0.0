@@ -16,7 +16,7 @@
  *   32  jump table: count x 38 bytes, sorted by digest:
  *          digest[32]  the seed's content digest (sha256 of its bytes)
  *          off     u32  payload offset (from byte 0)
- *          len     u16  payload length
+ *          len     u32  payload length
  *   ... payload arena: the seeds back-to-back, each aligned to 16.
  *
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
@@ -31,7 +31,7 @@
 #define SB_MAGIC      0x5a585342u /* "ZXSB" big-endian */
 #define SB_VERSION    1u
 #define SB_ALIGN      16u
-#define SB_ENTRY      38u /* digest 32 + off 4 + len 2 */
+#define SB_ENTRY      40u /* digest 32 + off 4 + len 4 */
 #define SB_HEADER     32u
 #define SB_DIGEST_LEN 32u
 #define SB_MAX_COUNT  65535u
