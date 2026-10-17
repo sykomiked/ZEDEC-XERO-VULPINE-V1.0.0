@@ -272,3 +272,42 @@ total-table) at its new arity before the next stage begins. The chain is
 stable at every Fibonacci milestone (4/5, 8, 13, 21, …), and a stage that
 does not hold blocks the next — the same hard-gate discipline as the
 verification tiers.
+
+## The 144-phase ladder — supported from the get-go
+
+**Yes, 144 phases are doable from the start**, and 144 is not arbitrary: it
+is **F12**, the twelfth Fibonacci number (1, 2, 3, 5, 8, 13, 21, 34, 55,
+89, **144**). The ladder is generated, not hand-maintained:
+
+```sh
+python3 tools/agent_loop/mk_lpres_phases.py --max 144
+# -> kernel/src/lpres/lpres_phases.h: 145 states (0..144)
+#    the frozen four (0..3), the gateway (4), the phases (5..144)
+```
+
+Why it costs almost nothing:
+
+- **The operators are O(1).** conjoin and disjoin are min/max on the rank
+  table, so 144 phases need 144 rank entries — not a 144² operator table.
+  The rank compare is the same one instruction it is at four phases.
+- **Every table and loop iterates `LPRES_STATE_COUNT`.** A phase is data;
+  nothing is hard-coded to a small arity.
+- **The tests generate.** The exhaustive conjoin/disjoin table is 145² ≈
+  21,000 ordered pairs per operator — but the *test* does not enumerate
+  them by hand: it asserts the algebra's properties (associativity,
+  commutativity, the identity, the dominators, the never-authorise guard)
+  over the whole ladder, which is a handful of checks that cover all
+  21,000 pairs. This is why the ratio climbs: the test code is the
+  *property* proof, not the enumeration.
+- **The never-authorise guard scales for free.** A phase's rank is below
+  TRUE, so no mix of non-TRUE phases can yield TRUE — the explosion guard
+  is a property of the ordering, true at 5 phases or 144.
+
+### What the H100 must verify at each milestone
+
+At every Fibonacci milestone (5, 8, 13, 21, 34, 55, 89, 144) the three
+guards must pass at the new arity: the frozen-four (0..3 unchanged), the
+never-authorise (no non-TRUE mix yields TRUE), and the total-table (the
+operators are defined for every pair — proven by the algebraic properties,
+not enumerated). A milestone that does not hold blocks the next, exactly
+as the verification tiers gate each other.
