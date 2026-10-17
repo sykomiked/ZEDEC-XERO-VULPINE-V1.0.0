@@ -151,6 +151,7 @@ identity                         trust
 seats                            trust      # device accounts and login; hashes passphrases with ident Argon2id
 immigration                      trust
 ipfs                             trust      # ipfs.h includes update.h (signed update buckets)
+ipfs/ipfs_pin                    trust      # the recursive pinner: walks a CID set through the self-certifying get and pins each confirmed object
 loader                           trust
 mage                             trust
 mlkem                            trust

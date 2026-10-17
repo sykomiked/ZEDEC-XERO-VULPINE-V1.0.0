@@ -177,6 +177,7 @@ ZXV_COMMON_SRCS := \
     kernel/src/interspace/lex_rhodia.c \
     kernel/src/interspace/minister.c \
     kernel/src/ipfs/ipfs.c \
+    kernel/src/ipfs/ipfs_pin.c \
     kernel/src/iphase/iphase_core.c \
     kernel/src/iso20022/iso20022.c \
     kernel/src/keyboard/keyboard.c \

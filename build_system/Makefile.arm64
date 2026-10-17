@@ -479,6 +479,7 @@ KERNEL_SRCS = \
     kernel/src/onepolicy/onepolicy.c \
     kernel/src/zcapital/zcapital.c \
     kernel/src/ipfs/ipfs.c \
+    kernel/src/ipfs/ipfs_pin.c \
     kernel/src/crown/crown.c \
     kernel/src/ministry/ministry.c \
     kernel/src/vino_stores/vino_stores.c \
