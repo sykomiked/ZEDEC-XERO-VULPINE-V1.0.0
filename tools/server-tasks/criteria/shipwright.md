@@ -1,0 +1,66 @@
+# Criteria — shipwright
+
+| | |
+|---|---|
+| app | `shipwright` |
+| matrix layer | 190 |
+| icon group | L2 |
+| wave spec | `wave15/190-shipwright.md` |
+
+## Purpose
+
+forecasts tides, floods and surges for districts (`place.here`, `place.list`) and sends alerts to people in harm's way (`pspace.post`) once a person approves, with history from `journal.query`. zxvd has no method for gauge and tide readings: use only existing methods; list what's missing in your report.
+
+## Capabilities (needs — the exact registry names)
+
+- `location`
+- `journal`
+- `peers`
+- `net`
+- `notify`
+
+## Entries and languages (from the spec's Logic line)
+
+(the spec names no Logic line; assign per the language matrix)
+
+## The language matrix rows for this app
+
+| language | runtime | feature |
+|---|---|---|
+| C | c | view and model |
+| COBOL | sutra | incident accounts |
+| FORTRAN | trebago | flood model |
+| Ada | eve | alert thresholds |
+| APL | kron | gauge grid |
+| MUMPS | myra | district tree |
+| Erlang | - | messaging |
+
+## The manifest contract (the exact grammar the node parses)
+
+```
+zxapp 1
+id shipwright
+matrix 190        # the graph's slot IS the matrix layer
+name Shipwright
+needs location
+needs journal
+needs peers
+needs net
+needs notify
+provides <entry> num|truth <arg>[,<arg>...]
+logic <lang> <entry> <<
+<source>
+.
+check <entry> <arg>=<int>[,<int>...] = <answer>[,<answer>...]
+```
+
+Rules the loader enforces (a violation refuses the manifest):
+
+- Every `provides` entry must have at least one `logic` line.
+- Every `logic` entry must have a `check` line with exact answers.
+- The checks' inputs are integers; answers are integers, `n/d`,
+  `true`, `false`, `neither`, or the word `both` (two languages
+  disagreeing).
+- A truth entry's checks use the four-valued answers, never 0/1.
+- Inline sources end with a line containing only `.`.
+

@@ -1,0 +1,68 @@
+# Criteria — pannier
+
+| | |
+|---|---|
+| app | `pannier` |
+| matrix layer | 150 |
+| icon group | L2 |
+| wave spec | `wave12/150-pannier.md` |
+
+## Purpose
+
+carries messages and data parcels store-and-forward between peers (`net.peers`, `peer.status`), cut into freights that survive lost packets (`freight.pack`, `freight.unpack`), with the queue in the Hoard (`files.read`, `files.write`). zxvd has no method for a store-and-forward relay queue in the daemon: use only existing methods; list what's missing in your report.
+
+## Capabilities (needs — the exact registry names)
+
+- `peers`
+- `net`
+- `fs.read`
+- `fs.write`
+- `notify`
+
+## Entries and languages (from the spec's Logic line)
+
+(the spec names no Logic line; assign per the language matrix)
+
+## The language matrix rows for this app
+
+| language | runtime | feature |
+|---|---|---|
+| C | c | view and model |
+| COBOL | sutra | delivery receipts |
+| FORTRAN | trebago | route timing |
+| Ada | eve | retry limits |
+| APL | kron | queue arrays |
+| MUMPS | myra | parcel tree |
+| Elixir | - | messaging |
+| SNOBOL | - | text |
+| C# | dotnet | domain objects |
+
+## The manifest contract (the exact grammar the node parses)
+
+```
+zxapp 1
+id pannier
+matrix 150        # the graph's slot IS the matrix layer
+name Pannier
+needs peers
+needs net
+needs fs.read
+needs fs.write
+needs notify
+provides <entry> num|truth <arg>[,<arg>...]
+logic <lang> <entry> <<
+<source>
+.
+check <entry> <arg>=<int>[,<int>...] = <answer>[,<answer>...]
+```
+
+Rules the loader enforces (a violation refuses the manifest):
+
+- Every `provides` entry must have at least one `logic` line.
+- Every `logic` entry must have a `check` line with exact answers.
+- The checks' inputs are integers; answers are integers, `n/d`,
+  `true`, `false`, `neither`, or the word `both` (two languages
+  disagreeing).
+- A truth entry's checks use the four-valued answers, never 0/1.
+- Inline sources end with a line containing only `.`.
+

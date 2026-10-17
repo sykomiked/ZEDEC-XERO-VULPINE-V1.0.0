@@ -1,0 +1,68 @@
+# Criteria — skillet
+
+| | |
+|---|---|
+| app | `skillet` |
+| matrix layer | 159 |
+| icon group | L2 |
+| wave spec | `wave13/159-skillet.md` |
+
+## Purpose
+
+turns meal plans into pantry checks, shopping lists and cooking timers for a household, kept in the Hoard (`files.read`, `files.write`), with spend from the books (`ledger.entries`) and time from `sys.info`. zxvd has no method for timer and notice post (as Sundial reports): use only existing methods; list what's missing in your report.
+
+## Capabilities (needs — the exact registry names)
+
+- `fs.read`
+- `fs.write`
+- `ledger.read`
+- `sys.read`
+- `notify`
+
+## Entries and languages (from the spec's Logic line)
+
+(the spec names no Logic line; assign per the language matrix)
+
+## The language matrix rows for this app
+
+| language | runtime | feature |
+|---|---|---|
+| C | c | view and model |
+| COBOL | sutra | grocery spend |
+| FORTRAN | trebago | portion scaling |
+| Ada | eve | allergen limits |
+| APL | kron | pantry grid |
+| MUMPS | myra | household tree |
+| JCL | - | jobs |
+| IPL | - | lists |
+| Simula 67 | - | simulation |
+
+## The manifest contract (the exact grammar the node parses)
+
+```
+zxapp 1
+id skillet
+matrix 159        # the graph's slot IS the matrix layer
+name Skillet
+needs fs.read
+needs fs.write
+needs ledger.read
+needs sys.read
+needs notify
+provides <entry> num|truth <arg>[,<arg>...]
+logic <lang> <entry> <<
+<source>
+.
+check <entry> <arg>=<int>[,<int>...] = <answer>[,<answer>...]
+```
+
+Rules the loader enforces (a violation refuses the manifest):
+
+- Every `provides` entry must have at least one `logic` line.
+- Every `logic` entry must have a `check` line with exact answers.
+- The checks' inputs are integers; answers are integers, `n/d`,
+  `true`, `false`, `neither`, or the word `both` (two languages
+  disagreeing).
+- A truth entry's checks use the four-valued answers, never 0/1.
+- Inline sources end with a line containing only `.`.
+
