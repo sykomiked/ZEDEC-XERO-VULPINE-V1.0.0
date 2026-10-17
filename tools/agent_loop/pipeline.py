@@ -235,7 +235,9 @@ def intelligence(prompt, tokens, tries=4):
         try:
             body = json.dumps({"model": IO_MODEL,
                                "messages": [{"role": "user", "content": prompt}],
-                               "max_tokens": tokens, "temperature": 0.3}).encode()
+                               "max_tokens": max(tokens, 3000),
+                               "reasoning": {"exclude": True},
+                               "temperature": 0.3}).encode()
             req = urllib.request.Request(IO_URL, data=body,
                                          headers={"Authorization": "Bearer " + IO_KEY,
                                                   "Content-Type": "application/json"})
@@ -281,10 +283,12 @@ def openrouter(prompt, tokens, tries=4):
 
 
 def vllm(prompt, tokens):
-    if OR_KEY:
-        return openrouter(prompt, tokens)
+    # IO Intelligence first: it sustained 3/3 where the OpenRouter free tier
+    # throttled; OpenRouter is the fallback.
     if IO_KEY:
         return intelligence(prompt, tokens)
+    if OR_KEY:
+        return openrouter(prompt, tokens)
     body = json.dumps({"model": VLLM_MODEL,
                        "messages": [{"role": "user", "content": prompt}],
                        "max_tokens": tokens, "temperature": 0.6, "top_p": 0.9}).encode()
