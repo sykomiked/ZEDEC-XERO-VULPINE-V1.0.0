@@ -213,3 +213,62 @@ The gateway's properties:
 So the arity is: **four truths, one gateway, unbounded phases.** The
 earlier note that flagged "four vs five" as a conflict is resolved: both
 are right — four values, and the fifth is the door.
+
+## The Fibonacci logic chain — the phases scale by the sequence
+
+The phases do not grow one at a time. They grow in **Fibonacci steps**,
+and the first step is a **pair**:
+
+```
+phase 1, 2, 3      the base (the three that make the four)
+phase 4 and 5      A PAIR — the first paradox-operator tandem
+phase 8            the next step: +3 paradox operators
+phase 13           the next step: +5 paradox operators
+...                the increments are the Fibonacci numbers 2, 3, 5, 8, 13, ...
+```
+
+The rules that fall out:
+
+1. **4 and 5 are a pair.** Phase 4 is the **bridge**: it is two things at
+   once (the entry to the paradox layer and the first paradox operator
+   itself). Phase 5 is its tandem partner. The two work **in tandem** —
+   they are the first two paradox operators, and together they are the
+   pair that opens the higher-dimensional logic.
+2. **The paradox operators are the usable code.** A paradox operator is
+   not an abstraction: it is a function that takes the four-valued (and
+   higher) inputs and returns a defined result — the way `lpres_conjoin`
+   and `lpres_disjoin` are functions today. Higher-dimensional logic is
+   exactly this: more operators, each a real, callable function.
+3. **The next step after the pair is 8** — three more paradox operators
+   on top of the first two, giving a stable paraconsistent chain at eight
+   phases.
+4. **Then 13** — five more operators, and the chain holds at thirteen.
+5. **The increments are Fibonacci (2, 3, 5, 8, 13, …).** Each step adds
+   the next Fibonacci count of paradox operators, and the pattern builds
+   endlessly.
+
+### The plus/minus pair (the test-code naming)
+
+The two operators of a pair are the **plus and the minus** of the logic —
+not "positive" and "negative" (those are the value spaces). The plus
+operator and the minus operator work in tandem: the plus extends the
+chain upward (the join side), the minus extends it downward (the meet
+side), and together they are the pair. Every Fibonacci step adds a new
+plus/minus tandem.
+
+### What this means for the mechanism
+
+`LPRES_STATE_COUNT` is still the arity, but the extension is **staged**:
+
+- **Stage 0**: the four foundation values (frozen).
+- **Stage 1**: the pair (phases 4 and 5) — the bridge and its tandem, the
+  first two paradox operators, each a callable function.
+- **Stage 2**: phase 8 — three more operators (the step is +3).
+- **Stage 3**: phase 13 — five more (the step is +5).
+- **Stage n**: the next Fibonacci count of operators.
+
+Each stage must pass the three guards (frozen-four, never-authorise,
+total-table) at its new arity before the next stage begins. The chain is
+stable at every Fibonacci milestone (4/5, 8, 13, 21, …), and a stage that
+does not hold blocks the next — the same hard-gate discipline as the
+verification tiers.
