@@ -159,6 +159,10 @@ def main():
         lines.append("logic %s %s <<" % (lang, p["name"]))
         lines.extend(body.split("\n"))
         lines.append(".")
+        if p.get("witness_body"):
+            lines.append("logic %s %s <<" % (p["witness_lang"], p["name"]))
+            lines.extend(p["witness_body"].replace("{app}", args.app_id).split("\n"))
+            lines.append(".")
     for p in rows:
         lines.append(p["checks"])
     man = "\n".join(lines) + "\n"
