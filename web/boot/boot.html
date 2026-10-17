@@ -17,6 +17,18 @@
 <body>
 <canvas id="screen" aria-label="ZXV is starting"></canvas>
 <div id="why" role="status" aria-live="polite"></div>
+<form id="card" autocomplete="off"
+      style="position:fixed;left:14px;bottom:14px;display:none;gap:6px;
+             background:rgba(0,31,12,.82);border:1px solid #1a4a2e;border-radius:8px;
+             padding:7px 9px;font:13px ui-monospace,Menlo,monospace">
+  <label for="cardid" style="color:#7BA98D">player card</label>
+  <input id="cardid" size="20" spellcheck="false"
+         placeholder="e.g. BSC-0-1870892d"
+         style="background:#001f0c;border:1px solid #1a4a2e;border-radius:5px;
+                color:#D8F5E1;padding:4px 7px;font:inherit">
+  <button type="submit" style="background:#003d1a;color:#F2C230;border:1px solid #F2C230;
+          border-radius:5px;padding:4px 10px;font:inherit;cursor:pointer">seat</button>
+</form>
 <script src="boot.js"></script>
 </body>
 </html>

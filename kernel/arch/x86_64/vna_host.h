@@ -139,6 +139,12 @@ typedef struct {
     uint32_t smic_in, smic_quar; /* manifests admitted, quarantine actions */
     uint32_t exch_in, env_pubs;  /* exchange envelopes in, env records out */
     uint32_t idx_in, idx_out;    /* CISX index records merged in / published out */
+    /* The player-card seat: verifies a (card id, pin) against the ledger.
+     * NULL = the door answers every card with a refusal. */
+    int (*card_check)(void *ctx, const uint8_t *id, uint32_t id_len, const uint8_t *pin,
+                      uint32_t pin_len);
+    void *card_ctx;
+    uint32_t cards_ok, cards_bad; /* seated / refused players */
     uint8_t up;
 } vna_host_t;
 

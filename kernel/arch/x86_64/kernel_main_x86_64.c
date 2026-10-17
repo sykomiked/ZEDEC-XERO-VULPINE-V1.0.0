@@ -43,6 +43,49 @@
 #include "loader/abupdate.h"  /* signed A/B slots on top of it */
 #include "hwdrv/hw_models.h"  /* golden disc models, checked after boot */
 #include "swarmnet/swarmnet.h"  /* missing swarm discs over the network */
+#include "robin_debanks/sha256.h"
+#include "vinea/vna_common.h"
+
+/* The player-card seat: a card id that the vino ledger holds, with the pin
+ * derived from the node's stable owner secret (the same seed that makes its
+ * identity), so nothing is stored and the check is the same on every boot
+ * of this machine. The pin is the first eight bytes of
+ * SHA-256("zxv/card/pin/v1" || owner || id), sent as 16 hex digits. */
+struct card_ctx_t {
+    vino_ledger_t *vino;
+    const uint8_t *mac;
+};
+
+static int card_seat(void *ctx, const uint8_t *id, uint32_t id_len, const uint8_t *pin,
+                     uint32_t pin_len)
+{
+    struct card_ctx_t *cc = (struct card_ctx_t *) ctx;
+    vino_ledger_t *v = cc->vino;
+    const uint8_t *mac = cc->mac;
+    sha256_ctx_t c;
+    uint8_t owner[32], expect[32];
+    char acc[65];
+    static const char hex[] = "0123456789abcdef";
+    uint32_t i;
+    if (!v || !mac || !id || !pin || id_len == 0 || id_len > 63 || pin_len != 16) return 1;
+    vna_copy((uint8_t *) acc, id, id_len);
+    acc[id_len] = 0;
+    if (!vino_get_account(v, acc)) return 1;
+    sha256_init(&c);
+    sha256_update(&c, (const uint8_t *) "zxv/vinea/node/v1", 17);
+    sha256_update(&c, mac, NET_MAC_LEN);
+    sha256_final(&c, owner);
+    sha256_init(&c);
+    sha256_update(&c, (const uint8_t *) "zxv/card/pin/v1", 15);
+    sha256_update(&c, owner, 32);
+    sha256_update(&c, id, id_len);
+    sha256_final(&c, expect);
+    for (i = 0; i < 8; i++) {
+        if (pin[2 * i] != (uint8_t) hex[expect[i] >> 4]) return 1;
+        if (pin[2 * i + 1] != (uint8_t) hex[expect[i] & 15]) return 1;
+    }
+    return 0;
+}
 #include "vna_host.h"           /* the Vinea (Web4) node, over the same link */
 #include "layers/layers_boot.h" /* the release lineage L0 -> L1 -> L2, before BOOT_OK */
 #include "manifest_hashes.h"    /* L0 and the swarm discs this kernel was built after */
@@ -652,6 +695,13 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
                     vna_host_start(&vna, &link, models.peer, models.npeer, door_src_of(&models),
                                    x86_has_rdrand() ? x86_rdrand32 : 0)) {
                     vna_report_next = x86_ms(0) + 60000u;
+                    vna.card_check = card_seat;
+                    {
+                        static struct card_ctx_t card_ctx;
+                        card_ctx.vino = vino;
+                        card_ctx.mac = link.nic->mac;
+                        vna.card_ctx = &card_ctx;
+                    }
                 }
                 if (missing && models.cid[0]) {
                     fetch.p = hp;

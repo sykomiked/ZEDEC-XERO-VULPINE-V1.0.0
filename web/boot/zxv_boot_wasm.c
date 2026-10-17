@@ -51,9 +51,18 @@ static zui_glyph_cache_t GC;
 static zui_text_t T_BIG, T_SMALL, T_INI;
 static zui_login_fonts_t FONTS;
 static bool have_font;
-static const zui_login_person_t PEOPLE[] = {
+/* The vault's people: the guest, plus player cards the page seats (each a
+ * vino account the door verifies with the pin below). The card's person
+ * shows on the login screen with a pass field; the page answers the pin. */
+#define ZXV_CARDS 4u
+static zui_login_person_t PEOPLE[1 + ZXV_CARDS] = {
     {"Guest", 0, ZUI_LOCK_NONE, true},
 };
+static char CARD_NAME[ZXV_CARDS][24];
+static uint32_t n_cards;
+static char PIN_BUF[16]; /* the typed pin, hex digits */
+static uint32_t pin_len;
+static int card_pending; /* a locked person waiting on the page's answer */
 static zui_login_t LOGIN = {PEOPLE, 1, 0, 0, 0, false, false, 0, 0, 0, 0, 0, 0, 0};
 
 static void draw_login(zui_surface_t *b, int32_t w, int32_t h)
@@ -381,10 +390,17 @@ EXPORT(zb_pointer) int zb_pointer(int type, int32_t x, int32_t y, int button)
             draw_login(&B, S.w, S.h); /* the chosen person moved */
             return 1;
         }
-        if (h == ZUI_LOGIN_ENTER && LOGIN.people[LOGIN.chosen].lock == ZUI_LOCK_NONE) {
-            MODE = 2;
-            if (!desk_up) desk_init();
-            return 1;
+        if (h == ZUI_LOGIN_ENTER) {
+            if (LOGIN.people[LOGIN.chosen].lock == ZUI_LOCK_NONE) {
+                MODE = 2;
+                if (!desk_up) desk_init();
+                return 1;
+            }
+            if (pin_len >= 8 && !card_pending) {
+                card_pending = (int) LOGIN.chosen + 1;
+                return 1;
+            }
+            return 0;
         }
         return 0;
     }
@@ -420,7 +436,35 @@ EXPORT(zb_key) int zb_key(int key, int down, int mods)
 {
     if (MODE == 1) {
         if (!down) return 0;
-        if (key == ZUI_KEY_ENTER && LOGIN.people[LOGIN.chosen].lock == ZUI_LOCK_NONE) {
+        uint8_t lock = LOGIN.people[LOGIN.chosen].lock;
+        if (lock != ZUI_LOCK_NONE) {
+            /* the pass field: hex digits, backspace, Enter asks the page */
+            if (key == ZUI_KEY_ENTER) {
+                if (pin_len >= 8 && !card_pending) {
+                    card_pending = (int) LOGIN.chosen + 1;
+                    return 1;
+                }
+                return 0;
+            }
+            if (key == ZUI_KEY_BACKSPACE) {
+                if (pin_len) {
+                    pin_len--;
+                    LOGIN.typed = pin_len;
+                    draw_login(&B, S.w, S.h);
+                }
+                return 1;
+            }
+            if (pin_len < sizeof PIN_BUF &&
+                ((key >= '0' && key <= '9') || (key >= 'a' && key <= 'f') ||
+                 (key >= 'A' && key <= 'F'))) {
+                PIN_BUF[pin_len++] = (char) key;
+                LOGIN.typed = pin_len;
+                draw_login(&B, S.w, S.h);
+                return 1;
+            }
+            return 0;
+        }
+        if (key == ZUI_KEY_ENTER) {
             MODE = 2;
             if (!desk_up) desk_init();
             return 1;
@@ -450,6 +494,65 @@ EXPORT(zb_key) int zb_key(int key, int down, int mods)
 EXPORT(zb_desk) int zb_desk(void)
 {
     return MODE;
+}
+
+/* Seat a player card on the login screen: adds a person with a pass field.
+ * Returns the person's index + 1, or 0 when the rail is full. */
+EXPORT(zb_card) uint32_t zb_card(const char *name)
+{
+    uint32_t i, n = 0;
+    if (!name || MODE > 1 || LOGIN.n > ZXV_CARDS) return 0;
+    while (name[n] && n < sizeof CARD_NAME[0] - 1) n++;
+    for (i = 0; i < n_cards; i++)
+        if (CARD_NAME[i][0] == 0) break;
+    if (i == n_cards) {
+        if (n_cards >= ZXV_CARDS) return 0;
+        i = n_cards++;
+    }
+    for (uint32_t j = 0; j < n; j++) CARD_NAME[i][j] = name[j];
+    CARD_NAME[i][n] = 0;
+    PEOPLE[1 + i].name = CARD_NAME[i];
+    PEOPLE[1 + i].color = 0;
+    PEOPLE[1 + i].lock = ZUI_LOCK_PASS;
+    PEOPLE[1 + i].guest = false;
+    if (LOGIN.n <= 1 + i) LOGIN.n = 1 + i + 1;
+    draw_login(&B, S.w, S.h);
+    return i + 2;
+}
+
+/* A locked person pressed Enter with a full pin: the index + 1 the page
+ * must answer, 0 when nothing is waiting. */
+EXPORT(zb_card_pending) uint32_t zb_card_pending(void)
+{
+    return card_pending > 0 ? (uint32_t) card_pending : 0;
+}
+
+EXPORT(zb_pin_buf) char *zb_pin_buf(void)
+{
+    return PIN_BUF;
+}
+
+EXPORT(zb_pin_len) uint32_t zb_pin_len(void)
+{
+    return pin_len;
+}
+
+/* The page's answer to a pending card: 0 seats the player, anything else
+ * shakes the login and clears the pin. */
+EXPORT(zb_card_result) int zb_card_result(int ok)
+{
+    if (card_pending <= 0) return -1;
+    card_pending = 0;
+    pin_len = 0;
+    LOGIN.typed = 0;
+    if (ok == 0) {
+        MODE = 2;
+        if (!desk_up) desk_init();
+        return 0;
+    }
+    LOGIN.wrong = true;
+    draw_login(&B, S.w, S.h);
+    return 0;
 }
 
 /* Which rail app's icon the page should stream in next: its index + 1, or 0

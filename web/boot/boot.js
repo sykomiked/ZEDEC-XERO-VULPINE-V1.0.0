@@ -270,6 +270,50 @@ async function boot()
     window.ZXV_L2 = l2;
     l2.connect();
 
+    // ---- the player-card seat -------------------------------------------
+    // A card the page adds appears on the login screen with a pass field.
+    // Enter with a full pin raises a pending seat; this loop answers it at
+    // the door (POST /card: [id_len][id][pin_len][pin hex]) and the wasm
+    // seats the player or shakes the login.
+    const CARD_IDS = [];
+    let cardBusy = false;
+    window.ZXV_CARD = (id) => {
+        const r = zb.zb_card(id);
+        if (r >= 2) CARD_IDS[r - 2] = id;
+        return r;
+    };
+    const cardForm = document.getElementById('card');
+    if (cardForm && zb.zb_card) {
+        cardForm.style.display = 'flex';
+        cardForm.addEventListener('submit', (ev) => {
+            ev.preventDefault();
+            const id = document.getElementById('cardid').value.trim();
+            if (id) window.ZXV_CARD(id);
+        });
+    }
+    function seatPending()
+    {
+        if (!zb.zb_card_pending || cardBusy) return;
+        const p = zb.zb_card_pending();
+        if (p < 2 || p - 2 >= CARD_IDS.length || !CARD_IDS[p - 2]) return;
+        cardBusy = true;
+        const plen = zb.zb_pin_len();
+        const pin = new Uint8Array(memory.buffer, zb.zb_pin_buf(), plen);
+        const pinText = new TextDecoder().decode(pin).toLowerCase();
+        const idb = new TextEncoder().encode(CARD_IDS[p - 2]);
+        const pinb = new TextEncoder().encode(pinText);
+        const body = new Uint8Array(1 + idb.length + 1 + pinb.length);
+        body[0] = idb.length;
+        body.set(idb, 1);
+        body[1 + idb.length] = pinb.length;
+        body.set(pinb, 2 + idb.length);
+        fetch('/card', {method : 'POST', body : new Blob([ body ], {type : 'text/plain'})})
+            .then((r) => r.arrayBuffer())
+            .then((ab) => zb.zb_card_result(ab.byteLength ? ab[0] : 1))
+            .catch(() => zb.zb_card_result(1))
+            .finally(() => { cardBusy = false; });
+    }
+
     let last = performance.now(), handed = false, manifest = null;
     let packBuf = null, iconInflight = -1, lastMode = -1;
 
@@ -350,6 +394,7 @@ async function boot()
         g.putImageData(img, 0, 0);
         sound.pump(ms);
         serveIcons();
+        seatPending();
         if (zb.zb_desk) {
             const mode = zb.zb_desk();
             if (mode !== lastMode) {

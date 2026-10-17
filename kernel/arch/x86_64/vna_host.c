@@ -1265,9 +1265,9 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
                     if (e == VNAH_EXT_N) {
                         uint32_t lo = 0;
                         uint16_t lv = VNAH_VEL_MAX;
-                        for (j = 0; j < VNAH_EXT_N; j++) {
+                        for (j = 0; j < (int) VNAH_EXT_N; j++) {
                             uint16_t v = 0;
-                            for (i = 0; i < g_cisex.count; i++)
+                            for (i = 0; i < (int) g_cisex.count; i++)
                                 if (g_cisex_ents[i].used &&
                                     vna_id_eq(&g_ext_sf[j].root,
                                               (const vna_id_t *) g_cisex_ents[i].digest))
@@ -1540,6 +1540,29 @@ static int32_t door_cisex(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t
     if (cisex_rt_handle(&g_cisex, in, in_len, g_cisex_region, out, cap, &n) != IPFSN_OK) return -1;
     cisex_vel_bump(out, n); /* demand evidence from the door queries */
     return (int32_t) n;
+}
+
+static int32_t door_card(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t *out, uint32_t cap)
+{
+    vna_host_t *h = (vna_host_t *) ctx;
+    uint32_t id_len, pin_len;
+    if (!h->card_check) return -1;
+    /* [id_len u8][id][pin_len u8][pin]; both bounded, id first */
+    if (in_len < 2 || in[0] == 0 || in[0] > 63) return -1;
+    id_len = in[0];
+    if (in_len < 1 + id_len + 1) return -1;
+    pin_len = in[1 + id_len];
+    if (pin_len == 0 || pin_len > 63 || in_len != 1 + id_len + 1 + pin_len) return -1;
+    if (cap < 1) return -1;
+    if (h->card_check(h->card_ctx, in + 1, id_len, in + 2 + id_len, pin_len) == 0) {
+        out[0] = 0;
+        h->cards_ok++;
+        bond_obs(BOND_APP_SEC, BOND_ACT_SESS, vna_now(h)); /* a player seated */
+        return 1;
+    }
+    out[0] = 1;
+    h->cards_bad++;
+    return 1;
 }
 
 /* The door's POST /smic: an empty body asks for the ring summary; a
@@ -2163,6 +2186,8 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
         }
         h->door.query2 = door_smic;
         h->door.qctx2 = h;
+        h->door.query3 = door_card;
+        h->door.qctx3 = h;
         /* self-supervision: one domain per running ring program */
         {
             char nid[9];

@@ -120,6 +120,8 @@ typedef struct {
     void *qctx;
     vna_door_query_fn query2;
     void *qctx2;
+    vna_door_query_fn query3; /* POST /card: the player-card seat */
+    void *qctx3;
     uint64_t now;
 } vna_door_t;
 
