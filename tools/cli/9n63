@@ -1,0 +1,29 @@
+#!/bin/sh
+# 9n63 — the state/ledger plane CLI: telemetry, ledger state and peer
+# health over the node's control surface.
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+set -eu
+
+AI_MANIFEST='{
+  "tool": "9n63",
+  "description": "the state/ledger plane: node telemetry, ledger books, trust state",
+  "commands": {
+    "telemetry": {"args": ["--url URL"], "action": "the node counters as key=value lines"},
+    "spaces": {"args": ["--url URL"], "action": "the shared spaces directory"},
+    "ledger": {"args": ["--url URL"], "action": "the node ledger summary (books, pool)"}
+  },
+  "endpoints": {"telemetry": "POST /telemetry", "spaces": "POST /spaces"}
+}'
+
+case "${1:-}" in
+  --ai-manifest) echo "$AI_MANIFEST"; exit 0 ;;
+  --version) echo "9n63 1.0.0"; exit 0 ;;
+  telemetry) shift; URL="${ZXV_URL:-http://127.0.0.1:8799}"
+    curl -s -m 10 -X POST -d "" "$URL/telemetry" ;;
+  spaces) shift; URL="${ZXV_URL:-http://127.0.0.1:8799}"
+    curl -s -m 10 -X POST -d "" "$URL/spaces" | xxd -p ;;
+  ledger) shift; URL="${ZXV_URL:-http://127.0.0.1:8799}"
+    curl -s -m 10 -X POST -d "" "$URL/telemetry" | grep -E "pool|vino|ledger" || echo "ledger summary: see the node's serial status line" ;;
+  *) echo "usage: 9n63 {telemetry|spaces|ledger|--ai-manifest|--version}" >&2; exit 2 ;;
+esac

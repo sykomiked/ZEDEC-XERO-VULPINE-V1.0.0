@@ -1,0 +1,54 @@
+#!/bin/sh
+# zxv — the ZXV OS node CLI: the daemon wrapper + the machine-readable
+# command manifest for autonomous agents (--ai-manifest).
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+set -eu
+
+ZXVD="${ZXVD:-zxvd}"
+AI_MANIFEST='{
+  "tool": "zxv",
+  "description": "ZXV OS node: run the daemon, query the node, manage the instance",
+  "commands": {
+    "daemon": {"args": ["--port N", "--control-port N"], "action": "start the local PoP node"},
+    "status": {"args": ["--url URL"], "action": "node telemetry as key=value lines"},
+    "bank": {"args": ["--digest HEX", "--url URL"], "action": "resolve a seed digest to its bank/offset"},
+    "search": {"args": ["--query TEXT", "--url URL"], "action": "CISEX keyword search, raw 168-byte envelopes"},
+    "instance": {"args": ["init|deploy", "--data-dir DIR", "--bind-port N"], "action": "provision a node instance"}
+  },
+  "endpoints": {"status": "POST /telemetry", "bank": "POST /bank", "search": "POST /cisex"}
+}'
+
+case "${1:-}" in
+  --ai-manifest) echo "$AI_MANIFEST"; exit 0 ;;
+  --version) echo "zxv 1.0.0"; exit 0 ;;
+  daemon)
+    shift
+    exec "$ZXVD" --no-lan-discovery "$@"
+    ;;
+  status)
+    URL="${ZXV_URL:-http://127.0.0.1:8799}"
+    curl -s -m 10 -X POST -d "" "$URL/telemetry"
+    ;;
+  bank)
+    D="${2:-}"
+    URL="${ZXV_URL:-http://127.0.0.1:8799}"
+    [ -n "$D" ] || { echo "usage: zxv bank --digest HEX [--url URL]" >&2; exit 2; }
+    D=$(printf '%s' "$D" | tr '[:upper:]' '[:lower:]')
+    [ "$(printf '%s' "$D" | wc -c)" = 64 ] || { echo "digest must be 64 hex chars" >&2; exit 2; }
+    curl -s -m 10 -X POST --data-binary "$(printf '%s' "$D" | xxd -r -p)" "$URL/bank" | xxd -p
+    ;;
+  search)
+    Q="${2:-}"
+    URL="${ZXV_URL:-http://127.0.0.1:8799}"
+    [ -n "$Q" ] || { echo "usage: zxv search --query TEXT [--url URL]" >&2; exit 2; }
+    printf '\x02\x00%s%s' "$(printf '%s' "$Q" | wc -c | awk '{printf "%02x", $1}')" "$Q" |
+      curl -s -m 10 -X POST --data-binary @- "$URL/cisex" | xxd -p
+    ;;
+  instance)
+    shift
+    echo "zxv instance: see the operator guide (docs/); headless deploy:"
+    echo "  zxv instance deploy --manifest /etc/zxv/zxv-config.json --headless"
+    ;;
+  *) echo "usage: zxv {daemon|status|bank|search|instance|--ai-manifest|--version}" >&2; exit 2 ;;
+esac

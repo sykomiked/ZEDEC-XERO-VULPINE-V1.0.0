@@ -1,0 +1,40 @@
+#!/bin/sh
+# 36n9 — the generative data plane CLI: 36n9:// URI resolution over the
+# nearest node's /bank (or the Filebase gateway fallback).
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+set -eu
+
+AI_MANIFEST='{
+  "tool": "36n9",
+  "description": "the 36n9 generative data plane: resolve URIs, slice seed banks",
+  "commands": {
+    "resolve": {"args": ["36n9://bank.<id>/<offset>|<ipfs/<cid>>"], "action": "resolve a 36n9 URI to its slice or gateway URL"},
+    "bank": {"args": ["--digest HEX", "--url URL"], "action": "seed digest to bank/offset (metadata)"},
+    "fetch": {"args": ["--bank URL"], "action": "download a seed bank for local slicing"}
+  },
+  "scheme": "36n9://",
+  "gateway": "https://ipfs.filebase.io/ipfs/<CID>"
+}'
+
+case "${1:-}" in
+  --ai-manifest) echo "$AI_MANIFEST"; exit 0 ;;
+  --version) echo "36n9 1.0.0"; exit 0 ;;
+  resolve)
+    U="${2:-}"
+    [ -n "$U" ] || { echo "usage: 36n9 resolve 36n9://..." >&2; exit 2; }
+    case "$U" in
+      36n9://ipfs/*)
+        CID=${U#36n9://ipfs/}
+        echo "https://ipfs.filebase.io/ipfs/$CID"
+        ;;
+      36n9://bank.*)
+        echo "resolve against a node: zxv bank --digest ... (the bank holds the slice)"
+        echo "gateway form: https://ipfs.filebase.io/ipfs/<bank-cid>"
+        ;;
+      *) echo "unrecognized 36n9 URI" >&2; exit 2 ;;
+    esac
+    ;;
+  bank) echo "use: zxv bank --digest HEX [--url URL]" ;;
+  *) echo "usage: 36n9 {resolve|bank|--ai-manifest|--version}" >&2; exit 2 ;;
+esac
