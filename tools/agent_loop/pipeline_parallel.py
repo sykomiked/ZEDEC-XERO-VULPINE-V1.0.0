@@ -89,17 +89,47 @@ def main():
         if args.limit and len(todo) >= args.limit:
             break
     log("batched pipeline: %d apps, %d workers" % (len(todo), args.workers))
+    failed = []
     with ThreadPoolExecutor(max_workers=args.workers) as ex:
-        futs = {ex.submit(one_app, o, n, args.attempts): o for o, n in todo}
+        futs = {ex.submit(one_app, o, n, args.attempts): (o, n) for o, n in todo}
         for f in as_completed(futs):
+            o, n = futs[f]
             o, ok, verdict = f.result()
+            # every failure keeps its verdict for review
+            with open(os.path.join(ROOT, "tools/agent_loop/results",
+                                   "app_%s.txt" % o), "w") as fh:
+                fh.write("# app %s: %s\n# verdict: %s\n" %
+                         (o, "PASSED" if ok else "FAILED", verdict))
             if ok:
                 PROGRESS["passed"] += 1
                 with open(args.state, "a") as fh:
                     fh.write(o + "\n")
             else:
                 PROGRESS["failed"] += 1
-            log("progress: %d passed, %d failed" % (PROGRESS["passed"], PROGRESS["failed"]))
+                failed.append((o, n))
+            log("progress: %d passed, %d failed (of %d)" %
+                (PROGRESS["passed"], PROGRESS["failed"],
+                 PROGRESS["passed"] + PROGRESS["failed"]))
+    # the retry pass: every failure is requeued immediately, with the fresh
+    # verdict already in the prompt (the resume-safe state skips the passed)
+    if failed:
+        log("== retry pass: %d apps ==" % len(failed))
+        with ThreadPoolExecutor(max_workers=max(4, args.workers // 2)) as ex:
+            futs = {ex.submit(one_app, o, n, args.attempts + 2): (o, n) for o, n in failed}
+            for f in as_completed(futs):
+                o, n = futs[f]
+                o, ok, verdict = f.result()
+                with open(os.path.join(ROOT, "tools/agent_loop/results",
+                                       "app_%s.txt" % o), "w") as fh:
+                    fh.write("# app %s: %s (retry)\n# verdict: %s\n" %
+                             (o, "PASSED" if ok else "FAILED", verdict))
+                if ok:
+                    PROGRESS["passed"] += 1
+                    PROGRESS["failed"] -= 1
+                    with open(args.state, "a") as fh:
+                        fh.write(o + "\n")
+                log("retry progress: %d passed, %d failed" %
+                    (PROGRESS["passed"], PROGRESS["failed"]))
     log("BATCHED DONE: %d passed, %d failed" % (PROGRESS["passed"], PROGRESS["failed"]))
     return 0
 
