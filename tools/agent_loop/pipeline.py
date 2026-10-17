@@ -250,7 +250,7 @@ def intelligence(prompt, tokens, tries=4):
 
 
 OR_KEY = os.environ.get("OPENROUTER_API_KEY", "")
-OR_MODEL = os.environ.get("OR_MODEL", "nvidia/nemotron-3-super-120b-a12b:free")
+OR_MODEL = os.environ.get("OR_MODEL", "poolside/laguna-s-2.1:free")
 OR_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
