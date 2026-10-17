@@ -23,7 +23,7 @@ int main(void)
     /* 1: 11% of a round yield, exactly (the hand-computed truth: 100000/10 = 11000) */
     {
         uint64_t o[TRIBUTE_N];
-        CHECK(tribute_split(100000, o));
+        CHECK(protocol_tribute_split(100000, o));
         CHECK(o[TRIBUTE_CROWN] == 11000);
         CHECK(o[TRIBUTE_MINISTRY] == 11000);
         CHECK(o[TRIBUTE_FOUNTAIN] == 11000);
@@ -35,7 +35,7 @@ int main(void)
         uint64_t o[TRIBUTE_N], yields[5] = {1, 999, 12345, 999999999, 18446744073709551615ull};
         for (int i = 0; i < 5; i++) {
             uint64_t want33 = (yields[i] / 100) * 33 + (yields[i] % 100) * 33 / 100;
-            CHECK(tribute_split(yields[i], o));
+            CHECK(protocol_tribute_split(yields[i], o));
             CHECK(o[0] + o[1] + o[2] == want33);
             CHECK(o[0] + o[1] + o[2] <= yields[i]);
         }
@@ -43,7 +43,7 @@ int main(void)
     /* 2b: the African Union is not a yield rail: its split share is zero */
     {
         uint64_t o[TRIBUTE_N];
-        CHECK(tribute_split(100000, o));
+        CHECK(protocol_tribute_split(100000, o));
         CHECK(o[TRIBUTE_AFRICAN_UNION] == 0);
     }
     /* 2c: the fountain's outflow: 11% of its balance, exactly */
@@ -58,9 +58,9 @@ int main(void)
      * three 3s leave 2) */
     {
         uint64_t o[TRIBUTE_N];
-        CHECK(tribute_split(1, o));
+        CHECK(protocol_tribute_split(1, o));
         CHECK(o[0] == 0 && o[1] == 0 && o[2] == 0);
-        CHECK(tribute_split(34, o));
+        CHECK(protocol_tribute_split(34, o));
         CHECK(o[TRIBUTE_CROWN] == 5 && o[TRIBUTE_MINISTRY] == 3 && o[TRIBUTE_FOUNTAIN] == 3);
     }
     /* 4: the addresses are the public identifiers, 64 hex chars each */
@@ -72,7 +72,7 @@ int main(void)
         CHECK(tribute_bps((tribute_rail_t) i) == 1100);
     }
     /* 6: a null out is refused (the prove-fail) */
-    CHECK(!tribute_split(100, 0));
+    CHECK(!protocol_tribute_split(100, 0));
     printf("test_tribute: %d checks, %d failed\n", 24, fails);
     return fails ? 1 : 0;
 }

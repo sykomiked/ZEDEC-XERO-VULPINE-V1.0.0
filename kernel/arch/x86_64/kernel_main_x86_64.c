@@ -31,6 +31,7 @@
 #include "identity/identity.h"
 #include "quantum/quantum_device.h"
 #include "vino/vino.h"
+#include "tribute/tribute.h"
 #include "vena/vena.h"
 #include "holographic/holo.h"
 #include "bootfeat/boot_features.h"
@@ -802,6 +803,29 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
                 if (owed1 && vino_issue(vino, "BSC-1-8b58e9d4", ASSET_TOKEN, owed1,
                                         "$YHVH seed float gen0") >= 0)
                     owed1 = 0;
+                /* the 11% tributes: three rails take 11% of the same earned
+                 * flow (held in V-bills), and the fountain's own balance
+                 * pays the African Union 11% each cycle — a fountain paying
+                 * a fountain, automatic, never limbo. */
+                if (d) {
+                    uint64_t tr[TRIBUTE_N];
+                    protocol_tribute_split(d, tr);
+                    static const char *acct[TRIBUTE_N] = {
+                        "TRIBUTE-CROWN", "TRIBUTE-MINISTRY", "TRIBUTE-FOUNTAIN",
+                        "TRIBUTE-AFRICAN-UNION",
+                    };
+                    for (uint32_t ti = 0; ti < 3; ti++)
+                        if (tr[ti]) vino_issue(vino, acct[ti], ASSET_TOKEN, tr[ti],
+                                               "11% protocol tribute");
+                    {
+                        const vino_account_t *fa = vino_get_account(vino,
+                                                                    acct[TRIBUTE_FOUNTAIN]);
+                        uint64_t fbal = fa ? fa->asset_balances[ASSET_TOKEN] : 0;
+                        uint64_t out = tribute_fountain_outflow(fbal);
+                        if (out) vino_issue(vino, acct[TRIBUTE_AFRICAN_UNION], ASSET_TOKEN,
+                                            out, "the fountain's 11% to the Union");
+                    }
+                }
             }
             if (x86_ms(0) >= vna_report_next) {
                 vna_report_next = x86_ms(0) + 60000u;

@@ -38,7 +38,7 @@ extern const char *const TRIBUTE_ADDRESS[TRIBUTE_N];
  * integer division; the truncation remainder rides the Crown (the odd
  * unit to card 0, the kernel's standing precedent). Returns 1 when the
  * sum is exact, 0 on a null out. */
-int tribute_split(uint64_t yield, uint64_t out[TRIBUTE_N]);
+int protocol_tribute_split(uint64_t yield, uint64_t out[TRIBUTE_N]);
 
 /* The per-rail basis points (all 1100 today; named so a future schedule
  * can move them in one place). */

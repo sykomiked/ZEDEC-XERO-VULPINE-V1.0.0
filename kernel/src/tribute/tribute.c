@@ -27,7 +27,7 @@ static uint64_t exact_part(uint64_t yield, uint32_t bps)
            (yield % TRIBUTE_BPS_DENOM) * bps / TRIBUTE_BPS_DENOM;
 }
 
-int tribute_split(uint64_t yield, uint64_t out[TRIBUTE_N])
+int protocol_tribute_split(uint64_t yield, uint64_t out[TRIBUTE_N])
 {
     if (!out) return 0;
     uint64_t each = exact_part(yield, TRIBUTE_BPS);
