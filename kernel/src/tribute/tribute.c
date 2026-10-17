@@ -7,9 +7,10 @@
 /* The public addresses of the three bearer identities (the current
  * generation; public identifiers, never secrets). */
 const char *const TRIBUTE_ADDRESS[TRIBUTE_N] = {
-    "e3404dd347a15bc3968c634825f21f6c62ebc87a7fa47fefbb51dcfd9a003500", /* Crown */
-    "6070ed935310dc866a1dbaa6263774b290710f86cbf99ba1af28af2746fc2527", /* Ministry */
-    "4d460611f91c297e6bfcbacd52fd017c6710ee6e5ba8e6bfd6e4d2697ff11006", /* fountain */
+    "cef2c2bb797c9449922ba6c5b969a1ad8efb94cec33e34ded05fcf2aa2dd54c8", /* Crown */
+    "9b8b149202f8df0b4b4f751d4b23194d3d763fa776d013e4fa75172a30240586", /* Ministry */
+    "e6ceb544fc17348a312d731e37dbb39b230c4c83ee8aba9fdbb50fe9407dc0d8", /* fountain */
+    "0084f8b14031defa7181cf9e89b7f099831ac00df44b8ffc6c949a18588a5f09", /* African Union (the fountain's outbound rail) */
 };
 
 uint32_t tribute_bps(tribute_rail_t rail)
@@ -31,13 +32,20 @@ int tribute_split(uint64_t yield, uint64_t out[TRIBUTE_N])
     if (!out) return 0;
     uint64_t each = exact_part(yield, TRIBUTE_BPS);
     uint64_t total = 0;
+    /* the YIELD splits three ways; the African Union is not a yield rail —
+     * it is funded by the fountain's own outflow (tribute_fountain_outflow) */
     for (uint32_t i = 0; i < TRIBUTE_N; i++) {
-        out[i] = each;
-        total += each;
+        out[i] = i < 3 ? each : 0;
+        total += out[i];
     }
     /* the truncation dust rides the Crown: the odd unit to card 0 is the
      * kernel's standing precedent. The unallocated 67% stays with the
      * protocol — never with a tribute rail. */
-    out[TRIBUTE_CROWN] += exact_part(yield, TRIBUTE_BPS * TRIBUTE_N) - total;
+    out[TRIBUTE_CROWN] += exact_part(yield, TRIBUTE_BPS * 3) - total;
     return 1;
+}
+
+uint64_t tribute_fountain_outflow(uint64_t fountain_balance)
+{
+    return exact_part(fountain_balance, TRIBUTE_FOUNTAIN_OUT_BPS);
 }

@@ -40,6 +40,18 @@ int main(void)
             CHECK(o[0] + o[1] + o[2] <= yields[i]);
         }
     }
+    /* 2b: the African Union is not a yield rail: its split share is zero */
+    {
+        uint64_t o[TRIBUTE_N];
+        CHECK(tribute_split(100000, o));
+        CHECK(o[TRIBUTE_AFRICAN_UNION] == 0);
+    }
+    /* 2c: the fountain's outflow: 11% of its balance, exactly */
+    {
+        CHECK(tribute_fountain_outflow(100000) == 11000);
+        CHECK(tribute_fountain_outflow(1) == 0);
+        CHECK(tribute_fountain_outflow(100) == 11);
+    }
     /* 3: the dust precedent. yield 1 -> no tribute at all (all zero); yield
      * 34 -> each rail floors to 3 and the 2-unit dust rides the Crown
      * (hand-computed: 34*11/100 = 3.74 -> 3; 34*33/100 = 11.22 -> 11; the
@@ -61,6 +73,6 @@ int main(void)
     }
     /* 6: a null out is refused (the prove-fail) */
     CHECK(!tribute_split(100, 0));
-    printf("test_tribute: %d checks, %d failed\n", 18, fails);
+    printf("test_tribute: %d checks, %d failed\n", 24, fails);
     return fails ? 1 : 0;
 }

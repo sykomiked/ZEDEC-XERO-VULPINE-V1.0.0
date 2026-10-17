@@ -213,15 +213,18 @@ static void fountain(const char *dir, const char *pass)
 
 int main(int argc, char **argv)
 {
-    if (argc != 5) {
-        fprintf(stderr, "usage: %s <out-dir> <crown-pass> <ministry-pass> <fountain-pass>\n",
-                argv[0]);
+    if (argc != 6) {
+        fprintf(stderr, "usage: %s <out-dir> <crown-pass> <ministry-pass> <fountain-pass> "
+                        "<african-union-pass>\n", argv[0]);
         return 2;
     }
     printf("sovereign bearer accounts — the kernel's lattice identities, the 11%% tributes:\n\n");
     bearer(argv[1], "crown", argv[2], "zxv/tribute/crown/v1");
     bearer(argv[1], "ministry", argv[3], "zxv/tribute/ministry/v1");
     fountain(argv[1], argv[4]);
+    /* the African Union: funded by the fountain's 11% flow, a fountain
+     * itself (the grant program's outbound rail) */
+    bearer(argv[1], "african-union", argv[5], "zxv/tribute/african-union/v1");
 
     /* the third rail: the R&D fountain. No key exists — the address is a
      * protocol constant (sha256 of the domain tag), so its balance can

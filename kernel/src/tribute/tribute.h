@@ -19,8 +19,15 @@ typedef enum {
     TRIBUTE_CROWN = 0,    /* the sovereign heritage reserve               */
     TRIBUTE_MINISTRY = 1, /* public goods and civic infrastructure        */
     TRIBUTE_FOUNTAIN = 2, /* the keyless R&D rail: olive-oil-barrel grants */
-    TRIBUTE_N = 3
+    TRIBUTE_AFRICAN_UNION = 3, /* funded by the fountain's own 11% flow    */
+    TRIBUTE_N = 4
 } tribute_rail_t;
+
+/* The fountain's outflow: 11% of the fountain's balance flows to the
+ * African Union each cycle — a fountain paying a fountain, so the grant
+ * program's rail funds the Union's development rail automatically. */
+#define TRIBUTE_FOUNTAIN_OUT_BPS 1100u
+uint64_t tribute_fountain_outflow(uint64_t fountain_balance);
 
 /* The public destinations: the sha256 addresses of the bearer identities.
  * Baked in because a destination must be a protocol constant; public by
