@@ -446,6 +446,7 @@ SRCS := \
     kernel/src/vfs/vfs.c \
     kernel/src/vino/vino.c \
     kernel/src/vino_stores/vino_stores.c \
+    kernel/src/tribute/tribute.c \
     kernel/src/voice/voice.c \
     kernel/src/wyrmgate/wyrmgate.c \
     kernel/src/wyverneye/wyverneye.c \
