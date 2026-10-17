@@ -35,6 +35,19 @@ APP_SKELETON = """\
 """
 
 
+def already_drafted(app_id):
+    """A draft exists when a result file names it."""
+    from pathlib import Path
+    res = Path("tools/agent_loop/results")
+    if not res.is_dir():
+        return False
+    for f in res.glob("*.txt"):
+        if f.name.endswith("_draft_%s.txt" % app_id) or \
+           ("draft_%s" % app_id) in f.name:
+            return True
+    return False
+
+
 def next_pending(n):
     import subprocess
     subprocess.run([sys.executable, SPEC, "--json", GRAPH], check=True,
@@ -47,7 +60,7 @@ def next_pending(n):
         node = nodes.get("app:" + o) or nodes.get(o)
         if node is None:
             continue
-        if not node.get("done") and node.get("kind") == "app":
+        if not node.get("done") and node.get("kind") == "app" and not already_drafted(o):
             out.append((o, node))
         if len(out) >= n:
             break
