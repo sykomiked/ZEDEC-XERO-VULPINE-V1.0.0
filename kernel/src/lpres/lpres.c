@@ -62,13 +62,6 @@ lpres_state_t lpres_negate(lpres_state_t s) {
     }
 }
 
-const uint8_t lpres_rank[LPRES_STATE_COUNT] = {
-    [LPRES_STATE_FALSE]   = 0,  /* the bottom: FALSE dominates the meet */
-    [LPRES_STATE_NEITHER] = 1,
-    [LPRES_STATE_BOTH]    = 2,
-    [LPRES_STATE_TRUE]    = 3,  /* the top: TRUE is the join's identity */
-};
-
 lpres_state_t lpres_conjoin(lpres_state_t a, lpres_state_t b) {
     /* the meet: min on the chain. FALSE dominates, TRUE is identity,
      * NEITHER absorbs BOTH — all by the rank, so a new phase needs only
