@@ -76,7 +76,15 @@ logic kron composite_key <<
 .
 check modular_draw seed=1,1,1,2 members=10,10,10,7 step=0,1,2,0 = 5,2,9,6
 check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
 check within_range value=0,50,100,101 lo=0,0,0,0 hi=100,100,100,100 = true,true,true,false
+check within_range value=0,100 lo=0,0 hi=100,100 = true,true
+check within_range value=50,101 lo=0,0 hi=100,100 = true,false
+check within_range value=1,99 lo=0,0 hi=100,100 = true,true
+check within_range value=100 lo=0 hi=100 = true
+check within_range value=0 lo=0 hi=100 = true
+check within_range value=101 lo=0 hi=100 = false
 check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 ```
 
@@ -96,7 +104,7 @@ check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 
 **Semantics.** The excess over a ceiling. 0 when value <= limit, else value - limit. Integer only; the limit is inclusive; no negative excess ever.
 
-**The exact check.** `check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000`
+**The exact check.** `['check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000', 'check limit_excess value=1000,999 limit=1000,1000 = 0,0', 'check limit_excess value=1,1000000 limit=0,999999 = 1,1']`
 
 ### `within_range` (truth) — eve
 
@@ -104,7 +112,7 @@ check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 
 **Semantics.** The range law. true when lo <= value <= hi, false outside. Both bounds inclusive. A truth entry: the four values apply (a contradicted claim is both, no evidence is neither).
 
-**The exact check.** `check within_range value=0,50,100,101 lo=0,0,0,0 hi=100,100,100,100 = true,true,true,false`
+**The exact check.** `['check within_range value=0,50,100,101 lo=0,0,0,0 hi=100,100,100,100 = true,true,true,false', 'check within_range value=0,100 lo=0,0 hi=100,100 = true,true', 'check within_range value=50,101 lo=0,0 hi=100,100 = true,false', 'check within_range value=1,99 lo=0,0 hi=100,100 = true,true', 'check within_range value=100 lo=0 hi=100 = true', 'check within_range value=0 lo=0 hi=100 = true', 'check within_range value=101 lo=0 hi=100 = false']`
 
 ### `composite_key` (num) — kron
 

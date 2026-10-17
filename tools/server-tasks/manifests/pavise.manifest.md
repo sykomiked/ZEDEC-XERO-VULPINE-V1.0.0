@@ -25,7 +25,7 @@ provides limit_excess num value limit
 provides flags_none truth bits forbidden
 provides clamp num value lo hi
 logic kron composite_key <<
-0|_high*1000+_low
+0|((_high*1000)+_low)
 .
 logic trebago limit_excess <<
 trebago limit_excess
@@ -42,6 +42,8 @@ logic kron clamp <<
 .
 check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
 check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
 check clamp value=-5,0,50,150 lo=0,0,0,0 hi=100,100,100,100 = 0,0,50,100
 ```
@@ -79,4 +81,6 @@ rows):**
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
 

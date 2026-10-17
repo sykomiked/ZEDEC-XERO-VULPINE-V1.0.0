@@ -30,12 +30,14 @@ trebago limit_excess
 end
 .
 logic kron composite_key <<
-0|_high*1000+_low
+0|((_high*1000)+_low)
 .
 logic kron clamp <<
 0|max(_lo, min(_hi, _value))
 .
 check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
 check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 check clamp value=-5,0,50,150 lo=0,0,0,0 hi=100,100,100,100 = 0,0,50,100
 ```

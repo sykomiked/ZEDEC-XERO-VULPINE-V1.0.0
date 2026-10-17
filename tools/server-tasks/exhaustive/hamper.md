@@ -72,6 +72,12 @@ end
 .
 check clamp value=-5,0,50,150 lo=0,0,0,0 hi=100,100,100,100 = 0,0,50,100
 check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
+check count_ok count=2 cap=100 = true
+check count_ok count=99 cap=100 = true
+check count_ok count=101 cap=100 = false
+check count_ok count=100 cap=100 = true
+check count_ok count=0 cap=100 = false
+check count_ok count=1 cap=100 = true
 check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
 ```
 
@@ -91,7 +97,7 @@ check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,
 
 **Semantics.** The registry law. true when 0 < count <= cap. A truth entry: the four values apply.
 
-**The exact check.** `check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false`
+**The exact check.** `['check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false', 'check count_ok count=2 cap=100 = true', 'check count_ok count=99 cap=100 = true', 'check count_ok count=101 cap=100 = false', 'check count_ok count=100 cap=100 = true', 'check count_ok count=0 cap=100 = false', 'check count_ok count=1 cap=100 = true']`
 
 ### `exact_total` (num) — trebago
 
@@ -124,6 +130,16 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic trebago <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`reach.tb`):**
+
+```
+trebago reach
+  in  have(n), need(n)
+  out reach(n)
+  reach(i) = sum(k = 1:10000, min(1, max(0, 10000 * have(i) - k * need(i) + 1)))
+end
+```
 
 ## 8. The dual interface (human and AI)
 

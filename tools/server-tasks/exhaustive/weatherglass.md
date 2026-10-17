@@ -75,6 +75,12 @@ The library does not cover these clauses. Each below gives the clause, the runti
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
 
+**A real block in this runtime — copy this spelling (`entry.myra`):**
+
+```
+^ZXHOARD(folder:i9, seq:i9) = size:i18! ^ mtime:i12!
+```
+
 ### 7.3 — 7-day min, max, mean floor in trebago
 
 **Runtime.** `trebago` — the pillar (FORTRAN): exact numerics. 'trebago <entry>' then 'in  <args>' / 'out <result>' / assignments / 'end'. Integer only; sums via sum(i, expr).
@@ -84,6 +90,16 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic trebago <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`count.tb`):**
+
+```
+trebago kind_count
+  in  kind(n), want
+  out count
+  count = sum(i, max(0, min(1, 1 + kind(i) - want)) * max(0, min(1, 1 + want - kind(i))))
+end
+```
 
 ### 7.4 — readings in myra
 

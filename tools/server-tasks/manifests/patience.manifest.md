@@ -23,7 +23,7 @@ logic kron running_state <<
 ((_state=0)&(_event=1))|((_state=1)&(_event=1))
 .
 logic kron modular_draw <<
-0|(_seed*1103515245+12345+_step*7)%_members
+0|(((_seed*1103515245)+12345)+(_step*7))|_members
 .
 check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
 check modular_draw seed=1,1,1,2 members=10,10,10,7 step=0,1,2,0 = 5,2,9,6
@@ -62,4 +62,6 @@ rows):**
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
 

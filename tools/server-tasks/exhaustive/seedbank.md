@@ -67,7 +67,15 @@ logic kron composite_key <<
 0|((_high*1000)+_low)
 .
 check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
 check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000
+check share_x100 part=0 whole=1 = 0
+check share_x100 part=1 whole=1 = 10000
+check share_x100 part=1 whole=10000 = 1
+check share_x100 part=3 whole=4 = 7500
+check share_x100 part=2 whole=3 = 20000/3
+check share_x100 part=1 whole=2 = 5000
 check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 ```
 
@@ -79,7 +87,7 @@ check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 
 **Semantics.** The excess over a ceiling. 0 when value <= limit, else value - limit. Integer only; the limit is inclusive; no negative excess ever.
 
-**The exact check.** `check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000`
+**The exact check.** `['check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000', 'check limit_excess value=1000,999 limit=1000,1000 = 0,0', 'check limit_excess value=1,1000000 limit=0,999999 = 1,1']`
 
 ### `share_x100` (num) — kron
 
@@ -87,7 +95,7 @@ check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 
 **Semantics.** A part's share of a whole in hundredths of a percent, EXACT rational (the K's division is exact: 10000/3, not 3333). The caller floors.
 
-**The exact check.** `check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000`
+**The exact check.** `['check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000', 'check share_x100 part=0 whole=1 = 0', 'check share_x100 part=1 whole=1 = 10000', 'check share_x100 part=1 whole=10000 = 1', 'check share_x100 part=3 whole=4 = 7500', 'check share_x100 part=2 whole=3 = 20000/3', 'check share_x100 part=1 whole=2 = 5000']`
 
 ### `composite_key` (num) — kron
 
@@ -120,6 +128,20 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic eve <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`earned.eve`):**
+
+```
+eve talisman
+margin = 0 .. 999999999999999999
+uptime_margin = 0 .. 10000
+
+tier_earned {
+  cred: margin
+  bond: margin
+  uptime: uptime_margin
+}
+```
 
 ## 8. The dual interface (human and AI)
 

@@ -28,7 +28,7 @@ logic kron running_state <<
 ((_state=0)&(_event=1))|((_state=1)&(_event=1))
 .
 logic kron composite_key <<
-0|_high*1000+_low
+0|((_high*1000)+_low)
 .
 check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
 check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
@@ -69,6 +69,8 @@ rows):**
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
 
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
+
 ### Entry 2 — A revocation can never be undone: the owner confirms it twice. Tests never go online
 
 **The clause it implements.** A revocation can never be undone: the owner confirms it twice. Tests never go online
@@ -89,10 +91,27 @@ logic eve <entry_name> <<
 .
 ```
 
+**A real block from the built apps in this runtime — copy
+this spelling exactly (`earned.eve`):**
+
+```
+eve talisman
+margin = 0 .. 999999999999999999
+uptime_margin = 0 .. 10000
+
+tier_earned {
+  cred: margin
+  bond: margin
+  uptime: uptime_margin
+}
+```
+
 **The check (one line; the inputs are integers, the answers the
 rows):**
 
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the pillar (Ada): ranges and limits. A package line 'eve <app>', domain declarations '<name> = <lo> .. <hi>', and blocks '<block> { <arg>: <domain> <lo> .. <hi> }'. It declares what is allowed; it cannot compute.
 

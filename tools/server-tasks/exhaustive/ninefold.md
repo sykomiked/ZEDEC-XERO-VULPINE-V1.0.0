@@ -68,7 +68,15 @@ logic kron product <<
 0|_a*_b
 .
 check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000
+check share_x100 part=0 whole=1 = 0
+check share_x100 part=1 whole=1 = 10000
+check share_x100 part=1 whole=10000 = 1
+check share_x100 part=3 whole=4 = 7500
+check share_x100 part=2 whole=3 = 20000/3
+check share_x100 part=1 whole=2 = 5000
 check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
 check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
 ```
 
@@ -80,7 +88,7 @@ check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
 
 **Semantics.** A part's share of a whole in hundredths of a percent, EXACT rational (the K's division is exact: 10000/3, not 3333). The caller floors.
 
-**The exact check.** `check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000`
+**The exact check.** `['check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000', 'check share_x100 part=0 whole=1 = 0', 'check share_x100 part=1 whole=1 = 10000', 'check share_x100 part=1 whole=10000 = 1', 'check share_x100 part=3 whole=4 = 7500', 'check share_x100 part=2 whole=3 = 20000/3', 'check share_x100 part=1 whole=2 = 5000']`
 
 ### `limit_excess` (num) — trebago
 
@@ -88,7 +96,7 @@ check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
 
 **Semantics.** The excess over a ceiling. 0 when value <= limit, else value - limit. Integer only; the limit is inclusive; no negative excess ever.
 
-**The exact check.** `check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000`
+**The exact check.** `['check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000', 'check limit_excess value=1000,999 limit=1000,1000 = 0,0', 'check limit_excess value=1,1000000 limit=0,999999 = 1,1']`
 
 ### `product` (num) — kron
 

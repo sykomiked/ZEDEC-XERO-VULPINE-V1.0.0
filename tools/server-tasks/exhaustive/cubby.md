@@ -62,6 +62,8 @@ end
 .
 check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
 check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
 ```
 
 ## 6. The entry specifications (what each entry computes)
@@ -80,7 +82,7 @@ check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
 
 **Semantics.** The excess over a ceiling. 0 when value <= limit, else value - limit. Integer only; the limit is inclusive; no negative excess ever.
 
-**The exact check.** `check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000`
+**The exact check.** `['check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000', 'check limit_excess value=1000,999 limit=1000,1000 = 0,0', 'check limit_excess value=1,1000000 limit=0,999999 = 1,1']`
 
 ## 7. The app-specific entries (spelled out to the letter)
 
@@ -105,6 +107,12 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic myra <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`entry.myra`):**
+
+```
+^ZXHOARD(folder:i9, seq:i9) = size:i18! ^ mtime:i12!
+```
 
 ## 8. The dual interface (human and AI)
 

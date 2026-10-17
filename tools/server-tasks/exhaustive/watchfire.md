@@ -61,6 +61,12 @@ logic kron composite_key <<
 0|((_high*1000)+_low)
 .
 check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000
+check share_x100 part=0 whole=1 = 0
+check share_x100 part=1 whole=1 = 10000
+check share_x100 part=1 whole=10000 = 1
+check share_x100 part=3 whole=4 = 7500
+check share_x100 part=2 whole=3 = 20000/3
+check share_x100 part=1 whole=2 = 5000
 check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 ```
 
@@ -72,7 +78,7 @@ check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 
 **Semantics.** A part's share of a whole in hundredths of a percent, EXACT rational (the K's division is exact: 10000/3, not 3333). The caller floors.
 
-**The exact check.** `check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000`
+**The exact check.** `['check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000', 'check share_x100 part=0 whole=1 = 0', 'check share_x100 part=1 whole=1 = 10000', 'check share_x100 part=1 whole=10000 = 1', 'check share_x100 part=3 whole=4 = 7500', 'check share_x100 part=2 whole=3 = 20000/3', 'check share_x100 part=1 whole=2 = 5000']`
 
 ### `composite_key` (num) — kron
 
@@ -106,6 +112,20 @@ The library does not cover these clauses. Each below gives the clause, the runti
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
 
+**A real block in this runtime — copy this spelling (`earned.eve`):**
+
+```
+eve talisman
+margin = 0 .. 999999999999999999
+uptime_margin = 0 .. 10000
+
+tier_earned {
+  cred: margin
+  bond: margin
+  uptime: uptime_margin
+}
+```
+
 ### 7.3 — never calls emergency services or anyone by itself
 
 **Runtime.** `myra` — the pillar (MUMPS): records and indexes. One global line '^<GLOBAL>(<arg>:<pic>, ...) = <field>:<pic>! ...'. The pics are the field widths; the index is the first key.
@@ -115,6 +135,12 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic myra <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`memo.myra`):**
+
+```
+^ZXBIRDSONG(memo:i9) = rate:i5! ^ channels:i1! ^ frames:i9! ^ mtime:i12!
+```
 
 ### 7.4 — not a medical device
 

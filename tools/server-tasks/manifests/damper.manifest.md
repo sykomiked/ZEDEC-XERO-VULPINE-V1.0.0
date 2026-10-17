@@ -30,10 +30,12 @@ trebago limit_excess
 end
 .
 logic kron ratio_x1000 <<
-0|_num*1000%_den
+0|(_num*1000)%_den
 .
 check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
-check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 333,125,1,750
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
+check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 1000/3,125,1,750
 ```
 
 ## The app-specific entries — SPELLED OUT TO THE LETTER
@@ -70,6 +72,8 @@ rows):**
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
 
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
+
 ### Entry 2 — building tree (floors, rooms, exits) in MUMPS as MYRA
 
 **The clause it implements.** building tree (floors, rooms, exits) in MUMPS as MYRA
@@ -90,10 +94,25 @@ logic sutra <entry_name> <<
 .
 ```
 
+**A real block from the built apps in this runtime — copy
+this spelling exactly (`used.sutra`):**
+
+```
+record used-share
+  total: 9(18)
+  left: 9(18)
+  used: 9(5)
+procedure
+  compute used = (total - left) * 10000 / total
+  answer used
+```
+
 **The check (one line; the inputs are integers, the answers the
 rows):**
 
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the pillar (COBOL): records and procedures. A record with PIC pictures, then 'procedure division.' with COMPUTE and IF. A value that does not fit its picture is refused, never cut.
 

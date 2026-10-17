@@ -25,28 +25,43 @@ logic kron product <<
 0|_a*_b
 .
 logic eve within_range <<
-eve app
+eve {app}
 values = 0 .. 100
 
 within_range {
   value: values 0 .. 100
+  lo: values 0 .. 0
+  hi: values 100 .. 100
 }
 .
 logic kron conserved_sum <<
 (_a+_b+_c+_d=_whole)
 .
 logic eve count_ok <<
-eve app
+eve {app}
 counts = 1 .. 100
 
 count_ok {
   count: counts 1 .. 100
+  cap: counts 100 .. 100
 }
 .
 check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
 check within_range value=0,50,100,101 lo=0,0,0,0 hi=100,100,100,100 = true,true,true,false
+check within_range value=0,100 lo=0,0 hi=100,100 = true,true
+check within_range value=50,101 lo=0,0 hi=100,100 = true,false
+check within_range value=1,99 lo=0,0 hi=100,100 = true,true
+check within_range value=100 lo=0 hi=100 = true
+check within_range value=0 lo=0 hi=100 = true
+check within_range value=101 lo=0 hi=100 = false
 check conserved_sum whole=100,100,100,101 a=25,0,0,25 b=25,0,0,25 c=25,0,0,25 d=25,100,99,25 = true,true,false,false
 check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
+check count_ok count=2 cap=100 = true
+check count_ok count=99 cap=100 = true
+check count_ok count=101 cap=100 = false
+check count_ok count=100 cap=100 = true
+check count_ok count=0 cap=100 = false
+check count_ok count=1 cap=100 = true
 ```
 
 ## The app-specific entries — SPELLED OUT TO THE LETTER
@@ -82,4 +97,6 @@ rows):**
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
 

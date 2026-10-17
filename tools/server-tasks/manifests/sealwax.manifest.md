@@ -29,7 +29,7 @@ logic kron product <<
 0|_a*_b
 .
 logic kron composite_key <<
-0|_high*1000+_low
+0|((_high*1000)+_low)
 .
 check clamp value=-5,0,50,150 lo=0,0,0,0 hi=100,100,100,100 = 0,0,50,100
 check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
@@ -70,6 +70,8 @@ rows):**
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
 
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
+
 ### Entry 2 — Signing is the person's own act: the app never signs or submits by itself
 
 **The clause it implements.** Signing is the person's own act: the app never signs or submits by itself
@@ -90,12 +92,21 @@ logic myra <entry_name> <<
 .
 ```
 
+**A real block from the built apps in this runtime — copy
+this spelling exactly (`entry.myra`):**
+
+```
+^ZXHOARD(folder:i9, seq:i9) = size:i18! ^ mtime:i12!
+```
+
 **The check (one line; the inputs are integers, the answers the
 rows):**
 
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the pillar (MUMPS): records and indexes. One global line '^<GLOBAL>(<arg>:<pic>, ...) = <field>:<pic>! ...'. The pics are the field widths; the index is the first key.
 
 ### Entry 3 — legal and financial forms are advisory
 
@@ -117,10 +128,19 @@ logic kron <entry_name> <<
 .
 ```
 
+**A real block from the built apps in this runtime — copy
+this spelling exactly (`ttl_left.kron`):**
+
+```
+0|stored+ttl-now
+```
+
 **The check (one line; the inputs are integers, the answers the
 rows):**
 
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the pillar (APL/K): exact array arithmetic as ONE expression line '<first-row-answer>|<expr with _arg names>'. Multiply, modulus, comparisons, min/max only. No floats.
 

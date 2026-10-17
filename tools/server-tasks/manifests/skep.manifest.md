@@ -32,7 +32,7 @@ trebago exact_total
 end
 .
 logic kron largest_remainder <<
-0|_pool*_w1%(_w1+_w2+_w3+_w4)
+0|(_pool*_w1)%(_w1+_w2+_w3+_w4)
 .
 logic trebago limit_excess <<
 trebago limit_excess
@@ -42,8 +42,10 @@ trebago limit_excess
 end
 .
 check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
-check largest_remainder pool=100,10,7,100 w1=1,1,1,1 w2=1,1,1,1 w3=1,1,1,1 w4=1,0,0,0 = 25,4,3,34
+check largest_remainder pool=100,10,7,100 w1=1,1,1,1 w2=1,1,1,1 w3=1,1,1,1 w4=1,0,0,0 = 25,10/3,7/3,50
 check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
 ```
 
 ## The app-specific entries — SPELLED OUT TO THE LETTER
@@ -80,6 +82,8 @@ rows):**
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
 
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
+
 ### Entry 2 — colony tree in MUMPS as MYRA
 
 **The clause it implements.** colony tree in MUMPS as MYRA
@@ -100,10 +104,25 @@ logic sutra <entry_name> <<
 .
 ```
 
+**A real block from the built apps in this runtime — copy
+this spelling exactly (`used.sutra`):**
+
+```
+record used-share
+  total: 9(18)
+  left: 9(18)
+  used: 9(5)
+procedure
+  compute used = (total - left) * 10000 / total
+  answer used
+```
+
 **The check (one line; the inputs are integers, the answers the
 rows):**
 
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the pillar (COBOL): records and procedures. A record with PIC pictures, then 'procedure division.' with COMPUTE and IF. A value that does not fit its picture is refused, never cut.
 

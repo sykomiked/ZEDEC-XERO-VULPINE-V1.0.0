@@ -73,6 +73,8 @@ logic kron product <<
 0|_a*_b
 .
 check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
 check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
 check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
 ```
@@ -85,7 +87,7 @@ check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
 
 **Semantics.** The excess over a ceiling. 0 when value <= limit, else value - limit. Integer only; the limit is inclusive; no negative excess ever.
 
-**The exact check.** `check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000`
+**The exact check.** `['check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000', 'check limit_excess value=1000,999 limit=1000,1000 = 0,0', 'check limit_excess value=1,1000000 limit=0,999999 = 1,1']`
 
 ### `difference` (num) — kron
 
@@ -126,6 +128,18 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic sutra <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`used.sutra`):**
+
+```
+record used-share
+  total: 9(18)
+  left: 9(18)
+  used: 9(5)
+procedure
+  compute used = (total - left) * 10000 / total
+  answer used
+```
 
 ## 8. The dual interface (human and AI)
 

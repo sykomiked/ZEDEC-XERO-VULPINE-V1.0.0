@@ -70,6 +70,12 @@ logic kron composite_key <<
 0|((_high*1000)+_low)
 .
 check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
+check count_ok count=2 cap=100 = true
+check count_ok count=99 cap=100 = true
+check count_ok count=101 cap=100 = false
+check count_ok count=100 cap=100 = true
+check count_ok count=0 cap=100 = false
+check count_ok count=1 cap=100 = true
 check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 ```
 
@@ -81,7 +87,7 @@ check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 
 **Semantics.** The registry law. true when 0 < count <= cap. A truth entry: the four values apply.
 
-**The exact check.** `check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false`
+**The exact check.** `['check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false', 'check count_ok count=2 cap=100 = true', 'check count_ok count=99 cap=100 = true', 'check count_ok count=101 cap=100 = false', 'check count_ok count=100 cap=100 = true', 'check count_ok count=0 cap=100 = false', 'check count_ok count=1 cap=100 = true']`
 
 ### `composite_key` (num) — kron
 
@@ -115,6 +121,20 @@ The library does not cover these clauses. Each below gives the clause, the runti
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
 
+**A real block in this runtime — copy this spelling (`earned.eve`):**
+
+```
+eve talisman
+margin = 0 .. 999999999999999999
+uptime_margin = 0 .. 10000
+
+tier_earned {
+  cred: margin
+  bond: margin
+  uptime: uptime_margin
+}
+```
+
 ### 7.3 — Nothing is restored, switched or reinstalled without the owner's approval
 
 **Runtime.** `myra` — the pillar (MUMPS): records and indexes. One global line '^<GLOBAL>(<arg>:<pic>, ...) = <field>:<pic>! ...'. The pics are the field widths; the index is the first key.
@@ -124,6 +144,12 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic myra <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`memo.myra`):**
+
+```
+^ZXBIRDSONG(memo:i9) = rate:i5! ^ channels:i1! ^ frames:i9! ^ mtime:i12!
+```
 
 ### 7.4 — restore always makes a new item. Tests use a scratch Hoard and books, never the real ones
 

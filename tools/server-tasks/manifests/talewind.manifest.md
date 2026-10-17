@@ -59,3 +59,5 @@ rows):**
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
 
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
+

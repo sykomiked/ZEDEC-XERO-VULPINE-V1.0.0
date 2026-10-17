@@ -91,7 +91,15 @@ logic kron running_state <<
 .
 check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
 check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000
+check share_x100 part=0 whole=1 = 0
+check share_x100 part=1 whole=1 = 10000
+check share_x100 part=1 whole=10000 = 1
+check share_x100 part=3 whole=4 = 7500
+check share_x100 part=2 whole=3 = 20000/3
+check share_x100 part=1 whole=2 = 5000
 check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
 check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4
 check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
 ```
@@ -112,7 +120,7 @@ check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
 
 **Semantics.** A part's share of a whole in hundredths of a percent, EXACT rational (the K's division is exact: 10000/3, not 3333). The caller floors.
 
-**The exact check.** `check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000`
+**The exact check.** `['check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000', 'check share_x100 part=0 whole=1 = 0', 'check share_x100 part=1 whole=1 = 10000', 'check share_x100 part=1 whole=10000 = 1', 'check share_x100 part=3 whole=4 = 7500', 'check share_x100 part=2 whole=3 = 20000/3', 'check share_x100 part=1 whole=2 = 5000']`
 
 ### `limit_excess` (num) — trebago
 
@@ -120,7 +128,7 @@ check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
 
 **Semantics.** The excess over a ceiling. 0 when value <= limit, else value - limit. Integer only; the limit is inclusive; no negative excess ever.
 
-**The exact check.** `check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000`
+**The exact check.** `['check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000', 'check limit_excess value=1000,999 limit=1000,1000 = 0,0', 'check limit_excess value=1,1000000 limit=0,999999 = 1,1']`
 
 ### `grade_band` (num) — kron
 
@@ -162,6 +170,18 @@ The library does not cover these clauses. Each below gives the clause, the runti
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
 
+**A real block in this runtime — copy this spelling (`used.sutra`):**
+
+```
+record used-share
+  total: 9(18)
+  left: 9(18)
+  used: 9(5)
+procedure
+  compute used = (total - left) * 10000 / total
+  answer used
+```
+
 ### 7.3 — - `versions`: song version tree (take, stem, editor) in MUMPS as MYRA
 
 **Runtime.** `trebago` — the pillar (FORTRAN): exact numerics. 'trebago <entry>' then 'in  <args>' / 'out <result>' / assignments / 'end'. Integer only; sums via sum(i, expr).
@@ -171,6 +191,16 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic trebago <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`count.tb`):**
+
+```
+trebago kind_count
+  in  kind(n), want
+  out count
+  count = sum(i, max(0, min(1, 1 + kind(i) - want)) * max(0, min(1, 1 + want - kind(i))))
+end
+```
 
 ### 7.4 — Paraconsistent (BOTH test, in test_zxapp.c): two collaborators keep different takes of bar 9 to 16: the passage is BOTH
 
@@ -182,6 +212,22 @@ The library does not cover these clauses. Each below gives the clause, the runti
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
 
+**A real block in this runtime — copy this spelling (`transfer.eve`):**
+
+```
+eve coffer
+minor_amount = 1 .. 9007199254740991
+minor_left = 0 .. 999999999999999999
+minor_gap = 0 .. 0
+
+transfer_rule {
+  amount: minor_amount
+  after: minor_left
+  room: minor_left
+  gap: minor_gap
+}
+```
+
 ### 7.5 — never re-derive the tables
 
 **Runtime.** `kron` — the pillar (APL/K): exact array arithmetic as ONE expression line '<first-row-answer>|<expr with _arg names>'. Multiply, modulus, comparisons, min/max only. No floats.
@@ -191,6 +237,12 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic kron <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`use.kron`):**
+
+```
+(asked>0)&(granted>0)&revoked<1
+```
 
 ## 8. The dual interface (human and AI)
 

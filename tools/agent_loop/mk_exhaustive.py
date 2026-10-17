@@ -148,7 +148,8 @@ def main():
             d.append(p.get("body", "").replace("{app}", o))
             d.append(".")
         for p in pats:
-            d.append(p["checks"])
+            ck = p["checks"]
+            d.extend(ck if isinstance(ck, list) else [ck])
         d += ["```", ""]
         d += ["## 6. The entry specifications (what each entry computes)", ""]
         for p in pats:
@@ -167,6 +168,14 @@ def main():
                       "**provides line:** `provides <entry> num|truth <arg> <arg> ...`", "",
                       "**body:** `logic %s <entry> <<` then the source then `.`" % lang, "",
                       "**check:** `check <entry> <arg>=<int>,... = <answer>,...`", ""]
+                dec = os.path.join(ROOT, "tools/agent_loop/decoding", "%s.md" % lang)
+                if os.path.exists(dec):
+                    txt = open(dec, errors="replace").read()
+                    blocks = re.findall(r"## ([^\n]+)\n\n```\n(.*?)\n```", txt, re.S)
+                    if blocks:
+                        nm, bd = blocks[min(i, len(blocks) - 1)]
+                        d += ["**A real block in this runtime — copy this spelling (`%s`):**" % nm,
+                              "", "```", bd[:600], "```", ""]
         else:
             d += ["## 7. App-specific entries", "",
                   "None — this app is fully covered by the verified library. Emit the "

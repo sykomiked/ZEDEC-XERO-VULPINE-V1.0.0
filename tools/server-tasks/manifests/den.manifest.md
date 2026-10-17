@@ -58,6 +58,8 @@ rows):**
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
 
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
+
 ### Entry 2 — the built-in classic type-in games' turn logic in basic
 
 **The clause it implements.** the built-in classic type-in games' turn logic in basic
@@ -78,12 +80,21 @@ logic myra <entry_name> <<
 .
 ```
 
+**A real block from the built apps in this runtime — copy
+this spelling exactly (`entry.myra`):**
+
+```
+^ZXHOARD(folder:i9, seq:i9) = size:i18! ^ mtime:i12!
+```
+
 **The check (one line; the inputs are integers, the answers the
 rows):**
 
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the pillar (MUMPS): records and indexes. One global line '^<GLOBAL>(<arg>:<pic>, ...) = <field>:<pic>! ...'. The pics are the field widths; the index is the first key.
 
 ### Entry 3 — library in myra
 
@@ -105,10 +116,19 @@ logic kron <entry_name> <<
 .
 ```
 
+**A real block from the built apps in this runtime — copy
+this spelling exactly (`ttl_left.kron`):**
+
+```
+0|stored+ttl-now
+```
+
 **The check (one line; the inputs are integers, the answers the
 rows):**
 
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the pillar (APL/K): exact array arithmetic as ONE expression line '<first-row-answer>|<expr with _arg names>'. Multiply, modulus, comparisons, min/max only. No floats.
 

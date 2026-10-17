@@ -73,6 +73,12 @@ logic kron grade_band <<
 (_value>_b1)+(_value>_b2)+(_value>_b3)+(_value>_b4)
 .
 check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
+check count_ok count=2 cap=100 = true
+check count_ok count=99 cap=100 = true
+check count_ok count=101 cap=100 = false
+check count_ok count=100 cap=100 = true
+check count_ok count=0 cap=100 = false
+check count_ok count=1 cap=100 = true
 check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4
 ```
 
@@ -84,7 +90,7 @@ check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4
 
 **Semantics.** The registry law. true when 0 < count <= cap. A truth entry: the four values apply.
 
-**The exact check.** `check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false`
+**The exact check.** `['check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false', 'check count_ok count=2 cap=100 = true', 'check count_ok count=99 cap=100 = true', 'check count_ok count=101 cap=100 = false', 'check count_ok count=100 cap=100 = true', 'check count_ok count=0 cap=100 = false', 'check count_ok count=1 cap=100 = true']`
 
 ### `grade_band` (num) — kron
 
@@ -118,6 +124,18 @@ The library does not cover these clauses. Each below gives the clause, the runti
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
 
+**A real block in this runtime — copy this spelling (`used.sutra`):**
+
+```
+record used-share
+  total: 9(18)
+  left: 9(18)
+  used: 9(5)
+procedure
+  compute used = (total - left) * 10000 / total
+  answer used
+```
+
 ### 7.3 — `zones` tree in MUMPS as MYRA
 
 **Runtime.** `trebago` — the pillar (FORTRAN): exact numerics. 'trebago <entry>' then 'in  <args>' / 'out <result>' / assignments / 'end'. Integer only; sums via sum(i, expr).
@@ -127,6 +145,16 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic trebago <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`count.tb`):**
+
+```
+trebago kind_count
+  in  kind(n), want
+  out count
+  count = sum(i, max(0, min(1, 1 + kind(i) - want)) * max(0, min(1, 1 + want - kind(i))))
+end
+```
 
 ## 8. The dual interface (human and AI)
 

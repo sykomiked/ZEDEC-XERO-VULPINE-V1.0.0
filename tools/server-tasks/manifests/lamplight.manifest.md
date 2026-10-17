@@ -28,13 +28,15 @@ trebago limit_excess
 end
 .
 logic kron ratio_x1000 <<
-0|_num*1000%_den
+0|(_num*1000)%_den
 .
 logic kron composite_key <<
-0|_high*1000+_low
+0|((_high*1000)+_low)
 .
 check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
-check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 333,125,1,750
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
+check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 1000/3,125,1,750
 check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 ```
 

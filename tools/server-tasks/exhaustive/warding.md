@@ -71,6 +71,8 @@ logic kron flags_none <<
 .
 check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
 check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
 ```
 
@@ -90,7 +92,7 @@ check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
 
 **Semantics.** The excess over a ceiling. 0 when value <= limit, else value - limit. Integer only; the limit is inclusive; no negative excess ever.
 
-**The exact check.** `check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000`
+**The exact check.** `['check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000', 'check limit_excess value=1000,999 limit=1000,1000 = 0,0', 'check limit_excess value=1,1000000 limit=0,999999 = 1,1']`
 
 ### `flags_none` (truth) — kron
 
@@ -123,6 +125,18 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic sutra <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`used.sutra`):**
+
+```
+record used-share
+  total: 9(18)
+  left: 9(18)
+  used: 9(5)
+procedure
+  compute used = (total - left) * 10000 / total
+  answer used
+```
 
 ## 8. The dual interface (human and AI)
 

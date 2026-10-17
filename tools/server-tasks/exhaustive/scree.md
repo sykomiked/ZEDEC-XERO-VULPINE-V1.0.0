@@ -82,6 +82,12 @@ logic kron running_state <<
 ((_state=0)&(_event=1))|((_state=1)&(_event=1))
 .
 check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000
+check share_x100 part=0 whole=1 = 0
+check share_x100 part=1 whole=1 = 10000
+check share_x100 part=1 whole=10000 = 1
+check share_x100 part=3 whole=4 = 7500
+check share_x100 part=2 whole=3 = 20000/3
+check share_x100 part=1 whole=2 = 5000
 check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4
 check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
 check modular_draw seed=1,1,1,2 members=10,10,10,7 step=0,1,2,0 = 5,2,9,6
@@ -97,7 +103,7 @@ check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
 
 **Semantics.** A part's share of a whole in hundredths of a percent, EXACT rational (the K's division is exact: 10000/3, not 3333). The caller floors.
 
-**The exact check.** `check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000`
+**The exact check.** `['check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000', 'check share_x100 part=0 whole=1 = 0', 'check share_x100 part=1 whole=1 = 10000', 'check share_x100 part=1 whole=10000 = 1', 'check share_x100 part=3 whole=4 = 7500', 'check share_x100 part=2 whole=3 = 20000/3', 'check share_x100 part=1 whole=2 = 5000']`
 
 ### `grade_band` (num) — kron
 
@@ -163,6 +169,18 @@ The library does not cover these clauses. Each below gives the clause, the runti
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
 
+**A real block in this runtime — copy this spelling (`used.sutra`):**
+
+```
+record used-share
+  total: 9(18)
+  left: 9(18)
+  used: 9(5)
+procedure
+  compute used = (total - left) * 10000 / total
+  answer used
+```
+
 ### 7.3 — Paraconsistent (BOTH test, in test_zxapp.c): a 4x4 grid with two valid fillings: the stored answer differs from the learner's (FALSE) while Riddle's "solved" rule passes (TRUE), giving BOTH
 
 **Runtime.** `trebago` — the pillar (FORTRAN): exact numerics. 'trebago <entry>' then 'in  <args>' / 'out <result>' / assignments / 'end'. Integer only; sums via sum(i, expr).
@@ -173,6 +191,16 @@ The library does not cover these clauses. Each below gives the clause, the runti
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
 
+**A real block in this runtime — copy this spelling (`count.tb`):**
+
+```
+trebago kind_count
+  in  kind(n), want
+  out count
+  count = sum(i, max(0, min(1, 1 + kind(i) - want)) * max(0, min(1, 1 + want - kind(i))))
+end
+```
+
 ### 7.4 — never re-derive the tables
 
 **Runtime.** `eve` — the pillar (Ada): ranges and limits. A package line 'eve <app>', domain declarations '<name> = <lo> .. <hi>', and blocks '<block> { <arg>: <domain> <lo> .. <hi> }'. It declares what is allowed; it cannot compute.
@@ -182,6 +210,22 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic eve <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`transfer.eve`):**
+
+```
+eve coffer
+minor_amount = 1 .. 9007199254740991
+minor_left = 0 .. 999999999999999999
+minor_gap = 0 .. 0
+
+transfer_rule {
+  amount: minor_amount
+  after: minor_left
+  room: minor_left
+  gap: minor_gap
+}
+```
 
 ## 8. The dual interface (human and AI)
 

@@ -25,15 +25,22 @@ logic kron difference <<
 0|_a-_b
 .
 logic eve count_ok <<
-eve app
+eve {app}
 counts = 1 .. 100
 
 count_ok {
   count: counts 1 .. 100
+  cap: counts 100 .. 100
 }
 .
 check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
 check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
+check count_ok count=2 cap=100 = true
+check count_ok count=99 cap=100 = true
+check count_ok count=101 cap=100 = false
+check count_ok count=100 cap=100 = true
+check count_ok count=0 cap=100 = false
+check count_ok count=1 cap=100 = true
 ```
 
 ## The app-specific entries — SPELLED OUT TO THE LETTER
@@ -69,4 +76,6 @@ rows):**
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
 

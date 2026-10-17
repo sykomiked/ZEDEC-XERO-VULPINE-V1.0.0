@@ -19,9 +19,9 @@ needs fs.write
 
 provides ratio_x1000 num num den
 logic kron ratio_x1000 <<
-0|_num*1000%_den
+0|(_num*1000)%_den
 .
-check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 333,125,1,750
+check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 1000/3,125,1,750
 ```
 
 ## This app is COMPLETE from the library

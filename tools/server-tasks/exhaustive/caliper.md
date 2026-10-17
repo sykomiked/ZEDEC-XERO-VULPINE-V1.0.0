@@ -70,6 +70,12 @@ logic kron composite_key <<
 0|((_high*1000)+_low)
 .
 check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
+check count_ok count=2 cap=100 = true
+check count_ok count=99 cap=100 = true
+check count_ok count=101 cap=100 = false
+check count_ok count=100 cap=100 = true
+check count_ok count=0 cap=100 = false
+check count_ok count=1 cap=100 = true
 check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 1000/3,125,1,750
 check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 ```
@@ -82,7 +88,7 @@ check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 
 **Semantics.** The registry law. true when 0 < count <= cap. A truth entry: the four values apply.
 
-**The exact check.** `check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false`
+**The exact check.** `['check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false', 'check count_ok count=2 cap=100 = true', 'check count_ok count=99 cap=100 = true', 'check count_ok count=101 cap=100 = false', 'check count_ok count=100 cap=100 = true', 'check count_ok count=0 cap=100 = false', 'check count_ok count=1 cap=100 = true']`
 
 ### `ratio_x1000` (num) — kron
 
@@ -123,6 +129,18 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic sutra <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`used.sutra`):**
+
+```
+record used-share
+  total: 9(18)
+  left: 9(18)
+  used: 9(5)
+procedure
+  compute used = (total - left) * 10000 / total
+  answer used
+```
 
 ## 8. The dual interface (human and AI)
 

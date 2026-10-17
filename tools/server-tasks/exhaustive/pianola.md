@@ -92,6 +92,8 @@ logic kron running_state <<
 ((_state=0)&(_event=1))|((_state=1)&(_event=1))
 .
 check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
 check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
 check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 1000/3,125,1,750
 check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
@@ -106,7 +108,7 @@ check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
 
 **Semantics.** The excess over a ceiling. 0 when value <= limit, else value - limit. Integer only; the limit is inclusive; no negative excess ever.
 
-**The exact check.** `check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000`
+**The exact check.** `['check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000', 'check limit_excess value=1000,999 limit=1000,1000 = 0,0', 'check limit_excess value=1,1000000 limit=0,999999 = 1,1']`
 
 ### `exact_total` (num) — trebago
 
@@ -164,6 +166,18 @@ The library does not cover these clauses. Each below gives the clause, the runti
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
 
+**A real block in this runtime — copy this spelling (`used.sutra`):**
+
+```
+record used-share
+  total: 9(18)
+  left: 9(18)
+  used: 9(5)
+procedure
+  compute used = (total - left) * 10000 / total
+  answer used
+```
+
 ### 7.3 — - `run_jobs`: test run order (modules after their dependencies) in APL as KRON
 
 **Runtime.** `trebago` — the pillar (FORTRAN): exact numerics. 'trebago <entry>' then 'in  <args>' / 'out <result>' / assignments / 'end'. Integer only; sums via sum(i, expr).
@@ -173,6 +187,16 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic trebago <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`count.tb`):**
+
+```
+trebago kind_count
+  in  kind(n), want
+  out count
+  count = sum(i, max(0, min(1, 1 + kind(i) - want)) * max(0, min(1, 1 + want - kind(i))))
+end
+```
 
 ### 7.4 — - `modules`: module tree in MUMPS as MYRA
 
@@ -184,6 +208,22 @@ The library does not cover these clauses. Each below gives the clause, the runti
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
 
+**A real block in this runtime — copy this spelling (`transfer.eve`):**
+
+```
+eve coffer
+minor_amount = 1 .. 9007199254740991
+minor_left = 0 .. 999999999999999999
+minor_gap = 0 .. 0
+
+transfer_rule {
+  amount: minor_amount
+  after: minor_left
+  room: minor_left
+  gap: minor_gap
+}
+```
+
 ### 7.5 — Paraconsistent (BOTH test, in test_zxapp.c): the Sutra and Trebago versions of one function return 1001 and 1000 on the same row: the function is BOTH
 
 **Runtime.** `kron` — the pillar (APL/K): exact array arithmetic as ONE expression line '<first-row-answer>|<expr with _arg names>'. Multiply, modulus, comparisons, min/max only. No floats.
@@ -194,6 +234,12 @@ The library does not cover these clauses. Each below gives the clause, the runti
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
 
+**A real block in this runtime — copy this spelling (`use.kron`):**
+
+```
+(asked>0)&(granted>0)&revoked<1
+```
+
 ### 7.6 — never re-derive the tables
 
 **Runtime.** `myra` — the pillar (MUMPS): records and indexes. One global line '^<GLOBAL>(<arg>:<pic>, ...) = <field>:<pic>! ...'. The pics are the field widths; the index is the first key.
@@ -203,6 +249,12 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic myra <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`dock.myra`):**
+
+```
+^ZXDOCK(place:i2) = app:i3! ^ pinned:i1! ^ added:i12!
+```
 
 ## 8. The dual interface (human and AI)
 

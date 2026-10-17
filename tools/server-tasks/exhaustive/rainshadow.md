@@ -76,6 +76,12 @@ logic kron running_state <<
 .
 check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
 check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
+check count_ok count=2 cap=100 = true
+check count_ok count=99 cap=100 = true
+check count_ok count=101 cap=100 = false
+check count_ok count=100 cap=100 = true
+check count_ok count=0 cap=100 = false
+check count_ok count=1 cap=100 = true
 check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
 ```
 
@@ -95,7 +101,7 @@ check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
 
 **Semantics.** The registry law. true when 0 < count <= cap. A truth entry: the four values apply.
 
-**The exact check.** `check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false`
+**The exact check.** `['check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false', 'check count_ok count=2 cap=100 = true', 'check count_ok count=99 cap=100 = true', 'check count_ok count=101 cap=100 = false', 'check count_ok count=100 cap=100 = true', 'check count_ok count=0 cap=100 = false', 'check count_ok count=1 cap=100 = true']`
 
 ### `running_state` (truth) — kron
 
@@ -129,6 +135,18 @@ The library does not cover these clauses. Each below gives the clause, the runti
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
 
+**A real block in this runtime — copy this spelling (`used.sutra`):**
+
+```
+record used-share
+  total: 9(18)
+  left: 9(18)
+  used: 9(5)
+procedure
+  compute used = (total - left) * 10000 / total
+  answer used
+```
+
 ### 7.3 — - (critical) contact times at this place (seconds) from the integer ephemeris tables in FORTRAN as Trebago + APL as KRON witnessed
 
 **Runtime.** `trebago` — the pillar (FORTRAN): exact numerics. 'trebago <entry>' then 'in  <args>' / 'out <result>' / assignments / 'end'. Integer only; sums via sum(i, expr).
@@ -138,6 +156,16 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic trebago <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`count.tb`):**
+
+```
+trebago kind_count
+  in  kind(n), want
+  out count
+  count = sum(i, max(0, min(1, 1 + kind(i) - want)) * max(0, min(1, 1 + want - kind(i))))
+end
+```
 
 ### 7.4 — - ephemeris grid (events x places) in APL as KRON
 
@@ -149,6 +177,22 @@ The library does not cover these clauses. Each below gives the clause, the runti
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
 
+**A real block in this runtime — copy this spelling (`transfer.eve`):**
+
+```
+eve coffer
+minor_amount = 1 .. 9007199254740991
+minor_left = 0 .. 999999999999999999
+minor_gap = 0 .. 0
+
+transfer_rule {
+  amount: minor_amount
+  after: minor_left
+  room: minor_left
+  gap: minor_gap
+}
+```
+
 ### 7.5 — - observation log and event tree in MUMPS as MYRA
 
 **Runtime.** `kron` — the pillar (APL/K): exact array arithmetic as ONE expression line '<first-row-answer>|<expr with _arg names>'. Multiply, modulus, comparisons, min/max only. No floats.
@@ -159,6 +203,12 @@ The library does not cover these clauses. Each below gives the clause, the runti
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
 
+**A real block in this runtime — copy this spelling (`use.kron`):**
+
+```
+(asked>0)&(granted>0)&revoked<1
+```
+
 ### 7.6 — Paraconsistent (BOTH test, in test_zxapp.c): model A gives first contact at 14:03:20 and model B at 14:04:10, giving BOTH
 
 **Runtime.** `myra` — the pillar (MUMPS): records and indexes. One global line '^<GLOBAL>(<arg>:<pic>, ...) = <field>:<pic>! ...'. The pics are the field widths; the index is the first key.
@@ -168,6 +218,12 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic myra <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`dock.myra`):**
+
+```
+^ZXDOCK(place:i2) = app:i3! ^ pinned:i1! ^ added:i12!
+```
 
 ### 7.7 — never re-derive the tables
 

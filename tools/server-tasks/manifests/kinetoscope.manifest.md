@@ -22,7 +22,7 @@ provides limit_excess num value limit
 provides exact_total num n a b c d
 provides composite_key num high low
 logic kron ratio_x1000 <<
-0|_num*1000%_den
+0|(_num*1000)%_den
 .
 logic trebago limit_excess <<
 trebago limit_excess
@@ -39,10 +39,12 @@ trebago exact_total
 end
 .
 logic kron composite_key <<
-0|_high*1000+_low
+0|((_high*1000)+_low)
 .
-check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 333,125,1,750
+check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 1000/3,125,1,750
 check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
 check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
 check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 ```
@@ -80,4 +82,6 @@ rows):**
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
 

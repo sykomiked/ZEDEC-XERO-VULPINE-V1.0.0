@@ -22,21 +22,34 @@ provides share_x100 num part whole
 provides count_ok truth count cap
 provides clamp num value lo hi
 logic kron share_x100 <<
-0|_part*10000%_whole
+0|(_part*10000)%_whole
 .
 logic eve count_ok <<
-eve app
+eve {app}
 counts = 1 .. 100
 
 count_ok {
   count: counts 1 .. 100
+  cap: counts 100 .. 100
 }
 .
 logic kron clamp <<
 0|max(_lo, min(_hi, _value))
 .
-check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000
+check share_x100 part=0 whole=1 = 0
+check share_x100 part=1 whole=1 = 10000
+check share_x100 part=1 whole=10000 = 1
+check share_x100 part=3 whole=4 = 7500
+check share_x100 part=2 whole=3 = 20000/3
+check share_x100 part=1 whole=2 = 5000
 check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
+check count_ok count=2 cap=100 = true
+check count_ok count=99 cap=100 = true
+check count_ok count=101 cap=100 = false
+check count_ok count=100 cap=100 = true
+check count_ok count=0 cap=100 = false
+check count_ok count=1 cap=100 = true
 check clamp value=-5,0,50,150 lo=0,0,0,0 hi=100,100,100,100 = 0,0,50,100
 ```
 
@@ -73,4 +86,6 @@ rows):**
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
 

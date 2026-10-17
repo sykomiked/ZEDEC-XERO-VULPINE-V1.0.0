@@ -80,8 +80,20 @@ count_ok {
 .
 check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
 check within_range value=0,50,100,101 lo=0,0,0,0 hi=100,100,100,100 = true,true,true,false
+check within_range value=0,100 lo=0,0 hi=100,100 = true,true
+check within_range value=50,101 lo=0,0 hi=100,100 = true,false
+check within_range value=1,99 lo=0,0 hi=100,100 = true,true
+check within_range value=100 lo=0 hi=100 = true
+check within_range value=0 lo=0 hi=100 = true
+check within_range value=101 lo=0 hi=100 = false
 check conserved_sum whole=100,100,100,101 a=25,0,0,25 b=25,0,0,25 c=25,0,0,25 d=25,100,99,25 = true,true,false,false
 check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
+check count_ok count=2 cap=100 = true
+check count_ok count=99 cap=100 = true
+check count_ok count=101 cap=100 = false
+check count_ok count=100 cap=100 = true
+check count_ok count=0 cap=100 = false
+check count_ok count=1 cap=100 = true
 ```
 
 ## 6. The entry specifications (what each entry computes)
@@ -100,7 +112,7 @@ check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
 
 **Semantics.** The range law. true when lo <= value <= hi, false outside. Both bounds inclusive. A truth entry: the four values apply (a contradicted claim is both, no evidence is neither).
 
-**The exact check.** `check within_range value=0,50,100,101 lo=0,0,0,0 hi=100,100,100,100 = true,true,true,false`
+**The exact check.** `['check within_range value=0,50,100,101 lo=0,0,0,0 hi=100,100,100,100 = true,true,true,false', 'check within_range value=0,100 lo=0,0 hi=100,100 = true,true', 'check within_range value=50,101 lo=0,0 hi=100,100 = true,false', 'check within_range value=1,99 lo=0,0 hi=100,100 = true,true', 'check within_range value=100 lo=0 hi=100 = true', 'check within_range value=0 lo=0 hi=100 = true', 'check within_range value=101 lo=0 hi=100 = false']`
 
 ### `conserved_sum` (truth) — kron
 
@@ -116,7 +128,7 @@ check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
 
 **Semantics.** The registry law. true when 0 < count <= cap. A truth entry: the four values apply.
 
-**The exact check.** `check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false`
+**The exact check.** `['check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false', 'check count_ok count=2 cap=100 = true', 'check count_ok count=99 cap=100 = true', 'check count_ok count=101 cap=100 = false', 'check count_ok count=100 cap=100 = true', 'check count_ok count=0 cap=100 = false', 'check count_ok count=1 cap=100 = true']`
 
 ## 7. The app-specific entries (spelled out to the letter)
 

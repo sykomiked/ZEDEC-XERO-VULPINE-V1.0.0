@@ -25,7 +25,7 @@ logic kron flags_none <<
 (_bits&_forbidden)=0
 .
 logic kron composite_key <<
-0|_high*1000+_low
+0|((_high*1000)+_low)
 .
 check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
 check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
@@ -65,6 +65,8 @@ rows):**
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
 
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
+
 ### Entry 2 — "fits on disk" in sutra + kron witnessed
 
 **The clause it implements.** "fits on disk" in sutra + kron witnessed
@@ -85,12 +87,21 @@ logic kron <entry_name> <<
 .
 ```
 
+**A real block from the built apps in this runtime — copy
+this spelling exactly (`name_ok.kron`):**
+
+```
+(label>0)&(label<64)&(total>0)&(total<254)&(bad=0)&(total-label)>-1
+```
+
 **The check (one line; the inputs are integers, the answers the
 rows):**
 
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the pillar (APL/K): exact array arithmetic as ONE expression line '<first-row-answer>|<expr with _arg names>'. Multiply, modulus, comparisons, min/max only. No floats.
 
 ### Entry 3 — A model whose licence does not allow the use is never loaded
 
@@ -112,12 +123,29 @@ logic eve <entry_name> <<
 .
 ```
 
+**A real block from the built apps in this runtime — copy
+this spelling exactly (`limit.eve`):**
+
+```
+eve shepherd
+minute_of_day = 0 .. 1439
+daily_cap = -1 .. 1440
+
+limit_rule {
+  minutes: daily_cap
+  from: minute_of_day
+  to: minute_of_day
+}
+```
+
 **The check (one line; the inputs are integers, the answers the
 rows):**
 
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the pillar (Ada): ranges and limits. A package line 'eve <app>', domain declarations '<name> = <lo> .. <hi>', and blocks '<block> { <arg>: <domain> <lo> .. <hi> }'. It declares what is allowed; it cannot compute.
 
 ### Entry 4 — the owner decides
 
@@ -145,4 +173,6 @@ rows):**
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** see the catalogue
 

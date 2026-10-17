@@ -23,7 +23,7 @@ provides exact_total num n a b c d
 provides flags_none truth bits forbidden
 provides product num a b
 logic kron composite_key <<
-0|_high*1000+_low
+0|((_high*1000)+_low)
 .
 logic trebago exact_total <<
 trebago exact_total
@@ -77,4 +77,6 @@ rows):**
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
 

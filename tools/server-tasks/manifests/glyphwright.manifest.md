@@ -19,7 +19,7 @@ needs fs.read
 provides composite_key num high low
 provides grade_band num value b1 b2 b3 b4
 logic kron composite_key <<
-0|_high*1000+_low
+0|((_high*1000)+_low)
 .
 logic kron grade_band <<
 (_value>_b1)+(_value>_b2)+(_value>_b3)+(_value>_b4)
@@ -62,6 +62,8 @@ rows):**
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
 
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
+
 ### Entry 2 — result is a valid code point (0..0x10FFFF, not a surrogate) in eve
 
 **The clause it implements.** result is a valid code point (0..0x10FFFF, not a surrogate) in eve
@@ -82,10 +84,27 @@ logic eve <entry_name> <<
 .
 ```
 
+**A real block from the built apps in this runtime — copy
+this spelling exactly (`earned.eve`):**
+
+```
+eve talisman
+margin = 0 .. 999999999999999999
+uptime_margin = 0 .. 10000
+
+tier_earned {
+  cred: margin
+  bond: margin
+  uptime: uptime_margin
+}
+```
+
 **The check (one line; the inputs are integers, the answers the
 rows):**
 
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the pillar (Ada): ranges and limits. A package line 'eve <app>', domain declarations '<name> = <lo> .. <hi>', and blocks '<block> { <arg>: <domain> <lo> .. <hi> }'. It declares what is allowed; it cannot compute.
 

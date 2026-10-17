@@ -20,12 +20,12 @@ needs fs.write
 provides ratio_x1000 num num den
 provides composite_key num high low
 logic kron ratio_x1000 <<
-0|_num*1000%_den
+0|(_num*1000)%_den
 .
 logic kron composite_key <<
-0|_high*1000+_low
+0|((_high*1000)+_low)
 .
-check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 333,125,1,750
+check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 1000/3,125,1,750
 check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 ```
 
@@ -62,4 +62,6 @@ rows):**
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
 

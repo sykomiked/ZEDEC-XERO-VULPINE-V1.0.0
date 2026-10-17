@@ -1,0 +1,39 @@
+# app heirloom: FAILED
+# verdict: load failed: largest_remainder: a Sutra entry is a record, then "procedure" and its statements
+
+zxapp 1
+id heirloom
+matrix 81
+name Heirloom
+needs ledger.read
+needs peers
+needs notify
+
+provides exact_total num n a b c d
+provides share_x100 num part whole
+provides largest_remainder num pool w1 w2 w3 w4
+provides composite_key num high low
+logic trebago exact_total <<
+trebago exact_total
+  in  n a b c d
+  out r
+  r = 0
+end
+.
+logic kron share_x100 <<
+0|_part
+.
+logic sutra largest_remainder <<
+largest_remainder-record.
+01 pool PIC 9(9).
+procedure division.
+  move 0 to pool.
+.
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
+check largest_remainder pool=100,10,7,100 w1=1,1,1,1 w2=1,1,1,1 w3=1,1,1,1 w4=1,0,0,0 = 25,4,3,34
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+

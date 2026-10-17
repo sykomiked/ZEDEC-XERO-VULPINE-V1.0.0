@@ -35,6 +35,8 @@ logic kron flags_none <<
 (_bits&_forbidden)=0
 .
 check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
 check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4
 check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
 ```
@@ -73,6 +75,8 @@ rows):**
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
 
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
+
 ### Entry 2 — Reed-Solomon error words over GF(256) (log/antilog tables) in kron + trebago witnessed
 
 **The clause it implements.** Reed-Solomon error words over GF(256) (log/antilog tables) in kron + trebago witnessed
@@ -93,12 +97,25 @@ logic trebago <entry_name> <<
 .
 ```
 
+**A real block from the built apps in this runtime — copy
+this spelling exactly (`reach.tb`):**
+
+```
+trebago reach
+  in  have(n), need(n)
+  out reach(n)
+  reach(i) = sum(k = 1:10000, min(1, max(0, 10000 * have(i) - k * need(i) + 1)))
+end
+```
+
 **The check (one line; the inputs are integers, the answers the
 rows):**
 
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the pillar (FORTRAN): exact numerics. 'trebago <entry>' then 'in  <args>' / 'out <result>' / assignments / 'end'. Integer only; sums via sum(i, expr).
 
 ### Entry 3 — A read link is shown, never opened without the person's tap
 
@@ -120,10 +137,19 @@ logic kron <entry_name> <<
 .
 ```
 
+**A real block from the built apps in this runtime — copy
+this spelling exactly (`ttl_left.kron`):**
+
+```
+0|stored+ttl-now
+```
+
 **The check (one line; the inputs are integers, the answers the
 rows):**
 
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the pillar (APL/K): exact array arithmetic as ONE expression line '<first-row-answer>|<expr with _arg names>'. Multiply, modulus, comparisons, min/max only. No floats.
 

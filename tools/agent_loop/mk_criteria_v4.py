@@ -89,7 +89,8 @@ def main():
             doc.append(p["body"])
             doc.append(".")
         for p in pats:
-            doc.append(p["checks"])
+            ck = p["checks"]
+            doc.extend(ck if isinstance(ck, list) else [ck])
         doc += ["```", ""]
         if unmatched:
             partial += 1
@@ -108,10 +109,23 @@ def main():
                         "**The provides line (copy exactly, choose the entry name):**", "",
                         "```", "provides <entry_name> num|truth <arg> <arg> ...", "```", "",
                         "**The body (this shape, this runtime):**", "",
-                        "```", "logic %s <entry_name> <<" % lang, "<the source>", ".", "```", "",
-                        "**The check (one line; the inputs are integers, the answers the",
+                        "```", "logic %s <entry_name> <<" % lang, "<the source>", ".", "```", ""]
+                # the REAL block from the built apps in this very runtime: the
+                # exact spelling the node compiles, so nothing is guessed
+                dec = os.path.join(ROOT, "tools/agent_loop/decoding", "%s.md" % lang)
+                if os.path.exists(dec):
+                    txt = open(dec, errors="replace").read()
+                    blocks = re.findall(r"## ([^\n]+)\n\n```\n(.*?)\n```", txt, re.S)
+                    if blocks:
+                        nm, bd = blocks[min(i, len(blocks) - 1)]
+                        doc += ["**A real block from the built apps in this runtime — copy",
+                                "this spelling exactly (`%s`):**" % nm, "",
+                                "```", bd[:600], "```", ""]
+                doc += ["**The check (one line; the inputs are integers, the answers the",
                         "rows):**", "",
-                        "```", "check <entry_name> <arg>=<int>,... = <answer>,...", "```", ""]
+                        "```", "check <entry_name> <arg>=<int>,... = <answer>,...", "```", "",
+                        "**Rules that the node enforces for this runtime:** %s" %
+                        RUNTIME_RULES.get(lang, "see the catalogue"), ""]
         else:
             full += 1
             doc += ["## This app is COMPLETE from the library", "",

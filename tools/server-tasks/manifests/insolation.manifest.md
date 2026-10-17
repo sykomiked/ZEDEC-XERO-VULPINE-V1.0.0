@@ -25,26 +25,39 @@ provides ratio_x1000 num num den
 provides share_x100 num part whole
 provides largest_remainder num pool w1 w2 w3 w4
 logic eve count_ok <<
-eve app
+eve {app}
 counts = 1 .. 100
 
 count_ok {
   count: counts 1 .. 100
+  cap: counts 100 .. 100
 }
 .
 logic kron ratio_x1000 <<
-0|_num*1000%_den
+0|(_num*1000)%_den
 .
 logic kron share_x100 <<
-0|_part*10000%_whole
+0|(_part*10000)%_whole
 .
 logic kron largest_remainder <<
-0|_pool*_w1%(_w1+_w2+_w3+_w4)
+0|(_pool*_w1)%(_w1+_w2+_w3+_w4)
 .
 check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
-check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 333,125,1,750
-check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
-check largest_remainder pool=100,10,7,100 w1=1,1,1,1 w2=1,1,1,1 w3=1,1,1,1 w4=1,0,0,0 = 25,4,3,34
+check count_ok count=2 cap=100 = true
+check count_ok count=99 cap=100 = true
+check count_ok count=101 cap=100 = false
+check count_ok count=100 cap=100 = true
+check count_ok count=0 cap=100 = false
+check count_ok count=1 cap=100 = true
+check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 1000/3,125,1,750
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000
+check share_x100 part=0 whole=1 = 0
+check share_x100 part=1 whole=1 = 10000
+check share_x100 part=1 whole=10000 = 1
+check share_x100 part=3 whole=4 = 7500
+check share_x100 part=2 whole=3 = 20000/3
+check share_x100 part=1 whole=2 = 5000
+check largest_remainder pool=100,10,7,100 w1=1,1,1,1 w2=1,1,1,1 w3=1,1,1,1 w4=1,0,0,0 = 25,10/3,7/3,50
 ```
 
 ## The app-specific entries — SPELLED OUT TO THE LETTER
@@ -80,4 +93,6 @@ rows):**
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
 

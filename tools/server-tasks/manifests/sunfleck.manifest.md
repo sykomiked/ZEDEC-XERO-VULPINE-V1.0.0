@@ -23,17 +23,24 @@ needs ledger.post
 provides count_ok truth count cap
 provides product num a b
 logic eve count_ok <<
-eve app
+eve {app}
 counts = 1 .. 100
 
 count_ok {
   count: counts 1 .. 100
+  cap: counts 100 .. 100
 }
 .
 logic kron product <<
 0|_a*_b
 .
 check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
+check count_ok count=2 cap=100 = true
+check count_ok count=99 cap=100 = true
+check count_ok count=101 cap=100 = false
+check count_ok count=100 cap=100 = true
+check count_ok count=0 cap=100 = false
+check count_ok count=1 cap=100 = true
 check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
 ```
 
@@ -71,6 +78,8 @@ rows):**
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
 
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
+
 ### Entry 2 — `stands` hierarchy in MUMPS as MYRA
 
 **The clause it implements.** `stands` hierarchy in MUMPS as MYRA
@@ -91,10 +100,25 @@ logic sutra <entry_name> <<
 .
 ```
 
+**A real block from the built apps in this runtime — copy
+this spelling exactly (`used.sutra`):**
+
+```
+record used-share
+  total: 9(18)
+  left: 9(18)
+  used: 9(5)
+procedure
+  compute used = (total - left) * 10000 / total
+  answer used
+```
+
 **The check (one line; the inputs are integers, the answers the
 rows):**
 
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the pillar (COBOL): records and procedures. A record with PIC pictures, then 'procedure division.' with COMPUTE and IF. A value that does not fit its picture is refused, never cut.
 

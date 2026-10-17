@@ -21,7 +21,7 @@ provides share_x100 num part whole
 provides limit_excess num value limit
 provides product num a b
 logic kron share_x100 <<
-0|_part*10000%_whole
+0|(_part*10000)%_whole
 .
 logic trebago limit_excess <<
 trebago limit_excess
@@ -33,8 +33,16 @@ end
 logic kron product <<
 0|_a*_b
 .
-check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000
+check share_x100 part=0 whole=1 = 0
+check share_x100 part=1 whole=1 = 10000
+check share_x100 part=1 whole=10000 = 1
+check share_x100 part=3 whole=4 = 7500
+check share_x100 part=2 whole=3 = 20000/3
+check share_x100 part=1 whole=2 = 5000
 check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
 check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
 ```
 
@@ -71,4 +79,6 @@ rows):**
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
 

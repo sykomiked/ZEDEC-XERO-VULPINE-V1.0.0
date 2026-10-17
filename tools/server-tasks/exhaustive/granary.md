@@ -104,6 +104,12 @@ The library does not cover these clauses. Each below gives the clause, the runti
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
 
+**A real block in this runtime — copy this spelling (`name_ok.kron`):**
+
+```
+(label>0)&(label<64)&(total>0)&(total<254)&(bad=0)&(total-label)>-1
+```
+
 ### 7.3 — A model whose licence does not allow the use is never loaded
 
 **Runtime.** `eve` — the pillar (Ada): ranges and limits. A package line 'eve <app>', domain declarations '<name> = <lo> .. <hi>', and blocks '<block> { <arg>: <domain> <lo> .. <hi> }'. It declares what is allowed; it cannot compute.
@@ -113,6 +119,20 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic eve <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`limit.eve`):**
+
+```
+eve shepherd
+minute_of_day = 0 .. 1439
+daily_cap = -1 .. 1440
+
+limit_rule {
+  minutes: daily_cap
+  from: minute_of_day
+  to: minute_of_day
+}
+```
 
 ### 7.4 — the owner decides
 

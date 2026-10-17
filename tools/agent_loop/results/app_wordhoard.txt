@@ -1,0 +1,22 @@
+# app wordhoard: FAILED
+# verdict: check failed (line 17): check composite_key: refused (every language)
+
+zxapp 1
+id wordhoard
+matrix 46
+name Wordhoard
+needs fs.read
+needs search
+needs ai.ask
+
+provides composite_key num high low
+provides share_x100 num part whole
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+logic kron share_x100 <<
+0|_part
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
+

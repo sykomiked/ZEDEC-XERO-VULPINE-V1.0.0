@@ -65,6 +65,8 @@ logic kron flags_none <<
 (_bits&_forbidden)=0
 .
 check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
 check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4
 check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
 ```
@@ -77,7 +79,7 @@ check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
 
 **Semantics.** The excess over a ceiling. 0 when value <= limit, else value - limit. Integer only; the limit is inclusive; no negative excess ever.
 
-**The exact check.** `check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000`
+**The exact check.** `['check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000', 'check limit_excess value=1000,999 limit=1000,1000 = 0,0', 'check limit_excess value=1,1000000 limit=0,999999 = 1,1']`
 
 ### `grade_band` (num) — kron
 
@@ -119,6 +121,16 @@ The library does not cover these clauses. Each below gives the clause, the runti
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
 
+**A real block in this runtime — copy this spelling (`reach.tb`):**
+
+```
+trebago reach
+  in  have(n), need(n)
+  out reach(n)
+  reach(i) = sum(k = 1:10000, min(1, max(0, 10000 * have(i) - k * need(i) + 1)))
+end
+```
+
 ### 7.3 — A read link is shown, never opened without the person's tap
 
 **Runtime.** `kron` — the pillar (APL/K): exact array arithmetic as ONE expression line '<first-row-answer>|<expr with _arg names>'. Multiply, modulus, comparisons, min/max only. No floats.
@@ -128,6 +140,12 @@ The library does not cover these clauses. Each below gives the clause, the runti
 **body:** `logic kron <entry> <<` then the source then `.`
 
 **check:** `check <entry> <arg>=<int>,... = <answer>,...`
+
+**A real block in this runtime — copy this spelling (`ttl_left.kron`):**
+
+```
+0|stored+ttl-now
+```
 
 ## 8. The dual interface (human and AI)
 

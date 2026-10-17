@@ -24,21 +24,27 @@ provides product num a b
 provides share_x100 num part whole
 provides largest_remainder num pool w1 w2 w3 w4
 logic kron composite_key <<
-0|_high*1000+_low
+0|((_high*1000)+_low)
 .
 logic kron product <<
 0|_a*_b
 .
 logic kron share_x100 <<
-0|_part*10000%_whole
+0|(_part*10000)%_whole
 .
 logic kron largest_remainder <<
-0|_pool*_w1%(_w1+_w2+_w3+_w4)
+0|(_pool*_w1)%(_w1+_w2+_w3+_w4)
 .
 check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
 check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
-check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
-check largest_remainder pool=100,10,7,100 w1=1,1,1,1 w2=1,1,1,1 w3=1,1,1,1 w4=1,0,0,0 = 25,4,3,34
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000
+check share_x100 part=0 whole=1 = 0
+check share_x100 part=1 whole=1 = 10000
+check share_x100 part=1 whole=10000 = 1
+check share_x100 part=3 whole=4 = 7500
+check share_x100 part=2 whole=3 = 20000/3
+check share_x100 part=1 whole=2 = 5000
+check largest_remainder pool=100,10,7,100 w1=1,1,1,1 w2=1,1,1,1 w3=1,1,1,1 w4=1,0,0,0 = 25,10/3,7/3,50
 ```
 
 ## The app-specific entries — SPELLED OUT TO THE LETTER
@@ -75,6 +81,8 @@ rows):**
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
 
+**Rules that the node enforces for this runtime:** the host tier: C11, zero-malloc, fixed buffers, exact integers. The view and model layer; reaches the system through the C ABI.
+
 ### Entry 2 — `editions` tree in MUMPS as MYRA
 
 **The clause it implements.** `editions` tree in MUMPS as MYRA
@@ -95,10 +103,25 @@ logic sutra <entry_name> <<
 .
 ```
 
+**A real block from the built apps in this runtime — copy
+this spelling exactly (`used.sutra`):**
+
+```
+record used-share
+  total: 9(18)
+  left: 9(18)
+  used: 9(5)
+procedure
+  compute used = (total - left) * 10000 / total
+  answer used
+```
+
 **The check (one line; the inputs are integers, the answers the
 rows):**
 
 ```
 check <entry_name> <arg>=<int>,... = <answer>,...
 ```
+
+**Rules that the node enforces for this runtime:** the pillar (COBOL): records and procedures. A record with PIC pictures, then 'procedure division.' with COMPUTE and IF. A value that does not fit its picture is refused, never cut.
 
