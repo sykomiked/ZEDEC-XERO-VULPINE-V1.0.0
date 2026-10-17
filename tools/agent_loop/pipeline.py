@@ -249,7 +249,36 @@ def intelligence(prompt, tokens, tries=4):
     return ""
 
 
+OR_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+OR_MODEL = os.environ.get("OR_MODEL", "nvidia/nemotron-3.5-super-vl:free")
+OR_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+
+def openrouter(prompt, tokens, tries=4):
+    """The OpenRouter backend: NVIDIA Nemotron (the free variant when the
+    account's paid credits are exhausted). Retries with backoff on 429."""
+    import time as _t
+    for a in range(tries):
+        try:
+            body = json.dumps({"model": OR_MODEL,
+                               "messages": [{"role": "user", "content": prompt}],
+                               "max_tokens": tokens, "temperature": 0.3}).encode()
+            req = urllib.request.Request(OR_URL, data=body,
+                                         headers={"Authorization": "Bearer " + OR_KEY,
+                                                  "Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=300) as r:
+                d = json.loads(r.read())
+            return d["choices"][0]["message"]["content"]
+        except Exception as e:
+            if a == tries - 1:
+                raise
+            _t.sleep(3 * (a + 1))
+    return ""
+
+
 def vllm(prompt, tokens):
+    if OR_KEY:
+        return openrouter(prompt, tokens)
     if IO_KEY:
         return intelligence(prompt, tokens)
     body = json.dumps({"model": VLLM_MODEL,
