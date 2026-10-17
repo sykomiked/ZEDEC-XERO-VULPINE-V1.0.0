@@ -179,7 +179,35 @@ git clone zxv.bundle</pre>
   </section>
 
   <section>
-    <h2><span class="n">07</span>This address</h2>
+    <h2><span class="n">07</span>Search the exchange index</h2>
+    <p>The same CISEX index the agents query on Vinea port 8724 — one
+       keyword in, content out, ranked by EpistemicRank: citation gravity,
+       demand, and how many armada regions verify the entry. Every result
+       carries its cryptographic standing, not an ad auction.</p>
+    <label for="sqnode" class="note">Search node URL (use this page's origin when served by ZXV):</label>
+    <input id="sqnode" type="url" autocomplete="url"
+      style="width:100%;margin:4px 0 12px;background:#001f0c;border:1px solid #1a4a2e;
+             border-radius:6px;color:var(--dim);font:13px ui-monospace,Menlo,monospace;
+             padding:8px 10px">
+    <form id="sq" style="display:flex;gap:10px;margin:0 0 16px">
+      <input id="sqin" type="text" autocomplete="off" spellcheck="false"
+        placeholder="keyword — e.g. curriculum, kernel, manual"
+        style="flex:1;background:#001f0c;border:1px solid #1a4a2e;border-radius:6px;
+               color:var(--ink);font:15px ui-monospace,Menlo,monospace;padding:10px 12px">
+      <button type="submit" style="background:#003d1a;color:var(--gold);
+              border:1px solid var(--gold);border-radius:6px;padding:10px 18px;
+              font:15px Georgia,serif;cursor:pointer">query</button>
+    </form>
+    <div id="sout" class="note">results appear here when this page is served by a ZXV node</div>
+    <p class="note" style="margin-top:14px">Machine agents: POST a CISEX
+       datagram (<code>[0x02][region][len][keyword]</code>) to
+       <code>/cisex</code> or send it on <code>:8724</code> — the reply is
+       <code>[0xB0][count][168-byte UBH index envelopes]</code>, no HTML.
+       The envelope integrity digest is not a node signature.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">08</span>This address</h2>
     <p class="cid" id="root">resolving&hellip;</p>
     <!-- DOORWAY:ROOT -->
   </section>
@@ -202,6 +230,128 @@ git clone zxv.bundle</pre>
     } else {
         el.textContent = 'open this page through an IPFS gateway to see its content address';
     }
+})();
+
+/* CISEX keyword query -> human rendering. The wire datagram is
+ * [0x02][region][kw_len][kw]; the reply [0xB0][n][env*168] holds UBH-168
+ * index envelopes: 21-byte frame, 126-byte payload, 21-byte integrity
+ * trailer. Payload: digest(32) name(32) kw(24) size(8) cites(4) wants(4)
+ * prov[0].addr(6) n_prov kind lpx armada region codec entropy(2). */
+(function () {
+    var B32 = 'abcdefghijklmnopqrstuvwxyz234567';
+    function cidv1(codec, digest) { /* digest = Uint8Array(32) */
+        var bin = new Uint8Array(36), out = 'b', bits = 0, acc = 0, i;
+        bin[0] = 1; bin[1] = codec; bin[2] = 0x12; bin[3] = 0x20;
+        bin.set(digest, 4);
+        for (i = 0; i < 36; i++) {
+            acc = (acc << 8) | bin[i]; bits += 8;
+            while (bits >= 5) { bits -= 5; out += B32[(acc >>> bits) & 31]; }
+        }
+        if (bits) out += B32[(acc << (5 - bits)) & 31];
+        return out;
+    }
+    function pop8(b) { var n = 0; while (b) { n += b & 1; b >>>= 1; } return n; }
+    function be(b, o, n) { var v = 0; while (n--) v = v * 256 + b[o++]; return v; }
+    function be64(b, o) {
+        var v = 0n;
+        for (var i = 0; i < 8; i++) v = (v << 8n) | BigInt(b[o + i]);
+        return v.toString();
+    }
+    var KIND = ['content', 'directory', 'file', 'pdf', 'elf', 'wasm', 'car',
+                'gguf', 'sqlite', 'zip', 'gz', 'tar', 'image', 'markdown',
+                'source', 'latex'];
+    var LPRES = ['FALSE', 'NEITHER', 'BOTH', 'TRUE'];
+    function esc(s) {
+        return s.replace(/[&<>"]/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+        });
+    }
+    function validHeader(d, o, cls, flags, schema) {
+        return d[o] === 0x5a && d[o + 1] === 0x58 && d[o + 2] === 0x56 &&
+            d[o + 3] === (0x10 | cls) && d[o + 4] === 0 && d[o + 5] === 14 &&
+            d[o + 6] === 0 && d[o + 7] === 3 && d[o + 8] === 1 && d[o + 9] === flags &&
+            d[o + 10] === 0 && d[o + 11] === 0 && d[o + 12] === 0 &&
+            d[o + 13] === 126 && d[o + 14] === (schema >>> 24) &&
+            d[o + 15] === ((schema >>> 16) & 255) &&
+            d[o + 16] === ((schema >>> 8) & 255) && d[o + 17] === (schema & 255);
+    }
+    document.getElementById('sq').addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var kw = document.getElementById('sqin').value.trim().toLowerCase();
+        var out = document.getElementById('sout');
+        if (!kw) { out.textContent = 'type a keyword'; return; }
+        var kwb = new TextEncoder().encode(kw.slice(0, 24));
+        var req = new Uint8Array(3 + kwb.length);
+        req[0] = 0x02; req[1] = 0; req[2] = kwb.length; req.set(kwb, 3);
+        out.textContent = 'querying…';
+        var endpoint = document.getElementById('sqnode').value.trim().replace(/\/+$/, '');
+        if (!endpoint) endpoint = location.origin;
+        fetch(endpoint + '/cisex', {
+            method: 'POST', body: new Blob([req], { type: 'text/plain' })
+        })
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.arrayBuffer();
+            })
+            .then(function (ab) {
+                var d = new Uint8Array(ab), html = '', i;
+                if (d.length < 2 || d[0] !== 0xB0) throw new Error('unexpected reply');
+                var n = d[1];
+                if (n > 4 || d.length !== 2 + n * 168)
+                    throw new Error('malformed result envelope list');
+                if (!n) { out.innerHTML = 'no entries — the index has not seen that keyword'; return; }
+                for (i = 0; i < n && 2 + (i + 1) * 168 <= d.length; i++) {
+                    var p = 2 + i * 168 + 21, name = '', j;
+                    var eo = 2 + i * 168;
+                    if (!validHeader(d, eo, 3, 5, 0x43495358) ||
+                        !validHeader(d, eo + 147, 6, 5, 6))
+                        throw new Error('invalid UBH index envelope');
+                    for (j = 0; j < 32 && d[p + 32 + j]; j++)
+                        name += String.fromCharCode(d[p + 32 + j]);
+                    var size = be64(d, p + 88), cites = be(d, p + 96, 4),
+                        wants = be(d, p + 100, 4), nprov = d[p + 110],
+                        kind = d[p + 111], lpx = d[p + 112], armada = d[p + 113],
+                        codec = d[p + 115], envOff = eo;
+                    var prov = nprov ? ' · ' + d[p + 104] + '.' + d[p + 105] + '.' +
+                        d[p + 106] + '.' + d[p + 107] + ':' + be(d, p + 108, 2) : '';
+                    var state = LPRES[(lpx >>> 4) & 3] || 'NEITHER';
+                    var badge = 'LPRES ' + state + ' · observed TRUE in ' +
+                        pop8(armada) + '/8 regions';
+                    html += '<div style="border:1px solid #1a4a2e;border-radius:6px;' +
+                        'padding:10px 14px;margin:0 0 10px;background:#001f0c">' +
+                        '<b style="color:var(--gold)">' + esc(name || '(unnamed)') + '</b>' +
+                        ' <span style="color:var(--dim)">[' + (KIND[kind] || KIND[0]) + ']</span>' +
+                        '<br><span class="cid">' + cidv1(codec, d.subarray(p, p + 32)) + '</span>' +
+                        '<br><span style="color:var(--dim);font-size:13px">' + badge +
+                        ' · ' + cites + ' cites · ' + wants + ' wants · ' + size + ' B' + prov +
+                        '</span><br><span data-ubh=\"' + envOff +
+                        '\" style=\"font-size:12px;color:var(--dim)\">checking UBH integrity…' +
+                        '</span></div>';
+                }
+                out.innerHTML = html || 'no entries';
+                if (window.crypto && crypto.subtle) {
+                    var checks = out.querySelectorAll('[data-ubh]');
+                    checks.forEach(function (el) {
+                        var o = Number(el.getAttribute('data-ubh'));
+                        crypto.subtle.digest('SHA-256', d.slice(o, o + 147)).then(function (hash) {
+                            var h = new Uint8Array(hash), ok = h[0] === d[o + 165] &&
+                                h[1] === d[o + 166] && h[2] === d[o + 167];
+                            el.textContent = ok ? 'UBH integrity digest: valid (not a signature)'
+                                                : 'UBH integrity digest: INVALID';
+                            el.style.color = ok ? 'var(--dim)' : '#ff6b6b';
+                        });
+                    });
+                } else {
+                    out.querySelectorAll('[data-ubh]').forEach(function (el) {
+                        el.textContent = 'UBH envelope structure valid; WebCrypto unavailable';
+                    });
+                }
+            })
+            .catch(function (e) {
+                out.textContent = 'no index behind this address (' + e.message +
+                    ') — serve this page from a ZXV node door on port 80';
+            });
+    });
 })();
 </script>
 </body>

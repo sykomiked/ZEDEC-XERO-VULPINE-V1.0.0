@@ -138,6 +138,7 @@ typedef struct {
     uint8_t peer_index;          /* seed-table position (8 = SIN), 0xFF none */
     uint32_t smic_in, smic_quar; /* manifests admitted, quarantine actions */
     uint32_t exch_in, env_pubs;  /* exchange envelopes in, env records out */
+    uint32_t idx_in, idx_out;    /* CISX index records merged in / published out */
     uint8_t up;
 } vna_host_t;
 

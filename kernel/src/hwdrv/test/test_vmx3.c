@@ -634,15 +634,17 @@ static void test_faults(void)
         fake_plat_t fp;
         hw_registry_t r = {0};
         hw_line_t note;
+        fvmx_t *f2;
         fake_plat_init(&fp);
         fp.dma_fail_after = 3; /* driver struct, ds, qs succeed; txd fails */
-        add_vmx(&fp, HW_BDF(0, 5, 0));
+        f2 = add_vmx(&fp, HW_BDF(0, 5, 0));
         hw_pci_dev_t dv[4];
         CHECK(hw_pci_scan(&fp.plat, dv, 4) == 1);
         hw_line_init(&note);
         CHECK(vmx3_bind(&fp.plat, &dv[0], &r, &note) == HW_F);
         CHECK(strstr(note.b, "out of DMA memory"));
         fake_plat_free(&fp);
+        free(f2); /* add_vmx's struct is not in the fake's allocator */
     }
 }
 

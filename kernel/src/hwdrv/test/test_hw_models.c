@@ -770,8 +770,8 @@ static void test_upstream(void)
         {"cid " CID "\npeer 203.0.113.10 8724 extra\n", "line 2: extra fields"},
         {"cid " CID "\npeer 1.1.1.1 1\npeer 1.1.1.2 1\npeer 1.1.1.3 1\npeer 1.1.1.4 1\n"
          "peer 1.1.1.5 1\npeer 1.1.1.6 1\npeer 1.1.1.7 1\npeer 1.1.1.8 1\n"
-         "peer 1.1.1.9 1\n",
-         "line 10: more peers than the kernel tracks"},
+         "peer 1.1.1.9 1\npeer 1.1.1.10 1\n",
+         "line 11: more peers than the kernel tracks"},
         {"# empty\n", "UPSTREAM.CID: no cid line"},
     };
     for (unsigned i = 0; i < sizeof up / sizeof up[0]; i++) {
@@ -782,6 +782,20 @@ static void test_upstream(void)
                  !fake_log_has(&fp, "zxv-get");
         if (!ok) printf("  upstream case %u: %s\n", i, up[i].text);
         CHECK(ok);
+    }
+
+    /* the fleet's own bound: nine seed peers parse clean */
+    {
+        char nine[512];
+        uint32_t n;
+        snprintf(nine, sizeof nine,
+                 "cid " CID "\n"
+                 "peer 1.1.1.1 1\npeer 1.1.1.2 1\npeer 1.1.1.3 1\npeer 1.1.1.4 1\n"
+                 "peer 1.1.1.5 1\npeer 1.1.1.6 1\npeer 1.1.1.7 1\npeer 1.1.1.8 1\n"
+                 "peer 1.1.1.9 1\n");
+        n = index_up(nine, LST, 0);
+        CHECK(n == 2 && s.cid[0] && s.npeer == 9 && s.ipns[0] == 0 && s.ngateway == 0 &&
+              fake_log_has(&fp, "[UPSTREAM]") && fake_log_has(&fp, "zxv-get"));
     }
 
     static const struct {

@@ -77,6 +77,7 @@ static int is_curriculum_cid(const char *path, uint32_t plen)
 static cisex_ent_t g_cisex_ents[VNAH_CISEX_N];
 static cisex_t g_cisex;
 static uint8_t g_cisex_region;
+static uint32_t g_car_indexed; /* CAR sections harvested into the index */
 
 /* The machine-integrity ring (smic_core.h) and the stateless UBH-168
  * exchange order book (vna_exchange.h): like the CISEX index, one bounded
@@ -112,11 +113,13 @@ static int32_t g_oseq_vna = -1;
 #define VNAH_REC_F_REQ 2u
 #define VNAH_REC_F_REP 3u
 /* chiglet visit frames inside a session (the warm layer below) */
-#define VNAH_REC_V_REQ   4u /* dna + grant + visitor's ML-DSA-87 signature */
-#define VNAH_REC_V_ACK   5u /* status + host dna when opened */
-#define VNAH_REC_V_CLAIM 6u /* one chgk claim/verdict, 67 bytes */
-#define VNAH_REC_V_CACK  7u /* status + xp gained, little-endian u32 */
-#define VNAH_REC_V_END   8u /* close the visit */
+#define VNAH_REC_V_REQ   4u  /* dna + grant + visitor's ML-DSA-87 signature */
+#define VNAH_REC_V_ACK   5u  /* status + host dna when opened */
+#define VNAH_REC_V_CLAIM 6u  /* one chgk claim/verdict, 67 bytes */
+#define VNAH_REC_V_CACK  7u  /* status + xp gained, little-endian u32 */
+#define VNAH_REC_V_END   8u  /* close the visit */
+#define VNAH_REC_CISEX_Q 9u  /* CISEX datagram request over the PQ session */
+#define VNAH_REC_CISEX_R 10u /* CISEX datagram reply over the PQ session */
 #define VNAH_HS_POW      8u
 #define VNAH_FETCH_MS    4000ull /* give one fetch a bounded window */
 
@@ -582,14 +585,22 @@ static void vna_env_publish(vna_host_t *h, const vna_id_t *key, const uint8_t *e
 }
 
 /* One envelope payload into the ring: SMIC manifests drive the admission
- * table, exchange envelopes the order book; both feed the CISEX index. */
+ * table, exchange envelopes the order book, CISX index records merge into
+ * the index — and all three feed CISEX. */
 static void vna_env_ingest(vna_host_t *h, const uint8_t *payload, uint32_t len, uint64_t now)
 {
     smic_hw_t hw;
     vna_exch_rec_t er;
     uint16_t mtype;
     lpx_action_t a;
+    cisex_wire_t cw;
     if (len != SMIC_ENV_BYTES) return;
+    /* the strictest schema first: a peer's index record joins its regional
+     * observations into ours (idempotent — same record twice is a no-op) */
+    if (cisex_unpack_idx(payload, &cw) == IPFSN_OK) {
+        if (cisex_merge(&g_cisex, payload) == IPFSN_OK) h->idx_in++;
+        return;
+    }
     if (smic_manifest_unpack(payload, &mtype, &hw) == SMIC_OK) {
         a = smic_admit(&g_smic, &hw, now);
         if (a == LPX_ACT_ESCALATE || a == LPX_ACT_ROLLBACK) h->smic_quar++;
@@ -878,6 +889,33 @@ static void vna_shard_setup(void)
     }
 }
 
+/* Harvest the embedded CAR into the index: every [varint][cid][block]
+ * section's dag-pb payload is verified against its CID then crawled, so
+ * the curriculum's own links become citation/keyword evidence. Raw leaves
+ * get the first-chunk classifier (kind + header entropy). Returns the
+ * sections indexed. */
+static uint32_t cisex_car_harvest(uint8_t region)
+{
+    ipfsn_car_t car;
+    ipfsn_cid_t c;
+    const uint8_t *blk;
+    uint32_t blen, n_links = 0, done = 0;
+    uint8_t kind = 0;
+    uint16_t ent = 0;
+    if (CUR_CAR_LEN > UINT32_MAX || ipfsn_car_open(&car, cur_car, CUR_CAR_LEN) != IPFSN_OK)
+        return 0;
+    while (ipfsn_car_next(&car, &c, &blk, &blen) == IPFSN_OK) {
+        if (c.mh_code != IPFSN_MH_SHA2_256 || c.digest_len != 32u) continue;
+        if (c.codec == IPFSN_MC_DAG_PB)
+            (void) cisex_index_dagpb(&g_cisex, &c, blk, blen, region, &n_links);
+        else
+            (void) cisex_peek(&g_cisex, c.digest, blk,
+                              blen > CISEX_HDR_PEEK ? CISEX_HDR_PEEK : blen, region, &kind, &ent);
+        done++;
+    }
+    return done;
+}
+
 /* The attestation datagram as a shared file: peers fetch it by its root to
  * verify this node's manifest signature offline. */
 static void vna_attest_share(void)
@@ -982,6 +1020,46 @@ static void sess_fetch_step(vna_host_t *h, int si)
     if (ql > 0) sess_send(h, si, VNAH_REC_F_REQ, g_sess_pt, (uint32_t) ql);
 }
 
+/* Armada index sync: each cycle the top-ranked entries go out as CISX
+ * envelopes under digest-derived keys — every node's index converges on
+ * the same verified evidence, and a peer's merge kjoins our regional
+ * observations into its own. */
+static void cisex_idx_sync(vna_host_t *h, uint64_t now)
+{
+    uint32_t top[CISEX_RT_MAX_ENV];
+    uint64_t tr[CISEX_RT_MAX_ENV];
+    uint32_t i, n = 0, k;
+    for (i = 0; i < g_cisex.count; i++) {
+        const cisex_ent_t *e = cisex_at(&g_cisex, i);
+        uint64_t r;
+        uint32_t j;
+        if (!e || !e->used) continue;
+        r = cisex_rank(e);
+        if (r == 0) continue;
+        for (j = n; j > 0 && tr[j - 1] < r; j--) {
+            if (j < CISEX_RT_MAX_ENV) {
+                tr[j] = tr[j - 1];
+                top[j] = top[j - 1];
+            }
+        }
+        if (j < CISEX_RT_MAX_ENV) {
+            tr[j] = r;
+            top[j] = i;
+            if (n < CISEX_RT_MAX_ENV) n++;
+        }
+    }
+    for (k = 0; k < n; k++) {
+        const cisex_ent_t *e = cisex_at(&g_cisex, top[k]);
+        uint8_t env[CISEX_ENV_BYTES];
+        vna_id_t key;
+        if (e && cisex_pack_idx(e, g_cisex_region, env) == IPFSN_OK) {
+            vna_htag("zxv/cisex/idx/v1", e->digest, 32, key.b);
+            vna_env_publish(h, &key, env, now, VNAH_ENV_TTL);
+            h->idx_out++;
+        }
+    }
+}
+
 /* A provider record for a file we do not share: start a fetch through the
  * provider's session (established on demand). */
 static void sess_fetch_begin(vna_host_t *h, const vna_id_t *root, const vna_id_t *provider,
@@ -998,6 +1076,9 @@ static void sess_fetch_begin(vna_host_t *h, const vna_id_t *root, const vna_id_t
     g_fetch_size = (uint32_t) pv->file_size;
     g_fetch_deadline = now + VNAH_FETCH_MS;
     g_fetch_active = 1;
+    /* demand is evidence too: the wantlist stub carries it until blocks
+     * arrive and observations join in */
+    (void) cisex_want(&g_cisex, g_fetch_root.b, g_cisex_region);
     si = sess_slot(provider);
     if (si < 0)
         sess_ensure(h, provider, now); /* the poll asks once the session lands */
@@ -1122,9 +1203,17 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
                 g_chunks_in++;
                 if (vna_fetch_complete(&g_fetch)) {
                     uint32_t e;
+                    uint8_t fkind = 0;
+                    uint16_t fent = 0;
                     g_fetch_active = 0;
                     g_fetch_done++;
                     bond_obs(BOND_APP_VNA, BOND_ACT_FETCH, now);
+                    /* first-chunk classifier on the verified bytes */
+                    (void) cisex_peek(&g_cisex, g_fetch_root.b, g_fetch_data,
+                                      g_fetch_size > CISEX_HDR_PEEK ? CISEX_HDR_PEEK : g_fetch_size,
+                                      g_cisex_region, &fkind, &fent);
+                    (void) cisex_observe(&g_cisex, g_fetch_root.b, g_cisex_region,
+                                         LPRES_STATE_TRUE);
                     /* become a seeder for what we just verified */
                     for (e = 0; e < VNAH_EXT_N; e++)
                         if (!g_ext_used[e]) break;
@@ -1144,6 +1233,20 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
                 } else
                     sess_fetch_step(h, i);
             }
+            return;
+        }
+        if (type == VNAH_REC_CISEX_Q) {
+            uint8_t query[258];
+            uint32_t reply_len = 0;
+            int qr;
+            if (pl > sizeof query) return;
+            vna_copy(query, g_sess_pt, pl);
+            qr = cisex_rt_handle(&g_cisex, query, pl, g_cisex_region, g_sess_pt, sizeof g_sess_pt,
+                                 &reply_len);
+            if (reply_len > 0)
+                sess_send(h, i, VNAH_REC_CISEX_R, g_sess_pt, reply_len);
+            else if (qr < 0)
+                h->refused++;
             return;
         }
         if (type == VNAH_REC_V_REQ) {
@@ -1960,6 +2063,7 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
          * VNA_REC_ENV records. */
         smic_init(&g_smic, g_smic_ents, VNAH_SMIC_N);
         vna_shard_setup(); /* the CAR becomes eight Merkle-rooted shard files */
+        g_car_indexed = cisex_car_harvest(g_cisex_region); /* curriculum -> index */
         vna_smic_self(h);
         (void) smic_admit(&g_smic, &g_self_hw, now);
         {
@@ -2111,6 +2215,7 @@ void vna_host_pump(vna_host_t *h, uint64_t now)
         ev_heal_action_t wa;
         h->last_cycle = now;
         vna_settle(h, now);
+        cisex_idx_sync(h, now); /* top-ranked entries out as CISX envelopes */
         /* the audit/heal cycle: replenish budgets, then check every domain's
          * invariants and let the healing engine act on the worst result */
         ev_seq_replenish(&g_seq);
@@ -2263,6 +2368,14 @@ void vna_host_report(const vna_host_t *h)
     uart_put_dec(h->shard_announces + h->shard_queries);
     uart_puts(" refused_econ ");
     uart_put_dec(h->refused_econ + h->link.refused);
+    uart_puts(" cisex entries/indexed ");
+    uart_put_dec(g_cisex.count);
+    uart_putc('/');
+    uart_put_dec(g_car_indexed);
+    uart_puts(" sync in/out ");
+    uart_put_dec(h->idx_in);
+    uart_putc('/');
+    uart_put_dec(h->idx_out);
     /* the chiglet: judged members, its social layer, the bond's read */
     uart_puts(" chg d/u ");
     uart_put_dec(g_chg_decided);
