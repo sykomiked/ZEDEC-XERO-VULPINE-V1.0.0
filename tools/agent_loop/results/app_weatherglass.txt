@@ -1,0 +1,12 @@
+# app weatherglass: FAILED
+# verdict: nothing loaded (no runtime for any entry)
+
+zxapp 1
+id weatherglass
+matrix 88
+name Weatherglass
+needs location
+needs net
+needs notify
+
+

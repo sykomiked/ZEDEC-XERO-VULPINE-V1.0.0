@@ -1,0 +1,18 @@
+# app hedgerow: FAILED
+# verdict: check failed (line 14): check composite_key: refused (every language)
+
+zxapp 1
+id hedgerow
+matrix 30
+name Hedgerow
+needs net
+needs peers
+needs sys.read
+needs notify
+
+provides composite_key num high low
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+

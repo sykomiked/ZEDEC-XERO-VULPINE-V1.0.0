@@ -1,0 +1,33 @@
+# app ninefold: FAILED
+# verdict: load failed: product: a Sutra entry is a record, then "procedure" and its statements
+
+zxapp 1
+id ninefold
+matrix 80
+name Ninefold
+needs ledger.read
+needs swarm
+
+provides share_x100 num part whole
+provides limit_excess num value limit
+provides product num a b
+logic kron share_x100 <<
+0|_part
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+logic sutra product <<
+product-record.
+01 a PIC 9(9).
+procedure division.
+  move 0 to a.
+.
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
+

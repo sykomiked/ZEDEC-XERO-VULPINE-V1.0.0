@@ -1,0 +1,21 @@
+# app homestead: FAILED
+# verdict: nothing loaded (no runtime for any entry)
+
+zxapp 1
+id homestead
+matrix 94
+name Homestead
+needs net
+needs peers
+needs notify
+
+provides exact_total num n a b c d
+logic trebago exact_total <<
+trebago exact_total
+  in  n a b c d
+  out r
+  r = 0
+end
+.
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+

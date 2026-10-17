@@ -1,0 +1,21 @@
+# app typecase: FAILED
+# verdict: check failed (line 16): check count_ok: refused (every language)
+
+zxapp 1
+id typecase
+matrix 113
+name Typecase
+needs fs.read
+needs fs.write
+
+provides count_ok truth count max
+provides share_x100 num part whole
+logic kron count_ok <<
+0|_count
+.
+logic kron share_x100 <<
+0|_part
+.
+check count_ok count=1,100,101,0 max=100,100,100,100 = true,true,false,false
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
+

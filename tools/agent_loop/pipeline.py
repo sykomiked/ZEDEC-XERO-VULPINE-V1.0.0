@@ -119,6 +119,25 @@ def criteria_of(app_id):
     return "\n\n".join(parts)
 
 
+def decoding_for(app_id, node):
+    """The per-runtime decoding reference: the real blocks from the built
+    apps whose runtimes this app uses, so the model copies exact spellings
+    instead of guessing. Falls back to the five hand-picked examples."""
+    import csv as _csv
+    rts = set()
+    with open(os.path.join(ROOT, "tools/server-tasks/APP_LANGUAGES_407.csv")) as f:
+        for r in _csv.DictReader(f):
+            if r["app"].strip().lower() == app_id.lower():
+                rts.add(r["runtime"].strip().lower())
+    parts = []
+    for rt in sorted(rts):
+        path = os.path.join(ROOT, "tools/agent_loop/decoding", "%s.md" % rt)
+        if os.path.exists(path):
+            txt = open(path, errors="replace").read()
+            parts.append(txt[:1800])
+    return "\n".join(parts) if parts else lang_examples()
+
+
 def lang_examples():
     """The real blocks from the built apps: the exact spellings the
     pillars compile. One per language, straight from the tree."""
@@ -199,7 +218,8 @@ def prompt_for(app_id, node, verdict, last_text=""):
         "  kron: one line: '<answer-for-the-first-row>|<expression with _arg names>'\n"
         "  myra: one line: '^<GLOBAL>(<arg>:<pic>, <arg>:<pic>) = <name>:<pic>!'\n"
         "  sutra: the record (pictures) then the procedure (COMPUTE / IF)\n"
-        "THE REAL BLOCKS from the built apps — copy these spellings exactly:\n%s\n"
+        "THE DECODING REFERENCE — real blocks from the built apps in the very "
+        "runtimes this app uses; copy these spellings exactly:\n%s\n"
         "PARACONSISTENT LOGIC — this is the kernel's signature and the apps' "
         "showcase: truth entries and their check answers use the FOUR-VALUED lpres "
         "(true, false, both, neither) — NEVER 0/1 booleans. 'both' when the claim "
@@ -211,7 +231,7 @@ def prompt_for(app_id, node, verdict, last_text=""):
         "--- skeleton (the assembled structure, for context) ---\n%s\n---\n"
         "The wave spec (the authority):\n---\n%s\n---\n"
         "The criteria (the exact entry table):\n---\n%s\n---\n"
-        % (app_id, node.get("slot"), lang_examples(), checks_of(app_id),
+        % (app_id, node.get("slot"), decoding_for(app_id, node), checks_of(app_id),
            skeleton(app_id, node), spec[:2500], criteria_of(app_id)[:2500])
     )
     if verdict:
@@ -289,6 +309,18 @@ def openrouter(prompt, tokens, tries=4):
     return ""
 
 
+def _json_lenient(raw):
+    """The model's output can carry raw control characters the strict JSON
+    parser refuses; strip them outside strings is unsafe, so replace the
+    C0 controls with spaces in the whole text (the code's semantics do not
+    depend on them)."""
+    txt = raw.decode("utf-8", errors="replace")
+    out = []
+    for ch in txt:
+        out.append(ch if ord(ch) >= 0x20 or ch in "\n\r\t" else " ")
+    return json.loads("".join(out))
+
+
 def vllm(prompt, tokens):
     # IO Intelligence first: it sustained 3/3 where the OpenRouter free tier
     # throttled; OpenRouter is the fallback.
@@ -302,8 +334,8 @@ def vllm(prompt, tokens):
     req = urllib.request.Request(VLLM_URL.rstrip("/") + "/v1/chat/completions", data=body,
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=3600) as r:
-        d = json.loads(r.read())
-    return d["choices"][0]["message"]["content"]
+        d = _json_lenient(r.read())
+    return d["choices"][0]["message"]["content"] or ""
 
 
 def judge(text):

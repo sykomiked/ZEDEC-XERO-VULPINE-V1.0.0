@@ -1,0 +1,31 @@
+# app reckoner: FAILED
+# verdict: parse failed (line 27): check: an input's values are whole numbers, comma-separated (at most 16)
+
+zxapp 1
+id reckoner
+matrix 83
+name Reckoner
+needs ledger.read
+needs fs.write
+needs print
+
+provides exact_total num n a b c d
+provides count_ok truth count max
+provides grade_band num value b1 b2 b3 b4
+logic trebago exact_total <<
+trebago exact_total
+  in  n a b c d
+  out r
+  r = 0
+end
+.
+logic kron count_ok <<
+0|_count
+.
+logic kron grade_band <<
+0|_value
+.
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+check count_ok count=1,100,101,0 max=100,100,100,100 = true,true,false,false
+check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4
+

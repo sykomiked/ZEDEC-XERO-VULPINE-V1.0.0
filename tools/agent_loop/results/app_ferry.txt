@@ -1,0 +1,27 @@
+# app ferry: FAILED
+# verdict: check failed (line 23): check share_x100: refused (every language)
+
+zxapp 1
+id ferry
+matrix 12
+name Ferry
+needs fs.read
+needs fs.write
+needs peers
+needs backup
+
+provides exact_total num n a b c d
+provides share_x100 num part whole
+logic trebago exact_total <<
+trebago exact_total
+  in  n a b c d
+  out r
+  r = 0
+end
+.
+logic kron share_x100 <<
+0|_part
+.
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
+

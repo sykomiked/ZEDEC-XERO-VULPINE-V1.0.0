@@ -1,0 +1,35 @@
+# app keystone: FAILED
+# verdict: check failed (line 30): check within_range: refused (every language)
+
+zxapp 1
+id keystone
+matrix 4
+name Keystone
+needs sys.read
+needs notify
+
+provides limit_excess num value limit
+provides within_range truth value min max
+provides share_x100 num part whole
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+logic eve within_range <<
+eve zxv
+d = 0 .. 1000000
+
+within_range {
+  value: d 0 .. 1000000
+}
+.
+logic kron share_x100 <<
+0|_part
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check within_range value=0,50,100,101 min=0,0,0,0 max=100,100,100,100 = true,true,true,false
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
+

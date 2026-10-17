@@ -1,0 +1,43 @@
+# app vintner: FAILED
+# verdict: load failed: product: a Sutra entry is a record, then "procedure" and its statements
+
+zxapp 1
+id vintner
+matrix 91
+name Vintner
+needs ledger.read
+needs ledger.post
+
+provides product num a b
+provides within_range truth value min max
+provides conserved_sum truth whole a b c d
+provides count_ok truth count max
+logic sutra product <<
+product-record.
+01 a PIC 9(9).
+procedure division.
+  move 0 to a.
+.
+logic eve within_range <<
+eve zxv
+d = 0 .. 1000000
+
+within_range {
+  value: d 0 .. 1000000
+}
+.
+logic trebago conserved_sum <<
+trebago conserved_sum
+  in  whole a b c d
+  out r
+  r = 0
+end
+.
+logic kron count_ok <<
+0|_count
+.
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
+check within_range value=0,50,100,101 min=0,0,0,0 max=100,100,100,100 = true,true,true,false
+check conserved_sum whole=100,100,100,101 a=25,0,0,25 b=25,0,0,25 c=25,0,0,25 d=25,100,99,25 = true,true,false,false
+check count_ok count=1,100,101,0 max=100,100,100,100 = true,true,false,false
+

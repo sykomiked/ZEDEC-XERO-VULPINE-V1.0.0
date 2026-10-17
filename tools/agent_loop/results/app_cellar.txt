@@ -1,0 +1,35 @@
+# app cellar: FAILED
+# verdict: check failed (line 29): check share_x100: refused (every language)
+
+zxapp 1
+id cellar
+matrix 19
+name Cellar
+needs sys.read
+needs fs.read
+needs fs.write
+
+provides share_x100 num part whole
+provides exact_total num n a b c d
+provides limit_excess num value limit
+logic kron share_x100 <<
+0|_part
+.
+logic trebago exact_total <<
+trebago exact_total
+  in  n a b c d
+  out r
+  r = 0
+end
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+

@@ -54,7 +54,7 @@ def model_sections(text):
     """Parse '=== <entry> (<lang>)' sections from the model's output."""
     out = {}
     cur = None
-    for line in text.split("\n"):
+    for line in (text or "").split("\n"):
         m = re.match(r"^===\s*([A-Za-z0-9_.]+)\s*(?:\(([a-z0-9+]+)\))?\s*$", line.strip())
         if m:
             if cur and line.strip() == "===":

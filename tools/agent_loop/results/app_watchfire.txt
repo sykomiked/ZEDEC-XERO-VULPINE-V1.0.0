@@ -1,0 +1,24 @@
+# app watchfire: FAILED
+# verdict: check failed (line 19): check share_x100: refused (every language)
+
+zxapp 1
+id watchfire
+matrix 143
+name Watchfire
+needs location
+needs peers
+needs notify
+needs fs.read
+needs fs.write
+
+provides share_x100 num part whole
+provides composite_key num high low
+logic kron share_x100 <<
+0|_part
+.
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+
