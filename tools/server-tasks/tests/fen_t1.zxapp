@@ -1,0 +1,54 @@
+# T1 — fen: the entry checks
+zxapp 1
+id fen_t1
+matrix 86
+name Fen T1
+provides share_x100 num part whole
+provides composite_key num high low
+provides limit_excess num value limit
+provides count_ok truth count cap
+provides running_state truth state event
+logic kron share_x100 <<
+0|(_part*10000)%_whole
+.
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+logic eve count_ok <<
+eve fen
+counts = 1 .. 100
+
+count_ok {
+  count: counts 1 .. 100
+  cap: counts 100 .. 100
+}
+.
+logic kron running_state <<
+((_state=0)&(_event=1))|((_state=1)&(_event=1))
+.
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000
+check share_x100 part=0 whole=1 = 0
+check share_x100 part=1 whole=1 = 10000
+check share_x100 part=1 whole=10000 = 1
+check share_x100 part=3 whole=4 = 7500
+check share_x100 part=2 whole=3 = 20000/3
+check share_x100 part=1 whole=2 = 5000
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
+check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
+check count_ok count=2 cap=100 = true
+check count_ok count=99 cap=100 = true
+check count_ok count=101 cap=100 = false
+check count_ok count=100 cap=100 = true
+check count_ok count=0 cap=100 = false
+check count_ok count=1 cap=100 = true
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false

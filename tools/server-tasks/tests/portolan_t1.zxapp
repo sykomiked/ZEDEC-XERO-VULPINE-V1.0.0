@@ -1,0 +1,53 @@
+# T1 — portolan: the entry checks
+zxapp 1
+id portolan_t1
+matrix 56
+name Portolan T1
+provides limit_excess num value limit
+provides count_ok truth count cap
+provides product num a b
+provides running_state truth state event
+provides clamp num value lo hi
+provides modular_draw num seed members step
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+logic eve count_ok <<
+eve portolan
+counts = 1 .. 100
+
+count_ok {
+  count: counts 1 .. 100
+  cap: counts 100 .. 100
+}
+.
+logic kron product <<
+0|_a*_b
+.
+logic kron running_state <<
+((_state=0)&(_event=1))|((_state=1)&(_event=1))
+.
+logic kron clamp <<
+0|(_value|_lo)&_hi
+.
+logic kron modular_draw <<
+0|(((_seed*1103515245)+12345)+(_step*7))|_members
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
+check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
+check count_ok count=2 cap=100 = true
+check count_ok count=99 cap=100 = true
+check count_ok count=101 cap=100 = false
+check count_ok count=100 cap=100 = true
+check count_ok count=0 cap=100 = false
+check count_ok count=1 cap=100 = true
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+check clamp value=-5,0,50,150 lo=0,0,0,0 hi=100,100,100,100 = 0,0,50,100
+check modular_draw seed=1,1,1,2 members=10,10,10,7 step=0,1,2,0 = 5,2,9,6

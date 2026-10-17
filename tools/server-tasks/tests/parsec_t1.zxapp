@@ -1,0 +1,42 @@
+# T1 — parsec: the entry checks
+zxapp 1
+id parsec_t1
+matrix 23
+name Parsec T1
+provides limit_excess num value limit
+provides count_ok truth count cap
+provides exact_total num n a b c d
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+logic eve count_ok <<
+eve parsec
+counts = 1 .. 100
+
+count_ok {
+  count: counts 1 .. 100
+  cap: counts 100 .. 100
+}
+.
+logic trebago exact_total <<
+trebago exact_total
+  in  n, a, b, c, d
+  out total
+  total = sum(i = 1:n, (i=1)*a + (i=2)*b + (i=3)*c + (i=4)*d)
+end
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
+check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
+check count_ok count=2 cap=100 = true
+check count_ok count=99 cap=100 = true
+check count_ok count=101 cap=100 = false
+check count_ok count=100 cap=100 = true
+check count_ok count=0 cap=100 = false
+check count_ok count=1 cap=100 = true
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0

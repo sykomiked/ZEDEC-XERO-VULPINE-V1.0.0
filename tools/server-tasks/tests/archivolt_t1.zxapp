@@ -1,0 +1,15 @@
+# T1 — archivolt: the entry checks
+zxapp 1
+id archivolt_t1
+matrix 34
+name Archivolt T1
+provides product num a b
+provides composite_key num high low
+logic kron product <<
+0|_a*_b
+.
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999

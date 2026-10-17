@@ -1,0 +1,38 @@
+# T1 — furnace: the entry checks
+zxapp 1
+id furnace_t1
+matrix 55
+name Furnace T1
+provides count_ok truth count cap
+provides limit_excess num value limit
+provides modular_draw num seed members step
+logic eve count_ok <<
+eve furnace
+counts = 1 .. 100
+
+count_ok {
+  count: counts 1 .. 100
+  cap: counts 100 .. 100
+}
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+logic kron modular_draw <<
+0|(((_seed*1103515245)+12345)+(_step*7))|_members
+.
+check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
+check count_ok count=2 cap=100 = true
+check count_ok count=99 cap=100 = true
+check count_ok count=101 cap=100 = false
+check count_ok count=100 cap=100 = true
+check count_ok count=0 cap=100 = false
+check count_ok count=1 cap=100 = true
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
+check modular_draw seed=1,1,1,2 members=10,10,10,7 step=0,1,2,0 = 5,2,9,6

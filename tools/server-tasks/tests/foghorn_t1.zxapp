@@ -1,0 +1,21 @@
+# T1 — foghorn: the entry checks
+zxapp 1
+id foghorn_t1
+matrix 112
+name Foghorn T1
+provides limit_excess num value limit
+provides running_state truth state event
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+logic kron running_state <<
+((_state=0)&(_event=1))|((_state=1)&(_event=1))
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false

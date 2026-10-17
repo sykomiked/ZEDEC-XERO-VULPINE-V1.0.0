@@ -1,0 +1,10 @@
+# T1 — trowel: the entry checks
+zxapp 1
+id trowel_t1
+matrix 40
+name Trowel T1
+provides difference num a b
+logic kron difference <<
+0|_a-_b
+.
+check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1

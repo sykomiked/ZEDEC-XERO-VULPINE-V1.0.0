@@ -1,0 +1,10 @@
+# T1 — firstlight: the entry checks
+zxapp 1
+id firstlight_t1
+matrix 16
+name Firstlight T1
+provides difference num a b
+logic kron difference <<
+0|_a-_b
+.
+check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1

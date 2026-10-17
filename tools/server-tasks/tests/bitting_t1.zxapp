@@ -1,0 +1,15 @@
+# T1 — bitting: the entry checks
+zxapp 1
+id bitting_t1
+matrix 19
+name Bitting T1
+provides composite_key num high low
+provides flags_none truth bits forbidden
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+logic kron flags_none <<
+(_bits&_forbidden)=0
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false

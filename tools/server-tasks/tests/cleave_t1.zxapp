@@ -1,0 +1,21 @@
+# T1 — cleave: the entry checks
+zxapp 1
+id cleave_t1
+matrix 22
+name Cleave T1
+provides composite_key num high low
+provides limit_excess num value limit
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1

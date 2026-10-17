@@ -1,0 +1,27 @@
+# T1 — tracery: the entry checks
+zxapp 1
+id tracery_t1
+matrix 131
+name Tracery T1
+provides count_ok truth count cap
+provides product num a b
+logic eve count_ok <<
+eve tracery
+counts = 1 .. 100
+
+count_ok {
+  count: counts 1 .. 100
+  cap: counts 100 .. 100
+}
+.
+logic kron product <<
+0|_a*_b
+.
+check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
+check count_ok count=2 cap=100 = true
+check count_ok count=99 cap=100 = true
+check count_ok count=101 cap=100 = false
+check count_ok count=100 cap=100 = true
+check count_ok count=0 cap=100 = false
+check count_ok count=1 cap=100 = true
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000

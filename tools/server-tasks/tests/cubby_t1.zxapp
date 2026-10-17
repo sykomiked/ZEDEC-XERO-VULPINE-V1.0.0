@@ -1,0 +1,21 @@
+# T1 — cubby: the entry checks
+zxapp 1
+id cubby_t1
+matrix 103
+name Cubby T1
+provides difference num a b
+provides limit_excess num value limit
+logic kron difference <<
+0|_a-_b
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1

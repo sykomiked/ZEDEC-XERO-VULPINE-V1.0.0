@@ -1,0 +1,9 @@
+# T4 — the cross-system contracts
+zxapp 1
+id system_t4
+matrix 1
+name System T4
+# the manifest grammar: every directive the loader accepts
+# the capability registry: every name an app may need
+# the strata: every source has a layer, none reaches higher
+# the four values: truth answers are true/false/both/neither

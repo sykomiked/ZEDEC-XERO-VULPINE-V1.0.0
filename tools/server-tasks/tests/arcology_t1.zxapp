@@ -1,0 +1,10 @@
+# T1 — arcology: the entry checks
+zxapp 1
+id arcology_t1
+matrix 37
+name Arcology T1
+provides grade_band num value b1 b2 b3 b4
+logic kron grade_band <<
+(_value>_b1)+(_value>_b2)+(_value>_b3)+(_value>_b4)
+.
+check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4

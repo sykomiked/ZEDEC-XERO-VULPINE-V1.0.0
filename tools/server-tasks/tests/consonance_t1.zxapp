@@ -1,0 +1,47 @@
+# T1 — consonance: the entry checks
+zxapp 1
+id consonance_t1
+matrix 64
+name Consonance T1
+provides share_x100 num part whole
+provides largest_remainder num pool w1 w2 w3 w4
+provides product num a b
+provides limit_excess num value limit
+provides running_state truth state event
+provides flags_none truth bits forbidden
+logic kron share_x100 <<
+0|(_part*10000)%_whole
+.
+logic kron largest_remainder <<
+0|(_pool*_w1)%(_w1+_w2+_w3+_w4)
+.
+logic kron product <<
+0|_a*_b
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+logic kron running_state <<
+((_state=0)&(_event=1))|((_state=1)&(_event=1))
+.
+logic kron flags_none <<
+(_bits&_forbidden)=0
+.
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000
+check share_x100 part=0 whole=1 = 0
+check share_x100 part=1 whole=1 = 10000
+check share_x100 part=1 whole=10000 = 1
+check share_x100 part=3 whole=4 = 7500
+check share_x100 part=2 whole=3 = 20000/3
+check share_x100 part=1 whole=2 = 5000
+check largest_remainder pool=100,10,7,100 w1=1,1,1,1 w2=1,1,1,1 w3=1,1,1,1 w4=1,0,0,0 = 25,5/2,7/4,100/3
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false

@@ -1,0 +1,15 @@
+# T1 — sexton: the entry checks
+zxapp 1
+id sexton_t1
+matrix 51
+name Sexton T1
+provides composite_key num high low
+provides running_state truth state event
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+logic kron running_state <<
+((_state=0)&(_event=1))|((_state=1)&(_event=1))
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false

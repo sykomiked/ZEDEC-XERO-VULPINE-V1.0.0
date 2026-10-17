@@ -1,0 +1,29 @@
+# T1 — kettle: the entry checks
+zxapp 1
+id kettle_t1
+matrix 92
+name Kettle T1
+provides composite_key num high low
+provides exact_total num n a b c d
+provides flags_none truth bits forbidden
+provides product num a b
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+logic trebago exact_total <<
+trebago exact_total
+  in  n, a, b, c, d
+  out total
+  total = sum(i = 1:n, (i=1)*a + (i=2)*b + (i=3)*c + (i=4)*d)
+end
+.
+logic kron flags_none <<
+(_bits&_forbidden)=0
+.
+logic kron product <<
+0|_a*_b
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000

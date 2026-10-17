@@ -1,0 +1,21 @@
+# T1 — windlass: the entry checks
+zxapp 1
+id windlass_t1
+matrix 52
+name Windlass T1
+provides limit_excess num value limit
+provides grade_band num value b1 b2 b3 b4
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+logic kron grade_band <<
+(_value>_b1)+(_value>_b2)+(_value>_b3)+(_value>_b4)
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=1000,999 limit=1000,1000 = 0,0
+check limit_excess value=1,1000000 limit=0,999999 = 1,1
+check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4

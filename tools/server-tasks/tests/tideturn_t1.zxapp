@@ -1,0 +1,10 @@
+# T1 — tideturn: the entry checks
+zxapp 1
+id tideturn_t1
+matrix 6
+name Tideturn T1
+provides composite_key num high low
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999

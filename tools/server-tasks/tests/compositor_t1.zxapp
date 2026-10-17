@@ -1,0 +1,19 @@
+# T1 — compositor: the entry checks
+zxapp 1
+id compositor_t1
+matrix 21
+name Compositor T1
+provides composite_key num high low
+provides exact_total num n a b c d
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+logic trebago exact_total <<
+trebago exact_total
+  in  n, a, b, c, d
+  out total
+  total = sum(i = 1:n, (i=1)*a + (i=2)*b + (i=3)*c + (i=4)*d)
+end
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0

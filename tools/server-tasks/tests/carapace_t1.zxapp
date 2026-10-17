@@ -1,0 +1,25 @@
+# T1 — carapace: the entry checks
+zxapp 1
+id carapace_t1
+matrix 95
+name Carapace T1
+provides difference num a b
+provides product num a b
+provides composite_key num high low
+provides running_state truth state event
+logic kron difference <<
+0|_a-_b
+.
+logic kron product <<
+0|_a*_b
+.
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+logic kron running_state <<
+((_state=0)&(_event=1))|((_state=1)&(_event=1))
+.
+check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false

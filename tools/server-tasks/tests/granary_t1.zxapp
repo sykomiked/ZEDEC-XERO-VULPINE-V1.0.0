@@ -1,0 +1,15 @@
+# T1 — granary: the entry checks
+zxapp 1
+id granary_t1
+matrix 64
+name Granary T1
+provides flags_none truth bits forbidden
+provides composite_key num high low
+logic kron flags_none <<
+(_bits&_forbidden)=0
+.
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999

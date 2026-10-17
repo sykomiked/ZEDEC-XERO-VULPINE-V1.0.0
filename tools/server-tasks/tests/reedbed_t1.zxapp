@@ -1,0 +1,60 @@
+# T1 — reedbed: the entry checks
+zxapp 1
+id reedbed_t1
+matrix 113
+name Reedbed T1
+provides clamp num value lo hi
+provides within_range truth value lo hi
+provides count_ok truth count cap
+provides ratio_x1000 num num den
+provides composite_key num high low
+provides running_state truth state event
+logic kron clamp <<
+0|(_value|_lo)&_hi
+.
+logic eve within_range <<
+eve reedbed
+values = 0 .. 100
+
+within_range {
+  value: values 0 .. 100
+  lo: values 0 .. 0
+  hi: values 100 .. 100
+}
+.
+logic eve count_ok <<
+eve reedbed
+counts = 1 .. 100
+
+count_ok {
+  count: counts 1 .. 100
+  cap: counts 100 .. 100
+}
+.
+logic kron ratio_x1000 <<
+0|(_num*1000)%_den
+.
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+logic kron running_state <<
+((_state=0)&(_event=1))|((_state=1)&(_event=1))
+.
+check clamp value=-5,0,50,150 lo=0,0,0,0 hi=100,100,100,100 = 0,0,50,100
+check within_range value=0,50,100,101 lo=0,0,0,0 hi=100,100,100,100 = true,true,true,false
+check within_range value=0,100 lo=0,0 hi=100,100 = true,true
+check within_range value=50,101 lo=0,0 hi=100,100 = true,false
+check within_range value=1,99 lo=0,0 hi=100,100 = true,true
+check within_range value=100 lo=0 hi=100 = true
+check within_range value=0 lo=0 hi=100 = true
+check within_range value=101 lo=0 hi=100 = false
+check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
+check count_ok count=2 cap=100 = true
+check count_ok count=99 cap=100 = true
+check count_ok count=101 cap=100 = false
+check count_ok count=100 cap=100 = true
+check count_ok count=0 cap=100 = false
+check count_ok count=1 cap=100 = true
+check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 1000/3,125,1,750
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false

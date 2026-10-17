@@ -1,0 +1,10 @@
+# T1 — talewind: the entry checks
+zxapp 1
+id talewind_t1
+matrix 108
+name Talewind T1
+provides flags_none truth bits forbidden
+logic kron flags_none <<
+(_bits&_forbidden)=0
+.
+check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false

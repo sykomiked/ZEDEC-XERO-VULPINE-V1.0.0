@@ -1,0 +1,8 @@
+# T5 — the meta tier: the tests' own integrity
+zxapp 1
+id system_t5
+matrix 1
+name System T5
+# coverage: every app has a T1 and, where a witness exists, a T2
+# non-vacuity: every check line has a non-empty input and answer
+# mutation hooks: tools/harness/mutator breaks the code, the tests must fail

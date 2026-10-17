@@ -1,0 +1,10 @@
+# T1 — rampart: the entry checks
+zxapp 1
+id rampart_t1
+matrix 1
+name Rampart T1
+provides product num a b
+logic kron product <<
+0|_a*_b
+.
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000

@@ -1,0 +1,31 @@
+# T1 — veil: the entry checks
+zxapp 1
+id veil_t1
+matrix 77
+name Veil T1
+provides composite_key num high low
+provides share_x100 num part whole
+provides product num a b
+provides running_state truth state event
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+logic kron share_x100 <<
+0|(_part*10000)%_whole
+.
+logic kron product <<
+0|_a*_b
+.
+logic kron running_state <<
+((_state=0)&(_event=1))|((_state=1)&(_event=1))
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000
+check share_x100 part=0 whole=1 = 0
+check share_x100 part=1 whole=1 = 10000
+check share_x100 part=1 whole=10000 = 1
+check share_x100 part=3 whole=4 = 7500
+check share_x100 part=2 whole=3 = 20000/3
+check share_x100 part=1 whole=2 = 5000
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
