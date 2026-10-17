@@ -74,6 +74,16 @@ def prompt_for(task):
     return "\n".join(lines)
 
 
+def strip_banner(s):
+    """llama-cli prints an interactive-mode help banner before the reply;
+    drop it (everything through the 'available commands:' block)."""
+    i = s.find("available commands:")
+    if i < 0:
+        return s
+    j = s.find("\n\n", i)
+    return s[j + 2:] if j >= 0 else s[i:]
+
+
 def run_task(task):
     prompt = prompt_for(task)
     ph = hashlib.sha256(prompt.encode()).hexdigest()[:16]
@@ -108,6 +118,7 @@ def run_task(task):
         return False
     dt = time.time() - t0
     body = r.stdout.decode("utf-8", errors="replace")
+    body = strip_banner(body).strip()
     if r.returncode != 0:
         log("task %s: llama-cli rc=%d (%s)" % (task["id"], r.returncode, r.stderr.decode(errors="replace")[-400:]))
         return False
