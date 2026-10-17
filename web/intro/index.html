@@ -207,7 +207,70 @@ git clone zxv.bundle</pre>
   </section>
 
   <section>
-    <h2><span class="n">08</span>This address</h2>
+    <h2><span class="n">08</span>The 36n9 &amp; 9N63 planes — native protocol access</h2>
+    <p class="lead">The same system serves two citizens: humans through this
+       page, and autonomous agents through the raw planes. Both speak the
+       same content, the same index, the same state.</p>
+    <table class="dl">
+      <tr><td>36n9 — the generative data plane</td>
+          <td>Seed banks, byte-offset slices, the file-fabrication seeds.
+              URIs: <code>36n9://bank.&lt;id&gt;/&lt;offset&gt;</code>,
+              <code>36n9://ipfs/&lt;CID&gt;</code></td></tr>
+      <tr><td>9N63 — the state, ledger &amp; trust plane</td>
+          <td>Telemetry, spaces, ledger books, peer health. URIs:
+              <code>9n63://telemetry</code>, <code>9n63://spaces</code></td></tr>
+      <tr><td>The door endpoints (port 80)</td>
+          <td><code>POST /bank</code> (digest → bank/len/offset),
+              <code>POST /telemetry</code> (the node counters),
+              <code>POST /cisex</code> (the index, 168-byte envelopes),
+              <code>POST /spaces</code>, <code>POST /pk</code> + <code>POST /sig</code>
+              (the ML-DSA reply signatures), <code>POST /card</code> (the sovereign-key seat)</td></tr>
+      <tr><td>The machine surface</td>
+          <td>The MCP server (<code>curzi8889-mcp</code>): seed_bank_slice,
+              cisex_search, telemetry, spaces, uri_resolve — one mcp.json
+              line gives any agent framework the planes. Every CLI answers
+              <code>--ai-manifest</code> with its command tree in JSON</td></tr>
+      <tr><td>The install</td>
+          <td><code>curl -sSf https://zedec.s3.filebase.io/zxv-release/install.sh | sh</code>
+              — or <code>brew tap curzi8889/tap</code></td></tr>
+    </table>
+    <pre># an agent, in one frame: resolve a seed digest on any PoP node
+printf '\x00' + pubkey + nonce + signature &gt; /card      # sovereign-key seat
+POST /bank  32-byte digest   -&gt; [status][bank][len][offset]</pre>
+  </section>
+
+  <section>
+    <h2><span class="n">09</span>The seed bank &amp; fabrication</h2>
+    <p>The inaugural bank packs 560 seeds — the 407 app icons and the 153
+       fonts — into one 58&nbsp;MB archive, one CID, resolved O(1) by every
+       node. The parametric seeds are the compressed forms: the network's
+       effective capacity is the seeds, not the raw payloads. The AI-social
+       logs distill to premium seed files, payable only in VINO floating
+       vouchers, on the DRAGON / PHOENIX / THUNDERBIRD rails.</p>
+    <p class="note">The ledger is the kernel's triple-entry book: 555 debit,
+       777 credit, 888 equity — the rails' canonical numerics.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">10</span>The new documentation</h2>
+    <div class="docs">
+      <a href="12_docs/docs/NODE_OPERATOR.md">NODE_OPERATOR — run a PoP node</a>
+      <a href="12_docs/docs/FLEET_STORAGE.md">FLEET_STORAGE — the nine-server architecture</a>
+      <a href="12_docs/docs/AUDIT_STATUS.md">AUDIT_STATUS — the October 2026 audit, repair order</a>
+      <a href="12_docs/tools/cli/aipi.json">aipi.json — the machine-readable discovery manifest</a>
+      <a href="12_docs/tools/mcp/curzi8889_mcp.py">curzi8889_mcp.py — the MCP server</a>
+      <a href="12_docs/tools/cli/zxv">zxv — the node CLI</a>
+      <a href="12_docs/tools/cli/36n9">36n9 — the data-plane CLI</a>
+      <a href="12_docs/tools/cli/9n63">9n63 — the state-plane CLI</a>
+      <a href="12_docs/docs/SEEDBANK.md">SEEDBANK — the contiguous seed archive</a>
+      <a href="12_docs/docs/WEB4.md">WEB4 — the protocol twins</a>
+      <a href="12_docs/docs/SYNOPSIS.md">SYNOPSIS — the paper on the whole system</a>
+      <a href="12_docs/MANUAL.md">MANUAL — the full instruction book</a>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">11</span>This address</h2>
     <p class="cid" id="root">resolving&hellip;</p>
     <!-- DOORWAY:ROOT -->
   </section>
