@@ -164,3 +164,65 @@ point, the same projection, the same verify, at every protocol.
 5. **The protocol test**: the tier's framing survives the protocol's
    realities (a fragmented datagram, a lost packet, a reordered relay) —
    the neutral space at each rung.
+
+## The paradox: expensive to make, nearly free to run
+
+SCP-144 is the **standard** — every node, every protocol tier, every
+surface speaks it. And it exhibits a deliberate paradox:
+
+```
+THE MAKING (the construction)      the H100, the full lattice, the
+                                   proofs, the audits — enormous compute
+THE RUNNING (the operation)        one hash, one integer compare — almost
+                                   none, on any machine
+```
+
+The ratio is the point. Building the architecture costs a great deal of
+compute (the H100 drafting 407 apps, the proofs, the verification tiers);
+**running it costs almost nothing** — because everything expensive was
+paid *once*, at construction, and the result is **structure**, not
+computation.
+
+### Why the running side is nearly free
+
+| The operation | The cost at run time |
+|---|---|
+| the SCP-144 point | one SHA3-256 over the seed |
+| the public invariant | one integer norm + a few residues |
+| the handshake proof | the peer already holds the point — no search |
+| the verify | one equality comparison |
+| the routing decision | one lattice distance (O(1)) |
+| the record encoding | the canonical form, already computed |
+
+No elliptic-curve scalar multiplication per handshake. No lattice search
+by the honest peer. No floating point. No allocation. **The expensive
+computation happened once, when the structure was built** — and the
+structure is what runs.
+
+### The negentropy connection
+
+This is negentropy in its clearest form: the construction *pays* entropy
+(compute, time, energy) to *remove* it permanently. The result is a
+system whose ongoing cost is near zero because its order is fixed. A
+system that fought entropy at run time would need the same enormous
+compute on every device, forever; this one needs it once.
+
+So the paradox resolves: **the compute we are spending now is the compute
+we will never spend again.** That is why it runs on any machine — the
+expensive part is already done, and what remains is a hash and a compare.
+
+### The standard's reach
+
+SCP-144 is the **native networking protocol**, not an option:
+
+- **Every tier**: T0 (the PQ base) through T6 (the storage proof), each
+  protocol's handshake carries the Crown factor.
+- **Every surface**: bare metal, the VM, the browser wasm, the three
+  desktops.
+- **Every node**: the fleet, the bootstrap ring, the user's device.
+- **Every direction**: the handshake, the routing, the encoding, the
+  verification.
+
+And because the running cost is near zero, there is no device too small
+to be a full participant: a phone is a node, a browser is a node, a
+low-power machine is a node. The paradox is what makes it universal.
