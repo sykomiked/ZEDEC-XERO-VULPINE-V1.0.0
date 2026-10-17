@@ -41,7 +41,20 @@ typedef enum {
     LPRES_STATE_TRUE    = 1,  /* S+: attested present and valid */
     LPRES_STATE_FALSE   = 2,  /* S-: attested absent or invalid */
     LPRES_STATE_BOTH    = 3,  /* contradictory: both true and false evidence */
+    /* The four above are the foundation and their ids are FROZEN. Further
+     * phases enter above them (the gateway is the port) without ever
+     * renumbering these four. The arity is LPRES_STATE_COUNT: every table
+     * and loop iterates it, so a new phase extends them with no code
+     * change (docs/agent_loop/LP_EXTENSION.md). */
+    LPRES_STATE_COUNT   = 4
 } lpres_state_t;
+
+/* The chain rank: the operators are the meet (min) and the join (max) on
+ * this ordering. FALSE is the bottom, TRUE the top, and NEITHER sits below
+ * BOTH — the deliberate deviation from Belnap's FOUR so that no mix of the
+ * non-TRUE values can ever yield TRUE (the never-authorise guard). A new
+ * phase declares its rank here and the operators extend automatically. */
+extern const uint8_t lpres_rank[LPRES_STATE_COUNT];
 
 /* ===== Attestation Subject Types ===== */
 

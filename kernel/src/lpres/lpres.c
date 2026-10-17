@@ -62,41 +62,31 @@ lpres_state_t lpres_negate(lpres_state_t s) {
     }
 }
 
+const uint8_t lpres_rank[LPRES_STATE_COUNT] = {
+    [LPRES_STATE_FALSE]   = 0,  /* the bottom: FALSE dominates the meet */
+    [LPRES_STATE_NEITHER] = 1,
+    [LPRES_STATE_BOTH]    = 2,
+    [LPRES_STATE_TRUE]    = 3,  /* the top: TRUE is the join's identity */
+};
+
 lpres_state_t lpres_conjoin(lpres_state_t a, lpres_state_t b) {
-    /* F dominates */
-    if (a == LPRES_STATE_FALSE || b == LPRES_STATE_FALSE)
-        return LPRES_STATE_FALSE;
-    /* T is identity */
-    if (a == LPRES_STATE_TRUE)
-        return b;
-    if (b == LPRES_STATE_TRUE)
-        return a;
-    /* NEITHER dominates BOTH in meet (bottom absorbs). Deliberate deviation
-     * from Belnap's FOUR, where B AND N = F and B OR N = T: here the tables
-     * are min/max on the chain F < N < B < T, so no mix of BOTH and NEITHER
-     * inputs can ever yield TRUE, the only value that authorises an action.
-     * A contradiction plus a gap must never grant authority. Owner decision
-     * 2026-10-12; De Morgan therefore fails for the pair {BOTH, NEITHER}. */
-    if (a == LPRES_STATE_NEITHER || b == LPRES_STATE_NEITHER)
-        return LPRES_STATE_NEITHER;
-    /* Both BOTH */
-    return LPRES_STATE_BOTH;
+    /* the meet: min on the chain. FALSE dominates, TRUE is identity,
+     * NEITHER absorbs BOTH — all by the rank, so a new phase needs only
+     * its rank, never a new branch. Deliberate deviation from Belnap's
+     * FOUR (the chain, not the lattice): no mix of non-TRUE values can
+     * yield TRUE, the only value that authorises an action. */
+    if ((unsigned) a >= LPRES_STATE_COUNT || (unsigned) b >= LPRES_STATE_COUNT)
+        return LPRES_STATE_NEITHER;   /* an unknown phase is never authority */
+    return lpres_rank[a] <= lpres_rank[b] ? a : b;
 }
 
 lpres_state_t lpres_disjoin(lpres_state_t a, lpres_state_t b) {
-    /* T dominates */
-    if (a == LPRES_STATE_TRUE || b == LPRES_STATE_TRUE)
-        return LPRES_STATE_TRUE;
-    /* F is identity */
-    if (a == LPRES_STATE_FALSE)
-        return b;
-    if (b == LPRES_STATE_FALSE)
-        return a;
-    /* B dominates NEITHER */
-    if (a == LPRES_STATE_BOTH || b == LPRES_STATE_BOTH)
-        return LPRES_STATE_BOTH;
-    /* Both NEITHER */
-    return LPRES_STATE_NEITHER;
+    /* the join: max on the chain. TRUE dominates, FALSE is identity,
+     * BOTH absorbs NEITHER — all by the rank, so a new phase needs only
+     * its rank. */
+    if ((unsigned) a >= LPRES_STATE_COUNT || (unsigned) b >= LPRES_STATE_COUNT)
+        return LPRES_STATE_NEITHER;
+    return lpres_rank[a] >= lpres_rank[b] ? a : b;
 }
 
 lpres_state_t lpres_kjoin(lpres_state_t a, lpres_state_t b)
