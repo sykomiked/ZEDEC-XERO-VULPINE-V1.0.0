@@ -1,0 +1,33 @@
+{
+  "$schema": "https://ipfs.filebase.io/ipfs/bafybeicih4utmpxyuyhbskc3wfx2tn5yr7phzvcwii7xen2nrps4spagcq/.well-known/aipi.schema.json",
+  "protocol": "Curzi-8889",
+  "scheme": "36n9://",
+  "transport": "UDP :8724 / UBH-168 (168-byte fixed frame)",
+  "cryptography": "CURZI-8889-A lattice composition (ML-KEM/ML-DSA) + rolling ratchet",
+  "gateway": "https://ipfs.filebase.io/ipfs/<CID>",
+  "endpoints": {
+    "seed_bank_slice": {
+      "uri_template": "36n9://bank.{bank_id}/{hex_offset}:{frames}",
+      "description": "O(1) retrieval of immutable seed manifests from contiguous Seed Banks with edge synthesis",
+      "http_fallback": "POST /bank (digest -> bank/len/offset)",
+      "output_format": "168-byte UBH-168 frames or materialized asset stream"
+    },
+    "telemetry": {
+      "uri_template": "POST /telemetry",
+      "description": "node counters: VNA rx/tx/contacts/rejects, CISEX entries/sync, pins/evicts, bank hits"
+    },
+    "cisex_search": {
+      "uri_template": "POST /cisex",
+      "description": "keyword search over the content index; raw 168-byte envelopes"
+    },
+    "spaces": {
+      "uri_template": "POST /spaces",
+      "description": "the node's shared spaces directory"
+    }
+  },
+  "cli": {
+    "install": "curl -sSf https://zedec.s3.filebase.io/zxv-release/install.sh | sh",
+    "tools": ["zxv", "36n9", "9n63"],
+    "discovery": "each tool answers --ai-manifest with its command tree"
+  }
+}
