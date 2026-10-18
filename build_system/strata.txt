@@ -186,6 +186,7 @@ spatial                          logic      # exact geometry, four-valued sensor
 # ---- S5 AI runtime and swarm
 ai_layer                         ai
 chiglet                          ai
+chiglet/chg_tick                 ai      # the Fibonacci tick: the rung ladder that drives the handshakes, the telemetry, CISEX and SMIC
 chiglet/chg_mesh                 ai      # the mesh coordinator: the Chiglet ranks what to serve, the Vinea sessions (SCP-144) carry the state
 climate/climate_ct               ai         # the climate controller's caps and headroom as ct_budget metrics (includes ct_budget.h)
 cotier                           ai
