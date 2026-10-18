@@ -1,0 +1,75 @@
+# telemetry — the regular SCP-144 exchange: every seed reports its state to
+# the others over the session, on the Fibonacci ladder, and the IPFS serving
+# is reported in the same message.
+#
+# This is an APPLICATION. It runs on the OS and needs no rebuild. The kernel
+# already carries the Vinea session layer (with the SCP-144 lattice binding
+# mixed into the key schedule), the IPFS node and the content index; this
+# app is the reporting policy that drives them.
+zxapp 1
+id telemetry
+matrix 144
+name SCP-144 Telemetry
+needs net
+needs peers
+needs swarm
+needs search
+needs ai.ask
+
+# ---- the rung -------------------------------------------------------------
+# The report interval is the ladder: F1..F12 = 1, 1, 2, 3, 5, 8, 13, 21, 34,
+# 55, 89, 144. Dense while a seed is joining, sparse once the mesh settles.
+provides tel_rung num tick
+logic trebago tel_rung <<
+trebago tel_rung
+  in  tick
+  out rung
+  rung = tick
+end
+.
+provides tel_settled truth rung
+logic kron tel_settled <<
+(rung=144)
+.
+
+# ---- the SCP-144 condition ------------------------------------------------
+# A telemetry message is accepted only from a session that proved AND whose
+# lattice point is set: the SCP-144 admission, as the session layer evaluates
+# it. An unproven peer's counters are refused, never merged.
+provides tel_admit truth proved point
+logic kron tel_admit <<
+(proved=1)&(point=1)
+.
+
+# ---- what a report carries ------------------------------------------------
+# A seed reports when it is serving: peers live, content pinned, the index
+# non-empty. A seed that holds nothing reports nothing rather than claiming
+# a contribution it does not make.
+provides tel_carry truth peers pinned index
+logic kron tel_carry <<
+((peers=1)&(pinned=1))&(index=1)
+.
+provides tel_serve truth served verified
+logic kron tel_serve <<
+(served=1)&(verified=1)
+.
+
+# ---- the IPFS half --------------------------------------------------------
+# The content this seed will answer for: pinned AND fetch-verified. The pin
+# is only counted when the fetch round-tripped the CID (ipfs_pin), so a seed
+# never advertises content it cannot serve.
+provides ipfs_offer truth pinned verified
+logic kron ipfs_offer <<
+(pinned=1)&(verified=1)
+.
+
+# ---- the checks -----------------------------------------------------------
+check tel_settled rung=144 = true
+check tel_settled rung=143 = false
+check tel_admit proved=1,1 point=1,0 = true,false
+check tel_admit proved=0 point=1 = false
+check tel_carry peers=1,1,1 pinned=1,1,0 index=1,0,1 = true,true,false
+check tel_carry peers=0 pinned=1 index=1 = false
+check tel_serve served=1,0 verified=1,1 = true,false
+check ipfs_offer pinned=1,0 verified=1,1 = true,false
+check tel_rung tick=12 = 12
