@@ -698,6 +698,13 @@ $(shell python3 $(CURDIR)/tools/seedbank/mk_blob.py $(CURDIR)/build/seedbank/ico
 CFLAGS += -DZXV_HAVE_SEEDBANK_BLOB
 
 # The seed static-lease map (tools/vps/gen_seedmap.py over
+# THE GATE: the armada's peer list baked in, so the link comes up even when
+# the core disc cannot be read (kernel_main brings the NIC up only when
+# models.npeer is non-zero). tools/vps/gen_peerlist.py, same shape as the
+# seed map above.
+ZXV_PEERLIST_HDR := $(ZXV_GENDIR)/zxv_peerlist.h
+$(shell python3 $(CURDIR)/tools/vps/gen_peerlist.py $(CURDIR)/build_system/vps_seeds.conf $(CURDIR)/$(ZXV_PEERLIST_HDR))
+
 # build_system/vps_seeds.conf): providers that assign fixed addresses
 # answer no DHCP, so a seed recognises its own NIC MAC in this baked table.
 ZXV_SEEDMAP_HDR := $(ZXV_GENDIR)/zxv_seedmap.h

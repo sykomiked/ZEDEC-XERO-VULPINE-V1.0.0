@@ -3,6 +3,11 @@
 /* hw_models.c — index the golden disc's models at boot, hash them later.
  * See hw_models.h for the disc layout and the manifest format. */
 #include "hw_models.h"
+#if defined(__has_include)
+#if __has_include("zxv_peerlist.h")
+#include "zxv_peerlist.h"
+#endif
+#endif
 
 #define END_OF_CHAIN 0x0FFFFFF8u
 
@@ -444,6 +449,25 @@ static void core_extras(hw_models_t *s, const hw_plat_t *p)
             log_note(p, v, "/ZXV/SWARM.LST", n < 0 ? 0 : line, why);
         }
     }
+
+    /* THE GATE. kernel_main_x86_64.c brings the link up only when
+     * `models.npeer` is non-zero -- the peer seeds read from this disc. On a
+     * provider whose disk controller the mount path does not match (Contabo
+     * presents virtio-scsi), read_small never runs, npeer stays 0, and the
+     * NIC is never asked for a lease: the OS is silent, no port opens, and
+     * nothing is wrong with the image. The baked list stands in, so the gate
+     * opens whether or not the disc was read. */
+#if defined(ZXV_PEERLIST_N) && ZXV_PEERLIST_N
+    if (s->npeer == 0) {
+        for (uint32_t i = 0; i < ZXV_PEERLIST_N && s->npeer < HW_PEER_MAX; i++) {
+            for (uint32_t b = 0; b < 6; b++)
+                s->peer[s->npeer][b] = zxv_peerlist[i][b];
+            s->npeer++;
+        }
+        log_note(p, v, "/ZXV/UPSTREAM.CID", 0,
+                 "absent; the baked peer list stands in");
+    }
+#endif
 }
 
 static int swarm_name(const char *n)
