@@ -1108,7 +1108,7 @@ static void vna_http_mesh(vna_host_t *h, uint64_t now)
         const uint8_t *s = h->seed_addr[p];
         uint32_t d = 0;
         for (i = 0; i < 4; i++) d = d * 256 + s[i];
-        mh.l = &h->l;
+        mh.l = h->l;   /* the link itself, not its address (h->l is sn_link_t *) */
         mh.port = 80; /* the door */
         mh.ip[0] = s[0];
         mh.ip[1] = s[1];

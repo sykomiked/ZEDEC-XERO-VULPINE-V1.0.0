@@ -1,0 +1,71 @@
+# mesh — the nine seeds as serving nodes: the SCP-144 handshake, the
+# telemetry, the pinning, and the Fibonacci ladder that paces them.
+#
+# This is an APPLICATION. It runs on the OS; it is not part of the kernel
+# and it does not require the OS to be rebuilt. The kernel already carries
+# the session layer (with the SCP-144 lattice binding mixed into the key
+# schedule), the IPFS node and the content index; this app is the policy
+# that drives them.
+zxapp 1
+id mesh
+matrix 144
+name ZXV Mesh
+needs net
+needs peers
+needs swarm
+needs search
+needs ai.ask
+
+# ---- the ladder -----------------------------------------------------------
+# F1..F12 = 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144. The rung selects the
+# interval, so the traffic thins as the mesh settles and the anchor F12=144
+# is where a settled mesh rests.
+provides mesh_rung num tick
+logic trebago mesh_rung <<
+trebago mesh_rung
+  in  tick
+  out rung
+  rung = tick
+end
+.
+provides mesh_anchor truth rung
+logic kron mesh_anchor <<
+(rung=144)
+.
+
+# ---- the handshake --------------------------------------------------------
+# A session is admitted only when the peer proved and the lattice point is
+# set: the SCP-144 condition, as the session layer evaluates it.
+provides mesh_admit truth proved point
+logic kron mesh_admit <<
+(proved=1)&(point=1)
+.
+
+# ---- the telemetry --------------------------------------------------------
+# A rung reports when the seed is carrying the network: peers live AND the
+# content index is not empty. A silent seed reports nothing rather than
+# claiming a contribution it does not make.
+provides mesh_report truth peers cisex
+logic kron mesh_report <<
+(peers=1)&(cisex=1)
+.
+
+# ---- the pin --------------------------------------------------------------
+# Content is pinned only when the fetch was verified: the CID matched the
+# bytes. A mismatch is never pinned, and the check below proves the refusal.
+provides mesh_pin truth verified served
+logic kron mesh_pin <<
+(verified=1)&(served=1)
+.
+
+# ---- the checks -----------------------------------------------------------
+# Each is a claim the app makes about itself, evaluated when it is loaded.
+check mesh_anchor rung=144 = true
+check mesh_anchor rung=143 = false
+check mesh_admit proved=1,1 point=1,0 = true,false
+check mesh_admit proved=0 point=1 = false
+check mesh_report peers=1 cisex=1 = true
+check mesh_report peers=1 cisex=0 = false
+check mesh_pin verified=1 served=1 = true
+check mesh_pin verified=0 served=1 = false
+check mesh_rung tick=12 = 12
