@@ -47,7 +47,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Tools
         run: |
           sudo apt-get update
@@ -103,7 +103,7 @@ jobs:
             grep '^zxvd '
       - name: Remove the .deb
         run: sudo apt-get remove -y zxv && test ! -e /usr/lib/zxv
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: zxv-linux-${{ matrix.arch }}
           path: |
@@ -120,7 +120,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Tools
         run: |
           sudo apt-get update
@@ -142,12 +142,12 @@ jobs:
           gcc -std=c11 -Wall -Wextra -Werror -Ikernel/src/tensor kernel/arch/hosted/test_write_gguf.c \
             -o "$RUNNER_TEMP/write_gguf"
           "$RUNNER_TEMP/write_gguf" "$T/tiny-test.gguf"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: zxv-windows-x86_64
           path: ${{ runner.temp }}/dist/ZXV-*-windows-x86_64.zip
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: zxv-windows-tests
           path: ${{ runner.temp }}/wintest
@@ -164,15 +164,15 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: zxv-windows-x86_64
           path: ${{ runner.temp }}/pkg
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: zxv-windows-tests
           path: ${{ runner.temp }}/wintest

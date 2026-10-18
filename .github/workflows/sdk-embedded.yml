@@ -134,7 +134,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Port layer, MCU subset, zxe ledger (differential), libzxv conformance through the port
         run: make -C sdk/embedded test CC=${{ matrix.cc }} SANITIZE=${{ matrix.san }} OUT=build/${{ matrix.cc }}${{ matrix.san }}
       - name: The same in the q32 profile (libzxv and zxe capped at 2^31-1, differential)
@@ -146,7 +146,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install cross toolchains and QEMU
         run: |
           sudo apt-get update
@@ -168,7 +168,7 @@ jobs:
         if: always()
         run: |
           if [ -f sdk/embedded/build/size-report.md ]; then cat sdk/embedded/build/size-report.md >> "$GITHUB_STEP_SUMMARY"; fi
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: embedded-size-report
@@ -188,7 +188,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Build libzxv (for the ZHP-1 profile tool)
         run: make -C sdk/libzxv -j"$(nproc)"
       - name: Validator unit tests, example manifests, dry-run plans, R1 profile, no-float
@@ -200,7 +200,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Fetch FreeRTOS-Kernel V11.2.0 (pinned commit), build, run the three scenarios
         run: make -C sdk/embedded/freertos-zxv test
       - name: Same under ASan + UBSan
@@ -217,8 +217,8 @@ jobs:
       ZEPHYR_REF: v4.2.2
       ZXV_MODULE: ${{ github.workspace }}/sdk/embedded/zephyr-zxv
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Host packages
@@ -247,7 +247,7 @@ jobs:
           west build -p -b qemu_cortex_m3 -d "$HOME/build-tls" "$ZXV_MODULE/samples/ledger_budget" -- \
             -DEXTRA_ZEPHYR_MODULES="$ZXV_MODULE" -DCONFIG_THREAD_LOCAL_STORAGE=y
           grep -q '^CONFIG_THREAD_LOCAL_STORAGE=y' "$HOME/build-tls/zephyr/.config"
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: zephyr-twister-out

@@ -51,7 +51,7 @@ jobs:
           - name: gcc-11 ASan+UBSan
             sanitize: '1'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install gcc-11
         run: sudo apt-get update -q && sudo apt-get install -y -q gcc-11
       - name: Build libzxv, the pillars and libzxv-econ

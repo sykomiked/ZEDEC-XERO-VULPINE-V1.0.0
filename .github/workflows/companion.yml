@@ -41,8 +41,8 @@ jobs:
       run:
         working-directory: mobile/companion
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -67,7 +67,7 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
           flutter build apk --debug
           cp build/app/outputs/flutter-apk/app-debug.apk "$RUNNER_TEMP/zxv-companion-debug.apk"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: zxv-companion-android-debug
           path: ${{ runner.temp }}/zxv-companion-debug.apk
@@ -81,7 +81,7 @@ jobs:
       run:
         working-directory: mobile/companion
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Flutter (pinned archive, checked against its sha256)
         working-directory: ${{ runner.temp }}
         run: |
@@ -100,7 +100,7 @@ jobs:
           cp -R build/ios/iphoneos/Runner.app "$RUNNER_TEMP/ipa/Payload/"
           (cd "$RUNNER_TEMP/ipa" && zip -qry "$RUNNER_TEMP/zxv-companion-unsigned.ipa" Payload)
           ls -l "$RUNNER_TEMP/zxv-companion-unsigned.ipa"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: zxv-companion-ios-unsigned
           path: ${{ runner.temp }}/zxv-companion-unsigned.ipa

@@ -139,8 +139,8 @@ jobs:
       run:
         working-directory: sdk/frameworks/spring-zxv
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: ${{ matrix.jdk }}
@@ -164,8 +164,8 @@ jobs:
       run:
         working-directory: sdk/frameworks/aspnetcore-zxv
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
       - run: make -C ../../libzxv all fixtures
@@ -186,11 +186,11 @@ jobs:
       run:
         working-directory: sdk/frameworks/nest-zxv
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: make -C ../../libzxv all fixtures
@@ -218,8 +218,8 @@ jobs:
       run:
         working-directory: sdk/frameworks/django-zxv
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.py }}
       - run: make -C ../../libzxv all fixtures
