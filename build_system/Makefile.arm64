@@ -233,6 +233,7 @@ KERNEL_SRCS = \
     kernel/src/scp144/scp144_embed.c \
     kernel/src/scp144/zxv_grow.c \
     kernel/src/scp144/zxv_scale.c \
+    kernel/src/scp144/zxv_route.c \
     kernel/src/entropy/entropy_jitter.c \
     kernel/src/virtio/vring.c \
     kernel/src/virtio/virtio_bus.c \
@@ -804,5 +805,7 @@ ZXV_SCP144_HDR := $(ZXV_GENDIR)/zxv_scp144_blob.h
 $(shell python3 $(CURDIR)/build_system/gen_scp144_blob.py $(CURDIR)/$(ZXV_SCP144_HDR))
 ZXV_SEED_HDR := $(ZXV_GENDIR)/zxv_seed_blob.h
 $(shell python3 $(CURDIR)/build_system/gen_seed_blob.py $(CURDIR)/build_system/zxv_upstream.cid $(CURDIR)/$(ZXV_CUR_CAR) $(CURDIR)/$(ZXV_SEED_HDR))
+ZXV_ROUTE_HDR := $(ZXV_GENDIR)/zxv_lattice_route.h
+$(shell python3 $(CURDIR)/build_system/gen_lattice_routing.py $(CURDIR)/build_system/strata.txt $(CURDIR)/$(ZXV_ROUTE_HDR))
 CFLAGS += $(ZXV_INCLUDES)
 CFLAGS += -I$(ZXV_GENDIR)

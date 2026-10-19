@@ -29,6 +29,8 @@
 #include "zxv_grow.h"
 #include "zxv_scp144_blob.h"
 #include "zxv_seed_blob.h"
+#include "zxv_lattice_route.h"
+#include "zxv_route.h"
 #include "../robin_debanks/sha256.h"
 #include "../robin_debanks/ed25519_verify.h"
 #include "../e8/fib_lattice.h"
@@ -323,6 +325,14 @@ bool scp144_boot_selfcheck(void (*out)(const char *))
         }
     }
     if ((fail_step = check_grow()) != 0) goto fault;
+    /* 8. the lattice interconnect table (zxv_lattice_route.h): the sealed
+     * manifold — every module's cell, ring, plane and the 145th-layer
+     * container census, verified fail-closed before the kernel proceeds. */
+    if (zxv_route_verify(zxv_lattice_route, ZXV_LATTICE_ROUTE_LEN,
+                         NULL) != ZXV_ROUTE_OK) {
+        fail_step = 90;
+        goto fault;
+    }
     p = line;
     p = put_str(p, "[SCP144_OK] 144D lattice + tunnel + seed selfcheck ");
     p = put_hex8(p, scp144_blob_digest);
