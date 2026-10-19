@@ -89,6 +89,10 @@ mouse                            kernel
 oseq                             kernel
 pci                              kernel
 phase_coord                      kernel
+phase_coord/phase_render         kernel      # the phase-tick render hook: visuals locked to the coordinator, triadic human/Chiglet/network space
+phase_coord/net_mirror            kernel      # the triadic network space: mesh topology/CID/PQ sessions/clock mirrored through the same valence machinery
+phase_coord/vortex                kernel      # the 3-6-9 vortex rotor: six permutation vectors over the triadic mirror, lpres-adjudicated polarity, doubling/halving circuits
+phase_coord/vortex_harmonic       kernel      # the 12 Solfeggio + dual-polarity 555 layer: phase-lock gates, the VINO_ISO_DEBIT 555 rail polarity, zero-point macro-cycle residual
 power                            kernel     # energy ledger per app and agent, battery, budgets; RAPL reader
 pic                              kernel
 qeq                              kernel # exact circuit equivalence checker over qsim
@@ -314,6 +318,7 @@ chronicle                        above
 community_chest                  above
 denconnect                       above
 desktop                          above
+desktop/mirror_ui                 kernel      # the SASOS mirror: kernel registers projected losslessly to the UI at the phase tick (its includes reach only base/kernel)
 zui                              above      # native UI: renderer, widgets, input, present, app screens (#104, #110)
 media                            above      # raster image and video decoders; draw into zui surfaces
 vshape/zxvs_draw                 above      # draws a ZXVS descriptor through zui_vec

@@ -235,6 +235,53 @@ static zui_keymap_t g_km;
 static zui_kbd_t g_kbd;
 static uint32_t g_ms;
 
+/* ---- the shell's MIRROR (the megalithic triadic projection) --------------
+ * The shell binds its own live state as mirror registers, and the frame
+ * tick drives the same mirror machinery the Chiglet and the network spaces
+ * read: one projection, three spaces, one phase ordinal. The 3-6-9 vortex
+ * rotor steps with the frame, its polarity transitions adjudicated by lpres
+ * (TRUE admits, FALSE vetoes, NEITHER/BOTH defer). */
+static phase_render_t g_shell_mirror;
+static vortex_rotor_t g_shell_vortex;
+static mirror_net_view_t g_mir_net = {0u, 9u}; /* baked nine peers  */
+static mirror_cid_view_t g_mir_cid = {1u, 1u}; /* seed verified     */
+static mirror_pq_view_t g_mir_pq = {1u, 1u};   /* PQ session up     */
+static mirror_clock_view_t g_mir_clock = {0u, 0u, 5u};
+static mirror_queue_view_t g_mir_term = {0u, SHELL_TERM_LINES};
+static const zxv_shell_state_t *g_mir_st; /* live shell state, borrowed   */
+
+static void shell_mirror_init(void)
+{
+    static bool done;
+    if (done) return;
+    done = true;
+    phase_render_init(&g_shell_mirror);
+    vortex_rotor_init(&g_shell_vortex);
+    mirror_bind(&g_shell_mirror.mirror, MIRROR_KIND_QUEUE, "shell-term", &g_mir_term, 0x51u);
+    mirror_bind(&g_shell_mirror.mirror, MIRROR_KIND_NET, "net-topology", &g_mir_net, 0xA1u);
+    mirror_bind(&g_shell_mirror.mirror, MIRROR_KIND_CID, "net-identity", &g_mir_cid, 0xB2u);
+    mirror_bind(&g_shell_mirror.mirror, MIRROR_KIND_PQ, "net-session", &g_mir_pq, 0xD4u);
+    mirror_bind(&g_shell_mirror.mirror, MIRROR_KIND_CLOCK, "net-clock", &g_mir_clock, 0xC3u);
+}
+
+const mirror_frame_t *zxv_shell_mirror(uint32_t tick)
+{
+    lpres_state_t pol;
+    shell_mirror_init();
+    /* the register mirrors the live clock; the queue reflects live terms. */
+    g_mir_clock.local_tick = tick;
+    g_mir_clock.peer_max_tick = tick; /* the single-node case: in sync */
+    if (g_mir_st) {
+        g_mir_term.depth = (uint32_t) g_mir_st->term_count;
+        if (g_mir_term.depth > SHELL_TERM_LINES) g_mir_term.depth = SHELL_TERM_LINES;
+    }
+    phase_render_tick(&g_shell_mirror, tick);
+    /* the rotor's polarity adjudication: the shell's own trust state. */
+    pol = LPRES_STATE_TRUE;
+    vortex_step(&g_shell_vortex, tick, pol);
+    return phase_render_last_frame(&g_shell_mirror);
+}
+
 /* The platform's millisecond clock (zxv_shell_set_clock_ms); without one
  * each frame counts as 33 ms. */
 static bool g_clock_set;
@@ -1652,6 +1699,7 @@ void zxv_shell_frame(zxv_shell_state_t *st, vbe_state_t *v, int32_t cx, int32_t 
     const int32_t W = (int32_t) v->width, H = (int32_t) v->height;
     int32_t stride = v->pitch ? (int32_t) (v->pitch / 4u) : W;
     zui_surface_init(&g_s, v->fb, W, H, stride);
+    g_mir_st = st; /* the mirror reads live state    */
     desk_fit(st, W, H);
     /* Motion follows the real clock when the platform gives one, so a slow
      * frame (a software-rendered panel) does not slow the animations down. */
@@ -1663,6 +1711,10 @@ void zxv_shell_frame(zxv_shell_state_t *st, vbe_state_t *v, int32_t cx, int32_t 
     }
     g_ms += dt;
     zui_desk_tick(&g_desk, dt);
+    /* The triadic mirror projects at the frame tick: the shell's own state
+     * (terms, clock) and the network-space views go through the same mirror
+     * the Chiglet and the mesh read. The 3-6-9 rotor steps with the frame. */
+    (void) zxv_shell_mirror(tick);
     /* field map: the ground is neutral (true #002911); objects tag their own */
     if (fphase && fdepth)
         for (int32_t i = 0; i < (int32_t) FIELD_CELLS_MAX; i++) {

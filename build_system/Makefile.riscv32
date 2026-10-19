@@ -165,6 +165,7 @@ KERNEL_SRCS = \
     kernel/src/decent/decent.c \
     kernel/src/denconnect/denconnect.c \
     kernel/src/deploy/deploy.c \
+    kernel/src/desktop/mirror_ui.c \
     kernel/src/desktop/zxv_shell.c \
     kernel/src/desktop/zxv_shell_font.c \
     kernel/src/zui/zui_desk.c \
@@ -287,6 +288,10 @@ KERNEL_SRCS = \
     kernel/src/oseq/oseq_core.c \
     kernel/src/oseq/oseq.c \
     kernel/src/phase_coord/phase_coordinator.c \
+    kernel/src/phase_coord/phase_render.c \
+    kernel/src/phase_coord/net_mirror.c \
+    kernel/src/phase_coord/vortex.c \
+    kernel/src/phase_coord/vortex_harmonic.c \
     kernel/src/pirate_apps/pirate_apps.c \
     kernel/src/pirate_fleet/pirate_fleet.c \
     kernel/src/plnp/plnp.c \

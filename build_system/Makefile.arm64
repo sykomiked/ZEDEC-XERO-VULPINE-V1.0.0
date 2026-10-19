@@ -294,6 +294,10 @@ KERNEL_SRCS = \
     kernel/src/iphase/iphase_core.c \
     kernel/src/choice/choice_core.c \
     kernel/src/phase_coord/phase_coordinator.c \
+    kernel/src/phase_coord/phase_render.c \
+    kernel/src/phase_coord/net_mirror.c \
+    kernel/src/phase_coord/vortex.c \
+    kernel/src/phase_coord/vortex_harmonic.c \
     kernel/src/telemetry/telemetry_core.c \
     kernel/src/axiom_matrix/axiom_matrix_core.c \
     kernel/src/e8/zphi.c \
@@ -412,6 +416,7 @@ KERNEL_SRCS = \
     kernel/src/megarom/mrschema.c \
     kernel/src/zxvfs/zxvfs_tri.c \
     kernel/src/vbe/vbe.c \
+    kernel/src/desktop/mirror_ui.c \
     kernel/src/desktop/zxv_shell.c \
     kernel/src/desktop/zxv_shell_font.c \
     kernel/src/zui/zui_desk.c \

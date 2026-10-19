@@ -21,8 +21,11 @@
 #include <stdint.h>
 #include "display.h"
 #include "vbe.h"
+#include "mirror_ui.h"    /* the SASOS projection the shell mirrors into    */
+#include "phase_render.h" /* the phase-tick render hook                     */
+#include "vortex.h"       /* the 3-6-9 rotor over the triadic mirror        */
 
-#define SHELL_APPS       5      /* Vino Fleet Studio Chiglet Refinery */
+#define SHELL_APPS       5 /* Vino Fleet Studio Chiglet Refinery */
 #define SHELL_TERM_LINES 13
 #define SHELL_LINE_LEN   72
 #define SHELL_CMD_MAX    56
@@ -52,8 +55,8 @@
  * negotiated mode at runtime -- see zxv_shell_set_field_geometry(). Same
  * discipline as an LCD's own addressing: the controller is told the panel's
  * dimensions, it does not assume them. */
-#define FIELD_TILE      16u                                   /* tile edge, px */
-#define FIELD_TX_MAX    (ZXV_DISPLAY_MAX_W / FIELD_TILE)       /* capacity only */
+#define FIELD_TILE      16u                              /* tile edge, px */
+#define FIELD_TX_MAX    (ZXV_DISPLAY_MAX_W / FIELD_TILE) /* capacity only */
 #define FIELD_TY_MAX    (ZXV_DISPLAY_MAX_H / FIELD_TILE)
 #define FIELD_CELLS_MAX (FIELD_TX_MAX * FIELD_TY_MAX)
 
@@ -72,23 +75,23 @@ uint32_t zxv_shell_field_ty(void);
 #define SPACE_SUBS  6
 
 typedef struct {
-    int32_t  active_app;                              /* highlighted dock app, -1 none */
-    uint32_t prev_buttons;                            /* for click-edge detection      */
-    char     term[SHELL_TERM_LINES][SHELL_LINE_LEN];  /* terminal scrollback           */
-    int32_t  term_count;
-    char     cmd[SHELL_CMD_MAX];                      /* live command line             */
-    int32_t  cmdlen;
+    int32_t active_app;                          /* highlighted dock app, -1 none */
+    uint32_t prev_buttons;                       /* for click-edge detection      */
+    char term[SHELL_TERM_LINES][SHELL_LINE_LEN]; /* terminal scrollback           */
+    int32_t term_count;
+    char cmd[SHELL_CMD_MAX]; /* live command line             */
+    int32_t cmdlen;
     uint32_t click_count;
-    int32_t  view;                                    /* 0=base desktop 1=lattice 2=space */
-    int32_t  focus_node;                              /* 0..12 focused lattice node    */
-    int32_t  space;                                   /* open space node when view==2  */
-    int32_t  trans;                                   /* push-in transition frames left */
+    int32_t view;       /* 0=base desktop 1=lattice 2=space */
+    int32_t focus_node; /* 0..12 focused lattice node    */
+    int32_t space;      /* open space node when view==2  */
+    int32_t trans;      /* push-in transition frames left */
     /* --- functional space state --- */
-    char     sview[SPACE_LINES][SHELL_LINE_LEN];      /* live readout of the open space */
-    int32_t  sview_count;
-    int32_t  subsel;                                  /* selected sub-space 0..5, -1 none */
-    int32_t  act_hot;                                 /* last action pressed (highlight)  */
-    int32_t prev_cx, prev_cy;                         /* last pointer position            */
+    char sview[SPACE_LINES][SHELL_LINE_LEN]; /* live readout of the open space */
+    int32_t sview_count;
+    int32_t subsel;           /* selected sub-space 0..5, -1 none */
+    int32_t act_hot;          /* last action pressed (highlight)  */
+    int32_t prev_cx, prev_cy; /* last pointer position            */
 } zxv_shell_state_t;
 
 /* push-in transition length (frames): a depth sweep far->near when entering a space */
@@ -123,8 +126,14 @@ uint32_t zxv_shell_font_size(void);
  * 4K desktop shows the same layout at a quarter of the apparent size. */
 void zxv_shell_set_ui_scale(uint32_t permille);
 
-void zxv_shell_frame(zxv_shell_state_t *st, vbe_state_t *v,
-                     int32_t cx, int32_t cy, uint32_t buttons, uint32_t tick,
-                     uint8_t *fphase, uint8_t *fdepth);
+void zxv_shell_frame(zxv_shell_state_t *st, vbe_state_t *v, int32_t cx, int32_t cy,
+                     uint32_t buttons, uint32_t tick, uint8_t *fphase, uint8_t *fdepth);
+
+/* The shell's MIRROR: the live triadic projection the UI renders from. The
+ * shell binds its own state registers at init and projects them at each
+ * frame tick through the same mirror machinery the Chiglet and the network
+ * read — one projection, three spaces. Returns the shared frame (borrowed,
+ * valid until the next frame). */
+const mirror_frame_t *zxv_shell_mirror(uint32_t tick);
 
 #endif /* ZXV_SHELL_H */
