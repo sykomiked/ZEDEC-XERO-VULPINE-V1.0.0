@@ -15,6 +15,7 @@
  *   4. a 144-dimensional cell: one thread computes stage + up to 144
  *      dependencies + the join across all 144 axes simultaneously.
  */
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <vector>

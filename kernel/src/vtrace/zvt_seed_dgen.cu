@@ -14,6 +14,21 @@ typedef int zi;
 typedef unsigned char zb;
 #define ZK_DEV
 
+/* On a real device (NVPTX target) the thread coordinates come from the PTX
+ * special registers; the extern stand-ins only resolve for the compile-only
+ * PTX proof and the host emulator. */
+#if defined(__NVPTX__) || defined(__PTX__) || defined(__CUDA_ARCH__)
+static __device__ zu zk_tid_x(void)
+{ zu r; __asm__("mov.u32 %0, %%tid.x;" : "=r"(r)); return r; }
+static __device__ zu zk_ctaid_x(void)
+{ zu r; __asm__("mov.u32 %0, %%ctaid.x;" : "=r"(r)); return r; }
+#define ZK_TID_X zk_tid_x()
+#define ZK_CTAID_X zk_ctaid_x()
+#else
+#define ZK_TID_X threadIdx.x
+#define ZK_CTAID_X blockIdx.x
+#endif
+
 #define ZVT_KSRC(...) __VA_ARGS__
 #include "zvt_seed_dkern.h"
 #undef ZVT_KSRC
@@ -21,7 +36,7 @@ typedef unsigned char zb;
 extern "C" __global__ void zvk_d_cell(const zu *co, zu n, zu D, zu *stage, zu *ndep, zu *dia,
                                       zu *djc, zu *cellstate)
 {
-    zu i = blockIdx.x * 256u + threadIdx.x;
+    zu i = ZK_CTAID_X * 256u + ZK_TID_X;
     if (i < n) {
         zu c[144];
         zu dep[144];

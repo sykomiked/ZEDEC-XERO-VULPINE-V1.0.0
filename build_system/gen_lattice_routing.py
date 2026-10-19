@@ -186,7 +186,10 @@ def main(argv):
     out_path = pathlib.Path(argv[2])
     mods = parse_strata(strata)
     img, digest = build(mods)
-    emit(img, digest, out_path)
+    if "--bin" in argv:
+        out_path.write_bytes(img)
+    else:
+        emit(img, digest, out_path)
     print("lattice routing: %d modules over 9 strata, digest %s" %
           (len(mods), digest.hex()))
 
