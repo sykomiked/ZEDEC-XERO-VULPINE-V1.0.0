@@ -98,6 +98,7 @@ KERNEL_SRC = \
     kernel/src/scp144/scp144.c \
     kernel/src/scp144/scp144_embed.c \
     kernel/src/scp144/zxv_grow.c \
+    kernel/src/scp144/zxv_scale.c \
     kernel/src/entropy/entropy_jitter.c \
     kernel/arch/arm32/uart_pl011.c \
     kernel/arch/arm32/kernel_main_arm32.c \

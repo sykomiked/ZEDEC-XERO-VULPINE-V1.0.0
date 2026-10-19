@@ -167,6 +167,7 @@ robin_debanks                    trust
 tls                              trust
 update                           trust
 scp144                           trust      # SCP-144: the lattice binding mixed into the Vinea handshake (vna_session.c includes scp144.h; mlkem/keccak only)
+scp144/zxv_scale                 trust      # the capacity oracle: hardware-earned growth rung, the three mirrored states scale together, fail-closed on unknowns (includes zxv_grow.h)
 vinea                            trust      # the DHT's wire carries PQ identities (vna_id.h includes vna_pq.h), so the protocol sits in trust
 aproto                           trust      # protocol twins: records over vinea sessions, audit chain (docs/P2P_PROTOCOL_TWINS.md)
 zab                              trust
