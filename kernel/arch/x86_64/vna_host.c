@@ -78,7 +78,7 @@ static int is_curriculum_cid(const char *path, uint32_t plen)
  * bounded like the host itself, one instance per machine. The door's POST
  * /cisex route is the :80 ingress; the same responder is the call a UDP
  * wrapper would make. Its probe slot is the seed's epistemic shard. */
-#define VNAH_CISEX_N 4096u
+#define VNAH_CISEX_N 65536u
 static cisex_ent_t g_cisex_ents[VNAH_CISEX_N];
 static cisex_t g_cisex;
 static uint8_t g_cisex_region;
