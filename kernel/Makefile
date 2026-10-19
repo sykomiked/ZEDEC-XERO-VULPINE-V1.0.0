@@ -2199,6 +2199,21 @@ test-scp144:
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/e8 src/e8/test_fib_lattice.c src/e8/fib_lattice.c -o /tmp/test_fib_lattice && /tmp/test_fib_lattice && echo "[PASS] test_fib_lattice"; \
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wno-deprecated-declarations -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -I$$G -Isrc/scp144 -Isrc/tls -Isrc/mlkem -Isrc/robin_debanks -Iinclude -Isrc/modbind src/scp144/test_scp144_embed.c src/scp144/scp144.c src/scp144/scp144_embed.c src/scp144/zxv_grow.c src/e8/fib_lattice.c src/tls/aead.c src/mlkem/keccak.c src/robin_debanks/sha256.c -o /tmp/test_scp144_embed && /tmp/test_scp144_embed > /tmp/test_scp144_embed.log 2>&1 && echo "[PASS] test_scp144_embed" || { tail -20 /tmp/test_scp144_embed.log; echo "[FAIL] test_scp144_embed"; exit 1; }; \
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -I$$G -Isrc/scp144 -Isrc/e8 -Isrc/robin_debanks -Isrc/modbind -Iinclude src/scp144/test_zxv_scale.c src/scp144/zxv_scale.c src/scp144/zxv_grow.c src/scp144/scp144.c src/e8/fib_lattice.c src/tls/aead.c src/mlkem/keccak.c src/robin_debanks/sha256.c -o /tmp/test_zxv_scale && /tmp/test_zxv_scale && echo "[PASS] test_zxv_scale" || { echo "[FAIL] test_zxv_scale"; exit 1; }
+	@G=$${ZXV_TMP:-/tmp}/scp144_embed_gen; mkdir -p $$G; \
+	python3 ../build_system/gen_lattice_routing.py ../build_system/strata.txt $$G/zxv_lattice_route.h && \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -I$$G -Isrc/scp144 -Isrc/robin_debanks -Iinclude src/scp144/test_zxv_route.c src/scp144/zxv_route.c src/robin_debanks/sha256.c -o /tmp/test_zxv_route && /tmp/test_zxv_route && echo "[PASS] test_zxv_route" || { echo "[FAIL] test_zxv_route"; exit 1; }
+
+# the lattice interconnect table (build_system/gen_lattice_routing.py): the
+# strata map projected onto the SCP-144 shells — every module's cell, ring
+# and predecessor count committed as a canonical image the ELF carries and
+# zxv_route.c verifies. DIMENSIONS is fixed at 144 (the lattice's
+# Fibonacci bound); other values fail closed. (Note: GNU make rejects
+# '--dimensions=144' as an option — pass it as DIMENSIONS=144.)
+DIMENSIONS ?= 144
+.PHONY: generate-lattice-routing
+generate-lattice-routing:
+	@test "$(DIMENSIONS)" = "144" || { echo "[FAIL] generate-lattice-routing: the lattice is F12=144 (got '$(DIMENSIONS)')"; exit 1; }
+	@mkdir -p build && python3 ../build_system/gen_lattice_routing.py ../build_system/strata.txt build/zxv_lattice_route.h && echo "[PASS] build/zxv_lattice_route.h"
 
 # The holographic seed (src/ai/fractal_seed.c): weights unfolded from fractal
 # recurrence, exact Q32.32, Solfeggio/SCP-144 phase-locked. The test embeds a
