@@ -78,6 +78,39 @@ if command -v spirv-val >/dev/null 2>&1; then
             spirv-val --target-env vulkan1.1 "$T/zvt_vk_$k.spv" || { echo "[FAIL] spirv-val stage $k"; exit 1; }
     done
     echo "[PASS] zvt_vk.comp: 6 stages to SPIR-V, spirv-val clean (Vulkan 1.1)"
+
+# 7 — the SEED GEOMETRY on the GPU: the ELF's 144-dimensional lattice
+# unfolded one thread per cell (zvt_seed_kern.h), proven bit-identical to
+# the C reference on the CPU emulator, and compiled to PTX for the GPU's
+# own architecture. This is the holographic seed / lattice geometry the
+# whole stack unfolds from, fabricated as a unit in parallel.
+#   emu:   the kernel with GPU launch geometry (blocks of 256) vs the C
+#          reference from the SAME source — bit-identical by construction
+#   ptx:   the same source to PTX for the arches the clang can emit
+if command -v clang++ >/dev/null 2>&1; then
+    g++ -std=c++14 -O1 -Wall -Wextra -Werror -Wno-unused-function -Isrc/vtrace \
+        src/vtrace/test_zvt_seed_emu.cpp -o "$T/test_zvt_seed_emu" ||
+        { echo "[FAIL] test_zvt_seed_emu build"; exit 1; }
+    "$T/test_zvt_seed_emu" > "$T/seed_emu.log" 2>&1 ||
+        { cat "$T/seed_emu.log"; echo "[FAIL] test_zvt_seed_emu"; exit 1; }
+    echo "[PASS] seed geometry: $(tail -1 "$T/seed_emu.log" | sed 's/^\[PASS\] //')"
+    seed_ok=0; seed_skip=0
+    for a in sm_75 sm_86 sm_90; do
+        if clang++ -x cuda --cuda-device-only --cuda-gpu-arch=$a -nocudainc -nocudalib \
+            -std=c++14 -O2 -Wall -Werror -Wno-unused-function -S \
+            -Isrc/vtrace src/vtrace/test_zvt_seed_ptx.cu -o "$T/zvt_seed_$a.ptx" 2>"$T/seed_ptx_$a.err"; then
+            test "$(grep -c '.visible .entry' "$T/zvt_seed_$a.ptx")" = 1 ||
+                { echo "[FAIL] zvt_seed: 1 kernel expected ($a)"; exit 1; }
+            seed_ok=$((seed_ok+1))
+        else
+            seed_skip=$((seed_skip+1))
+        fi
+    done
+    test "$seed_ok" -gt 0 || { echo "[FAIL] zvt_seed: no PTX arch compiled"; exit 1; }
+    echo "[PASS] seed geometry to PTX ($seed_ok arches, $seed_skip skipped: the 144-lattice kernel)"
+else
+    echo "[SKIP] seed geometry GPU proof (needs g++ and clang++)"
+fi
 else
     echo "[PASS] zvt_vk.comp: 6 stages to SPIR-V ([SKIP] spirv-val: apt spirv-tools)"
 fi
