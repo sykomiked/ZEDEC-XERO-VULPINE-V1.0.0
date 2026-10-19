@@ -33,17 +33,17 @@
 #define ZXV_GROW_RUNGS 12u
 
 enum {
-    ZXV_GROW_OK        =  0,
-    ZXV_GROW_ERR_ARG   = -1,
+    ZXV_GROW_OK = 0,
+    ZXV_GROW_ERR_ARG = -1,
     ZXV_GROW_ERR_SPACE = -2,
 };
 
 typedef struct zxv_grow {
-    uint32_t rings;      /* rings unfolded so far (0..12)               */
-    uint32_t written;    /* canonical bytes emitted into the arena      */
-    uint32_t rom_diff;   /* grown elements that differ from the ROM     */
-    uint8_t  root[32];   /* transcript digest; final after ring 12      */
-    int      fault;      /* 0 or ZXV_GROW_ERR_*                          */
+    uint32_t rings;    /* rings unfolded so far (0..12)               */
+    uint32_t written;  /* canonical bytes emitted into the arena      */
+    uint32_t rom_diff; /* grown elements that differ from the ROM     */
+    uint8_t root[32];  /* transcript digest; final after ring 12      */
+    int fault;         /* 0 or ZXV_GROW_ERR_*                          */
 } zxv_grow_t;
 
 /* Arena bytes a grow to `max_rung` (1..12, clamped) needs. */

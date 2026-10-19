@@ -90,12 +90,12 @@ enum {
 };
 
 static const char *const kspell[K__COUNT] = {
-    "<eof>", "<newline>", "<name>", "<number>", "<string>", "if",     "else",   "while", "for",
-    "break", "continue",  "exit",   "print",   "printf",  "BEGIN",   "END",    "in",    "function",
-    "+",     "-",         "*",      "%",       "/",       "^",       "!",      "~",     "!~",
-    "<",     "<=",        "==",     "!=",      ">=",      ">",       "&&",     "||",    "?",
-    ":",     "=",         "+=",     "-=",      "*=",      "%=",      "++",     "--",    "(",
-    ")",     "{",         "}",      "[",       "]",       ",",       ";",     "$",
+    "<eof>", "<newline>", "<name>", "<number>", "<string>", "if",    "else", "while", "for",
+    "break", "continue",  "exit",   "print",    "printf",   "BEGIN", "END",  "in",    "function",
+    "+",     "-",         "*",      "%",        "/",        "^",     "!",    "~",     "!~",
+    "<",     "<=",        "==",     "!=",       ">=",       ">",     "&&",   "||",    "?",
+    ":",     "=",         "+=",     "-=",       "*=",       "%=",    "++",   "--",    "(",
+    ")",     "{",         "}",      "[",        "]",        ",",     ";",    "$",
 };
 
 typedef struct {
@@ -118,14 +118,14 @@ typedef struct {
 
 enum { P_STR = 1, P_INT, P_TAB, P_NL };
 
-#define AT_MAX  4096
-#define AC_MAX  512
-#define AS_MAX  8192
-#define AV_MAX  256
-#define AX_MAX  512
-#define AB_MAX  256
-#define AP_MAX  128
-#define AM_MAX  64
+#define AT_MAX 4096
+#define AC_MAX 512
+#define AS_MAX 8192
+#define AV_MAX 256
+#define AX_MAX 512
+#define AB_MAX 256
+#define AP_MAX 128
+#define AM_MAX 64
 
 typedef struct {
     zl_cc_t *c;
@@ -218,10 +218,12 @@ static int lex(aw_t *w)
     size_t n = w->n, i = 0, bol = 0;
     uint32_t line = 1, last_line = 0;
     for (;;) {
-        while (i < n && (s[i] == ' ' || s[i] == '\t' || s[i] == '\r' || s[i] == '\f' || s[i] == '\v'))
+        while (i < n &&
+               (s[i] == ' ' || s[i] == '\t' || s[i] == '\r' || s[i] == '\f' || s[i] == '\v'))
             i++;
         if (i < n && s[i] == '\n') {
-            if (w->ntok >= AT_MAX - 1) return lex_fail(w, line, i, bol, ZL_E_LIMIT, "program too long");
+            if (w->ntok >= AT_MAX - 1)
+                return lex_fail(w, line, i, bol, ZL_E_LIMIT, "program too long");
             /* newline ends a statement, like ';' does */
             atok_t *t = &w->tok[w->ntok];
             t->pos = (uint32_t) i;
@@ -242,7 +244,8 @@ static int lex(aw_t *w)
             while (e < n && s[e] != '\n') e++;
             size_t te = e;
             while (te > st && (s[te - 1] == ' ' || s[te - 1] == '\t' || s[te - 1] == '\r')) te--;
-            if (w->ncom >= AC_MAX) return lex_fail(w, line, i, bol, ZL_E_LIMIT, "too many comments");
+            if (w->ncom >= AC_MAX)
+                return lex_fail(w, line, i, bol, ZL_E_LIMIT, "too many comments");
             acom_t *m = &w->com[w->ncom++];
             m->pos = (uint32_t) st;
             m->len = (uint32_t) (te - st);
@@ -272,7 +275,8 @@ static int lex(aw_t *w)
                 i++;
             }
             if (i < n && s[i] == '.')
-                return lex_fail(w, line, st, bol, ZL_E_UNSUPPORTED, "a fraction is a float; outside the subset");
+                return lex_fail(w, line, st, bol, ZL_E_UNSUPPORTED,
+                                "a fraction is a float; outside the subset");
             if (i < n && (zl_isalpha((unsigned char) s[i]) || s[i] == '_'))
                 return lex_fail(w, line, st, bol, ZL_E_SYNTAX, "malformed number");
             t->k = K_INT;
@@ -313,10 +317,12 @@ static int lex(aw_t *w)
                     i += 2;
                 } else {
                     if ((b < 0x20 && b != '\t') || b == 0x7f)
-                        return lex_fail(w, line, i, bol, ZL_E_SYNTAX, "a control character in a string");
+                        return lex_fail(w, line, i, bol, ZL_E_SYNTAX,
+                                        "a control character in a string");
                     i++;
                 }
-                if (w->nsbuf >= AS_MAX) return lex_fail(w, line, st, bol, ZL_E_LIMIT, "too much string text");
+                if (w->nsbuf >= AS_MAX)
+                    return lex_fail(w, line, st, bol, ZL_E_LIMIT, "too much string text");
                 w->sbuf[w->nsbuf++] = (char) b;
             }
             t->k = K_STR;
@@ -327,15 +333,15 @@ static int lex(aw_t *w)
                 const char *sp;
                 uint8_t k;
             } sym[] = {
-                {"&&", K_ANDAND}, {"||", K_OROR},  {"++", K_INCR},   {"--", K_DECR},
-                {"+=", K_PLUSEQ}, {"-=", K_MINUSEQ}, {"*=", K_STAREQ}, {"%=", K_PERCENTEQ},
-                {"<=", K_LE},     {">=", K_GE},     {"==", K_EQ},    {"!=", K_NE},
-                {"!~", K_BANGTILDE}, {"+", K_PLUS}, {"-", K_MINUS},  {"*", K_STAR},
-                {"%", K_PERCENT}, {"/", K_SLASH},   {"^", K_POW},    {"!", K_BANG},
-                {"~", K_TILDE},   {"<", K_LT},      {">", K_GT},     {"?", K_QUEST},
-                {":", K_COLON},   {"=", K_ASSIGN},  {"(", K_LP},     {")", K_RP},
-                {"{", K_LB},      {"}", K_RB},      {"[", K_LBRACK}, {"]", K_RBRACK},
-                {",", K_COMMA},   {";", K_SEMI},   {"$", K_DOLLAR},
+                {"&&", K_ANDAND},    {"||", K_OROR},    {"++", K_INCR},   {"--", K_DECR},
+                {"+=", K_PLUSEQ},    {"-=", K_MINUSEQ}, {"*=", K_STAREQ}, {"%=", K_PERCENTEQ},
+                {"<=", K_LE},        {">=", K_GE},      {"==", K_EQ},     {"!=", K_NE},
+                {"!~", K_BANGTILDE}, {"+", K_PLUS},     {"-", K_MINUS},   {"*", K_STAR},
+                {"%", K_PERCENT},    {"/", K_SLASH},    {"^", K_POW},     {"!", K_BANG},
+                {"~", K_TILDE},      {"<", K_LT},       {">", K_GT},      {"?", K_QUEST},
+                {":", K_COLON},      {"=", K_ASSIGN},   {"(", K_LP},      {")", K_RP},
+                {"{", K_LB},         {"}", K_RB},       {"[", K_LBRACK},  {"]", K_RBRACK},
+                {",", K_COMMA},      {";", K_SEMI},     {"$", K_DOLLAR},
             };
             size_t k = 0, m = 0;
             for (; k < sizeof sym / sizeof sym[0]; k++) {
@@ -477,7 +483,8 @@ static int eol(aw_t *w, uint32_t last)
     if (w->cnext < w->ncom && w->com[w->cnext].tok <= last) {
         w->c->line = w->com[w->cnext].line;
         w->c->col = 0;
-        return zl_fail(w->c, ZL_E_UNSUPPORTED, "a comment inside a statement is outside the subset");
+        return zl_fail(w->c, ZL_E_UNSUPPORTED,
+                       "a comment inside a statement is outside the subset");
     }
     if (w->cnext < w->ncom && w->com[w->cnext].tok == last + 1 && w->com[w->cnext].trailing) {
         const acom_t *m = &w->com[w->cnext++];
@@ -596,7 +603,8 @@ static int primary(aw_t *w)
             tws(w, ")");
             return ZL_OK; /* int of an integer is the integer */
         }
-        if (w->tok[w->t + 1].k == K_LP) return lfail_at(w, t0, ZL_E_UNSUPPORTED, "this function is outside the subset");
+        if (w->tok[w->t + 1].k == K_LP)
+            return lfail_at(w, t0, ZL_E_UNSUPPORTED, "this function is outside the subset");
         if (name_is(w, t0, "length") || name_is(w, t0, "substr") || name_is(w, t0, "sprintf") ||
             name_is(w, t0, "index") || name_is(w, t0, "match") || name_is(w, t0, "split") ||
             name_is(w, t0, "sub") || name_is(w, t0, "gsub") || name_is(w, t0, "tolower") ||
@@ -663,8 +671,10 @@ static int unary(aw_t *w)
     uint32_t t0 = w->t;
     if (at(w, K_MINUS) || at(w, K_BANG)) {
         int op = at(w, K_MINUS) ? ZL_NEG : ZL_NOT;
-        if (at(w, K_MINUS) && w->tok[w->t + 1].k == K_MINUS) tws(w, "- ");
-        else tws(w, kspell[w->tok[w->t].k]);
+        if (at(w, K_MINUS) && w->tok[w->t + 1].k == K_MINUS)
+            tws(w, "- ");
+        else
+            tws(w, kspell[w->tok[w->t].k]);
         next(w);
         TRY(unary(w));
         ln(w, t0);
@@ -775,7 +785,8 @@ static int cmp(aw_t *w)
     TRY(concat(w));
     while (at(w, K_LT) || at(w, K_LE) || at(w, K_EQ) || at(w, K_NE) || at(w, K_GE) || at(w, K_GT)) {
         if (w->nocmp)
-            return lfail(w, ZL_E_UNSUPPORTED, "write a comparison in print and printf inside parentheses");
+            return lfail(w, ZL_E_UNSUPPORTED,
+                         "write a comparison in print and printf inside parentheses");
         uint32_t ot = w->t;
         tws(w, " ");
         tws(w, kspell[w->tok[w->t].k]);
@@ -784,12 +795,24 @@ static int cmp(aw_t *w)
         TRY(concat(w));
         ln(w, ot);
         switch (w->tok[ot].k) {
-        case K_LT: TRY(em(w, ZL_LT, 0, 0)); break;
-        case K_LE: TRY(em(w, ZL_LE, 0, 0)); break;
-        case K_EQ: TRY(em(w, ZL_EQ, 0, 0)); break;
-        case K_NE: TRY(em(w, ZL_NE, 0, 0)); break;
-        case K_GE: TRY(em(w, ZL_GE, 0, 0)); break;
-        default: TRY(em(w, ZL_GT, 0, 0)); break;
+        case K_LT:
+            TRY(em(w, ZL_LT, 0, 0));
+            break;
+        case K_LE:
+            TRY(em(w, ZL_LE, 0, 0));
+            break;
+        case K_EQ:
+            TRY(em(w, ZL_EQ, 0, 0));
+            break;
+        case K_NE:
+            TRY(em(w, ZL_NE, 0, 0));
+            break;
+        case K_GE:
+            TRY(em(w, ZL_GE, 0, 0));
+            break;
+        default:
+            TRY(em(w, ZL_GT, 0, 0));
+            break;
         }
     }
     return ZL_OK;
@@ -814,7 +837,8 @@ static int logic_chain(aw_t *w, int (*operand)(aw_t *), int op, int jump)
         TRY(em(w, ZL_DUP, 0, 0));
         int32_t j = zl_emit(w->c, jump, 0, 0);
         if (j < 0) return status(w);
-        if (nj >= sizeof end / sizeof end[0]) return lfail(w, ZL_E_LIMIT, "a && or || chain too long");
+        if (nj >= sizeof end / sizeof end[0])
+            return lfail(w, ZL_E_LIMIT, "a && or || chain too long");
         end[nj++] = j;
         TRY(em(w, ZL_DROP, 0, 0));
         TRY(operand(w));
@@ -981,8 +1005,8 @@ static int while_stmt(aw_t *w)
 static int for_clause(aw_t *w)
 {
     int k1 = w->tok[w->t + 1].k;
-    if (at(w, K_NAME) &&
-        (k1 == K_ASSIGN || k1 == K_PLUSEQ || k1 == K_MINUSEQ || k1 == K_STAREQ || k1 == K_PERCENTEQ))
+    if (at(w, K_NAME) && (k1 == K_ASSIGN || k1 == K_PLUSEQ || k1 == K_MINUSEQ || k1 == K_STAREQ ||
+                          k1 == K_PERCENTEQ))
         return assign_stmt(w, 0);
     TRY(expr(w));
     return em(w, ZL_DROP, 0, 0);
@@ -994,7 +1018,8 @@ static int for_stmt(aw_t *w)
     tws(w, "for (");
     next(w);
     TRY(expect(w, K_LP, "'(' expected"));
-    if (at(w, K_NAME) && w->tok[w->t + 1].k == K_IN) return lfail(w, ZL_E_UNSUPPORTED, "for (i in a) is arrays; outside the subset");
+    if (at(w, K_NAME) && w->tok[w->t + 1].k == K_IN)
+        return lfail(w, ZL_E_UNSUPPORTED, "for (i in a) is arrays; outside the subset");
     if (!at(w, K_SEMI)) TRY(for_clause(w));
     tws(w, "; ");
     TRY(expect(w, K_SEMI, "';' expected"));
@@ -1029,8 +1054,10 @@ static int for_stmt(aw_t *w)
     TRY(block(w));
     w->depth--;
     w->loopdepth--;
-    if (isec >= 0) TRY(em(w, ZL_JMP, isec, 0));
-    else TRY(em(w, ZL_JMP, top, 0));
+    if (isec >= 0)
+        TRY(em(w, ZL_JMP, isec, 0));
+    else
+        TRY(em(w, ZL_JMP, top, 0));
     patch_here(w, cond);
     loop_end(w, saved);
     TRY(rbrace(w));
@@ -1043,8 +1070,7 @@ static int for_stmt(aw_t *w)
  * hole where the next argument's value lands. */
 static int emit_piece(aw_t *w, uint8_t kind, int32_t v)
 {
-    if (kind == P_STR)
-        return em(w, ZL_OUTS, v, 0);
+    if (kind == P_STR) return em(w, ZL_OUTS, v, 0);
     if (kind == P_TAB) {
         TRY(em(w, ZL_PUSH, '\t', 0));
         return em(w, ZL_OUTC, 0, 0);
@@ -1079,7 +1105,8 @@ static int print_stmt(aw_t *w, int isprintf)
             if (!isprintf) TRY(piece(w, P_TAB, 0));
         }
         if (isprintf && nargs == 0) {
-            if (!at(w, K_STR)) return lfail(w, ZL_E_UNSUPPORTED, "printf's first argument is a format string");
+            if (!at(w, K_STR))
+                return lfail(w, ZL_E_UNSUPPORTED, "printf's first argument is a format string");
             const atok_t *fmt = &w->tok[w->t];
             tw_str(w, w->t);
             next(w);
@@ -1135,8 +1162,10 @@ static int print_stmt(aw_t *w, int isprintf)
     w->nocmp = 0;
     if (at(w, K_RP)) next(w);
     if (isprintf) {
-        if (narg < nholes) return lfail_at(w, t0, ZL_E_SYNTAX, "fewer printf arguments than conversions");
-        if (narg > nholes) return lfail_at(w, t0, ZL_E_UNSUPPORTED, "printf arguments beyond the conversions");
+        if (narg < nholes)
+            return lfail_at(w, t0, ZL_E_SYNTAX, "fewer printf arguments than conversions");
+        if (narg > nholes)
+            return lfail_at(w, t0, ZL_E_UNSUPPORTED, "printf arguments beyond the conversions");
     }
     ln(w, t0);
     /* emit: strings and numbers in order, tabs for print's comma */
@@ -1168,15 +1197,20 @@ static int assign_stmt(aw_t *w, int want_val)
     if (!at(w, K_NAME)) return lfail(w, ZL_E_SYNTAX, "a variable expected");
     int32_t cell;
     uint32_t vt = w->t;
-    if (w->tok[w->t + 1].k == K_LBRACK) return lfail(w, ZL_E_UNSUPPORTED, "arrays are outside the subset");
+    if (w->tok[w->t + 1].k == K_LBRACK)
+        return lfail(w, ZL_E_UNSUPPORTED, "arrays are outside the subset");
     tw_name(w, vt);
     next(w);
     TRY(var_cell(w, vt, &cell, 1));
     int op = 0;
-    if (at(w, K_PLUSEQ)) op = ZL_ADD;
-    else if (at(w, K_MINUSEQ)) op = ZL_SUB;
-    else if (at(w, K_STAREQ)) op = ZL_MUL;
-    else if (at(w, K_PERCENTEQ)) op = ZL_MODT;
+    if (at(w, K_PLUSEQ))
+        op = ZL_ADD;
+    else if (at(w, K_MINUSEQ))
+        op = ZL_SUB;
+    else if (at(w, K_STAREQ))
+        op = ZL_MUL;
+    else if (at(w, K_PERCENTEQ))
+        op = ZL_MODT;
     if (!op && !at(w, K_ASSIGN)) return lfail_at(w, vt, ZL_E_SYNTAX, "'=' expected");
     tws(w, " ");
     tws(w, kspell[w->tok[w->t].k]);
@@ -1257,7 +1291,8 @@ static int statement(aw_t *w, int *always)
     if (k == K_NAME) {
         uint32_t t0 = w->t;
         int k1 = w->tok[w->t + 1].k;
-        if (k1 == K_ASSIGN || k1 == K_PLUSEQ || k1 == K_MINUSEQ || k1 == K_STAREQ || k1 == K_PERCENTEQ) {
+        if (k1 == K_ASSIGN || k1 == K_PLUSEQ || k1 == K_MINUSEQ || k1 == K_STAREQ ||
+            k1 == K_PERCENTEQ) {
             bol(w);
             TRY(assign_stmt(w, 0));
             uint32_t last = w->t ? w->t - 1 : 0;
@@ -1285,7 +1320,8 @@ static int statement(aw_t *w, int *always)
             return lfail_at(w, t0, ZL_E_UNSUPPORTED, "do-while is not in POSIX awk");
         return lfail_at(w, t0, ZL_E_SYNTAX, "a statement expected");
     }
-    if (k == K_FUNCTION) return lfail(w, ZL_E_UNSUPPORTED, "function definitions are outside the subset");
+    if (k == K_FUNCTION)
+        return lfail(w, ZL_E_UNSUPPORTED, "function definitions are outside the subset");
     return lfail(w, ZL_E_SYNTAX, "a statement expected");
 }
 
@@ -1335,8 +1371,9 @@ static int chunk(aw_t *w)
             return lfail(w, ZL_E_UNSUPPORTED, "function definitions are outside the subset");
         /* anything else at the top level is a pattern or a bare action —
          * the record model, which is outside the subset */
-        return lfail(w, ZL_E_UNSUPPORTED,
-                     "rules over records are outside the subset; only BEGIN { } and END { } run here");
+        return lfail(
+            w, ZL_E_UNSUPPORTED,
+            "rules over records are outside the subset; only BEGIN { } and END { } run here");
     }
     flush_comments(w, w->t);
     w->c->line = w->tok[w->t].line;

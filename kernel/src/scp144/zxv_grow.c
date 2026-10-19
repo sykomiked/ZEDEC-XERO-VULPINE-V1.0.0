@@ -23,8 +23,8 @@
 #include "zxv_scp144_blob.h"
 #include "../robin_debanks/sha256.h"
 
-static void emit(zxv_grow_t *st, sha256_ctx_t *hash, uint8_t *arena,
-                 uint32_t cap, uint64_t v, uint32_t n)
+static void emit(zxv_grow_t *st, sha256_ctx_t *hash, uint8_t *arena, uint32_t cap, uint64_t v,
+                 uint32_t n)
 {
     uint32_t b;
     if (st->fault) return;
@@ -32,8 +32,7 @@ static void emit(zxv_grow_t *st, sha256_ctx_t *hash, uint8_t *arena,
         st->fault = ZXV_GROW_ERR_SPACE;
         return;
     }
-    for (b = 0; b < n; b++)
-        arena[st->written + b] = (uint8_t) (v >> (b * 8u));
+    for (b = 0; b < n; b++) arena[st->written + b] = (uint8_t) (v >> (b * 8u));
     sha256_update(hash, arena + st->written, n);
     st->written += n;
 }
@@ -83,7 +82,7 @@ int zxv_grow(zxv_grow_t *st, uint8_t *arena, uint32_t cap, uint32_t max_rung)
         zmask[v] = scp144_zeckendorf_mode(v, &zenergy[v]);
 
     for (uint32_t r = 0; r < max_rung; r++) {
-        uint32_t dim = fib_ext[r + 1u];          /* F_{r+1} */
+        uint32_t dim = fib_ext[r + 1u]; /* F_{r+1} */
         int32_t det = (int32_t) fib_ext[r + 2u] * (int32_t) fib_ext[r] -
                       (int32_t) fib_ext[r + 1u] * (int32_t) fib_ext[r + 1u];
 
@@ -109,8 +108,7 @@ int zxv_grow(zxv_grow_t *st, uint8_t *arena, uint32_t cap, uint32_t max_rung)
                 int64_t cell;
                 if (i < prev && j < prev) continue; /* the older rings' wood */
                 d = (i + j) % SCP144_BLOB_ZECK_N;
-                cell = parity * (int64_t) zenergy[d] * gap_hi +
-                       (int64_t) zmask[d] * gap_lo;
+                cell = parity * (int64_t) zenergy[d] * gap_hi + (int64_t) zmask[d] * gap_lo;
                 emit(st, &hash, arena, cap, (uint64_t) cell, 8u);
                 if (cell != scp144_blob_matrix[i][j]) st->rom_diff++;
             }
