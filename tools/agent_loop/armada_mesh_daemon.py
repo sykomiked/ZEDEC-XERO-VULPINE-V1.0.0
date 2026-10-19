@@ -42,6 +42,20 @@ FIB_LADDER = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144]
 SCP_MODS = [7, 13, 31, 89]
 
 
+B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+
+def cid_digest(cid: str) -> bytes:
+    """CIDv0 -> raw sha256 digest (multihash without its 2-byte prefix)."""
+    n = 0
+    for ch in cid:
+        n = n * 58 + B58.index(ch)
+    raw = n.to_bytes((len(cid) * 733 + 999) // 1000, "big")
+    if raw[:2] == b"\x12\x20" and len(raw) == 34:
+        return raw[2:]
+    raise ValueError("not a CIDv0 sha256 multihash: " + cid)
+
+
 def scp144_lattice_bind(init_id: bytes, resp_id: bytes) -> bytes:
     """Exact replica of kernel/src/scp144/scp144.c."""
     seed = init_id[:32] + resp_id[:32]
@@ -170,8 +184,20 @@ def http_post(ip: str, path: str, data: bytes = b"", timeout: float = 3.5):
 
 
 def load_seed_objects(root: Path, limit: int = 8192):
-    """Load real objects from QmWwgxP4_shards_manifest.json, ZXV_COMPARTMENT_CIDS.json, and bucket-index.json."""
+    """Load real objects from QmWwgxP4_shards_manifest.json, ZXV_COMPARTMENT_CIDS.json, RELEASE-manifest.json, and bucket-index.json."""
     items = []
+    release_manifest = root / "dist" / "RELEASE-manifest.json"
+    if release_manifest.exists():
+        try:
+            rm = json.loads(release_manifest.read_text())
+            dig = cid_digest(rm["manifest_cid"])
+            items.append((dig, "RELEASE-manifest", int(rm.get("objects") and 4096 or 4096)))
+            for path, meta in rm.get("objects", {}).items():
+                if isinstance(meta, dict) and "cid" in meta:
+                    items.append((cid_digest(meta["cid"]),
+                                  os.path.basename(path)[:31], int(meta.get("bytes", 0))))
+        except Exception:
+            pass
     shard_manifest = root / "fetched" / "QmWwgxP4_shards_manifest.json"
     if shard_manifest.exists():
         try:
