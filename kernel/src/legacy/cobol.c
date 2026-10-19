@@ -415,29 +415,50 @@ static bool field_fits(const cob_field *f, uint32_t rec_len)
     return f->size <= rec_len && f->offset <= rec_len - f->size;
 }
 
+static bool value_fits_picture(const cob_field *f, int64_t value)
+{
+    if (f->ndigits == 0 || f->ndigits > 19 || (value < 0 && !f->is_signed)) return false;
+    uint64_t limit = 1;
+    for (uint32_t i = 0; i < f->ndigits; i++) limit *= 10;
+    uint64_t magnitude = value < 0 ? 0u - (uint64_t) value : (uint64_t) value;
+    return magnitude < limit;
+}
+
 bool cobol_get_int(const uint8_t *rec, uint32_t rec_len, const cob_field *f, int64_t *out)
 {
     if (!field_fits(f, rec_len)) return false;
     const uint8_t *p = rec + f->offset;
+    int64_t value;
+    bool ok;
     switch (f->type) {
     case COB_COMP3:
-        return comp3_decode(p, f->size, out);
+        ok = comp3_decode(p, f->size, &value);
+        break;
     case COB_ZONED:
-        return zoned_decode(p, f->size, out);
+        ok = zoned_decode(p, f->size, &value);
+        break;
     case COB_COMP:
-        return comp_decode(p, f->size, f->is_signed, out);
+        ok = comp_decode(p, f->size, f->is_signed, &value);
+        break;
     default:
         return false;
     }
+    if (!ok || !value_fits_picture(f, value)) return false;
+    *out = value;
+    return true;
 }
 
 bool cobol_set_int(uint8_t *rec, uint32_t rec_len, const cob_field *f, int64_t value)
 {
-    if (!field_fits(f, rec_len)) return false;
+    if (!field_fits(f, rec_len) || !value_fits_picture(f, value)) return false;
     uint8_t *p = rec + f->offset;
     switch (f->type) {
     case COB_COMP3:
-        return comp3_encode(value, p, f->size);
+        if (!comp3_encode(value, p, f->size)) return false;
+        /* Unsigned PIC records use the F sign nibble, matching GnuCOBOL's
+         * canonical record bytes; signed positive values retain C. */
+        if (!f->is_signed) p[f->size - 1] = (uint8_t) ((p[f->size - 1] & 0xf0u) | 0x0fu);
+        return true;
     case COB_ZONED:
         return zoned_encode(value, p, f->size, f->is_signed);
     case COB_COMP:

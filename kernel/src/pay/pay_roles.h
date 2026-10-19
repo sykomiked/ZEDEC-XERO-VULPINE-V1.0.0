@@ -169,7 +169,7 @@ typedef struct {
     char country[3];      /* ISO 3166 alpha-2 of the legal seat, or ""          */
     pay_limits_t limits;
     pay_fee_rule_t fee;
-    pay_assure_policy_t assure; /* 0.08889% assurance-fee policy */
+    pay_assure_policy_t assure; /* 8/9000 (approximately 0.0888889%) assurance-fee policy */
     pay_compliance_t compliance;
     pay_ledger_t *ledger; /* SELF_BANK: its own ledger */
     char lei[21];

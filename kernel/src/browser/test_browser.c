@@ -328,7 +328,7 @@ int main(void)
             char out[BROWSER_MAX_URL_LEN];
             int rc = browser_resolve_url(base, cases[k].ref, out, sizeof(out));
             char msg[256];
-            snprintf(msg, sizeof(msg), "resolve(\"%s\") == \"%s\"%s%s", cases[k].ref, cases[k].want,
+            snprintf(msg, sizeof(msg), "resolve(\"%.64s\") == \"%.64s\"%s%.100s", cases[k].ref, cases[k].want,
                      (rc == BROWSER_OK && strcmp(out, cases[k].want) == 0) ? "" : "  got: ",
                      (rc == BROWSER_OK && strcmp(out, cases[k].want) == 0) ? "" : out);
             CHECK(rc == BROWSER_OK && strcmp(out, cases[k].want) == 0, msg);

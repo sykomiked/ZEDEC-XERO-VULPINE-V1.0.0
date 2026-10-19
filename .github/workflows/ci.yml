@@ -135,13 +135,17 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc make clang libxml2-utils
+          sudo apt-get install -y gcc make clang libxml2-utils gnucobol
       - name: Check every file is on Apache-2.0
         run: python3 build_system/relicense_apache.py --check
       - name: Run host tests
         run: |
           cd kernel
           make verify-all
+      - name: Run independent QA oracles and sanitizer regressions
+        run: bash build_system/qa.sh
+      - name: Check literal test inputs and record the test-code budget
+        run: python3 tools/qa_inventory.py --strict --output build/qa/inventory.json
 
   lint:
     runs-on: ubuntu-22.04

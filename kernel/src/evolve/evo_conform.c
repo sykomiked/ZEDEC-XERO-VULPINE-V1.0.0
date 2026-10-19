@@ -53,14 +53,14 @@ static int big_cmp(const big_t *a, const big_t *b)
 /* a -= b, requires a >= b */
 bool evo_fee_is_exact(uint64_t a, uint64_t t)
 {
-    /* t is floor(a * 8889 / 10^7) iff 10^7 t <= 8889 a < 10^7 (t + 1) */
+    /* t is floor(a * 8 / 9000) iff 9000 t <= 8 a < 9000 (t + 1) */
     big_t A, T;
     big_set(&A, a);
-    big_mul_small(&A, 8889u); /* < 2^78 */
+    big_mul_small(&A, 8u); /* < 2^67 */
     big_set(&T, t);
-    big_mul_small(&T, 10000000u); /* < 2^88 */
+    big_mul_small(&T, 9000u); /* < 2^78 */
     if (big_cmp(&T, &A) > 0) return false;
-    big_add_small(&T, 10000000u);
+    big_add_small(&T, 9000u);
     return big_cmp(&T, &A) > 0;
 }
 

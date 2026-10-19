@@ -34,7 +34,7 @@ static int g_fail, g_pass;
 __extension__ typedef unsigned __int128 u128;
 static uint64_t ref_fee(uint64_t a)
 {
-    return (uint64_t) ((u128) a * 8889u / 10000000u);
+    return (uint64_t) ((u128) a * 8u / 9000u);
 }
 
 /* ===== mock identities and signatures =====

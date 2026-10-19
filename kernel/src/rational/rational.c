@@ -60,7 +60,22 @@ rat_t rat_from_int(int64_t v) {
 
 rat_t rat_make(int64_t num, int64_t den) {
     if (den == 0) return invalid();
-    return reduce((wide_t)num, (wide_t)den);
+    /* Unsigned magnitudes admit reducible INT64_MIN inputs without ever
+     * negating INT64_MIN, including on targets with no wider integer type. */
+    uint64_t n = num < 0 ? 0u - (uint64_t) num : (uint64_t) num;
+    uint64_t d = den < 0 ? 0u - (uint64_t) den : (uint64_t) den;
+    uint64_t a = n, b = d;
+    while (b) {
+        uint64_t t = a % b;
+        a = b;
+        b = t;
+    }
+    n /= a;
+    d /= a;
+    if (n > (uint64_t) I64_MAX || d > (uint64_t) I64_MAX) return invalid();
+    rat_t r = {(int64_t) n, (int64_t) d, true};
+    if ((num < 0) != (den < 0)) r.num = -r.num;
+    return r;
 }
 
 /* ---- arithmetic ----
@@ -70,9 +85,14 @@ rat_t rat_make(int64_t num, int64_t den) {
 rat_t rat_add(rat_t a, rat_t b) {
     if (!a.valid || !b.valid) return invalid();
     int64_t g = igcd(a.den, b.den);
-    wide_t lcm_den = (wide_t)(a.den / g) * (wide_t)b.den;
-    wide_t num = (wide_t)a.num * (wide_t)(b.den / g)
-               + (wide_t)b.num * (wide_t)(a.den / g);
+    wide_t lcm_den, left, right, num;
+    if (__builtin_mul_overflow((wide_t) (a.den / g), (wide_t) b.den, &lcm_den) ||
+        __builtin_mul_overflow((wide_t) a.num, (wide_t) (b.den / g), &left) ||
+        __builtin_mul_overflow((wide_t) b.num, (wide_t) (a.den / g), &right) ||
+        __builtin_add_overflow(left, right, &num))
+        return invalid();
+    /* The narrow backend deliberately refuses an unrepresentable intermediate. */
+    if (!HAVE_WIDE && (num == -I64_MAX - 1)) return invalid();
     return reduce(num, lcm_den);
 }
 
@@ -83,8 +103,11 @@ rat_t rat_mul(rat_t a, rat_t b) {
     /* cross-reduce first */
     int64_t g1 = igcd(a.num, b.den);
     int64_t g2 = igcd(b.num, a.den);
-    wide_t n = (wide_t)(a.num / g1) * (wide_t)(b.num / g2);
-    wide_t d = (wide_t)(a.den / g2) * (wide_t)(b.den / g1);
+    wide_t n, d;
+    if (__builtin_mul_overflow((wide_t) (a.num / g1), (wide_t) (b.num / g2), &n) ||
+        __builtin_mul_overflow((wide_t) (a.den / g2), (wide_t) (b.den / g1), &d))
+        return invalid();
+    if (!HAVE_WIDE && (n == -I64_MAX - 1)) return invalid();
     return reduce(n, d);
 }
 
@@ -118,9 +141,25 @@ int rat_cmp(rat_t a, rat_t b) {
     if (!a.valid && !b.valid) return 0;
     if (!a.valid) return 1;
     if (!b.valid) return -1;
-    wide_t l = (wide_t)a.num * (wide_t)b.den;
-    wide_t r = (wide_t)b.num * (wide_t)a.den;
-    return (l < r) ? -1 : (l > r) ? 1 : 0;
+    /* Continued fractions compare exactly without cross-product overflow,
+     * including on ARM32/RV32 where __int128 is unavailable. */
+    if (a.num < 0 && b.num >= 0) return -1;
+    if (b.num < 0 && a.num >= 0) return 1;
+    int direction = a.num < 0 ? -1 : 1;
+    uint64_t an = a.num < 0 ? (uint64_t) -a.num : (uint64_t) a.num;
+    uint64_t bn = b.num < 0 ? (uint64_t) -b.num : (uint64_t) b.num;
+    uint64_t ad = (uint64_t) a.den, bd = (uint64_t) b.den;
+    for (;;) {
+        uint64_t aq = an / ad, bq = bn / bd;
+        if (aq != bq) return aq < bq ? -direction : direction;
+        uint64_t ar = an % ad, br = bn % bd;
+        if (!ar || !br) return ar == br ? 0 : !ar ? -direction : direction;
+        an = ad;
+        ad = ar;
+        bn = bd;
+        bd = br;
+        direction = -direction;
+    }
 }
 bool rat_is_zero(rat_t a) { return a.valid && a.num == 0; }
 bool rat_is_int(rat_t a)  { return a.valid && a.den == 1; }

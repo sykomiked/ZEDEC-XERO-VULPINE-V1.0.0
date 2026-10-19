@@ -1,29 +1,34 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* pay_assure.h — the 0.08889% assurance fee, its four-bucket partition, the
- * per-account sub-unit carry, user contributions above the fee (VFV store
- * credit), and the network commons pool.
+/* pay_assure.h — the 8/9000 (approximately 0.0888889%) assurance fee, its four-bucket partition,
+ * the per-account sub-unit carry, user contributions above the fee (VFV store credit), and the
+ * network commons pool.
  *
  * OWNER DECISION 2026-10-10: this fee REPLACES the former phi-percent tithe
  * (floor(a * phi / 100), about 1.618%) everywhere. The phi formula and its
  * 192-bit square root are gone from the tree; nothing else needed them.
  *
+ * The owner subsequently selected the repeating rate 8/9000, not the rounded
+ * 8889/10000000 rate. Existing carries from that former denominator must not
+ * be imported into these accounts without an explicit versioned migration.
+ * This API initializes fresh carries; it does not migrate stored balances.
+ *
  * THE FEE (exact, integer only)
  * -----------------------------
  *   F1  For a gross amount g >= 0 in the unit's own minor measure (money minor
  *       units, compute token-cycles, bandwidth bytes, storage byte-hours):
- *           fee(g) = floor(g * 8889 / 10,000,000)       (0.08889%)
- *       g * 8889 is a full 64x64 -> 128-bit product built from 64-bit limbs
+ *           fee(g) = floor(g * 8 / 9000)       (approximately 0.0888889%)
+ *       g * 8 is a full 64x64 -> 128-bit product built from 64-bit limbs
  *       (pay_mul64: no __int128) and the division is 128/64 long division
  *       (pay_udiv128_64: no 64-bit hardware or libgcc division). fee(g) < g
  *       always fits 64 bits, for every g up to UINT64_MAX.
  *       fee(1124) = 0 and fee(1125) = 1: 1125 minor units is the smallest
  *       gross that pays one whole unit without a carry.
  *   F2  CARRY. The sub-unit remainder is not lost. With a per-account
- *       remainder r in [0, 10^7):
- *           x = g * 8889 + r,  fee = floor(x / 10^7),  r' = x mod 10^7.
+ *       remainder r in [0, 9000):
+ *           x = g * 8 + r,  fee = floor(x / 9000),  r' = x mod 9000.
  *       Over any sequence of charges on one account the total fee equals
- *       floor((sum g) * 8889 / 10^7) exactly (starting from r = 0), so many
+ *       floor((sum g) * 8 / 9000) exactly (starting from r = 0), so many
  *       micro-payments pay what one payment of their sum would pay.
  *       pay_ledger keeps r per account (pay_account_t.fee_carry) and commits
  *       it only when the posting that carries the fee commits.
@@ -84,14 +89,14 @@
 #include "pay_util.h"
 
 /* ===== F1-F3: the fee ===== */
-#define PAY_ASSURE_NUM 8889u     /* 0.08889% = 8889 / 10^7 */
-#define PAY_ASSURE_DEN 10000000u /* 10^7                  */
+#define PAY_ASSURE_NUM 8u
+#define PAY_ASSURE_DEN 9000u
 
-/* F1: floor(g * 8889 / 10^7), no carry. Exact for every g in [0, 2^64). */
+/* F1: floor(g * 8 / 9000), no carry. Exact for every g in [0, 2^64). */
 uint64_t pay_assure_fee(uint64_t gross);
 
 /* F2 (pure): the fee on `gross` with incoming remainder `rem_in`. Returns
- * false (outputs untouched) if rem_in >= 10^7 (a corrupt carry). */
+ * false (outputs untouched) if rem_in >= 9000 (a corrupt carry). */
 bool pay_assure_fee_carry(uint64_t rem_in, uint64_t gross, uint64_t *fee, uint64_t *rem_out);
 
 typedef struct {
@@ -160,7 +165,7 @@ typedef enum {
 
 typedef struct {
     uint64_t amount;       /* the gross the fee applies to                  */
-    uint64_t fee;          /* floor(amount * 8889 / 10^7) (no carry)        */
+    uint64_t fee;          /* floor(amount * 8 / 9000) (no carry)        */
     uint64_t contribution; /* what is actually taken                        */
     uint64_t excess;       /* contribution - fee (>= 0)                     */
     uint64_t shortfall;    /* fee - requested, when allow_below_fee          */
