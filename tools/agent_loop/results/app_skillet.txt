@@ -1,0 +1,23 @@
+# app skillet: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id skillet
+matrix 159
+name Skillet
+needs fs.read
+needs fs.write
+needs ledger.read
+needs sys.read
+needs notify
+
+provides difference num a b
+logic trebago difference <<
+trebago difference
+  in  a b
+  out r
+  r = 0
+end
+.
+check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
+

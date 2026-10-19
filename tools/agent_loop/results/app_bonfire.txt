@@ -1,0 +1,27 @@
+# app bonfire: FAILED
+# verdict: check failed (line 23): check count_ok: refused (every language)
+
+zxapp 1
+id bonfire
+matrix 95
+name Bonfire
+needs peers
+needs net
+needs location
+needs notify
+
+provides difference num a b
+provides count_ok truth count max
+logic trebago difference <<
+trebago difference
+  in  a b
+  out r
+  r = 0
+end
+.
+logic kron count_ok <<
+0|_count
+.
+check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
+check count_ok count=1,100,101,0 max=100,100,100,100 = true,true,false,false
+

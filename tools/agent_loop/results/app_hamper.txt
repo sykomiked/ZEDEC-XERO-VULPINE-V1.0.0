@@ -1,0 +1,31 @@
+# app hamper: FAILED
+# verdict: check failed (line 25): check clamp: refused (every language)
+
+zxapp 1
+id hamper
+matrix 112
+name Hamper
+needs fs.read
+needs fs.write
+needs sys.read
+
+provides clamp num value min max
+provides count_ok truth count max
+provides exact_total num n a b c d
+logic kron clamp <<
+0|_value
+.
+logic kron count_ok <<
+0|_count
+.
+logic trebago exact_total <<
+trebago exact_total
+  in  n a b c d
+  out r
+  r = 0
+end
+.
+check clamp value=-5,0,50,150 min=0,0,0,0 max=100,100,100,100 = 0,0,50,100
+check count_ok count=1,100,101,0 max=100,100,100,100 = true,true,false,false
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+

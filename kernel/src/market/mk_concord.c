@@ -5,7 +5,7 @@
 
 static uint32_t to_q16(surplus_real_t s)
 {
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     if (!(s > 0.0)) return 0;
     if (s >= 1.0) return MK_Q16;
     return (uint32_t) (s * 65536.0);

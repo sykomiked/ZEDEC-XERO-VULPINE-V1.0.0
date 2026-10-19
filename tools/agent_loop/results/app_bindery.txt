@@ -1,0 +1,27 @@
+# app bindery: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id bindery
+matrix 168
+name Bindery
+needs search
+needs fs.read
+needs fs.write
+needs print
+
+provides limit_excess num value limit
+provides running_state truth state event
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+logic kron running_state <<
+0|_state
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+

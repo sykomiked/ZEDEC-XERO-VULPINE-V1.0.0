@@ -1,0 +1,19 @@
+# app shipwright: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id shipwright
+matrix 190
+name Shipwright
+needs location
+needs journal
+needs peers
+needs net
+needs notify
+
+provides grade_band num value b1 b2 b3 b4
+logic kron grade_band <<
+0|_value
+.
+check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4
+

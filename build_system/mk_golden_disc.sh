@@ -1,4 +1,16 @@
 #!/usr/bin/env bash
+
+# PORTABLE SIZE AND HASH. The builders run on macOS as well as Linux; GNU's
+# `stat -c %s` and `sha256sum` do not exist on BSD. One wrapper each keeps a
+# single script for both.
+fsize() { stat -c %s "$1" 2>/dev/null || stat -f %z "$1"; }
+shash() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | cut -d' ' -f1
+  else
+    shasum -a 256 "$1" | cut -d' ' -f1
+  fi
+}
 # mk_golden_disc.sh — the golden discs: a core disc per architecture plus
 # swarm discs shared by every architecture, with the AI models, fonts, music,
 # brand and app assets on them, nothing to download.
@@ -142,7 +154,7 @@ while read -r name sha bytes _cid lic urls; do
   if [ "$TARGET" = swarm ]; then [ "$group" != core ] || continue
   else [ "$group" = core ] || continue; fi
   f="$CACHE/$name"
-  ok(){ [ -f "$1" ] && [ "$(stat -c %s "$1")" = "$bytes" ] && [ "$(sha256sum "$1" | cut -d' ' -f1)" = "$sha" ]; }
+  ok(){ [ -f "$1" ] && [ "$(fsize "$1")" = "$bytes" ] && [ "$(shash "$1")" = "$sha" ]; }
   if ok "$f"; then
     log "model $name: cached copy matches"
   else
@@ -180,7 +192,7 @@ manifest(){ while IFS=$'\t' read -r src dst; do
 
 # Refuse any file of 3.8 GiB or more in list $1.
 file_cap(){ while IFS=$'\t' read -r src dst; do
-  sz=$(stat -c %s "$src")
+  sz=$(fsize "$src")
   [ $((sz * 10)) -lt "$MAX_FILE_X10" ] \
     || die "$dst is $sz bytes: no file on a disc may reach 3.8 GiB (FAT32 stops at 4 GiB)"
 done < "$1"; }
@@ -193,7 +205,7 @@ fat_image(){
   nfiles=$(wc -l < "$list")
   # 4 KiB clusters: round each file up, add the FATs (4 bytes per cluster,
   # two copies), directory slack, and 16 MiB of headroom.
-  while IFS=$'\t' read -r src _; do clusters=$((clusters + ($(stat -c %s "$src") + 4095) / 4096)); done < "$list"
+  while IFS=$'\t' read -r src _; do clusters=$((clusters + ($(fsize "$src") + 4095) / 4096)); done < "$list"
   mb=$(( (clusters * 4096 + clusters * 8 + nfiles * 8192 + (16 << 20) + (1 << 20) - 1) >> 20 ))
   [ "$mb" -ge "$min" ] || mb=$min
   truncate -s "${mb}M" "$img"
@@ -233,13 +245,14 @@ gpt_disc(){
   sgdisk -o -n "1:${start}:${end}" -t "1:$type" -c "1:$name" \
          -u "1:${guid%????????????}00000000E5F1" -U "$guid" "$out" >/dev/null 2>&1 \
     || die "sgdisk failed for $out"
-  dd if="$fat" of="$out" bs=1M seek=1 conv=notrunc,sparse status=none
+  DD=$(command -v gdd 2>/dev/null || echo dd)
+  "$DD" if="$fat" of="$out" bs=1M seek=1 conv=notrunc status=none
 }
 
 # Size breakdown of list $1 for disc $2 into $3.
 sizes(){
   local img
-  img=$(stat -c %s "$2")
+  img=$(fsize "$2")
   {
     echo "$(basename "$2"): $img bytes ($((img >> 20)) MiB), $(wc -l < "$1") files"
     while IFS=$'\t' read -r src dst; do
@@ -248,7 +261,7 @@ sizes(){
         ZXV/*/*) k="${dst%%/*}/$(cut -d/ -f2 <<<"$dst")/" ;;
         *) k="$dst" ;;
       esac
-      printf '%s\t%s\n' "$k" "$(stat -c %s "$src")"
+      printf '%s\t%s\n' "$k" "$(fsize "$src")"
     done < "$1" | awk -F'\t' '{s[$1]+=$2} END{for(k in s) printf "  %12d  %s\n", s[k], k}' | sort -k2
   } > "$3"
   cat "$3"

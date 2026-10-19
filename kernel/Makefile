@@ -2180,10 +2180,15 @@ else
 	@echo "[SKIP] test_virtio_gpu (needs Linux x86_64)"
 endif
 
+# SCP-144 (src/scp144/scp144.h): 144D lattice binding, Cassini bijection, part AEAD.
+.PHONY: test-scp144
+test-scp144:
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/lpres -Isrc/event_space -Isrc/surplus -Isrc/modbind -Isrc -Iinclude src/scp144/test_scp144.c src/scp144/scp144.c src/tls/aead.c src/mlkem/keccak.c -o /tmp/test_scp144 && /tmp/test_scp144 > /tmp/test_scp144.log 2>&1 && echo "[PASS] test_scp144" || { tail -40 /tmp/test_scp144.log; echo "[FAIL] test_scp144"; exit 1; }
+
 # The libzxv facade (src/engine/zxv_engine.h): compress, route, decompress.
 .PHONY: test-vinea
 test-vinea:
-	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zcapital -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/surplus -Isrc/modbind -Iinclude src/vinea/test_vinea.c src/vinea/vna_agree.c src/vinea/vna_cid.c src/vinea/vna_cmd.c src/vinea/vna_common.c src/vinea/vna_delta.c src/vinea/vna_econ.c src/vinea/vna_exchange.c src/vinea/vna_file.c src/vinea/vna_frame.c src/vinea/vna_id.c src/vinea/vna_kad.c src/vinea/vna_lan.c src/vinea/vna_link.c src/vinea/vna_node.c src/vinea/vna_schema.c src/vinea/vna_session.c src/vinea/vna_space.c src/vinea/vna_wire.c src/lpres/lpres.c src/lpres/lpres_hex.c src/pqsec/pq_mldsa87.c src/pqsec/pq_mlkem1024.c src/pqsec/mldsa/fips202.c src/mlkem/keccak.c src/tls/x25519.c src/tls/aead.c src/tls/hkdf.c src/robin_debanks/sha256.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_hk.c src/ubh/ubh.c src/event_space/event_envelope.c src/zcapital/zcapital.c -o /tmp/test_vinea -lm && /tmp/test_vinea 64 > /tmp/test_vinea.log 2>&1 && echo "[PASS] test_vinea" || { tail -40 /tmp/test_vinea.log; echo "[FAIL] test_vinea"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zcapital -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/surplus -Isrc/modbind -Iinclude src/vinea/test_vinea.c src/vinea/vna_agree.c src/vinea/vna_cid.c src/vinea/vna_cmd.c src/vinea/vna_common.c src/vinea/vna_delta.c src/vinea/vna_econ.c src/vinea/vna_exchange.c src/vinea/vna_file.c src/vinea/vna_frame.c src/vinea/vna_id.c src/vinea/vna_kad.c src/vinea/vna_lan.c src/vinea/vna_link.c src/vinea/vna_node.c src/vinea/vna_schema.c src/vinea/vna_session.c src/vinea/vna_space.c src/vinea/vna_wire.c src/scp144/scp144.c src/lpres/lpres.c src/lpres/lpres_hex.c src/pqsec/pq_mldsa87.c src/pqsec/pq_mlkem1024.c src/pqsec/mldsa/fips202.c src/mlkem/keccak.c src/tls/x25519.c src/tls/aead.c src/tls/hkdf.c src/robin_debanks/sha256.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_hk.c src/ubh/ubh.c src/event_space/event_envelope.c src/zcapital/zcapital.c -o /tmp/test_vinea -lm && /tmp/test_vinea 64 > /tmp/test_vinea.log 2>&1 && echo "[PASS] test_vinea" || { tail -40 /tmp/test_vinea.log; echo "[FAIL] test_vinea"; exit 1; }
 
 # Vinea spaces (src/vinea/vna_space.h): CID-anchored public spaces and the synced watch hall.
 .PHONY: test-vinea-space

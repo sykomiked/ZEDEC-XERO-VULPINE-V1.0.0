@@ -192,7 +192,7 @@ static inline int32_t sb_lang_build_op(oc_ir_t *ir, sb_lang_op_t op,
 }
 
 /* Convert rat_t to surplus_real_t (for coverage ratios) */
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
 static inline surplus_real_t rat_to_surplus(rat_t r) {
     if (!r.valid || r.den == 0) return SR_ZERO;
     return (double) r.num / (double) r.den;

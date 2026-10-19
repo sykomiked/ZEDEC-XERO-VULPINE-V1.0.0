@@ -15,7 +15,7 @@
  * claims to be connected.
  */
 
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>

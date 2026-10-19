@@ -1,0 +1,36 @@
+# app thaw: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id thaw
+matrix 266
+name Thaw
+needs backup
+needs fs.read
+needs fs.write
+needs journal
+needs ledger.read
+needs sys.read
+needs peers
+needs notify
+
+provides exact_total num n a b c d
+provides ratio_x1000 num num den
+provides running_state truth state event
+logic trebago exact_total <<
+trebago exact_total
+  in  n a b c d
+  out r
+  r = 0
+end
+.
+logic kron ratio_x1000 <<
+0|_num
+.
+logic kron running_state <<
+0|_state
+.
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 333,125,1,750
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+

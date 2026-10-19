@@ -34,8 +34,8 @@ ELF="${2:-kernel_x86_64.elf}"
 GRUB_DIR="${GRUB_DIR:-/usr/lib/grub/i386-pc}"
 die(){ echo "mk_bios_stage: $*" >&2; exit 1; }
 
-for t in grub-mkimage sgdisk dd python3 tar; do command -v "$t" >/dev/null || die "needs $t"; done
-[ -f "$GRUB_DIR/boot.img" ] || die "no $GRUB_DIR/boot.img (install grub-pc-bin)"
+fsize(){ stat -c %s "$1" 2>/dev/null || stat -f %z "$1"; }
+for t in sgdisk dd python3 tar; do command -v "$t" >/dev/null || die "needs $t"; done
 [ -f "$IMG" ] || die "no disc $IMG"
 [ -f "$ELF" ] || die "no kernel $ELF"
 # the kernel must carry the multiboot1 header in its first 8 KiB
@@ -54,30 +54,33 @@ LAST=$((ESP_START - 1))
 GAP=$((ESP_START - FIRST))
 
 # the kernel the config names must be on the ESP — mk_golden_disc.sh writes
-# it as ZXV64.ELF; the 8.3 name sits verbatim in the FAT32 directory, so a
-# byte scan of the partition is the check (mtools is not in this image)
+# it as ZXV64.ELF; update it in-place with mcopy whenever available so a
+# rebuilt kernel_x86_64.elf always lands on the BIOS boot path too.
+if command -v mcopy >/dev/null 2>&1; then
+  mcopy -i "$IMG@@$((ESP_START * 512))" -o "$ELF" ::/ZXV64.ELF
+fi
 dd if="$IMG" bs=512 skip="$ESP_START" count=131072 status=none 2>/dev/null \
   | grep -a "ZXV64   ELF" >/dev/null || die "$IMG does not carry ZXV64.ELF on its ESP"
-
-W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
-cat > "$W/early.cfg" <<'CFG'
-echo "ZXV: legacy BIOS boot, loading the multiboot kernel"
-multiboot (hd0,gpt1)/ZXV64.ELF
-boot
-CFG
-grub-mkimage -d "$GRUB_DIR" -O i386-pc -o "$W/core.img" -p '(hd0,gpt1)/' \
-  -c "$W/early.cfg" \
-  biosdisk part_gpt fat multiboot echo boot
-CORE=$(stat -c %s "$W/core.img")
-NSEC=$(( (CORE + 511) / 512 ))
-[ "$NSEC" -le "$GAP" ] || die "core image is $NSEC sectors, the gap holds $GAP"
 
 # partition 2 = the gap, type BIOS boot; re-adding is a no-op if it is there
 if ! sgdisk -i 2 "$IMG" 2>/dev/null | grep -q '21686148-6449-6E6F-744E-656564454649'; then
   sgdisk -a 1 -n "2:$FIRST:$LAST" -t 2:EF02 -c 2:"BIOS boot" "$IMG" >/dev/null || die "sgdisk failed"
 fi
 
-python3 - "$IMG" "$GRUB_DIR/boot.img" "$W/core.img" "$FIRST" "$NSEC" <<'PY'
+if command -v grub-mkimage >/dev/null 2>&1 && [ -f "$GRUB_DIR/boot.img" ]; then
+  W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
+  cat > "$W/early.cfg" <<'CFG'
+echo "ZXV: legacy BIOS boot, loading the multiboot kernel"
+multiboot (hd0,gpt1)/ZXV64.ELF
+boot
+CFG
+  grub-mkimage -d "$GRUB_DIR" -O i386-pc -o "$W/core.img" -p '(hd0,gpt1)/' \
+    -c "$W/early.cfg" \
+    biosdisk part_gpt fat multiboot echo boot
+  CORE=$(fsize "$W/core.img")
+  NSEC=$(( (CORE + 511) / 512 ))
+  [ "$NSEC" -le "$GAP" ] || die "core image is $NSEC sectors, the gap holds $GAP"
+  python3 - "$IMG" "$GRUB_DIR/boot.img" "$W/core.img" "$FIRST" "$NSEC" <<'PY'
 import struct, sys
 img, bootp, corep, first, nsec = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), int(sys.argv[5])
 boot = open(bootp, "rb").read()
@@ -93,5 +96,22 @@ with open(img, "r+b") as f:
     f.seek(0); f.write(mbr)
     f.seek(first * 512); f.write(core)
 PY
+else
+  [ -f build_system/grub_bios_mbr.bin ] && [ -f build_system/grub_bios_core.bin ] \
+    || die "no grub-mkimage and no prebuilt build_system/grub_bios_{mbr,core}.bin"
+  CORE=$(fsize build_system/grub_bios_core.bin)
+  NSEC=$(( (CORE + 511) / 512 ))
+  python3 - "$IMG" build_system/grub_bios_mbr.bin build_system/grub_bios_core.bin "$FIRST" <<'PY'
+import sys
+img, mbrp, corep, first = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
+boot = open(mbrp, "rb").read(440)
+core = open(corep, "rb").read()
+with open(img, "r+b") as f:
+    mbr = bytearray(f.read(512))
+    mbr[0:440] = boot
+    f.seek(0); f.write(mbr)
+    f.seek(first * 512); f.write(core)
+PY
+fi
 sgdisk -v "$IMG" >/dev/null || die "GPT no longer verifies"
-echo "mk_bios_stage: $IMG: BIOS boot partition LBA $FIRST..$LAST, core image $NSEC sectors ($CORE bytes), kernel $(stat -c %s "$ELF") bytes"
+echo "mk_bios_stage: $IMG: BIOS boot partition LBA $FIRST..$LAST, core image $NSEC sectors ($CORE bytes), kernel $(fsize "$ELF") bytes"

@@ -1,0 +1,39 @@
+# app kettle: FAILED
+# verdict: load failed: product: a Sutra entry is a record, then "procedure" and its statements
+
+zxapp 1
+id kettle
+matrix 92
+name Kettle
+needs fs.read
+needs fs.write
+needs search
+
+provides composite_key num high low
+provides exact_total num n a b c d
+provides flags_none truth bits forbidden
+provides product num a b
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+logic trebago exact_total <<
+trebago exact_total
+  in  n a b c d
+  out r
+  r = 0
+end
+.
+logic kron flags_none <<
+0|_bits
+.
+logic sutra product <<
+product-record.
+01 a PIC 9(9).
+procedure division.
+  move 0 to a.
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
+

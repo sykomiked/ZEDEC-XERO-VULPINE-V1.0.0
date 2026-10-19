@@ -1,0 +1,13 @@
+# app taper: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id taper
+matrix 198
+name Taper
+needs notify
+needs screen.time
+needs fs.read
+needs sys.read
+
+

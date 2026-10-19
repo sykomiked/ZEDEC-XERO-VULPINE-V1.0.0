@@ -290,6 +290,7 @@ int vna_door_open(vna_door_t *d)
         if (!d->conn[i].used) {
             vna_zero(&d->conn[i], sizeof d->conn[i]);
             d->conn[i].used = 1;
+            d->conn[i].opened = d->now;
             return (int) i;
         }
     }
@@ -437,8 +438,11 @@ void vna_door_tick(vna_door_t *d, uint64_t now)
     d->now = now;
     for (uint32_t i = 0; i < VNA_DOOR_CONNS; i++) {
         vna_door_conn_t *k = &d->conn[i];
-        if (k->used && k->state == VNA_DOOR_STREAM && now - k->opened >= VNA_DOOR_STREAM_MS)
+        if (!k->used) continue;
+        if (k->state == VNA_DOOR_STREAM && now - k->opened >= VNA_DOOR_STREAM_MS)
             k->state = VNA_DOOR_DONE;
+        else if (k->state != VNA_DOOR_STREAM && k->opened && now >= k->opened + 4000u)
+            k->state = VNA_DOOR_DONE; /* Bunker defense: bounce half-open / stalled TCP probes */
     }
 }
 

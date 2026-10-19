@@ -1,0 +1,45 @@
+# app holm: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id holm
+matrix 267
+name Holm
+needs net
+needs peers
+needs sys.read
+needs notify
+
+provides count_ok truth count max
+provides composite_key num high low
+provides difference num a b
+provides product num a b
+provides running_state truth state event
+logic kron count_ok <<
+0|_count
+.
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+logic trebago difference <<
+trebago difference
+  in  a b
+  out r
+  r = 0
+end
+.
+logic sutra product <<
+product-record.
+01 a PIC 9(9).
+procedure division.
+  move 0 to a.
+.
+logic kron running_state <<
+0|_state
+.
+check count_ok count=1,100,101,0 max=100,100,100,100 = true,true,false,false
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+

@@ -1,0 +1,27 @@
+# app compositor: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id compositor
+matrix 165
+name Compositor
+needs fs.read
+needs fs.write
+needs sys.read
+needs ai.ask
+
+provides composite_key num high low
+provides exact_total num n a b c d
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+logic trebago exact_total <<
+trebago exact_total
+  in  n a b c d
+  out r
+  r = 0
+end
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+

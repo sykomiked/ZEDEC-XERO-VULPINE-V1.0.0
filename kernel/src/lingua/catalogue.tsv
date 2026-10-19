@@ -73,7 +73,7 @@
 1990	J	array	catalogue	-	array family runs through KRON
 1991	Python	scripting	host	-	sdk/python
 1991	Visual Basic	interactive	catalogue	-	-
-1993	Lua	scripting	next2	-	-
+1993	Lua	scripting	run	Moonwyrm	kernel/src/lingua/zl_lua.c
 1993	R	statistics	catalogue	-	-
 1993	K	array	pillar	KRON	sdk/pillars/apl-kron
 1993	IEC 61131-3 Structured Text	industrial	next3	-	-

@@ -257,7 +257,7 @@ typedef struct {
 
 /* ===== Physical Constants (in fixed-point) ===== */
 
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
 #define Q_PLANCK_REDUCED  (1.054571817e-34)  /* ℏ (J·s) */
 #define Q_SPEED_OF_LIGHT  (2.99792458e8)      /* c (m/s) */
 #define Q_PI_SQUARED      (9.869604401089358) /* π² */

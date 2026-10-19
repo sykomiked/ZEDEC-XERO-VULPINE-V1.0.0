@@ -1,0 +1,33 @@
+# app chandler: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id chandler
+matrix 161
+name Chandler
+needs location
+needs fs.read
+needs fs.write
+needs net
+needs notify
+
+provides ratio_x1000 num num den
+provides limit_excess num value limit
+provides count_ok truth count max
+logic kron ratio_x1000 <<
+0|_num
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+logic kron count_ok <<
+0|_count
+.
+check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 333,125,1,750
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check count_ok count=1,100,101,0 max=100,100,100,100 = true,true,false,false
+

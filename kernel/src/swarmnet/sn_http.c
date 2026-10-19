@@ -328,7 +328,8 @@ int sn_http_post(sn_http_t *h, const char *path, const uint8_t *body, uint32_t b
         while (d) n = put(req, n, sizeof req, (char[2]){digits[--d], 0});
     }
     n = put(req, n, sizeof req, "\r\nUser-Agent: ZXV-swarmnet\r\n\r\n");
-    if (n + 1 >= sizeof req || body_len > 512) {
+    if (n + 1 >= sizeof req || body_len > 16384) {
+        drop(h);
         *why = "request too long";
         return -1;
     }

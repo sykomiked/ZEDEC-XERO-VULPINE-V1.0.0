@@ -1,0 +1,37 @@
+# app cooper: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id cooper
+matrix 208
+name Cooper
+needs fs.read
+needs fs.write
+needs ledger.read
+needs net
+needs peers
+needs camera
+
+provides running_state truth state event
+provides limit_excess num value limit
+provides product num a b
+logic kron running_state <<
+0|_state
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+logic sutra product <<
+product-record.
+01 a PIC 9(9).
+procedure division.
+  move 0 to a.
+.
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
+

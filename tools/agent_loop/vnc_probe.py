@@ -49,7 +49,7 @@ def main():
     elif 2 in types:
         s.sendall(bytes([2]))
         challenge = recv_exact(s, 16)
-        if not pw:
+        if pw is None:
             print("VNC auth required; pass --password")
             return 1
         key = pw.encode()[:8].ljust(8, b"\0")

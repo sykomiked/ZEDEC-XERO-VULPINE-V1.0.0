@@ -1,0 +1,28 @@
+# app coppice: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id coppice
+matrix 192
+name Coppice
+needs location
+needs fs.read
+needs fs.write
+needs ledger.read
+
+provides within_range truth value min max
+provides count_ok truth count max
+logic eve within_range <<
+eve zxv
+d = 0 .. 1000000
+
+within_range {
+  value: d 0 .. 1000000
+}
+.
+logic kron count_ok <<
+0|_count
+.
+check within_range value=0,50,100,101 min=0,0,0,0 max=100,100,100,100 = true,true,true,false
+check count_ok count=1,100,101,0 max=100,100,100,100 = true,true,false,false
+

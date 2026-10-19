@@ -23,6 +23,7 @@
  * mouse_handler is exported, never self-registered.
  */
 
+#ifndef TEST_HOST
 static inline void outb(uint16_t port, uint8_t val) {
     __asm__ __volatile__("outb %0, %1" : : "a"(val), "Nd"(port));
 }
@@ -33,6 +34,10 @@ static inline uint8_t inb(uint16_t port) {
     return ret;
 }
 
+#else
+static inline void outb(uint16_t port, uint8_t val) { (void)port; (void)val; }
+static inline uint8_t inb(uint16_t port) { (void)port; return 0xFF; }
+#endif
 static mouse_state_t ms;
 
 void mouse_wait_write(void) {

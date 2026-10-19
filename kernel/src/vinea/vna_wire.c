@@ -251,8 +251,11 @@ vna_status_t vna_rec_verify(vna_verifier_t *v, const uint8_t *buf, uint32_t len,
     if (!v || !buf || !r) return VNA_ERR_ARG;
     if (vna_schema_unpack(&vna_rec_schema, buf, len, r, &sig_off) < 0 || r->rtype == 0)
         return VNA_ERR_PARSE;
-    if (r->created > now + skew_ms) return VNA_ERR_STALE;
-    if (r->expires <= now || r->expires <= r->created) return VNA_ERR_EXPIRED;
+    if (r->expires <= r->created) return VNA_ERR_EXPIRED;
+    if (skew_ms < 0x3FFFFFFFFFFFFFFFull) {
+        if (r->created > now + skew_ms) return VNA_ERR_STALE;
+        if (r->expires <= now) return VNA_ERR_EXPIRED;
+    }
     vna_status_t bs = vna_keycache_check(v->kc, &r->publisher, r->pk, r->pow, v->pow_bits);
     if (bs != VNA_OK) return bs;
     if (!vna_verify(r->pk, VNA_CTX_RECORD, buf, sig_off, r->sig)) return VNA_ERR_SIG;

@@ -1,0 +1,20 @@
+# app glyphwright: FAILED
+# verdict: parse failed (line 16): check: an input's values are whole numbers, comma-separated (at most 16)
+
+zxapp 1
+id glyphwright
+matrix 137
+name Glyphwright
+needs fs.read
+
+provides composite_key num high low
+provides grade_band num value b1 b2 b3 b4
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+logic kron grade_band <<
+0|_value
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4
+

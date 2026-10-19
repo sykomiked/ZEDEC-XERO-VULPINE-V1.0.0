@@ -502,6 +502,15 @@ uint32_t hw_models_index(hw_models_t *s, const hw_plat_t *p, hw_registry_t *r)
         core_extras(s, p);
         on_esp = load(s, p, 0);
     }
+#if defined(ZXV_PEERLIST_N) && ZXV_PEERLIST_N
+    if (s->npeer == 0) {
+        for (uint32_t i = 0; i < ZXV_PEERLIST_N && s->npeer < HW_PEER_MAX; i++) {
+            for (uint32_t b = 0; b < 6; b++)
+                s->peer[s->npeer][b] = zxv_peerlist[i][b];
+            s->npeer++;
+        }
+    }
+#endif
 
     /* Every swarm disc: a partition of the swarm type named ZXV_SWARM_*. */
     for (uint32_t d = 0; d < r->n_blk; d++) {

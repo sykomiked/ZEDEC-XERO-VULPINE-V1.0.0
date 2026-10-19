@@ -78,7 +78,7 @@ uint32_t triple_ledger_create_account(triple_ledger_t *tl,
  * balance and total sums signed-overflow (undefined behaviour) instead of
  * being refused. A posting that cannot be represented is now refused before
  * anything changes. The TEST_HOST build uses double and needs no guard. */
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
 static bool tl_add(surplus_real_t a, surplus_real_t b, surplus_real_t *r)
 {
     *r = SR_ADD(a, b);

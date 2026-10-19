@@ -182,7 +182,7 @@ void count_house_set_crypto_reserves(count_house_t *ch, surplus_real_t reserves)
 
 /* Largest total supply the collateral ratio can be computed for: SR_FROM_INT
  * is Q32.32 on the kernel path, so its integer part must stay below 2^31. */
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
 #    define CH_SUPPLY_MAX ((uint64_t) INT64_MAX)
 #else
 #    define CH_SUPPLY_MAX ((uint64_t) INT32_MAX)

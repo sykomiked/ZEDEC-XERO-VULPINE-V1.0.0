@@ -22,7 +22,7 @@ proves it.
 
 | Tier | Meaning | Today |
 |---|---|---|
-| **run** | Source text compiles to the shared Lingua IR and runs on the checked integer runtime. Output is byte-identical to a reference implementation of the language on the subset Lingua accepts. A program outside the subset is refused with a line, column and reason, never run differently. | FORTRAN, BASIC, Forth, ML, OCaml, Prolog, Haskell |
+| **run** | Source text compiles to the shared Lingua IR and runs on the checked integer runtime. Output is byte-identical to a reference implementation of the language on the subset Lingua accepts. A program outside the subset is refused with a line, column and reason, never run differently. | FORTRAN, BASIC, Forth, ML, OCaml, Prolog, Haskell, Lua |
 | **pillar** | The language's data and records run in one of the five ZXV pillar runtimes, which apps call directly. | COBOL (Sutra), FORTRAN numerics (Trebago), Ada (Eve), APL and K (KRON), MUMPS (MYRA) |
 | **native** | One of ZXV's own three languages for coding by purpose and intent, built and checked in kernel/src/alexandria (docs/ALEXANDRIA.md). Each has a Lingua number and a twin; none compiles to the shared IR yet. | LEXIS (names), TECTON (composition), AXION (truth checks) |
 | **ir** | The shared intermediate representation every Lingua front-end compiles to, and that the projections turn into C, Forth and x86-64. It is counted as a language because programs ship in it (`.zlir`, `logic zlir` in a manifest), but nobody is expected to write it by hand. | Lingua IR |
@@ -77,6 +77,7 @@ names.
 | Ada | Eve | The existing pillar |
 | APL, K | KRON | The existing pillar |
 | MUMPS | MYRA | The existing pillar |
+| Lua | Moonwyrm | The moon that pulls the tides: a small language that moves a whole program |
 
 Proposed for the next front-ends: Pascal, Tutordrake (made for teaching);
 ALGOL 60, Rootwyrm (the root of most later languages); LISP, Coilwyrm
@@ -134,7 +135,7 @@ provenance.
 | 1960s | BASIC | APL, MUMPS | | ALGOL 60, Logo, SNOBOL, PL/I, BCPL, B, JCL | 7 |
 | 1970s | Forth, ML, Prolog, Modula-2 | | C, Pascal | Scheme, AWK, REXX, SQL | 8 |
 | 1980s | Oberon | Ada | C++ | | 16 |
-| 1990s | Haskell, OCaml, Delphi | K | Python, Java, JavaScript, Ruby, PHP | Lua, Structured Text | 5 |
+| 1990s | Haskell, OCaml, Delphi, Lua | K | Python, Java, JavaScript, Ruby, PHP | Structured Text | 5 |
 | 2000s | | | C#, F#, Go | | 4 |
 | 2010s on | | | Rust, TypeScript, Swift, Solidity, WebAssembly | | 10 |
 
@@ -146,7 +147,7 @@ maintained toolchain, then languages that teach, then the rest.
 - **next1:** Pascal, ALGOL 60, LISP, Scheme, Logo. Block-structured and
   list languages exercise the parts of the IR the first three did not
   (nested scopes, recursion over lists).
-- **next2:** PL/I, BCPL, B, SNOBOL, Lua (Prolog and Modula-2 now run).
+- **next2:** PL/I, BCPL, B, SNOBOL (Prolog, Modula-2 and Lua now run).
 - **next3:** JOVIAL, RPG, IEC 61131-3 Structured Text, AWK, REXX, plus a
   parse tier for SQL and JCL, which ZXV reads rather than runs.
 

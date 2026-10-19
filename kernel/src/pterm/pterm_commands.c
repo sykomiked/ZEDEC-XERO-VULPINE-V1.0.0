@@ -35,7 +35,7 @@ static void pterm_ps_write(void *ctx, const char *s) {
 #endif
 
 void pterm_cmd_ls(pterm_t *t, const char *path) {
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     (void)path;
     pterm_write_attr(t, ".n9n63  .n9m63  .zxvi  .zxvc\n", PTERM_ATTR_CYAN);
     pterm_write_attr(t, "boot/  kernel/  init/  gui/  tests/\n", PTERM_ATTR_NORMAL);
@@ -61,7 +61,7 @@ void pterm_cmd_ls(pterm_t *t, const char *path) {
 
 void pterm_cmd_ps(pterm_t *t) {
     pterm_write_attr(t, "PID  STATE     NAME           MEM\n", PTERM_ATTR_BRIGHT);
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     pterm_write_attr(t, "1    RUNNING   kernel_main    4K\n", PTERM_ATTR_GREEN);
     pterm_write_attr(t, "2    READY     vbe_init       2K\n", PTERM_ATTR_CYAN);
     pterm_write_attr(t, "3    READY     net_stack      8K\n", PTERM_ATTR_YELLOW);
@@ -71,7 +71,7 @@ void pterm_cmd_ps(pterm_t *t) {
 }
 
 void pterm_cmd_vmstat(pterm_t *t) {
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     pterm_write_attr(t, "Phase-tick: 10ms | Sched: 5-state\n", PTERM_ATTR_NORMAL);
     pterm_write_attr(t, "Memory: 256MB total, 248MB free\n", PTERM_ATTR_GREEN);
 #else
@@ -112,7 +112,7 @@ void pterm_cmd_vmstat(pterm_t *t) {
 
 void pterm_cmd_net(pterm_t *t) {
     pterm_write_attr(t, "Network interfaces:\n", PTERM_ATTR_BRIGHT);
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     pterm_write_attr(t, "  lo: LOOPBACK (UP) 127.0.0.1\n", PTERM_ATTR_GREEN);
 #else
     for (uint32_t i = 0; i < net.num_interfaces; i++) {
@@ -145,7 +145,7 @@ void pterm_cmd_net(pterm_t *t) {
 
 void pterm_cmd_route(pterm_t *t) {
     pterm_write_attr(t, "M5 Omni-Router table:\n", PTERM_ATTR_BRIGHT);
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     pterm_write_attr(t, "  default -> m5://0.0.0.0 (lo)\n", PTERM_ATTR_NORMAL);
 #else
     for (uint32_t i = 0; i < router.num_routes; i++) {
@@ -177,7 +177,7 @@ void pterm_cmd_route(pterm_t *t) {
 
 void pterm_cmd_date(pterm_t *t) {
     pterm_write_attr(t, "Phase clock: ", PTERM_ATTR_NORMAL);
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     pterm_write(t, "tick=0 | uptime=0s");
 #else
     {

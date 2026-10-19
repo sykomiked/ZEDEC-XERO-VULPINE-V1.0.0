@@ -1,0 +1,29 @@
+# app atoll: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id atoll
+matrix 258
+name Atoll
+needs location
+needs fs.read
+needs fs.write
+needs search
+needs ledger.read
+needs ledger.post
+needs net
+
+provides product num a b
+provides running_state truth state event
+logic sutra product <<
+product-record.
+01 a PIC 9(9).
+procedure division.
+  move 0 to a.
+.
+logic kron running_state <<
+0|_state
+.
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+

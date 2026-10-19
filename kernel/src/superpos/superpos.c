@@ -11,7 +11,7 @@
  * the repository root.
  */
 
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -353,7 +353,7 @@ uint32_t superpos_phase_clock(const superpos_t *sp) {
 
 sp_target_t superpos_detect_hardware(void) {
     /* In host test mode, detect CPU features */
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     /* Check for x86_64 (host is macOS) */
     return SP_TARGET_X86_64;
 #else

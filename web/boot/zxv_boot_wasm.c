@@ -902,6 +902,25 @@ EXPORT(zb_fail) void zb_fail(void)
     zui_boot_fail(&BOOT);
 }
 
+/* The reply-signature verifier (the audit's reply-integrity chain,
+ * client side): ML-DSA-87 verify over the door's /sig replies. The
+ * pointers are into the wasm's linear memory; every bound is checked. */
+EXPORT(zb_sig_verify) int zb_sig_verify(uint32_t pk, uint32_t pk_len, uint32_t msg,
+                                       uint32_t msg_len, uint32_t sig, uint32_t sig_len)
+{
+    extern bool pqm_mldsa87_verify(const uint8_t *pk, const uint8_t *msg, size_t msg_len,
+                                   const uint8_t *ctx, size_t ctx_len, const uint8_t *sig);
+    static const uint8_t ctx[] = "ZXV_DOOR"; /* the door's signing context */
+    uint32_t mem_len = __builtin_wasm_memory_size(0) * 65536u;
+    if (pk_len != 2592 || sig_len != 4627) return -1;
+    if (pk + pk_len > mem_len || msg + msg_len > mem_len || sig + sig_len > mem_len)
+        return -1;
+    return pqm_mldsa87_verify((const uint8_t *) pk, (const uint8_t *) msg, msg_len, ctx,
+                              sizeof ctx - 1, (const uint8_t *) sig)
+               ? 1
+               : 0;
+}
+
 EXPORT(zb_frame) void zb_frame(uint32_t ms)
 {
     if (!S.px) return;

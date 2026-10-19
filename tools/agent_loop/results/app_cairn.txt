@@ -1,0 +1,33 @@
+# app cairn: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id cairn
+matrix 271
+name Cairn
+needs peers
+needs net
+needs journal
+needs fs.write
+needs notify
+
+provides difference num a b
+provides count_ok truth count max
+provides running_state truth state event
+logic trebago difference <<
+trebago difference
+  in  a b
+  out r
+  r = 0
+end
+.
+logic kron count_ok <<
+0|_count
+.
+logic kron running_state <<
+0|_state
+.
+check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
+check count_ok count=1,100,101,0 max=100,100,100,100 = true,true,false,false
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+

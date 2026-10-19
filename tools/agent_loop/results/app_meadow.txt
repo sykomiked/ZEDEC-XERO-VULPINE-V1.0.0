@@ -1,0 +1,22 @@
+# app meadow: FAILED
+# verdict: check failed (line 17): check composite_key: refused (every language)
+
+zxapp 1
+id meadow
+matrix 86
+name Meadow
+needs peers
+needs net
+needs notify
+
+provides composite_key num high low
+provides count_ok truth count max
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+logic kron count_ok <<
+0|_count
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check count_ok count=1,100,101,0 max=100,100,100,100 = true,true,false,false
+

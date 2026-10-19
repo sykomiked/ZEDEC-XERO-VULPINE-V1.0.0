@@ -1,0 +1,23 @@
+# app icehouse: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id icehouse
+matrix 194
+name Icehouse
+needs backup
+needs fs.read
+needs fs.write
+needs sys.read
+
+provides composite_key num high low
+provides ratio_x1000 num num den
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+logic kron ratio_x1000 <<
+0|_num
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 333,125,1,750
+

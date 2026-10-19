@@ -1,0 +1,28 @@
+# app verderer: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id verderer
+matrix 176
+name Verderer
+needs camera
+needs location
+needs fs.read
+needs fs.write
+needs search
+
+provides limit_excess num value limit
+provides share_x100 num part whole
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+logic kron share_x100 <<
+0|_part
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
+

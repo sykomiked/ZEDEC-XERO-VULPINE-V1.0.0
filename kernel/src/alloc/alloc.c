@@ -51,7 +51,7 @@ static uint64_t alloc_muldiv(uint64_t a, uint64_t b, uint64_t d)
 static surplus_real_t alloc_prop_share(surplus_real_t pool, surplus_real_t units,
                                        surplus_real_t total)
 {
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     return pool * units / total;
 #else
     /* Raw Q32.32 scales cancel: (P*U/T) raw == P_raw * U_raw / T_raw. */
@@ -63,7 +63,7 @@ static surplus_real_t alloc_prop_share(surplus_real_t pool, surplus_real_t units
 static bool alloc_within_rate(surplus_real_t deduction, surplus_real_t principal, uint32_t num,
                               uint32_t den)
 {
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     return deduction * (double) den <= principal * (double) num;
 #else
     if (SR_CMP(deduction, SR_ZERO) <= 0) return true;

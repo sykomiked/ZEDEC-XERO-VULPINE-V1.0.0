@@ -24,7 +24,7 @@ static surplus_real_t rat_to_surplus(const rat_t *r)
 {
     if (!r || !r->valid || r->den == 0) return SR_ZERO;
 /* On host (double): exact division. On target (Q32.32): use SR_DIV with scaled numerator. */
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     return (surplus_real_t) r->num / (surplus_real_t) r->den;
 #else
     /* Q32.32: multiply numerator by SR_ONE before division */

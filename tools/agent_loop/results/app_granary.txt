@@ -1,0 +1,23 @@
+# app granary: FAILED
+# verdict: check failed (line 18): check flags_none: refused (every language)
+
+zxapp 1
+id granary
+matrix 64
+name Granary
+needs net
+needs sys.read
+needs fs.read
+needs fs.write
+
+provides flags_none truth bits forbidden
+provides composite_key num high low
+logic kron flags_none <<
+0|_bits
+.
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+

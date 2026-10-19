@@ -1,0 +1,27 @@
+# app astrolabe: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id astrolabe
+matrix 160
+name Astrolabe
+needs location
+needs sys.read
+needs camera
+needs fs.write
+
+provides limit_excess num value limit
+provides count_ok truth count max
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+logic kron count_ok <<
+0|_count
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check count_ok count=1,100,101,0 max=100,100,100,100 = true,true,false,false
+

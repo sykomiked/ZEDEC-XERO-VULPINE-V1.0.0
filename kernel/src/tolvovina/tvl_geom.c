@@ -11,7 +11,7 @@
  * and every SR_ macro becomes native float arithmetic — at which point the
  * shifts below are nonsense. Fail loudly rather than silently: this is exactly
  * the host/target trap that dimensional_ladder.c:76 walked into. */
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
 #error "tvl_geom.c requires the integer Q32.32 surplus_real_t; do not build it with TEST_HOST"
 #endif
 

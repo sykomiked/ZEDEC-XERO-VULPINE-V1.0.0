@@ -25,6 +25,7 @@
  * dependency either -- hence no irq_ctrl_ready.
  */
 
+#ifndef TEST_HOST
 static inline void outb(uint16_t port, uint8_t val) {
     __asm__ __volatile__("outb %0, %1" : : "a"(val), "Nd"(port));
 }
@@ -42,6 +43,12 @@ static inline uint16_t inw(uint16_t port) {
     return ret;
 }
 
+#else
+static inline void outb(uint16_t port, uint8_t val) { (void)port; (void)val; }
+static inline uint8_t inb(uint16_t port) { (void)port; return 0xFF; }
+static inline void outw(uint16_t port, uint16_t val) { (void)port; (void)val; }
+static inline uint16_t inw(uint16_t port) { (void)port; return 0xFFFF; }
+#endif
 #define ATA_SR_BSY          0x80
 #define ATA_SR_DF           0x20
 #define ATA_SR_DRQ          0x08

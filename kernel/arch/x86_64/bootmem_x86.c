@@ -14,7 +14,7 @@
 
 #define MB1_MAGIC    0x2BADB002u
 #define MB1_F_MMAP   (1u << 6)
-#define IDENTITY_TOP 0x40000000ULL /* boot.asm maps the low 1 GB */
+#define IDENTITY_TOP 0x100000000ULL /* boot.asm maps the low 4 GB */
 
 /* The boot stack sits after __kernel_end (linker64.ld), so the floor is the
  * stack's top, not the kernel's end. */

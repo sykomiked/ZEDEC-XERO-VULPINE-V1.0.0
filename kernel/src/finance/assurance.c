@@ -58,7 +58,7 @@ static capital_type_t capital_form_to_vino(capital_form_t form)
 static surplus_real_t rat_to_surplus(const rat_t *r)
 {
     if (!r || !r->valid || r->den == 0) return SR_ZERO;
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     return (surplus_real_t) r->num / (surplus_real_t) r->den;
 #else
     return SR_DIV(SR_FROM_INT(r->num), SR_FROM_INT(r->den));

@@ -1,0 +1,12 @@
+# app linkman: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id linkman
+matrix 200
+name Linkman
+needs peers
+needs net
+needs sys.read
+
+

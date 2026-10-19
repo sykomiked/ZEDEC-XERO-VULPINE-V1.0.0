@@ -28,7 +28,7 @@ static int g_fails = 0;
  * Q32.32 path (a raw cast would read 2000 as 8589934592000). */
 static double sr_to_d(surplus_real_t a)
 {
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     return (double) a;
 #else
     return (double) a / 4294967296.0;

@@ -1,0 +1,37 @@
+# app spinnaker: FAILED
+# verdict: 
+
+zxapp 1
+id fusee
+matrix 247
+name Fusee
+needs sys.read
+needs journal
+needs net
+needs notify
+
+provides difference num a b
+provides composite_key num high low
+provides count_ok truth count max
+provides running_state truth state event
+logic trebago difference <<
+trebago difference
+  in  a b
+  out r
+  r = 0
+end
+.
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+logic kron count_ok <<
+0|_count
+.
+logic kron running_state <<
+0|_state
+.
+check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check count_ok count=1,100,101,0 max=100,100,100,100 = true,true,false,false
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+

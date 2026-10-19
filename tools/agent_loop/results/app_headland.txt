@@ -1,0 +1,14 @@
+# app headland: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id headland
+matrix 215
+name Headland
+needs sys.read
+needs journal
+needs net
+needs notify
+needs peers
+
+

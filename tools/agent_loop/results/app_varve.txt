@@ -1,0 +1,33 @@
+# app varve: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id varve
+matrix 243
+name Varve
+needs fs.read
+needs fs.write
+needs search
+needs ai.ask
+needs backup
+
+provides count_ok truth count max
+provides difference num a b
+provides running_state truth state event
+logic kron count_ok <<
+0|_count
+.
+logic trebago difference <<
+trebago difference
+  in  a b
+  out r
+  r = 0
+end
+.
+logic kron running_state <<
+0|_state
+.
+check count_ok count=1,100,101,0 max=100,100,100,100 = true,true,false,false
+check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+

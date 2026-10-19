@@ -1,0 +1,17 @@
+# app talewind: FAILED
+# verdict: check failed (line 13): check flags_none: refused (every language)
+
+zxapp 1
+id talewind
+matrix 108
+name Talewind
+needs fs.read
+needs fs.write
+needs ai.ask
+
+provides flags_none truth bits forbidden
+logic kron flags_none <<
+0|_bits
+.
+check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
+

@@ -23,7 +23,7 @@
 #include "crypto_wallet.h"
 #include "../robin_debanks/sha256.h"
 
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
 #include <string.h>
 #else
 #include "freestanding.h"

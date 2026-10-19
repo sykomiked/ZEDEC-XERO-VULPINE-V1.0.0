@@ -67,6 +67,7 @@ trap 'rm -f "$tmp"' EXIT
     "$K/src/font/truetype.c" "$K/src/launch/zxl_launch.c" "$K/src/launch/zxl_synth.c" \
     "$K/src/vinea/vna_delta.c" "$K/src/vinea/vna_common.c" \
     "$K/src/lpres/lpres.c" "$K/src/mlkem/keccak.c" \
+    "$K/src/pqsec/pq_mldsa87.c" "$K/src/pqsec/mldsa/fips202.c" \
     "$K/src/robin_debanks/sha256.c" \
     -o "$tmp"
 if [ "$mode" = check ]; then

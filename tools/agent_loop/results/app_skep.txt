@@ -1,0 +1,41 @@
+# app skep: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id skep
+matrix 185
+name Skep
+needs swarm
+needs peers
+needs net
+needs ledger.read
+needs ledger.post
+needs notify
+
+provides exact_total num n a b c d
+provides largest_remainder num pool w1 w2 w3 w4
+provides limit_excess num value limit
+logic trebago exact_total <<
+trebago exact_total
+  in  n a b c d
+  out r
+  r = 0
+end
+.
+logic sutra largest_remainder <<
+largest_remainder-record.
+01 pool PIC 9(9).
+procedure division.
+  move 0 to pool.
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+check largest_remainder pool=100,10,7,100 w1=1,1,1,1 w2=1,1,1,1 w3=1,1,1,1 w4=1,0,0,0 = 25,4,3,34
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+

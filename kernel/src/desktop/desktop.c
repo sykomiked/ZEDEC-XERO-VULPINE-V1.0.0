@@ -10,7 +10,7 @@
  * the repository root.
  */
 
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>

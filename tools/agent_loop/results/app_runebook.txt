@@ -1,0 +1,16 @@
+# app runebook: FAILED
+# verdict: check failed (line 12): check count_ok: refused (every language)
+
+zxapp 1
+id runebook
+matrix 114
+name Runebook
+needs fs.read
+needs fs.write
+
+provides count_ok truth count max
+logic kron count_ok <<
+0|_count
+.
+check count_ok count=1,100,101,0 max=100,100,100,100 = true,true,false,false
+

@@ -14,10 +14,11 @@
 
 #define NET_MAX_INTERFACES  4
 #define NET_MAX_SOCKETS     64
+#define NET_UDP_HOOKS        4   /* one UDP demux hook per bound port */
 /* TCP connections live in their own, much smaller pool: a tcp_conn_t carries
  * send and receive buffers, so one per socket would put ~400 KB of .bss in the
  * kernel image for connections that will never exist. */
-#define NET_MAX_TCP_CONNS   8
+#define NET_MAX_TCP_CONNS   16
 #define NET_MAX_CONNECTIONS 32
 #define NET_RX_BUFFER_SIZE  2048
 #define NET_TX_BUFFER_SIZE  2048
@@ -234,10 +235,15 @@ typedef struct net_state {
     net_reasm_t reasm[NET_REASM_SLOTS];
     uint32_t reasm_seq;
 
-    uint16_t udp_hook_port;
-    void (*udp_hook)(void *ctx, const uint8_t src_ip[NET_IP_LEN], uint16_t src_port,
-                     const uint8_t *data, uint32_t len);
-    void *udp_hook_ctx;
+    /* UDP demux: one hook PER BOUND PORT. It was a single slot, so the
+     * second net_udp_hook call silently replaced the first -- the VNA's
+     * hook on 8724 was destroyed by the SNTP one, and every datagram the
+     * fleet sent was buffered unread. Bounded, no allocation. */
+    uint16_t udp_hook_port[NET_UDP_HOOKS];
+    void (*udp_hook[NET_UDP_HOOKS])(void *ctx, const uint8_t src_ip[NET_IP_LEN],
+                                    uint16_t src_port, const uint8_t *data, uint32_t len);
+    void *udp_hook_ctx[NET_UDP_HOOKS];
+    uint32_t n_udp_hooks;
 
     /* Stats */
     uint32_t rx_packets;

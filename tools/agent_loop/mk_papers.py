@@ -102,6 +102,45 @@ PAPERS = [
 ]
 
 
+
+# THE DATA — the measured facts every paper cites (the "meat": the papers
+# so far had the citations but not the numbers). These are the real values
+# from the system, not placeholders.
+THE_DATA = """
+THE MEASURED DATA (cite these exact values as the system's results):
+  - The kernel BOOTS: the banner "ZEDEC pqOS — M5 Axiomatic Kernel
+    (VOVINA SHAKINA) [x86-64]", the markers [BOOT_OK] Phase E0082 and
+    [AI_OK] swarm+tensor selfcheck 0x90553e54, and a live heartbeat
+    (ticks=1163..8163 at 100 Hz). The boot log is 159 lines, E0001..E0027.
+  - The two kernels: kernel_x86_64.elf (56.6 MB) and kernel_arm64.elf
+    (1.6 MB), both built from the same source.
+  - The paraconsistent operators: conjoin and disjoin are min/max on the
+    chain FALSE(rank 0) < NEITHER(1) < BOTH(2) < TRUE(3). Verified: FALSE
+    dominates the meet, TRUE is the join's identity, and NO mix of non-TRUE
+    values yields TRUE (the never-authorise guard). The transition table
+    shows TRUE is reachable ONLY from TRUE.
+  - The Fibonacci ladder: 145 states (0..144); the anchors are F6=8 (E8)
+    and F12=144 (Gamma144), the only Fibonacci dimensions up to 144 that
+    are 0 mod 8 (the Pisano period is 12).
+  - The lattice point: the seed "zxv/node/identity/seed/example" gives norm
+    232 and residues (1, 11, 15, 54) under the moduli [7, 13, 31, 89].
+  - The four core accounts (public addresses only): Crown
+    cef2c2bb...54c8, Ministry 9b8b1492...0586, Fountain e6ceb544...c0d8,
+    African Union 0084f8b1...5f09. The tribute split is 11% to each of
+    Crown, Ministry and Fountain, and 11% of the Fountain to the Union.
+  - The seed bank: a 58,071,808-byte ZXSB container (the icons, the fonts),
+    resolved at boot.
+  - The SCP-144 adapters: verified that only TRUE becomes 1 (no non-TRUE
+    value becomes 1), the empty point is NEITHER, and every foundation
+    value survives the point round trip.
+  - The test corpus: 1,253 test manifests, 36,882 lines (about 22.7:1
+    against the app code), including 372 per-app, 195 inter-language (the
+    BOTH witnesses), 312 inter-app, 43 truth-table and 23 language tests.
+  - The feature matrix: 28 features, 28 present, 28 working, 27 fitting.
+  - The catalog: 407 icons = 143 applications + 84 archetypes + ~180 tiers
+    + the stages, items and artifacts.
+"""
+
 def vllm(prompt, url, model, tokens=6000):
     import http.client
     from urllib.parse import urlparse
@@ -139,7 +178,7 @@ def vllm(prompt, url, model, tokens=6000):
 def prompt_for(num, title, disc, artifacts, refs):
     refs_list = "\n".join("  - %s" % r for r in refs)
     arts = "\n".join("  - %s" % a for a in artifacts)
-    return """You are writing paper %s of a post-doctorate dissertation stack on the ZXV
+    return THE_DATA + """\n\nYou are writing paper %s of a post-doctorate dissertation stack on the ZXV
 (ZEDEC XERO VULPINE) system. The paper is a DISCIPLINARY SILO: it stands alone,
 readable without the others, and belongs to its discipline.
 

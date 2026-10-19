@@ -123,7 +123,7 @@ static int guid_eq(const EFI_GUID *a, u32 x, u16 y, u16 z, const u8 *d)
 static int window_by_map(const u8 *map, u64 msz, u64 dsz, u64 lo, u64 hi, int reserved, u8 *flags)
 {
     u32 wt = 0;
-    u64 wb = 0;
+    uint64_t wb = 0;
     int v = zxh_window_of_map(map, msz, dsz, lo, hi, reserved, flags, &wt, &wb);
     if (v != 1) {
         uputs("  window overlaps EFI type ");

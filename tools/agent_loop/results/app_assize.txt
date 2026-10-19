@@ -1,0 +1,39 @@
+# app assize: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id assize
+matrix 178
+name Assize
+needs fs.read
+needs fs.write
+needs journal
+needs notify
+
+provides limit_excess num value limit
+provides difference num a b
+provides product num a b
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+logic trebago difference <<
+trebago difference
+  in  a b
+  out r
+  r = 0
+end
+.
+logic sutra product <<
+product-record.
+01 a PIC 9(9).
+procedure division.
+  move 0 to a.
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
+

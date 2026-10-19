@@ -1,0 +1,21 @@
+# app hark: FAILED
+# verdict: nothing loaded (no runtime for any entry)
+
+zxapp 1
+id hark
+matrix 134
+name Hark
+needs mic
+needs ai.ask
+needs notify
+
+provides limit_excess num value limit
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+

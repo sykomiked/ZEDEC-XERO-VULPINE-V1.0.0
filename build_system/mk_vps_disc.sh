@@ -54,7 +54,8 @@ sgdisk --move-second-header "$OUT" >/dev/null
 sgdisk --new=0:"$newstart":"$newend" --typecode=0:"$sguid" --change-name=0:"$sname" "$OUT" >/dev/null
 
 # The FAT filesystem bytes, verbatim, sector for sector.
-dd if="$SWARM" of="$OUT" bs=1M iflag=skip_bytes oflag=seek_bytes \
+DD=$(command -v gdd 2>/dev/null || echo dd)
+"$DD" if="$SWARM" of="$OUT" bs=1M iflag=skip_bytes oflag=seek_bytes \
    skip=$((sstart * 512)) seek=$((newstart * 512)) conv=notrunc status=none
 
 # The node's persistent store: a ZXV_DATA partition (HW_GPT_ZXV_DATA,

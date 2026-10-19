@@ -1,0 +1,11 @@
+# app sapling: FAILED
+# verdict: nothing loaded (no runtime for any entry)
+
+zxapp 1
+id sapling
+matrix 98
+name Sapling
+needs fs.read
+needs fs.write
+
+

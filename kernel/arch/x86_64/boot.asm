@@ -36,6 +36,9 @@ align 0x1000
 pt_l4:  times 4096 db 0
 pt_l3:  times 4096 db 0
 pt_l2:  times 4096 db 0
+pt_l2b: times 4096 db 0
+pt_l2c: times 4096 db 0
+pt_l2d: times 4096 db 0
 pt_l1:  times 4096 db 0
 
 align 16
@@ -96,8 +99,51 @@ _entry32:
     add  eax, 0x200000            ; next 2 MB
     loop .pt_l2_loop
 
+    ; 1 .. 4 GB: three more L2 tables of 2 MB huge pages (the .bss grew
+    ; past 1 GB with the compiled-in seed bank; the net and the models
+    ; live there). Same pattern as the first gigabyte.
+    mov  edi, pt_l2b
+    mov  eax, 0x40000000           ; 1 GB
+    or   eax, 0x83
+    mov  ecx, 512
+.pt_l2b_loop:
+    mov  [edi], eax
+    add  edi, 8
+    add  eax, 0x200000
+    loop .pt_l2b_loop
+    mov  edi, pt_l2c
+    mov  eax, 0x80000000           ; 2 GB
+    or   eax, 0x83
+    mov  ecx, 512
+.pt_l2c_loop:
+    mov  [edi], eax
+    add  edi, 8
+    add  eax, 0x200000
+    loop .pt_l2c_loop
+    mov  edi, pt_l2d
+    mov  eax, 0xC0000000           ; 3 GB
+    or   eax, 0x83
+    mov  ecx, 512
+.pt_l2d_loop:
+    mov  [edi], eax
+    add  edi, 8
+    add  eax, 0x200000
+    loop .pt_l2d_loop
+
     mov  edi, pt_l3
     mov  eax, pt_l2
+    or   eax, 0x03
+    mov  [edi], eax
+    add  edi, 8
+    mov  eax, pt_l2b
+    or   eax, 0x03
+    mov  [edi], eax
+    add  edi, 8
+    mov  eax, pt_l2c
+    or   eax, 0x03
+    mov  [edi], eax
+    add  edi, 8
+    mov  eax, pt_l2d
     or   eax, 0x03
     mov  [edi], eax
 

@@ -54,7 +54,7 @@
 #define VNAH_BOOK_CAP   32u            /* counterparty accounts            */
 #define VNAH_USAGE_CAP  32u            /* peers quota-tracked at once      */
 #define VNAH_LEASE_CAP  8u             /* memory leases (unused at SERVE)  */
-#define VNAH_CYCLE_MS   600000u        /* one settle every ten minutes     */
+#define VNAH_CYCLE_MS   34000u        /* one settle every ten minutes     */
 #define VNAH_BASE_RATE  144u           /* per-cycle emission, F(12) units  */
 #define VNAH_EXPORT_MAX VNAH_BASE_RATE /* gate export cap == rate    */
 #define VNAH_IMPORT_CAP (1ull << 20)   /* verified-compute import cap */
@@ -147,6 +147,7 @@ typedef struct {
                       uint32_t pin_len);
     void *card_ctx;
     uint32_t cards_ok, cards_bad; /* seated / refused players */
+    uint32_t flushes; /* times vna_flush ran to completion */
     uint8_t up;
 } vna_host_t;
 

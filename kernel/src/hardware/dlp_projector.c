@@ -257,7 +257,7 @@ void dlp_projector_apply_dither(const dlp_projector_t *p,
     surplus_real_t new_g = SR_ADD(SR_MUL(SR_FROM_INT(*g), keep), SR_MUL(SR_FROM_INT(comp_g), strength));
     surplus_real_t new_b = SR_ADD(SR_MUL(SR_FROM_INT(*b), keep), SR_MUL(SR_FROM_INT(comp_b), strength));
 
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     *r = (uint8_t)(new_r + 0.5);
     *g = (uint8_t)(new_g + 0.5);
     *b = (uint8_t)(new_b + 0.5);

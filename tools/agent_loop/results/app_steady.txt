@@ -1,0 +1,24 @@
+# app steady: FAILED
+# verdict: check failed (line 19): check composite_key: refused (every language)
+
+zxapp 1
+id steady
+matrix 140
+name Steady
+needs sys.read
+
+provides composite_key num high low
+provides limit_excess num value limit
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+

@@ -1,0 +1,31 @@
+# app gridmark: FAILED
+# verdict: parse failed (line 26): check: an input's values are whole numbers, comma-separated (at most 16)
+
+zxapp 1
+id gridmark
+matrix 120
+name Gridmark
+needs fs.read
+needs fs.write
+needs camera
+
+provides limit_excess num value limit
+provides grade_band num value b1 b2 b3 b4
+provides flags_none truth bits forbidden
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+logic kron grade_band <<
+0|_value
+.
+logic kron flags_none <<
+0|_bits
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4
+check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
+

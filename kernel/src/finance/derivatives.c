@@ -85,7 +85,7 @@ deriv_err_t deriv_verify_backing(const deriv_contract_t *d, const triple_ledger_
          * be turned into a rational of the SAME units as the notional: the old
          * rat_from_int(r * 1000000) made 1 unit of backing look like 1,000,000
          * (2^32 * 10^6 on the Q32.32 target), so the 1.0x gate always passed. */
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     rat_t backing_amount = rat_make((int64_t) (backing->r * 1000000.0), 1000000);
 #else
     rat_t backing_amount = rat_make((int64_t) backing->r, (int64_t) SR_ONE);

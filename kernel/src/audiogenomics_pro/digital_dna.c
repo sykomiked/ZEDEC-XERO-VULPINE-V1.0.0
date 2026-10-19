@@ -18,7 +18,7 @@
 
 #include "digital_dna.h"
 
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
 #    include <string.h>
 #    include <stdio.h>
 #else
@@ -497,7 +497,7 @@ const char *ddna_mode_string(ddna_mode_t mode) {
 
 void ddna_print_genome(const ddna_genome_t *genome) {
     if (!genome) return;
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     printf("=== Digital DNA Genome ===\n");
     printf("  Mode:       %s\n", ddna_mode_string(genome->mode));
     printf("  Version:    %u\n", genome->version);
@@ -757,7 +757,7 @@ void ddna_grid_animate(ddna_consonant_grid_t *grid,
 
 void ddna_print_grid(const ddna_consonant_grid_t *grid) {
     if (!grid) return;
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     printf("=== 22-Consonant Dual-Phase Grid ===\n");
     printf("  Shadow (Hebrew/.9n63) ↔ Light (Aramaic/.36n9)\n\n");
     for (int i = 0; i < 22; i++) {
@@ -1016,7 +1016,7 @@ agp_hz_t ddna_supernal_frequency(uint8_t index)
 
 void ddna_sephirotic_print(const ddna_sephirotic_matrix_t *matrix) {
     if (!matrix) return;
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     printf("=== Sephirotic Matrix (Base-%d) ===\n", matrix->active_base);
     printf("  Da'at Gate: %s\n",
            matrix->daat_state == DDNA_DAAT_OPEN ? "OPEN" :
@@ -1375,7 +1375,7 @@ const char *ddna_lunar_month_name(uint8_t month) {
 
 void ddna_lunar_print(const ddna_lunar_date_t *date) {
     if (!date) return;
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     if (date->is_day_between_days) {
         printf("=== Lunar Date: Day Between Days (Year %u) ===\n", date->year);
         printf("  Intercalary Gateway — zero-point reset\n");
@@ -1492,7 +1492,7 @@ agp_hz_t ddna_zodiac_frequency(uint8_t sign_idx)
 
 void ddna_zodiac_print(const ddna_zodiac_system_t *sys) {
     if (!sys) return;
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     printf("=== 13-Sign Zodiac System ===\n");
     for (int i = 0; i < DDNA_ZODIAC_SIGNS; i++) {
         const ddna_zodiac_sign_t *s = &sys->signs[i];
@@ -1577,7 +1577,7 @@ bool ddna_spacetime_validate(const ddna_space_time_op_t *op, agp_hz_t system_fie
 
 void ddna_spacetime_print(const ddna_space_time_op_t *op) {
     if (!op) return;
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     printf("=== Space-Time Operator (Ω_astro) ===\n");
     printf("  Temporal: %s %u, Year %u (day %u/365)\n",
            ddna_lunar_month_name(op->temporal.month),

@@ -13,7 +13,7 @@
 
 #include "audiogenomics_pro.h"
 
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
 #    include <string.h>
 #    include <stdio.h>
 #else
@@ -994,7 +994,7 @@ int agp_run_pipeline(const agp_pipeline_config_t *cfg,
 
 void agp_print_info(const agp_pipeline_config_t *cfg) {
 (void)cfg;
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     printf("=== Audio Genomics Pro Configuration ===\n");
     printf("  Sample rate:    %u Hz\n", cfg->sample_rate);
     printf("  Bit depth:      %u\n", cfg->bit_depth);
@@ -1017,7 +1017,7 @@ void agp_print_sequence_stats(const char *seq, uint32_t len) {
     uint32_t gc_content, base_counts[6];
     agp_sequence_stats(seq, len, &gc_content, base_counts);
 
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     printf("=== Sequence Statistics ===\n");
     printf("  Length:       %u\n", len);
     printf("  GC content:   %u%%\n", gc_content);

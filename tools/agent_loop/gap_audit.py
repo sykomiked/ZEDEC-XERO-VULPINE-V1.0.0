@@ -42,12 +42,16 @@ def main():
     # ---- layer 1: the app graph's coverage --------------------------------
     graph = app_graph()
     nodes, order = graph["nodes"], graph.get("order", [])
+    import glob
+    manifests = set()
+    for pth in glob.glob(os.path.join(ROOT, "kernel/src/apps/*.zxapp")):
+        manifests.add(os.path.basename(pth)[:-6])
     built = pending = 0
     for o in order:
         n = nodes.get("app:" + o) or nodes.get(o)
         if not n or n.get("kind") != "app":
             continue
-        if n.get("done"):
+        if o.lower() in {m.lower() for m in manifests}:
             built += 1
         else:
             pending += 1
@@ -84,14 +88,18 @@ def main():
         j = z.find("};", i)
         caps = set(re.findall(r'"([a-z.]+)"', z[i:j]))
     needs = defaultdict(list)
-    ex = os.path.join(ROOT, "tools/server-tasks/exhaustive")
-    for f in sorted(os.listdir(ex)) if os.path.isdir(ex) else []:
-        if f.endswith(".md"):
-            t = read(os.path.join(ex, f))
+    st = os.path.join(ROOT, "tools/server-tasks")
+    for dp, _dn, fn in os.walk(st):
+        for f in fn:
+            if not f.endswith(".md"):
+                continue
+            t = read(os.path.join(dp, f))
             m = re.search(r"^needs:\s*(.+)$", t, re.M)
             if m:
                 for c in m.group(1).split(","):
-                    needs[c.strip().rstrip(".")].append(f[:-3])
+                    c = c.strip().rstrip(".")
+                    if c:
+                        needs[c].append(f[:-3])
     unknown = {c: v for c, v in needs.items() if c and c not in caps}
     if unknown:
         gaps.append({"layer": "capabilities", "kind": "unregistered-need",
@@ -107,18 +115,15 @@ def main():
                      "how": "assign it to an app that should use it, or retire it from CAPS[]"})
 
     # ---- layer 4: the stratum DAG ----------------------------------------
-    strata = read(os.path.join(ROOT, "build_system/strata.txt"))
-    srcs = 0
-    for d in ("kernel/src", "kernel/arch/x86_64", "kernel/arch/arm64"):
-        for dp, _dn, fn in os.walk(os.path.join(ROOT, d)):
-            srcs += sum(1 for f in fn if f.endswith((".c", ".h")))
-    mapped = len([l for l in strata.split("\n") if l.strip() and not l.startswith("#")])
-    if srcs and mapped and mapped < srcs * 0.6:
-        gaps.append({"layer": "strata", "kind": "unmapped-sources",
-                     "count": srcs - mapped, "sources": srcs, "map_lines": mapped,
-                     "work": "sources without a stratum",
-                     "how": "add each to build_system/strata.txt; build_system/verify_layers.sh "
-                            "names them"})
+    vl = subprocess.run(["sh", os.path.join(ROOT, "build_system/verify_layers.sh")],
+                        capture_output=True, text=True)
+    if "FAIL" in (vl.stdout + vl.stderr):
+        fails = [l for l in (vl.stdout + vl.stderr).split("\n") if "FAIL" in l or "problem" in l]
+        gaps.append({"layer": "strata", "kind": "layer-violation",
+                     "count": len(fails), "samples": fails[:6],
+                     "work": "the layer DAG is broken (a source lacks a stratum, or an "
+                             "include reaches higher)",
+                     "how": "run build_system/verify_layers.sh; it names each offender"})
 
     # ---- layer 5: the module orphan check --------------------------------
     exported = defaultdict(set)

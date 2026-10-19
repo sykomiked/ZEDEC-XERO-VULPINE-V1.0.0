@@ -705,9 +705,10 @@ void net_handle_udp(net_state_t *net, net_interface_t *iface, const ip_header_t 
         }
     }
 
-    if (net->udp_hook && dst_port == net->udp_hook_port) {
-        net->udp_hook(net->udp_hook_ctx, ip->src_ip, src_port, data + sizeof(udp_header_t),
-                      len - (uint32_t) sizeof(udp_header_t));
+    for (uint32_t hk = 0; hk < net->n_udp_hooks; hk++) {
+        if (!net->udp_hook[hk] || dst_port != net->udp_hook_port[hk]) continue;
+        net->udp_hook[hk](net->udp_hook_ctx[hk], ip->src_ip, src_port,
+                          data + sizeof(udp_header_t), len - (uint32_t) sizeof(udp_header_t));
         return;
     }
 
@@ -949,9 +950,17 @@ void net_udp_hook(net_state_t *net, uint16_t port,
                   void *ctx)
 {
     if (!net) return;
-    net->udp_hook_port = port;
-    net->udp_hook = cb;
-    net->udp_hook_ctx = ctx;
+    for (uint32_t i = 0; i < net->n_udp_hooks; i++)
+        if (net->udp_hook_port[i] == port) { /* same port: replace in place */
+            net->udp_hook[i] = cb;
+            net->udp_hook_ctx[i] = ctx;
+            return;
+        }
+    if (net->n_udp_hooks >= NET_UDP_HOOKS) return; /* full: never silently clobber */
+    net->udp_hook_port[net->n_udp_hooks] = port;
+    net->udp_hook[net->n_udp_hooks] = cb;
+    net->udp_hook_ctx[net->n_udp_hooks] = ctx;
+    net->n_udp_hooks++;
 }
 
 int32_t net_close(net_state_t *net, int32_t sock) {

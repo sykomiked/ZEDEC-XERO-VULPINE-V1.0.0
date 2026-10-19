@@ -1,0 +1,52 @@
+# app isthmus: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id isthmus
+matrix 240
+name Isthmus
+needs peers
+needs net
+needs journal
+needs fs.read
+needs fs.write
+needs print
+needs notify
+
+provides share_x100 num part whole
+provides largest_remainder num pool w1 w2 w3 w4
+provides product num a b
+provides composite_key num high low
+provides count_ok truth count max
+provides running_state truth state event
+logic kron share_x100 <<
+0|_part
+.
+logic sutra largest_remainder <<
+largest_remainder-record.
+01 pool PIC 9(9).
+procedure division.
+  move 0 to pool.
+.
+logic sutra product <<
+product-record.
+01 a PIC 9(9).
+procedure division.
+  move 0 to a.
+.
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+logic kron count_ok <<
+0|_count
+.
+logic kron running_state <<
+0|_state
+.
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
+check largest_remainder pool=100,10,7,100 w1=1,1,1,1 w2=1,1,1,1 w3=1,1,1,1 w4=1,0,0,0 = 25,4,3,34
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check count_ok count=1,100,101,0 max=100,100,100,100 = true,true,false,false
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+

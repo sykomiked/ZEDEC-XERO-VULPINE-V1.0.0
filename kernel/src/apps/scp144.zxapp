@@ -27,7 +27,18 @@ provides scp_verify truth proof pub
 logic kron scp_verify <<
 (proof=0)&(pub=0)
 .
+provides scp_ac_lock truth pos_wave neg_wave
+logic kron scp_ac_lock <<
+(pos_wave=1)&(neg_wave=1)
+.
+provides scp_throat truth aperture
+logic kron scp_throat <<
+(aperture=8)
+.
 check scp_norm seed=1 = 232
 check scp_norm seed=2 = 232
 check scp_verify proof=0,1 pub=0,0 = true,false
 check scp_verify proof=1 pub=1 = false
+check scp_ac_lock pos_wave=1,1 neg_wave=1,0 = true,false
+check scp_throat aperture=8 = true
+check scp_throat aperture=7 = false

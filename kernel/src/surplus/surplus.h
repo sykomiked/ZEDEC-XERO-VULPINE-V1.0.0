@@ -30,7 +30,7 @@
  * as int64_t. The natural log is computed via Taylor series + range reduction.
  * For test-host builds, double-precision is used directly. */
 
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
 #include <math.h>
 
 typedef double surplus_real_t;
@@ -72,7 +72,7 @@ typedef int64_t surplus_real_t;
  * compiler folds the product, so no FP instruction is emitted. A runtime
  * argument does not compile in kernel images (-mgeneral-regs-only / integer
  * riscv ABI); convert runtime values with SR_FROM_INT and SR_DIV instead. */
-#    define SR_FROM_FLOAT(x) ((int64_t) ((x) * (double) SR_ONE))
+#    define SR_FROM_FLOAT(x) ((int64_t) ((double) (x) * (double) SR_ONE))
 #    define SR_ADD(a, b)     ((a) + (b))
 #    define SR_SUB(a, b)     ((a) - (b))
 /* Q32.32 fixed-point multiply: (a * b) >> 32.

@@ -1,0 +1,33 @@
+# app silt: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id silt
+matrix 242
+name Silt
+needs fs.read
+needs fs.write
+needs journal
+needs backup
+needs notify
+
+provides composite_key num high low
+provides difference num a b
+provides running_state truth state event
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+logic trebago difference <<
+trebago difference
+  in  a b
+  out r
+  r = 0
+end
+.
+logic kron running_state <<
+0|_state
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+

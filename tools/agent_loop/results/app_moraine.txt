@@ -1,0 +1,23 @@
+# app moraine: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id moraine
+matrix 210
+name Moraine
+needs peers
+needs journal
+needs notify
+needs sys.read
+
+provides count_ok truth count max
+provides composite_key num high low
+logic kron count_ok <<
+0|_count
+.
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+check count_ok count=1,100,101,0 max=100,100,100,100 = true,true,false,false
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+

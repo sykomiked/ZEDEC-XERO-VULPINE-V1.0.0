@@ -76,7 +76,7 @@
  * interest: this is a cap on how much live equity may be drawn forward, not a
  * charge added to a principal. On the Q32.32 target this is Knuth's constant
  * 0x9E3779B9 = floor(0.6180339887 * 2^32), the exact fixed-point φ−1. */
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
 #    define PHI_MINUS_1 (0.61803398874989485)
 #else
 #    define PHI_MINUS_1 ((surplus_real_t) 0x9E3779B9LL)

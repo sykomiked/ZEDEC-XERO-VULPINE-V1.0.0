@@ -25,10 +25,14 @@
  * PIC and unrouted at the CPU.
  */
 
+#ifndef TEST_HOST
 static inline void outb(uint16_t port, uint8_t val) {
     __asm__ __volatile__("outb %0, %1" : : "a"(val), "Nd"(port));
 }
 
+#else
+static inline void outb(uint16_t port, uint8_t val) { (void)port; (void)val; }
+#endif
 static volatile uint64_t timer_ticks = 0;
 static uint32_t timer_hz = 0;
 static timer_callback_t callback = 0;

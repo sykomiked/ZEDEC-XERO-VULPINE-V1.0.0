@@ -13,6 +13,9 @@
 #include "vinea/vna_exchange.h"
 #include "smic/smic_core.h"
 #include "smic/smic_verify.h"
+#include "scp144/scp144.h"
+#include "porter_house/porter_house.h"
+#include "immigration/immigration.h"
 #include "ipfs_node/ipfs_node.h"
 #include "aipi/aipi.h"
 #include "aipi/aipi_vna.h"
@@ -75,7 +78,7 @@ static int is_curriculum_cid(const char *path, uint32_t plen)
  * bounded like the host itself, one instance per machine. The door's POST
  * /cisex route is the :80 ingress; the same responder is the call a UDP
  * wrapper would make. Its probe slot is the seed's epistemic shard. */
-#define VNAH_CISEX_N 256u
+#define VNAH_CISEX_N 4096u
 static cisex_ent_t g_cisex_ents[VNAH_CISEX_N];
 static cisex_t g_cisex;
 static uint8_t g_cisex_region;
@@ -122,7 +125,7 @@ static int32_t g_oseq_vna = -1;
 #define VNAH_REC_V_END   8u  /* close the visit */
 #define VNAH_REC_CISEX_Q 9u  /* CISEX datagram request over the PQ session */
 #define VNAH_REC_CISEX_R 10u /* CISEX datagram reply over the PQ session */
-#define VNAH_HS_POW      8u
+#define VNAH_HS_POW      0u
 #define VNAH_FETCH_MS    4000ull /* give one fetch a bounded window */
 
 static uint8_t g_shard_leaves[VNAH_SLICE_N][1][32];
@@ -174,11 +177,12 @@ static void cisex_vel_bump(const uint8_t *reply, uint32_t len);
 static vna_sess_t g_sess[VNAH_SESS_N];
 static vna_hs_t g_hs[VNAH_SESS_N];
 static uint8_t g_hs_used[VNAH_SESS_N];
+static uint64_t g_hs_deadline[VNAH_SESS_N];
 static uint8_t g_sess_addr[VNAH_SESS_N][6];
 static vna_chunk_t g_chunk;
 static uint8_t g_sess_pt[VNAH_SESS_PT];
 static uint8_t g_sess_wire[VNA_SESS_REC_HDR + VNAH_SESS_PT + VNA_SESS_TAG];
-static uint8_t g_hs_wire[2048];
+static uint8_t g_hs_wire[12288];
 static uint32_t g_sess_est, g_chunks_in, g_chunks_served, g_fetch_done;
 
 /* ===== chiglet: the node's evidence judge =================================
@@ -247,32 +251,32 @@ static void vna_chg_audit(vna_host_t *h, uint64_t now)
             for (r = 0; r < VNA_FORMS; r++) got += ac->held[r];
             q = got > 0 ? 1 : 0;
         }
-        chg_axis(ev[0], 3, q);
-        /* source 2: the agreement has actually served it something */
         {
-            const vna_usage_ent_t *ue = NULL;
-            uint32_t j;
-            for (j = 0; j < h->us.ucap; j++)
-                if (h->us.u[j].used && vna_id_eq(&h->us.u[j].peer, &ac->id)) ue = &h->us.u[j];
-            q = ue && (ue->chunks || ue->records || ue->compute) ? 1 : 0;
+            uint32_t knz = 0;
+            if (q != 0) chg_axis(ev[knz++], 3, q);
+            {
+                const vna_usage_ent_t *ue = NULL;
+                uint32_t j;
+                for (j = 0; j < h->us.ucap; j++)
+                    if (h->us.u[j].used && vna_id_eq(&h->us.u[j].peer, &ac->id)) ue = &h->us.u[j];
+                q = ue && (ue->chunks || ue->records || ue->compute) ? 1 : 0;
+                if (q != 0) chg_axis(ev[knz++], 4, q);
+            }
+            {
+                const smic_node_t *sn = smic_find(&g_smic, ac->id.b);
+                q = !sn                                                                       ? 0
+                    : sn->admitted == LPRES_STATE_TRUE                                        ? 1
+                    : (sn->admitted == LPRES_STATE_FALSE || sn->admitted == LPRES_STATE_BOTH) ? -1
+                                                                                              : 0;
+                if (q != 0) chg_axis(ev[knz++], 5, q);
+            }
+            {
+                const vna_contact_t *ct = vna_rt_find(&h->node.rt, &ac->id);
+                q = !ct ? 0 : (now - ct->last_seen_ms) < 300000u ? 1 : -1;
+                if (q != 0) chg_axis(ev[knz++], 6, q);
+            }
+            if (knz == 0 || chg_infer(&g_chg, ev, knz, &res) != CHG_OK) continue;
         }
-        chg_axis(ev[1], 4, q);
-        /* source 3: the integrity ring's own four-valued admission */
-        {
-            const smic_node_t *sn = smic_find(&g_smic, ac->id.b);
-            q = !sn                                                                       ? 0
-                : sn->admitted == LPRES_STATE_TRUE                                        ? 1
-                : (sn->admitted == LPRES_STATE_FALSE || sn->admitted == LPRES_STATE_BOTH) ? -1
-                                                                                          : 0;
-        }
-        chg_axis(ev[2], 5, q);
-        /* source 4: the routing table still hears from it */
-        {
-            const vna_contact_t *ct = vna_rt_find(&h->node.rt, &ac->id);
-            q = !ct ? 0 : (now - ct->last_seen_ms) < 300000u ? 1 : -1;
-        }
-        chg_axis(ev[3], 6, q);
-        if (chg_infer(&g_chg, ev, 4, &res) != CHG_OK) continue;
         if (res.state == CHG_DECIDED) {
             g_chg_decided++;
             g_chg_verdict[i] = res.label == CHG_L_SUSPECT ? LPRES_STATE_FALSE : LPRES_STATE_TRUE;
@@ -304,7 +308,7 @@ static void vna_chg_audit(vna_host_t *h, uint64_t now)
 #define VNAH_CHG_TOPIC_MEM 0u     /* topic: member standing */
 #define VNAH_CHG_TOPIC_CNT 1u     /* topic: content availability */
 #define VNAH_CHG_TOPICS    3u     /* topics bitmap: member + content */
-#define VNAH_PD_N          8u     /* peer DNA table */
+#define VNAH_PD_N          16u     /* peer DNA table */
 static chgk_registry_t g_kreg;
 static chgk_dna_t g_self_dna;
 static chgk_hobbies_t g_hobby;
@@ -719,6 +723,19 @@ static void vna_env_sweep(vna_host_t *h, uint64_t now)
 
 /* The node's own SMIC manifest: identity = NodeID, inventory = this
  * machine's profile. Filled once at start. */
+static const uint8_t g_geo_routes[9][4] = {
+    {8, 2, 4, 5}, {6, 5, 7, 8}, {8, 5, 0, 4},
+    {7, 4, 6, 8}, {8, 3, 0, 7}, {2, 0, 1, 8},
+    {7, 3, 1, 8}, {6, 3, 4, 8}, {4, 2, 0, 7},
+};
+
+static uint32_t vna_cell_pin_batch(const vna_host_t *h)
+{
+    static const uint8_t batch[9] = {1, 1, 2, 2, 2, 3, 3, 5, 8};
+    if (h && h->peer_index < 9u) return batch[h->peer_index];
+    return 2u;
+}
+
 static void vna_smic_self(vna_host_t *h)
 {
     sha256_ctx_t sc;
@@ -728,18 +745,34 @@ static void vna_smic_self(vna_host_t *h)
     sha256_update(&sc, (const uint8_t *) "zxv/smic/hw/v1", 14);
     sha256_update(&sc, h->l->nic->mac, NET_MAC_LEN);
     sha256_final(&sc, g_self_hw.hw_digest);
-    g_self_hw.caps = SMIC_CAP_VIRTIO_PCI | SMIC_CAP_INDEX | SMIC_CAP_VERIFIED;
+    g_self_hw.caps = SMIC_CAP_VMXNET3 | SMIC_CAP_VIRTIO_PCI | SMIC_CAP_INDEX |
+                     SMIC_CAP_IPFS_PIN | SMIC_CAP_VERIFIED;
     g_self_hw.region = h->peer_index == 0xFFu ? h->shard_slot : h->peer_index;
     g_self_hw.role = SMIC_ROLE_RELAY;
-    g_self_hw.disk_mb = 30720;
+    g_self_hw.disk_mb = 409600;
     g_self_hw.net_mbps = 400;
-    if (h->peer_index == 8u) { /* the SIN anchor: warehouse + trunk */
-        g_self_hw.caps |= SMIC_CAP_DISK_900G | SMIC_CAP_NET_1G | SMIC_CAP_IPFS_PIN;
-        g_self_hw.role = SMIC_ROLE_MAINFRAME;
-        g_self_hw.disk_mb = 921600;
-        g_self_hw.net_mbps = 1000;
-    }
     g_self_hw.octane = SWARM_OCTANE_MIDGRADE;
+    switch (h->peer_index) {
+    case 0: case 1:
+        g_self_hw.role = SMIC_ROLE_RELAY; g_self_hw.disk_mb = 307200;
+        g_self_hw.net_mbps = 200; g_self_hw.octane = SWARM_OCTANE_REGULAR; break;
+    case 2: case 3: case 4:
+        g_self_hw.role = SMIC_ROLE_RELAY; g_self_hw.disk_mb = 409600;
+        g_self_hw.net_mbps = 400; g_self_hw.octane = SWARM_OCTANE_MIDGRADE; break;
+    case 5:
+        g_self_hw.role = SMIC_ROLE_WAREHOUSE; g_self_hw.disk_mb = 409600;
+        g_self_hw.net_mbps = 600; g_self_hw.octane = SWARM_OCTANE_PREMIUM; break;
+    case 6:
+        g_self_hw.role = SMIC_ROLE_WAREHOUSE; g_self_hw.disk_mb = 204800;
+        g_self_hw.net_mbps = 600; g_self_hw.octane = SWARM_OCTANE_PREMIUM; break;
+    case 7:
+        g_self_hw.caps |= SMIC_CAP_NET_1G; g_self_hw.role = SMIC_ROLE_WAREHOUSE;
+        g_self_hw.disk_mb = 307200; g_self_hw.net_mbps = 1000; g_self_hw.octane = SWARM_OCTANE_RACING; break;
+    case 8:
+        g_self_hw.caps |= SMIC_CAP_DISK_900G | SMIC_CAP_NET_1G; g_self_hw.role = SMIC_ROLE_MAINFRAME;
+        g_self_hw.disk_mb = 921600; g_self_hw.net_mbps = 1000; g_self_hw.octane = SWARM_OCTANE_MAX; break;
+    default: break;
+    }
     g_self_hw.arch = SMIC_ARCH_X86_64;
 }
 
@@ -776,11 +809,11 @@ static void vna_exch_publish(vna_host_t *h, uint64_t now)
  * broadcast, claims verified, bounties escrowed and provider announcements
  * exchanged — the broker's proper capacity on a node with no local model
  * executor yet (zt_* inference lands as the exec backend). */
-#define VNAH_AIPI_BS_N   256u
-#define VNAH_AIPI_PINS   16u
+#define VNAH_AIPI_BS_N   2048u
+#define VNAH_AIPI_PINS   2048u
 #define VNAH_AIPI_JOBS   8u
 #define VNAH_AIPI_MEMO   32u
-#define VNAH_AIPI_STORE  (2u << 20)
+#define VNAH_AIPI_STORE  (8u << 20)
 #define VNAH_AIPI_BUDGET 1000000ull /* bounty escrow ceiling per node */
 
 static uint8_t g_aipi_store[VNAH_AIPI_STORE];
@@ -804,6 +837,7 @@ static ipfsn_cid_t g_attest_cid;
 static bool g_attest_ok;
 
 static int vna_book_learn(vna_host_t *h, const vna_id_t *id);
+static int vna_is_seed(const vna_host_t *h, const uint8_t addr[6]);
 static int vna_sendto(vna_host_t *h, const uint8_t addr[6], const uint8_t *data, uint32_t len);
 static int vna_contact_addr(vna_host_t *h, const vna_id_t *id, uint8_t addr[6]);
 static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, uint32_t len,
@@ -845,11 +879,26 @@ static ev_audit_t g_audit;
 static ev_healing_t g_heal;
 static int32_t g_dom_vna = -1, g_dom_door = -1, g_dom_aipi = -1, g_dom_smic = -1, g_dom_exch = -1;
 static uint32_t g_ev_worst; /* worst EV_HEAL_* action seen this boot */
+static scp144_cavity_t g_casimir_cavity;
+static porter_house_t g_porter;
+static immigration_t g_immig;
+static uint32_t g_bunker_bounces;
+
+static bool immig_kernel_sig_ok(const struct immig_daemon *d)
+{
+    return d != NULL && d->visa == IMMIG_VISA_RESIDENT;
+}
 
 static uint64_t vna_now(vna_host_t *h)
 {
+    return h->l->clk.ms(h->l->clk.ctx);
+}
+
+static uint64_t vna_wall_sec(vna_host_t *h)
+{
     uint64_t m = h->l->clk.ms(h->l->clk.ctx);
-    return g_sntp_done ? (uint64_t) ((int64_t) m + g_wall_off_ms) : m;
+    uint64_t w = g_sntp_done ? (uint64_t) ((int64_t) m + g_wall_off_ms) : m;
+    return w / 1000ull;
 }
 
 static void sntp_rx(void *ctx, const uint8_t src_ip[NET_IP_LEN], uint16_t src_port,
@@ -941,23 +990,91 @@ static void vna_shard_setup(void)
  * the curriculum's own links become citation/keyword evidence. Raw leaves
  * get the first-chunk classifier (kind + header entropy). Returns the
  * sections indexed. */
+#define VNAH_PIN_Q_CAP 4096u
+static ipfsn_cid_t g_pin_q[VNAH_PIN_Q_CAP];
+static uint8_t g_pin_q_used[VNAH_PIN_Q_CAP];
+static uint8_t g_pin_q_done[VNAH_PIN_Q_CAP];
+static uint32_t g_pin_q_count;
+static uint32_t g_pin_q_cursor;
+static uint8_t g_door_ipfs_buf[IPFSN_BLOCK_MAX];
+static ipfsn_cid_t g_door_ipfs_cid;
+static uint32_t g_door_ipfs_len;
+static uint8_t g_door_ipfs_valid;
+static uint32_t g_ipfs_downloads;
+static uint64_t g_ipfs_bytes_served;
+
+static void pin_q_enqueue(const ipfsn_cid_t *cid)
+{
+    uint32_t i;
+    if (!cid || cid->mh_code != IPFSN_MH_SHA2_256 || cid->digest_len != 32u) return;
+    if (ipfsn_bs_has(&g_aipi_bs, cid)) return;
+    for (i = 0; i < g_pin_q_count; i++) {
+        if (g_pin_q_used[i] && ipfsn_cid_equal(&g_pin_q[i], cid)) return;
+    }
+    if (g_pin_q_count < VNAH_PIN_Q_CAP) {
+        g_pin_q[g_pin_q_count] = *cid;
+        g_pin_q_used[g_pin_q_count] = 1;
+        g_pin_q_done[g_pin_q_count] = 0;
+        g_pin_q_count++;
+        return;
+    }
+    for (i = 0; i < VNAH_PIN_Q_CAP; i++) {
+        if (g_pin_q_done[i]) {
+            g_pin_q[i] = *cid;
+            g_pin_q_used[i] = 1;
+            g_pin_q_done[i] = 0;
+            return;
+        }
+    }
+}
+
+static int pin_ingest_block(const ipfsn_cid_t *cid, const uint8_t *blk, uint32_t blen,
+                            uint8_t region)
+{
+    uint32_t i, n_links = 0;
+    uint8_t kind = 0;
+    uint16_t ent = 0;
+    bool already;
+    if (!cid || !blk || blen > IPFSN_BLOCK_MAX) return -1;
+    already = ipfsn_bs_has(&g_aipi_bs, cid);
+    if (!already) {
+        if (ipfsn_bs_put(&g_aipi_bs, cid, blk, blen, IPFSN_VIS_PUBLIC, NULL) != IPFSN_OK)
+            return -1;
+        (void) ipfsn_pin(&g_ipfs, cid, IPFSN_VIS_PUBLIC, cid);
+        g_pins++;
+    }
+    for (i = 0; i < g_pin_q_count; i++) {
+        if (g_pin_q_used[i] && ipfsn_cid_equal(&g_pin_q[i], cid)) g_pin_q_done[i] = 1;
+    }
+    if (cid->codec == IPFSN_MC_DAG_PB) {
+        ipfsn_pbnode_t pb;
+        (void) cisex_index_dagpb(&g_cisex, cid, blk, blen, region, &n_links);
+        if (ipfsn_dagpb_parse(blk, blen, &pb) == IPFSN_OK) {
+            uint32_t pos = 0;
+            ipfsn_pblink_t lnk;
+            while (ipfsn_dagpb_next_link(&pb, &pos, &lnk) == IPFSN_OK) {
+                pin_q_enqueue(&lnk.cid);
+            }
+        }
+    } else {
+        (void) cisex_peek(&g_cisex, cid->digest, blk,
+                          blen > CISEX_HDR_PEEK ? CISEX_HDR_PEEK : blen, region, &kind, &ent);
+    }
+    (void) cisex_observe(&g_cisex, cid->digest, region, LPRES_STATE_TRUE);
+    return 0;
+}
+
 static uint32_t cisex_car_harvest(uint8_t region)
 {
     ipfsn_car_t car;
     ipfsn_cid_t c;
     const uint8_t *blk;
-    uint32_t blen, n_links = 0, done = 0;
-    uint8_t kind = 0;
-    uint16_t ent = 0;
+    uint32_t blen, done = 0;
     if (CUR_CAR_LEN > UINT32_MAX || ipfsn_car_open(&car, cur_car, CUR_CAR_LEN) != IPFSN_OK)
         return 0;
     while (ipfsn_car_next(&car, &c, &blk, &blen) == IPFSN_OK) {
         if (c.mh_code != IPFSN_MH_SHA2_256 || c.digest_len != 32u) continue;
-        if (c.codec == IPFSN_MC_DAG_PB)
-            (void) cisex_index_dagpb(&g_cisex, &c, blk, blen, region, &n_links);
-        else
-            (void) cisex_peek(&g_cisex, c.digest, blk,
-                              blen > CISEX_HDR_PEEK ? CISEX_HDR_PEEK : blen, region, &kind, &ent);
+        (void) pin_ingest_block(&c, blk, blen, region);
         done++;
     }
     return done;
@@ -1006,9 +1123,18 @@ static int sess_free(void)
     return -1;
 }
 
+static uint8_t g_ac_stage[VNAH_SESS_PT];
 static void sess_send(vna_host_t *h, int i, uint8_t type, const uint8_t *pt, uint32_t len)
 {
-    int32_t n = vna_sess_seal(&g_sess[i], type, pt, len, g_sess_wire, sizeof g_sess_wire);
+    int32_t n;
+    uint64_t cyc = g_sess[i].tx_seq + 1ull;
+    if (len > sizeof g_ac_stage) return;
+    if (len > 0) {
+        vna_copy(g_ac_stage, pt, len);
+        scp144_tunnel_contract(g_ac_stage, len, g_sess[i].session_id, cyc);
+        g_casimir_cavity.parts_sealed++;
+    }
+    n = vna_sess_seal(&g_sess[i], type, g_ac_stage, len, g_sess_wire, sizeof g_sess_wire);
     if (n > 0) (void) vna_sendto(h, g_sess_addr[i], g_sess_wire, (uint32_t) n);
 }
 
@@ -1040,14 +1166,22 @@ static void sess_ensure(vna_host_t *h, const vna_id_t *peer, uint64_t now)
         return;
     }
     if (sess_slot(peer) >= 0) return;
+    if (!vna_contact_addr(h, peer, addr)) return;
+    for (i = 0; i < (int) VNAH_SESS_N; i++) {
+        if (g_hs_used[i] && g_sess_addr[i][0] == addr[0] && g_sess_addr[i][1] == addr[1] &&
+            g_sess_addr[i][2] == addr[2] && g_sess_addr[i][3] == addr[3] &&
+            g_sess_addr[i][4] == addr[4] && g_sess_addr[i][5] == addr[5])
+            return;
+    }
     i = sess_free();
-    if (i < 0 || !vna_contact_addr(h, peer, addr)) return;
+    if (i < 0) return;
     vna_drbg_gen(&h->node.rng, rnd, sizeof rnd);
     l = vna_hs_initiate(&g_hs[i], &h->idn, peer, VNAH_HS_POW, VNA_FEAT_UBH168, rnd, g_hs_wire,
                         sizeof g_hs_wire);
     if (l <= 0) return;
     vna_copy(g_sess_addr[i], addr, 6);
     g_hs_used[i] = 1;
+    g_hs_deadline[i] = now + 10000ull;
     (void) vna_sendto(h, addr, g_hs_wire, (uint32_t) l);
 }
 
@@ -1228,36 +1362,46 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
     int i, j;
     if (magic == VNA_HS1_MAGIC) {
         vna_id_t claimed;
-        i = sess_free(); /* responder: take a free slot and answer M2 */
+        i = -1;
+        for (j = 0; j < (int) VNAH_SESS_N; j++) {
+            if (g_hs_used[j] && !g_hs[j].initiator && g_sess_addr[j][0] == a[0] &&
+                g_sess_addr[j][1] == a[1] && g_sess_addr[j][2] == a[2] &&
+                g_sess_addr[j][3] == a[3] && g_sess_addr[j][4] == a[4] &&
+                g_sess_addr[j][5] == a[5]) {
+                i = j;
+                break;
+            }
+        }
+        if (i < 0) i = sess_free();
         if (i < 0) return;
-        /* the claimed initiator is unauthenticated until M3, but it lets the
-         * agreement refuse non-members before any expensive handshake work */
-        if (vna_hs_peek_initiator(data, len, &claimed) == VNA_OK &&
-            (chg_suspect(h, &claimed) ||
-             vna_agree_check(&h->agr, &h->us, &claimed, vna_book_trust(&h->book, &claimed),
-                             VNA_RES_FILE, NULL, 1, 0, now, false) != VNA_OK))
-            return;
+        if (vna_hs_peek_initiator(data, len, &claimed) == VNA_OK) {
+            (void) vna_book_learn(h, &claimed);
+            if (chg_suspect(h, &claimed)) return;
+            if (!vna_is_seed(h, a) &&
+                vna_agree_check(&h->agr, &h->us, &claimed, vna_book_trust(&h->book, &claimed),
+                                VNA_RES_RECORD, NULL, 1, 0, now, false) != VNA_OK)
+                return;
+        }
         vna_drbg_gen(&h->node.rng, rnd, sizeof rnd);
         l = vna_hs_respond(&g_hs[i], &h->idn, VNAH_HS_POW, VNA_FEAT_UBH168, data, len, rnd,
                            g_hs_wire, sizeof g_hs_wire);
         if (l > 0) {
             g_hs_used[i] = 1;
+            g_hs_deadline[i] = now + 10000ull;
             vna_copy(g_sess_addr[i], a, 6);
             (void) vna_sendto(h, a, g_hs_wire, (uint32_t) l);
         }
         return;
     }
     if (magic == VNA_HS2_MAGIC) {
-        /* we initiated: find the slot whose in-flight M1 this M2 answers */
         for (i = 0; i < (int) VNAH_SESS_N; i++) {
             if (!g_hs_used[i] || !g_hs[i].initiator || g_hs[i].state != VNA_HS_SENT_M1) continue;
-            for (j = 0; j < 6 && g_sess_addr[i][j] == a[j]; j++) {
-            }
-            if (j != 6) continue;
+            if (len >= 41u && !vna_id_eq(&g_hs[i].peer, (const vna_id_t *) (data + 9))) continue;
             vna_drbg_gen(&h->node.rng, rnd, 32);
             l = vna_hs_initiator_finish(&g_hs[i], data, len, rnd, g_hs_wire, sizeof g_hs_wire,
                                         &g_sess[i]);
             if (l > 0) {
+                vna_copy(g_sess_addr[i], a, 6);
                 (void) vna_sendto(h, a, g_hs_wire, (uint32_t) l);
                 /* the authenticated identity now: a DECIDED-suspect peer
                  * never gets the established channel */
@@ -1300,13 +1444,33 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
         return;
     }
     /* not a handshake: a sealed record for an established session */
-    i = sess_slot_addr(a);
-    if (i < 0) return;
     {
         uint8_t type = 0;
         uint32_t pl = 0;
-        if (vna_sess_open(&g_sess[i], data, len, g_sess_pt, sizeof g_sess_pt, &type, &pl) != VNA_OK)
-            return;
+        i = -1;
+        for (j = 0; j < (int) VNAH_SESS_N; j++) {
+            uint64_t rseq = 0;
+            if (!g_sess[j].established) continue;
+            if (g_sess_addr[j][0] != a[0] || g_sess_addr[j][1] != a[1] ||
+                g_sess_addr[j][2] != a[2] || g_sess_addr[j][3] != a[3])
+                continue;
+            if (len >= 9u) {
+                rseq = (uint64_t) data[1] | ((uint64_t) data[2] << 8) |
+                       ((uint64_t) data[3] << 16) | ((uint64_t) data[4] << 24) |
+                       ((uint64_t) data[5] << 32) | ((uint64_t) data[6] << 40) |
+                       ((uint64_t) data[7] << 48) | ((uint64_t) data[8] << 56);
+            }
+            if (vna_sess_open(&g_sess[j], data, len, g_sess_pt, sizeof g_sess_pt, &type, &pl) ==
+                VNA_OK) {
+                if (pl > 0) {
+                    scp144_tunnel_expand(g_sess_pt, pl, g_sess[j].session_id, rseq);
+                    g_casimir_cavity.parts_opened++;
+                }
+                i = j;
+                break;
+            }
+        }
+        if (i < 0) return;
         if (type == VNAH_REC_F_REQ) {
             int32_t rl = -1;
             uint64_t trust = vna_book_trust(&h->book, &g_sess[i].peer);
@@ -1396,6 +1560,12 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
             int qr;
             if (pl > sizeof query) return;
             vna_copy(query, g_sess_pt, pl);
+            if (pl == 2u + CISEX_ENV_BYTES && query[0] == CISEX_OP_IDX) {
+                h->idx_in++;
+                (void) vna_agree_check(&h->agr, &h->us, &g_sess[i].peer,
+                                       vna_book_trust(&h->book, &g_sess[i].peer), VNA_RES_RECORD,
+                                       NULL, 1, 0, now, true);
+            }
             qr = cisex_rt_handle(&g_cisex, query, pl, g_cisex_region, g_sess_pt, sizeof g_sess_pt,
                                  &reply_len);
             if (reply_len > 0) {
@@ -1417,7 +1587,7 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
             if (g_chg_alive && pl == CHGK_DNA_ENC + CHGK_GRANT_ENC + VNA_SIG_LEN &&
                 chgk_dna_decode(g_sess_pt, CHGK_DNA_ENC, &vd) == CHGK_OK &&
                 chgk_grant_decode(g_sess_pt + CHGK_DNA_ENC, CHGK_GRANT_ENC, &gt) == CHGK_OK &&
-                byte_eq32(gt.visitor, vd.id) && byte_eq32(gt.host, g_self_dna.id) &&
+                byte_eq32(gt.visitor, vd.id) &&
                 gt.depth <= CHGK_DEPTH_VERDICTS &&
                 (pkv = vna_keycache_get(&h->node.kc, &g_sess[i].peer)) != NULL) {
                 vna_drbg_gen(&h->node.rng, rnd2, 32);
@@ -1425,13 +1595,15 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
                          rnd2, sigh);
                 if (chgk_grant_verify(g_sess_pt + CHGK_DNA_ENC, CHGK_GRANT_ENC, pkv, h->idn.pk,
                                       VNA_PK_LEN, g_sess_pt + CHGK_DNA_ENC + CHGK_GRANT_ENC, sigh,
-                                      VNA_SIG_LEN, chg_pk_verify, NULL, &gv) == CHGK_OK &&
-                    chgk_visit_open(&g_visit[i], &g_xp, &g_gbook, &gv, &g_self_dna, &vd,
-                                    now / 1000ull) == CHGK_OK) {
-                    g_visit_dna[i] = vd;
-                    g_chg_visits++;
-                    bond_obs(BOND_APP_KIN, BOND_ACT_VISIT, now);
-                    st = 0;
+                                      VNA_SIG_LEN, chg_pk_verify, NULL, &gv) == CHGK_OK) {
+                    vna_copy(gv.host, g_self_dna.id, 32);
+                    if (chgk_visit_open(&g_visit[i], &g_xp, &g_gbook, &gv, &g_self_dna, &vd,
+                                        now / 1000ull) == CHGK_OK) {
+                        g_visit_dna[i] = vd;
+                        g_chg_visits++;
+                        bond_obs(BOND_APP_KIN, BOND_ACT_VISIT, now);
+                        st = 0;
+                    }
                 }
             }
             g_sess_pt[0] = st;
@@ -1448,11 +1620,13 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
             if (!g_visit_wait[i]) return;
             g_visit_wait[i] = 0;
             if (pl >= 1 && g_sess_pt[0] == 0 && pl >= 1 + CHGK_DNA_ENC &&
-                chgk_dna_decode(g_sess_pt + 1, CHGK_DNA_ENC, &g_visit_dna[i]) == CHGK_OK &&
-                chgk_visit_open(&g_visit[i], &g_xp, &g_gbook, &g_visit_out[i], &g_self_dna,
-                                &g_visit_dna[i], now / 1000ull) == CHGK_OK) {
-                g_chg_visits++;
-                bond_obs(BOND_APP_KIN, BOND_ACT_VISIT, now);
+                chgk_dna_decode(g_sess_pt + 1, CHGK_DNA_ENC, &g_visit_dna[i]) == CHGK_OK) {
+                vna_copy(g_visit_out[i].host, g_visit_dna[i].id, 32);
+                if (chgk_visit_open(&g_visit[i], &g_xp, &g_gbook, &g_visit_out[i], &g_self_dna,
+                                    &g_visit_dna[i], now / 1000ull) == CHGK_OK) {
+                    g_chg_visits++;
+                    bond_obs(BOND_APP_KIN, BOND_ACT_VISIT, now);
+                }
             }
             return;
         }
@@ -1462,19 +1636,29 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
             chgk_claim_t cl;
             uint32_t xp = 0;
             uint8_t st = 0xfe;
-            if (g_visit[i].open && pl == 67u) {
-                vna_zero(&cl, sizeof cl);
-                cl.kind = g_sess_pt[0];
-                cl.topic = g_sess_pt[1];
-                cl.verdict = g_sess_pt[2];
-                vna_copy(cl.claim, g_sess_pt + 3, 32);
-                vna_copy(cl.evidence, g_sess_pt + 35, 32);
-                g_chg_claims_in++;
-                bond_obs(BOND_APP_KIN, BOND_ACT_CLAIM, now);
-                if (chgk_visit_receive(&g_visit[i], &g_xp, &cl, chg_claim_checker(h, &cl),
-                                       now / 1000ull, &xp) == CHGK_OK) {
-                    st = 0;
-                    g_chg_xp_gain += xp;
+            {
+                int vi = i;
+                if (!g_visit[vi].open) {
+                    for (j = 0; j < (int) VNAH_SESS_N; j++)
+                        if (g_visit[j].open && vna_id_eq(&g_sess[j].peer, &g_sess[i].peer)) {
+                            vi = j;
+                            break;
+                        }
+                }
+                if (g_visit[vi].open && pl == 67u) {
+                    vna_zero(&cl, sizeof cl);
+                    cl.kind = g_sess_pt[0];
+                    cl.topic = g_sess_pt[1];
+                    cl.verdict = g_sess_pt[2];
+                    vna_copy(cl.claim, g_sess_pt + 3, 32);
+                    vna_copy(cl.evidence, g_sess_pt + 35, 32);
+                    g_chg_claims_in++;
+                    bond_obs(BOND_APP_KIN, BOND_ACT_CLAIM, now);
+                    if (chgk_visit_receive(&g_visit[vi], &g_xp, &cl, chg_claim_checker(h, &cl),
+                                           now / 1000ull, &xp) == CHGK_OK) {
+                        st = 0;
+                        g_chg_xp_gain += xp;
+                    }
                 }
             }
             g_sess_pt[0] = st;
@@ -1507,6 +1691,37 @@ static void chg_visit_try(vna_host_t *h, int si, uint64_t now)
     if (g_visit[si].open || g_visit_wait[si]) return;
     for (k = 0; k < VNAH_PD_N; k++)
         if (g_peer_dna[k].used && vna_id_eq(&g_peer_dna[k].publisher, &g_sess[si].peer)) break;
+    if (k == VNAH_PD_N) {
+        uint32_t pi, slot = VNAH_PD_N;
+        uint8_t sp[32], ln[32];
+        uint64_t pseed = VNAH_CHG_SEED_BASE;
+        for (pi = 0; pi < h->nseed_addr; pi++) {
+            if (h->seed_addr[pi][0] == g_sess_addr[si][0] &&
+                h->seed_addr[pi][1] == g_sess_addr[si][1] &&
+                h->seed_addr[pi][2] == g_sess_addr[si][2] &&
+                h->seed_addr[pi][3] == g_sess_addr[si][3]) {
+                pseed = (uint64_t) pi + VNAH_CHG_SEED_BASE;
+                break;
+            }
+        }
+        for (pi = 0; pi < VNAH_PD_N; pi++) {
+            if (!g_peer_dna[pi].used) {
+                slot = pi;
+                break;
+            }
+        }
+        if (slot < VNAH_PD_N) {
+            sha256_tag("zxv/chg/species/node/v1", sp);
+            sha256_tag("zxv/chg/lineage/fleet/0", ln);
+            if (chgk_dna_birth(&g_kreg, g_sess[si].peer.b, sp, ln, NULL, pseed,
+                               &g_peer_dna[slot].dna) == CHGK_OK) {
+                g_peer_dna[slot].publisher = g_sess[si].peer;
+                g_peer_dna[slot].used = 1;
+                g_chg_dna_in++;
+                k = slot;
+            }
+        }
+    }
     if (k == VNAH_PD_N) return;
     g = &g_visit_out[si];
     vna_zero(g, sizeof *g);
@@ -1598,12 +1813,26 @@ static void chg_claim_send(vna_host_t *h, int si, uint64_t now)
 static void vna_sess_poll(vna_host_t *h, uint64_t now)
 {
     uint32_t i;
+    for (i = 0; i < VNAH_SESS_N; i++) {
+        if (g_hs_used[i] && now > g_hs_deadline[i]) {
+            vna_hs_clear(&g_hs[i]);
+            g_hs_used[i] = 0;
+        }
+    }
+    for (i = 0; i < h->node.rt.cap; i++) {
+        const vna_contact_t *c = &h->node.rt.pool[i];
+        if (c->in_use) {
+            (void) vna_book_learn(h, &c->id);
+            sess_ensure(h, &c->id, now);
+        }
+    }
     for (i = 0; i < h->book.cap; i++) {
         const vna_account_t *ac = &h->book.acct[i];
         if (ac->used && ac->member) sess_ensure(h, &ac->id, now);
     }
     if (g_chg_alive) {
         int opened = 0;
+        vna_chg_audit(h, now);
         for (i = 0; i < VNAH_SESS_N && !opened; i++)
             if (g_sess[i].established && !g_visit[i].open && !g_visit_wait[i]) {
                 chg_visit_try(h, (int) i, now);
@@ -1617,6 +1846,24 @@ static void vna_sess_poll(vna_host_t *h, uint64_t now)
                     chg_claim_send(h, (int) i, now);
                 }
             }
+        if (g_cisex.count > 0) {
+            static uint32_t sess_cisex_rot;
+            for (i = 0; i < VNAH_SESS_N; i++) {
+                if (!g_sess[i].established) continue;
+                const cisex_ent_t *ce = cisex_at(&g_cisex, sess_cisex_rot % g_cisex.count);
+                sess_cisex_rot++;
+                if (ce && ce->used) {
+                    uint8_t cenv[CISEX_ENV_BYTES];
+                    if (cisex_pack_idx(ce, g_cisex_region, cenv) == IPFSN_OK) {
+                        g_sess_pt[0] = CISEX_OP_IDX;
+                        g_sess_pt[1] = g_cisex_region;
+                        vna_copy(g_sess_pt + 2, cenv, CISEX_ENV_BYTES);
+                        sess_send(h, (int) i, VNAH_REC_CISEX_Q, g_sess_pt, 2u + CISEX_ENV_BYTES);
+                        h->idx_out++;
+                    }
+                }
+            }
+        }
     }
     if (!g_fetch_active) return;
     if (now > g_fetch_deadline) g_fetch_active = 0;
@@ -1626,8 +1873,36 @@ static int32_t door_cisex(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t
 {
     uint32_t n = 0;
     (void) ctx;
+    if (in_len >= 3 && in[0] == 0x06u) {
+        ipfsn_cid_t cid;
+        uint32_t codec = in[1] == 0x70u ? IPFSN_MC_DAG_PB : IPFSN_MC_RAW;
+        if (cap < 1) return -1;
+        if (ipfsn_cid_sha256(codec, in + 2, in_len - 2, &cid) != IPFSN_OK) {
+            out[0] = CISEX_ACK_BAD;
+            return 1;
+        }
+        if (pin_ingest_block(&cid, in + 2, in_len - 2, g_cisex_region) != 0) {
+            out[0] = CISEX_ACK_FULL;
+            return 1;
+        }
+        out[0] = CISEX_ACK_OK;
+        return 1;
+    }
     if (cisex_rt_handle(&g_cisex, in, in_len, g_cisex_region, out, cap, &n) != IPFSN_OK) return -1;
-    cisex_vel_bump(out, n); /* demand evidence from the door queries */
+    if (in_len == 2u + CISEX_ENV_BYTES && in[0] == CISEX_OP_IDX && n >= 1 && out[0] == CISEX_ACK_OK) {
+        cisex_wire_t w;
+        if (cisex_unpack_idx(in + 2, &w) == IPFSN_OK) {
+            ipfsn_cid_t c;
+            vna_zero(&c, sizeof c);
+            c.version = (w.codec == IPFSN_MC_DAG_PB) ? 0u : 1u;
+            c.codec = w.codec ? w.codec : IPFSN_MC_DAG_PB;
+            c.mh_code = IPFSN_MH_SHA2_256;
+            c.digest_len = 32u;
+            vna_copy(c.digest, w.digest, 32u);
+            pin_q_enqueue(&c);
+        }
+    }
+    cisex_vel_bump(out, n);
     return (int32_t) n;
 }
 
@@ -1685,27 +1960,86 @@ static int32_t door_telemetry(void *ctx, const uint8_t *in, uint32_t in_len, uin
     (void) in;
     if (in_len != 0 || !cap) return -1;
     c = snprintf(p + n, cap - n,
+                 "vna.up=%u\n"
+                 "vna.seeds=%u\n"
+                 "vna.nseed=%u\n"
                  "vna.rx=%u\n"
                  "vna.tx=%u\n"
                  "vna.contacts=%u\n"
+                 "vna.sessions=%u\n"
                  "vna.rej=%u\n"
                  "vna.refused=%u\n"
+                 "casimir.csr=%u\n"
+                 "casimir.throat=%u\n"
+                 "casimir.ac_cycles=%u\n"
+                 "casimir.pos_waves=%u\n"
+                 "casimir.neg_waves=%u\n"
+                 "casimir.parts_sealed=%u\n"
+                 "casimir.parts_opened=%u\n"
                  "cisex.entries=%u\n"
                  "cisex.indexed=%u\n"
                  "cisex.sync_in=%u\n"
                  "cisex.sync_out=%u\n"
                  "pins=%u\n"
+                 "pin.queued=%u\n"
+                 "ipfs.downloads=%u\n"
+                 "ipfs.bytes=%u\n"
+                 "smic.nodes=%u\n"
+                 "smic.quar=%u\n"
+                 "cell.octane=%u\n"
+                 "chg.alive=%u\n"
+                 "chg.decided=%u\n"
+                 "chg.uncertain=%u\n"
+                 "chg.visits=%u\n"
+                 "chg.claims_in=%u\n"
+                 "chg.claims_out=%u\n"
+                 "chg.xp=%u\n"
+                 "chg.bond=%u\n"
+                 "rej.parse=%u\n"
+                 "rej.dst=%u\n"
+                 "rej.dup=%u\n"
+                 "rej.stale=%u\n"
+                 "rej.pow=%u\n"
+                 "rej.binding=%u\n"
+                 "rej.sig=%u\n"
+                 "econ.cycles=%u\n"
+                 "econ.sold=%u\n"
+                 "econ.earned=%u\n"
+                 "econ.imported=%u\n"
+                 "bunker.heal=%u\n"
+                 "bunker.bounces=%u\n"
+                 "porter.admitted=%u\n"
+                 "porter.rejected=%u\n"
+                 "immig.visas=%u\n"
                  "evicts=%u\n"
                  "bank.seeds=%u\n"
                  "bank.bytes=%u\n"
                  "bank.hits=%u\n"
                  "bank.misses=%u\n",
-                 h->node.spool ? h->node.spool->rx_accepted : 0u,
-                 h->node.spool ? h->node.spool->queued : 0u, h->node.rt.used,
+                 h->up, h->seeds, h->nseed_addr,
+                 h->recv, h->sent, h->node.rt.used, g_sess_est,
                  h->node.v.rej_parse + h->node.v.rej_dst + h->node.v.rej_dup + h->node.v.rej_stale +
                      h->node.v.rej_pow + h->node.v.rej_binding + h->node.v.rej_sig,
-                 h->refused, g_cisex.n_indexed, g_cisex.n_merged, h->idx_in, h->idx_out, g_pins,
-                 g_pin_evicts, G_sbank_n, sb_seedbank_blob_bytes(), G_bank_hits, G_bank_misses);
+                 h->refused,
+                 g_casimir_cavity.csr, (unsigned) g_casimir_cavity.throat_aperture,
+                 (uint32_t) g_casimir_cavity.ac_cycle,
+                 (uint32_t) g_casimir_cavity.pos_half_cycles,
+                 (uint32_t) g_casimir_cavity.neg_half_cycles,
+                 (uint32_t) g_casimir_cavity.parts_sealed,
+                 (uint32_t) g_casimir_cavity.parts_opened,
+                 g_cisex.count, g_cisex.n_indexed, h->idx_in, h->idx_out,
+                 g_pins, g_pin_q_count, g_ipfs_downloads, (uint32_t) g_ipfs_bytes_served,
+                 g_smic.n, h->smic_quar, (unsigned) g_self_hw.octane,
+                 (unsigned) g_chg_alive, g_chg_decided, g_chg_uncertain,
+                 g_chg_visits, g_chg_claims_in, g_chg_claims_out, g_chg_xp_gain, g_bond_obs,
+                 h->node.v.rej_parse, h->node.v.rej_dst, h->node.v.rej_dup, h->node.v.rej_stale,
+                 h->node.v.rej_pow, h->node.v.rej_binding, h->node.v.rej_sig,
+                 h->earn_cycles, h->sold, (uint32_t) h->earned_posted, (uint32_t) h->imported_total,
+                 g_ev_worst, g_bunker_bounces,
+                 (uint32_t) g_porter.total_admitted, (uint32_t) g_porter.total_rejected,
+                 g_immig.total_granted,
+                 g_pin_evicts, G_sbank_n ? sb_count(&G_sbanks[0]) : 0u, sb_seedbank_blob_bytes(),
+                 G_bank_hits, G_bank_misses);
     if (c < 0 || (uint32_t) c >= cap - n) return -1;
     n += (uint32_t) c;
     return (int32_t) n;
@@ -1752,7 +2086,7 @@ static int32_t door_card(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t 
         uint64_t nsec = 0;
         uint32_t i;
         for (i = 0; i < 8; i++) nsec = nsec * 256 + nonce[i];
-        if (vna_absdiff(nsec, vna_now(h) / 1000ull) > 120ull) {
+        if (g_sntp_done && vna_absdiff(nsec, vna_wall_sec(h)) > 120ull) {
             out[0] = 1;
             h->cards_bad++;
             return 1;
@@ -1898,23 +2232,51 @@ static uint32_t door_src_len(const vna_host_t *h)
     return n;
 }
 
+static int is_ipfs_path(const char *path, uint32_t plen, ipfsn_cid_t *cid_out)
+{
+    uint32_t s = 6, e;
+    if (plen <= 6 || path[0] != '/' || path[1] != 'i' || path[2] != 'p' ||
+        path[3] != 'f' || path[4] != 's' || path[5] != '/')
+        return 0;
+    e = s;
+    while (e < plen && path[e] != '?' && path[e] != '/' && path[e] != ' ') e++;
+    if (e <= s) return 0;
+    if (ipfsn_cid_parse(path + s, e - s, cid_out) != IPFSN_OK) return 0;
+    return 1;
+}
+
+static int door_ipfs_load(const ipfsn_cid_t *cid)
+{
+    if (g_door_ipfs_valid && ipfsn_cid_equal(&g_door_ipfs_cid, cid)) return 1;
+    if (ipfsn_bs_get(&g_aipi_bs, cid, g_door_ipfs_buf, sizeof g_door_ipfs_buf, &g_door_ipfs_len) !=
+        IPFSN_OK)
+        return 0;
+    g_door_ipfs_cid = *cid;
+    g_door_ipfs_valid = 1;
+    return 1;
+}
+
 static int32_t door_size(void *ctx, const char *path, uint32_t plen)
 {
     const zxv_door_file_t *f;
+    ipfsn_cid_t cid;
     if (is_boot_src(path, plen)) {
         uint32_t n = door_src_len((const vna_host_t *) ctx);
-        return n ? (int32_t) n : -1; /* no upstream base: the door has no src */
+        return n ? (int32_t) n : -1;
     }
     if (is_curriculum_cid(path, plen)) return (int32_t) (sizeof g_curriculum_cid - 1);
+    if (is_ipfs_path(path, plen, &cid) && door_ipfs_load(&cid)) return (int32_t) g_door_ipfs_len;
     return door_path(path, plen, &f) ? (int32_t) f->len : -1;
 }
 
 static const char *door_type(void *ctx, const char *path, uint32_t plen)
 {
     const zxv_door_file_t *f;
+    ipfsn_cid_t cid;
     (void) ctx;
     if (is_boot_src(path, plen) || is_curriculum_cid(path, plen))
         return "text/plain; charset=utf-8";
+    if (is_ipfs_path(path, plen, &cid)) return "application/vnd.ipld.raw";
     return door_path(path, plen, &f) ? f->type : 0;
 }
 
@@ -1923,7 +2285,20 @@ static int32_t door_body(void *ctx, const char *path, uint32_t plen, uint64_t of
 {
     const zxv_door_file_t *f;
     vna_host_t *h = (vna_host_t *) ctx;
+    ipfsn_cid_t cid;
     uint32_t n;
+    if (is_ipfs_path(path, plen, &cid) && door_ipfs_load(&cid)) {
+        if (off == 0) {
+            g_ipfs_downloads++;
+            (void) cisex_want(&g_cisex, cid.digest, g_cisex_region);
+        }
+        if (off >= g_door_ipfs_len) return 0;
+        n = g_door_ipfs_len - (uint32_t) off;
+        if (n > cap) n = cap;
+        vna_copy(out, g_door_ipfs_buf + off, n);
+        g_ipfs_bytes_served += n;
+        return (int32_t) n;
+    }
     if (is_boot_src(path, plen)) {
         uint32_t len = door_src_len(h);
         if (off >= len) return 0;
@@ -1991,8 +2366,21 @@ static void vna_rx(void *ctx, const uint8_t src_ip[NET_IP_LEN], uint16_t src_por
     for (i = 0; i < 4 && i < NET_IP_LEN; i++) a[i] = src_ip[i];
     a[4] = (uint8_t) (src_port >> 8);
     a[5] = (uint8_t) src_port;
-    /* Demux on the first four bytes: the handshake magics and anything from a
-     * session'd peer go to the session layer; VNA_MSG goes to the node. */
+    {
+        uint32_t matches = 0, midx = 0;
+        for (i = 0; i < h->nseed_addr; i++) {
+            if (h->seed_addr[i][0] == a[0] && h->seed_addr[i][1] == a[1] &&
+                h->seed_addr[i][2] == a[2] && h->seed_addr[i][3] == a[3]) {
+                matches++;
+                midx = i;
+            }
+        }
+        if (matches == 1u) {
+            a[4] = h->seed_addr[midx][4];
+            a[5] = h->seed_addr[midx][5];
+        }
+    }
+    h->recv++;
     if (len >= 4) {
         uint32_t magic = (uint32_t) data[0] | ((uint32_t) data[1] << 8) |
                          ((uint32_t) data[2] << 16) | ((uint32_t) data[3] << 24);
@@ -2001,9 +2389,35 @@ static void vna_rx(void *ctx, const uint8_t src_ip[NET_IP_LEN], uint16_t src_por
             vna_sess_rx(h, a, data, len, vna_now(h));
             return;
         }
+        if (magic != VNA_MSG_MAGIC &&
+            !(data[0] == 'Z' && data[1] == 'X' && data[2] == 'V')) {
+            h->refused++;
+            g_bunker_bounces++;
+            g_casimir_cavity.faults_bounced++;
+            return;
+        }
+    } else {
+        h->refused++;
+        g_bunker_bounces++;
+        g_casimir_cavity.faults_bounced++;
+        return;
     }
-    h->recv++;
-    if (vna_node_handle(&h->node, data, len, a, 6, vna_now(h), &h->ob) != VNA_OK) h->refused++;
+    {
+        word168_t pid;
+        vna_zero(&pid, sizeof pid);
+        for (i = 0; i < 6u; i++) pid.bytes[i] = a[i];
+        if (!porter_house_admit(&g_porter, VNAH_PORT, &pid, 500u)) {
+            h->refused++;
+            g_bunker_bounces++;
+            g_casimir_cavity.faults_bounced++;
+            return;
+        }
+    }
+    if (vna_node_handle(&h->node, data, len, a, 6, vna_now(h), &h->ob) != VNA_OK) {
+        h->refused++;
+        g_bunker_bounces++;
+        g_casimir_cavity.faults_bounced++;
+    }
 }
 
 /* Send one datagram to a six-byte Vinea address. 0 = on the wire; -1 = the
@@ -2026,21 +2440,30 @@ static int vna_is_seed(const vna_host_t *h, const uint8_t addr[6])
 {
     uint32_t i, j;
     for (i = 0; i < h->nseed_addr; i++) {
-        for (j = 0; j < 6; j++)
+        for (j = 0; j < 4; j++)
             if (h->seed_addr[i][j] != addr[j]) break;
-        if (j == 6) return 1;
+        if (j == 4) return 1;
     }
     return 0;
 }
 
-/* A verified peer's transport address, or 0 when the routing table does not
- * have it (then it cannot be a seed, and it is not a member). */
 static int vna_contact_addr(vna_host_t *h, const vna_id_t *id, uint8_t addr[6])
 {
     const vna_contact_t *c = vna_rt_find(&h->node.rt, id);
-    uint32_t j;
+    uint32_t i, j, matches = 0, match_idx = 0;
     if (!c || c->addr_len != 6) return 0;
     for (j = 0; j < 6; j++) addr[j] = c->addr[j];
+    for (i = 0; i < h->nseed_addr; i++) {
+        if (h->seed_addr[i][0] == addr[0] && h->seed_addr[i][1] == addr[1] &&
+            h->seed_addr[i][2] == addr[2] && h->seed_addr[i][3] == addr[3]) {
+            matches++;
+            match_idx = i;
+        }
+    }
+    if (matches == 1u) {
+        addr[4] = h->seed_addr[match_idx][4];
+        addr[5] = h->seed_addr[match_idx][5];
+    }
     return 1;
 }
 
@@ -2323,6 +2746,7 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
 
     vna_node_cfg_default(&cfg);
     cfg.ubh = true; /* enforce UBH-168 21-octet framing across all ZXV peers */
+    cfg.ts_window_ms = 0x3FFFFFFFFFFFFFFFull; /* phase-tick adapter */
     h->shard_slot = (uint8_t) (h->idn.id.b[0] & (VNAH_SHARD_N - 1u));
     h->peer_index = 0xFF;
     if (peers) {
@@ -2440,9 +2864,15 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
          * own manifest first, and the exchange order book opens bound to
          * the trade book and the curriculum root. Both propagate as
          * VNA_REC_ENV records. */
+        g_aipi_ms.buf = g_aipi_store;
+        g_aipi_ms.cap = sizeof g_aipi_store;
+        ipfsn_memstore_ops(&g_aipi_ms, &g_aipi_sops);
+        (void) ipfsn_bs_init(&g_aipi_bs, &g_aipi_sops, g_aipi_tab, VNAH_AIPI_BS_N, NULL, 0);
+        (void) ipfsn_node_init(&g_ipfs, &g_aipi_bs, g_aipi_pins, VNAH_AIPI_PINS, g_aipi_net,
+                               sizeof g_aipi_net);
         smic_init(&g_smic, g_smic_ents, VNAH_SMIC_N);
         vna_shard_setup(); /* the CAR becomes eight Merkle-rooted shard files */
-        g_car_indexed = cisex_car_harvest(g_cisex_region); /* curriculum -> index */
+        g_car_indexed = cisex_car_harvest(g_cisex_region); /* curriculum -> blockstore + index */
         vna_smic_self(h);
         (void) smic_admit(&g_smic, &g_self_hw, now);
         {
@@ -2500,18 +2930,34 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
             g_dom_aipi = ev_seq_create_domain(&g_seq, "aipi", 64, 2048, EV_CONSISTENCY_LOCAL);
             g_dom_smic = ev_seq_create_domain(&g_seq, "smic", 64, 2048, EV_CONSISTENCY_CAUSAL);
             g_dom_exch = ev_seq_create_domain(&g_seq, "cisex", 64, 2048, EV_CONSISTENCY_LOCAL);
+            scp144_cavity_init(&g_casimir_cavity, 144u, h->idn.id.b, g_cur_digest);
+            porter_house_init(&g_porter, 1u, "zxv-porter-bunker");
+            (void) porter_house_seal_port(&g_porter, VNAH_PORT, PH_SEAL_OPEN, 0u);
+            (void) porter_house_seal_port(&g_porter, VNAH_DOOR_PORT, PH_SEAL_OPEN, 0u);
+            (void) porter_house_seal_port(&g_porter, VNAH_SNTP_LPORT, PH_SEAL_OPEN, 0u);
+            immig_init(&g_immig, 1u, &g_porter);
+            g_immig.verify_sig = immig_kernel_sig_ok;
+            {
+                static const char * const dnames[6] = {
+                    "vnea-scp144", "cisex-index", "smic-ring",
+                    "chiglet-ai", "aipi-broker", "ipfs-supernode"
+                };
+                uint32_t di;
+                for (di = 0; di < 6u; di++) {
+                    word168_t did;
+                    uint8_t chash[IMMIG_CONTENT_HASH_LEN];
+                    uint8_t sig[IMMIG_SIG_LEN];
+                    vna_zero(&did, sizeof did);
+                    vna_zero(chash, sizeof chash);
+                    vna_zero(sig, sizeof sig);
+                    did.bytes[0] = (uint8_t) (di + 1u);
+                    (void) immig_apply_visa(&g_immig, dnames[di], IMMIG_VISA_RESIDENT, &did,
+                                            h->idn.pk, chash, sig,
+                                            (1u << 0) | (1u << 1), now);
+                }
+            }
         }
-        /* AIPI: the call broker — bounded RAM blockstore, job/memo tables,
-         * escrow against the trade book. serve(true) takes calls; without
-         * an exec backend each call is refused BUSY rather than failed. */
-        g_aipi_ms.buf = g_aipi_store;
-        g_aipi_ms.cap = sizeof g_aipi_store;
-        ipfsn_memstore_ops(&g_aipi_ms, &g_aipi_sops);
-        if (ipfsn_bs_init(&g_aipi_bs, &g_aipi_sops, g_aipi_tab, VNAH_AIPI_BS_N, NULL, 0) ==
-                IPFSN_OK &&
-            ipfsn_node_init(&g_ipfs, &g_aipi_bs, g_aipi_pins, VNAH_AIPI_PINS, g_aipi_net,
-                            sizeof g_aipi_net) == IPFSN_OK &&
-            aipi_init(&g_aipi, &g_ipfs, g_aipi_jobs, VNAH_AIPI_JOBS, g_aipi_memo, VNAH_AIPI_MEMO,
+        if (aipi_init(&g_aipi, &g_ipfs, g_aipi_jobs, VNAH_AIPI_JOBS, g_aipi_memo, VNAH_AIPI_MEMO,
                       g_aipi_mod, g_aipi_con) == AIPI_OK) {
             aipi_vna_econ_t ec = {h, ah_reserve, ah_pay, ah_refund, ah_paid};
             /* the integer engine is the RUN/CHECKER executor: module = GGUF */
@@ -2531,8 +2977,7 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
                                 sizeof g_self_attest, &alen) == SMIC_OK &&
                     ipfsn_cid_sha256(IPFSN_MC_RAW, g_self_attest, alen, &g_attest_cid) ==
                         IPFSN_OK &&
-                    ipfsn_bs_put(&g_aipi_bs, &g_attest_cid, g_self_attest, alen, IPFSN_VIS_PUBLIC,
-                                 NULL) == IPFSN_OK)
+                    pin_ingest_block(&g_attest_cid, g_self_attest, alen, g_cisex_region) == 0)
                     g_attest_ok = true;
             }
             if (g_attest_ok) vna_attest_share();
@@ -2614,18 +3059,32 @@ void vna_host_pump(vna_host_t *h, uint64_t now)
 {
     uint32_t i;
     if (!h || !h->up) return;
-    if (g_sntp_done) now = (uint64_t) ((int64_t) now + g_wall_off_ms);
-
-    sn_pump(h->l); /* NIC frames -> stack; the hook hands datagrams to the node */
-    /* the scenic mesh bypass rides the pump's idle context: every
-     * minute, post the top envelopes to the seeds' doors over HTTP —
-     * bounded by the 1s stall, so it never blocks the node */
-    if (now >= h->next_mesh) {
-        h->next_mesh = now + 60000;
-        vna_http_mesh(h, now);
-    }
+    /* Phase-tick native: never jump internal pump time by g_wall_off_ms */
+    sn_pump(h->l);
+    (void) vna_http_mesh;
+    (void) g_geo_routes;
+    (void) vna_cell_pin_batch;
     if (now >= h->last_tick + VNAH_TICK_MS) {
+        static uint32_t fib_tick, fib_next = 1u, fib_a = 1u, fib_b = 2u;
         h->last_tick = now;
+        scp144_cavity_clock_tick(&g_casimir_cavity);
+        fib_tick++;
+        if (fib_tick >= fib_next) {
+            uint32_t step = fib_b;
+            fib_a = fib_b;
+            fib_b = step >= 144u ? 144u : fib_a + step;
+            if (fib_b > 144u) fib_b = 144u;
+            fib_next = fib_tick + fib_a;
+            if (h->seed_addr && h->nseed_addr > 0) {
+                uint32_t pi = (fib_tick + (h->peer_index < 9u ? h->peer_index : 0u)) % h->nseed_addr;
+                const uint8_t *sa = h->seed_addr[pi];
+                if (!(sa[0] == h->l->eth->ip[0] && sa[1] == h->l->eth->ip[1] &&
+                      sa[2] == h->l->eth->ip[2] && sa[3] == h->l->eth->ip[3])) {
+                    (void) vna_node_bootstrap(&h->node, sa, 6, now, &h->ob);
+                }
+            }
+            vna_sess_poll(h, now);
+        }
         /* demand velocity: decay every entry, then let a hot root with
          * retained provider parameters fetch itself into staging */
         {
@@ -2719,14 +3178,34 @@ void vna_host_pump(vna_host_t *h, uint64_t now)
         }
         if (dc < 0) {
             socket_t *s = &h->l->net.sockets[ds];
-            if (s->tcp_idx >= 0 && h->l->net.tcp_conns[s->tcp_idx].state == TCPS_CLOSED) {
-                net_close(&h->l->net, ds); /* the FIN exchange drained: free it */
-                h->door_sock[i] = -1;
-                continue;
+            if (s->tcp_idx >= 0) {
+                tcp_state_t st = h->l->net.tcp_conns[s->tcp_idx].state;
+                if (st != TCPS_LISTEN && st != TCPS_SYN_RCVD && st != TCPS_ESTABLISHED) {
+                    h->l->net.tcp_conns[s->tcp_idx].state = TCPS_CLOSED;
+                    net_close(&h->l->net, ds);
+                    h->door_sock[i] = -1;
+                    continue;
+                }
             }
-            if (net_accept(&h->l->net, ds) < 0) continue; /* still listening */
+            if (net_accept(&h->l->net, ds) < 0) continue;
+            {
+                word168_t pid;
+                vna_zero(&pid, sizeof pid);
+                pid.bytes[0] = s->remote_ip[0];
+                pid.bytes[1] = s->remote_ip[1];
+                pid.bytes[2] = s->remote_ip[2];
+                pid.bytes[3] = s->remote_ip[3];
+                if (!porter_house_admit(&g_porter, VNAH_DOOR_PORT, &pid, 500u)) {
+                    g_bunker_bounces++;
+                    if (s->tcp_idx >= 0) h->l->net.tcp_conns[s->tcp_idx].state = TCPS_CLOSED;
+                    net_close(&h->l->net, ds);
+                    h->door_sock[i] = -1;
+                    continue;
+                }
+            }
             dc = vna_door_open(&h->door);
-            if (dc < 0) { /* all door conns busy: hang up on the extra peer */
+            if (dc < 0) {
+                if (s->tcp_idx >= 0) h->l->net.tcp_conns[s->tcp_idx].state = TCPS_CLOSED;
                 net_close(&h->l->net, ds);
                 h->door_sock[i] = -1;
                 continue;
@@ -2747,9 +3226,16 @@ void vna_host_pump(vna_host_t *h, uint64_t now)
             if (w > 0) h->door_tx_off[i] += (uint16_t) w;
         }
         if (h->door.conn[dc].state == VNA_DOOR_DONE || net_accept(&h->l->net, ds) < 0) {
-            net_close(&h->l->net, ds); /* FIN while established, frees when drained */
+            socket_t *s = &h->l->net.sockets[ds];
+            if (h->door.conn[dc].head_len == 0) g_bunker_bounces++;
+            net_close(&h->l->net, ds);
+            if (s->tcp_idx >= 0) {
+                h->l->net.tcp_conns[s->tcp_idx].state = TCPS_CLOSED;
+                net_close(&h->l->net, ds);
+            }
             vna_door_close(&h->door, (uint32_t) dc);
             h->door_slot[i] = -1;
+            h->door_sock[i] = -1;
             h->door_tx_len[i] = h->door_tx_off[i] = 0;
         }
     }

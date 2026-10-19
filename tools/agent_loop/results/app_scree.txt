@@ -1,0 +1,51 @@
+# app scree: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id scree
+matrix 219
+name Scree
+needs fs.read
+needs fs.write
+needs ai.ask
+needs screen.time
+
+provides share_x100 num part whole
+provides grade_band num value b1 b2 b3 b4
+provides difference num a b
+provides modular_draw num seed members step
+provides composite_key num high low
+provides running_state truth state event
+logic kron share_x100 <<
+0|_part
+.
+logic kron grade_band <<
+0|_value
+.
+logic trebago difference <<
+trebago difference
+  in  a b
+  out r
+  r = 0
+end
+.
+logic trebago modular_draw <<
+trebago modular_draw
+  in  seed members step
+  out r
+  r = 0
+end
+.
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+logic kron running_state <<
+0|_state
+.
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
+check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4
+check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
+check modular_draw seed=1,1,1,2 members=10,10,10,7 step=0,1,2,0 = 5,2,9,6
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+

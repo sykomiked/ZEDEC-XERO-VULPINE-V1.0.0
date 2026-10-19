@@ -32,7 +32,7 @@ static bool ff_form_alienable(uint8_t form)
  * double. Q32.32 is exactly raw / 2^32; reduce the power of two out. */
 static void ff_sr_to_rat(surplus_real_t v, int64_t *num, int64_t *den)
 {
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     int64_t n = (int64_t) (v * 4294967296.0);
 #else
     int64_t n = (int64_t) v;

@@ -80,12 +80,12 @@ typedef struct hw_swarm_want {
 } hw_swarm_want_t;
 
 /* Gateways the bucket can be fetched through, in the order to try them. */
-#define HW_GATEWAY_MAX 4
+#define HW_GATEWAY_MAX 16
 #define HW_GATEWAY_LEN 80
 
 /* Mesh seed peers (Vinea transport addresses: IPv4 + big-endian port, six
  * bytes) from "peer <ipv4> <port>" lines, in the order listed. */
-#define HW_PEER_MAX      9
+#define HW_PEER_MAX      16
 #define HW_PEER_ADDR_LEN 6
 
 /* What the kernel does to the network once swarm discs fetched over it are

@@ -1,0 +1,49 @@
+# app watershed: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id watershed
+matrix 221
+name Watershed
+needs ledger.read
+needs ledger.post
+needs peers
+needs net
+needs fs.read
+needs fs.write
+needs notify
+
+provides exact_total num n a b c d
+provides share_x100 num part whole
+provides limit_excess num value limit
+provides composite_key num high low
+provides running_state truth state event
+logic trebago exact_total <<
+trebago exact_total
+  in  n a b c d
+  out r
+  r = 0
+end
+.
+logic kron share_x100 <<
+0|_part
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+logic kron running_state <<
+0|_state
+.
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+

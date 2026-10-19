@@ -1,0 +1,20 @@
+# app den: FAILED
+# verdict: nothing loaded (no runtime for any entry)
+
+zxapp 1
+id den
+matrix 97
+name Den
+needs fs.read
+needs screen.time
+
+provides difference num a b
+logic trebago difference <<
+trebago difference
+  in  a b
+  out r
+  r = 0
+end
+.
+check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
+

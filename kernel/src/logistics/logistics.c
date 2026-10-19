@@ -55,7 +55,7 @@ static uint64_t log_muldiv(uint64_t a, uint64_t b, uint64_t d)
 /* amount * share / sum, for 0 <= share <= sum, sum > 0. */
 static surplus_real_t log_share(surplus_real_t amount, surplus_real_t share, surplus_real_t sum)
 {
-#ifdef TEST_HOST
+#if defined(TEST_HOST) && (defined(__x86_64__) || defined(__i386__))
     return amount * share / sum;
 #else
     uint64_t mag = (amount < 0) ? (uint64_t) 0 - (uint64_t) amount : (uint64_t) amount;
