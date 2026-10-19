@@ -100,7 +100,18 @@ dd if=/dev/zero of="$ESP" bs=1M count="$ESP_MB" status=none
 mformat -i "$ESP" -F -c 8 -N "${SERIAL#0x}" :: 2>/dev/null || die "mformat (FAT32) failed"
 mmd -i "$ESP" ::/EFI ::/EFI/BOOT 2>/dev/null || die "mmd failed"
 mcopy -i "$ESP" "$EFI_SRC" "::/EFI/BOOT/$EFI_DST" || die "mcopy EFI failed"
-mcopy -i "$ESP" "$ROM"    "::/MEGAROM.TVL"        || die "mcopy ROM failed"
+
+# The whole MegaROM array goes on the ESP — every world the installer can
+# configure — plus BOOTSEL.TVL sealing the default (user) world. Choosing a
+# different world at configuration means re-sealing with mk_megarom --select,
+# not a boot-time toggle.
+log "staging the MegaROM array + BOOTSEL.TVL on the ESP"
+"$OUTDIR/mk_megarom" --all "$OUTDIR" 2>&1 | sed 's/^/    /' \
+  || die "mk_megarom failed to author the world array"
+for w in MEGAROM.TVL MEGAROM-SERVER.TVL MEGAROM-USER.TVL MEGAROM-FOUNDRY.TVL; do
+  mcopy -i "$ESP" "$OUTDIR/$w" "::/$w" || die "mcopy $w failed"
+done
+mcopy -i "$ESP" "$OUTDIR/BOOTSEL.TVL" "::/BOOTSEL.TVL" || die "mcopy BOOTSEL failed"
 log "ESP contents:"
 mdir -i "$ESP" -/ :: 2>/dev/null | sed 's/^/    /'
 
@@ -116,6 +127,6 @@ rm -f "$ESP"
 
 log "DISC READY: $OUT ($(wc -c < "$OUT") bytes)"
 sgdisk -p "$OUT" 2>/dev/null | sed 's/^/    /'
-echo "  MegaROM on ESP: /MEGAROM.TVL ($ROM_BYTES bytes)"
+echo "  MegaROM array on ESP: MEGAROM.TVL / -SERVER / -USER / -FOUNDRY + BOOTSEL.TVL ($ROM_BYTES bytes boot cartridge)"
 echo "  EFI loader:     /EFI/BOOT/$EFI_DST"
 exit 0

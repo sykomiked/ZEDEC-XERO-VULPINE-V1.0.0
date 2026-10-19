@@ -708,6 +708,335 @@ static uint32_t build_probe(uint8_t *b, uint32_t cap){
     return cur;
 }
 
+/* ======================================================================== *
+ * THE WORLD ARRAY — one profile per machine, sealed at install.
+ *
+ * Every cartridge is authored by the SAME spec-driven builder: a table of
+ * holds (enterable places), gates (directed edges) and extra sections (the
+ * mechanic palette, the AI instruction set, streamed asset bodies, the
+ * orientation frame, capability bindings). The boot reference stays
+ * byte-for-byte build_probe(); the other profiles are distinct worlds —
+ * server (headless service holds), user (desktop with screen-plane holds)
+ * and foundry (the user world plus a workshop) — and all of them parse under
+ * the SAME validator, so one authoring derivation serves the whole array.
+ *
+ * The array is shipped whole on the installer image; BOOTSEL.TVL (see the
+ * selection record below) commits which one this machine boots.
+ * ======================================================================== */
+
+#define TVL_WORLD_HDR_CAP (TVL_HDR_SIZE + TVL_MAX_SECTIONS * TVL_SEC_SIZE + 1024u)
+
+typedef struct {
+    uint16_t x, y;        /* morton coordinates at the hoard level         */
+    uint8_t  role;        /* tri_role_t: S+ / S- / S0 (screen plane)       */
+    uint16_t section;     /* streamed body section, or TVL_NO_SECTION      */
+} tvl_hold_spec_t;
+
+typedef struct {
+    uint16_t from;
+    uint16_t to;
+    uint16_t cost;
+    uint8_t  visible_only;
+} tvl_gate_spec_t;
+
+typedef struct {
+    uint8_t  kind;        /* tvl_sec_kind_t                                */
+    uint8_t  form;        /* tvl_form_t                                    */
+    uint8_t  residency;   /* tvl_residency_t                               */
+    uint16_t channel;     /* dimfold_pack channel index                    */
+    uint32_t fill;        /* deterministic fill pattern seed               */
+    uint32_t len;         /* resident content length                       */
+} tvl_sec_spec_t;
+
+typedef struct {
+    uint32_t orient_root;
+    uint32_t hoard_level;
+    uint32_t chunk_log2;
+    const tvl_hold_spec_t *holds;
+    uint32_t hold_count;
+    const tvl_gate_spec_t *gates;
+    uint32_t gate_count;
+    const tvl_sec_spec_t  *secs;
+    uint32_t sec_count;
+} tvl_world_spec_t;
+
+/* Deterministic section content: a byte pattern seeded per section so the
+ * same spec always authors the same bytes (reproducible cartridges), with
+ * enough structure to exercise the codec's own length recovery. */
+static void fill_pattern(uint8_t *dst, uint32_t len, uint32_t seed){
+    uint32_t i;
+    for (i = 0; i < len; i++){
+        uint32_t v = (seed + i) * 0x9E3779B1u;      /* Knuth-ish mix, int only */
+        dst[i] = (uint8_t)((v >> 13) ^ (uint8_t)i);
+    }
+}
+
+/* Encode one section into the image: content first, then the directory
+ * entry, then the digest — in the same order build_probe() uses. RAW content
+ * is the deterministic pattern; FOLD/ELEV content runs through the real
+ * dimfold codec so the resident size is recovered from the container itself. */
+static uint32_t world_encode_sec(uint8_t *b, uint32_t cap, uint32_t cur,
+                                 const tvl_sec_spec_t *s, uint32_t idx){
+    uint8_t *e = sec_entry(b, idx);
+    uint8_t  raw[1024];
+    uint32_t stored, i;
+    int      n;
+
+    if (s->len > (uint32_t)sizeof raw) return 0u;   /* bounded, fail closed */
+    fill_pattern(raw, s->len, s->fill);
+
+    switch (s->form){
+    case TVL_FORM_RAW:
+        if (cur + s->len > cap) return 0u;
+        for (i = 0; i < s->len; i++) b[cur + i] = raw[i];
+        stored = s->len;
+        break;
+    case TVL_FORM_FOLD:
+        n = dimfold_compress(raw, (int)s->len, s_tmp, (int)sizeof s_tmp);
+        if (n <= 0) return 0u;
+        if (cur + (uint32_t)n > cap) return 0u;
+        for (i = 0; i < (uint32_t)n; i++) b[cur + i] = s_tmp[i];
+        stored = (uint32_t)n;
+        break;
+    case TVL_FORM_ELEV:
+        n = dimfold_elevate(raw, (int)s->len, s_tmp, (int)sizeof s_tmp);
+        if (n <= 0) return 0u;
+        if (cur + (uint32_t)n > cap) return 0u;
+        for (i = 0; i < (uint32_t)n; i++) b[cur + i] = s_tmp[i];
+        stored = (uint32_t)n;
+        break;
+    default:
+        return 0u;                                  /* PACK not authored here */
+    }
+
+    wr16(e + 0, s->kind); e[2] = s->form; e[3] = s->residency;
+    wr16(e + 4, s->channel); wr16(e + 6, 0u);
+    wr32(e + 8, cur); wr32(e + 12, stored);
+    return cur + stored;
+}
+
+/* Author one complete world image from a spec table. The WORLD section (the
+ * hoard) is built from the hold/gate tables; every other section is encoded
+ * by world_encode_sec. The image is sealed and left byte-exact; callers then
+ * prove it with tvl_rom_parse before trusting it. */
+static uint32_t build_world(uint8_t *b, uint32_t cap, const tvl_world_spec_t *w){
+    uint32_t cur, i, p;
+    uint32_t holds_bytes, gates_bytes, world_len;
+
+    if (!b || !w || w->hold_count == 0u || w->hold_count > TVL_MAX_HOLDS) return 0u;
+    if (w->gate_count > TVL_MAX_GATES) return 0u;
+    if (w->sec_count + 1u > TVL_MAX_SECTIONS) return 0u;
+    if (cap < TVL_WORLD_HDR_CAP) return 0u;
+
+    for (i = 0; i < cap; i++) b[i] = 0;
+
+    b[0]=TVL_MAGIC0; b[1]=TVL_MAGIC1; b[2]=TVL_MAGIC2; b[3]=TVL_MAGIC3;
+    wr16(b + 4, (uint16_t)TVL_VERSION);
+    wr16(b + 6, (uint16_t)TRI_POSITIVE);
+    wr32(b + 8, w->sec_count + 1u);
+    wr32(b + 12, w->orient_root);
+    wr32(b + 16, w->hoard_level);
+    wr32(b + 20, w->chunk_log2);
+
+    if (!mul32(w->hold_count, TVL_HOLD_SIZE, &holds_bytes)) return 0u;
+    if (!mul32(w->gate_count, TVL_GATE_SIZE, &gates_bytes)) return 0u;
+    if (!add32(TVL_HOARD_HDR, holds_bytes, &world_len)) return 0u;
+    if (!add32(world_len, gates_bytes, &world_len)) return 0u;
+
+    /* ---- section 0: WORLD, RAW, PERSISTENT (the hoard) ------------------ */
+    cur = TVL_HDR_SIZE + (w->sec_count + 1u) * TVL_SEC_SIZE;
+    {
+        uint8_t *wd = b + cur;
+        wd[0]=TVL_HOARD_MAGIC0; wd[1]=TVL_HOARD_MAGIC1;
+        wd[2]=TVL_HOARD_MAGIC2; wd[3]=TVL_HOARD_MAGIC3;
+        wr32(wd + 4, w->hold_count);
+        wr32(wd + 8, w->gate_count);
+        p = TVL_HOARD_HDR;
+        for (i = 0; i < w->hold_count; i++){
+            const tvl_hold_spec_t *h = &w->holds[i];
+            wr32(wd + p, zo_encode2(h->x, h->y));
+            wd[p+4] = (uint8_t)w->hoard_level;
+            wd[p+5] = h->role;
+            wr16(wd + p + 6, h->section);
+            p += TVL_HOLD_SIZE;
+        }
+        for (i = 0; i < w->gate_count; i++){
+            const tvl_gate_spec_t *g = &w->gates[i];
+            wr16(wd + p, g->from); wr16(wd + p + 2, g->to);
+            wr16(wd + p + 4, g->cost); wd[p+6] = g->visible_only; wd[p+7] = 0u;
+            p += TVL_GATE_SIZE;
+        }
+        if (p != world_len) return 0u;
+        {
+            uint8_t *e = sec_entry(b, 0);
+            wr16(e+0, (uint16_t)TVL_SEC_WORLD); e[2]=(uint8_t)TVL_FORM_RAW;
+            e[3]=(uint8_t)TVL_RES_PERSISTENT;   wr16(e+4,0u); wr16(e+6,0u);
+            wr32(e+8, cur); wr32(e+12, world_len);
+        }
+        cur += world_len;
+    }
+
+    /* ---- sections 1..N: the profile's content ---------------------------- */
+    for (i = 0; i < w->sec_count; i++){
+        uint32_t next = world_encode_sec(b, cap, cur, &w->secs[i], i + 1u);
+        if (next <= cur) return 0u;
+        cur = next;
+    }
+
+    reseal_all(b);
+    return cur;
+}
+
+/* ---- the profiles -------------------------------------------------------- */
+
+/* Server: headless. Service holds (mesh, ledger, storage, gateway, telemetry)
+ * form the ring; no screen-plane holds, no GUI bodies. The SUTRA is the AI
+ * instruction set (persistent, ELEV so the codec length is exercised). */
+static const tvl_hold_spec_t srv_holds[] = {
+    { 0, 0, (uint8_t)TRI_POSITIVE, TVL_NO_SECTION },   /* mesh               */
+    { 1, 0, (uint8_t)TRI_POSITIVE, TVL_NO_SECTION },   /* ledger             */
+    { 0, 1, (uint8_t)TRI_POSITIVE, TVL_NO_SECTION },   /* storage            */
+    { 1, 1, (uint8_t)TRI_POSITIVE, TVL_NO_SECTION },   /* gateway            */
+    { 2, 0, (uint8_t)TRI_NEGATIVE, TVL_NO_SECTION },   /* telemetry          */
+};
+static const tvl_gate_spec_t srv_gates[] = {
+    { 0, 1, 1, 0 }, { 1, 2, 1, 0 }, { 2, 3, 1, 0 }, { 3, 0, 1, 0 },
+    { 0, 4, 1, 0 }, { 4, 3, 1, 0 },
+};
+static const tvl_sec_spec_t srv_secs[] = {
+    { TVL_SEC_MECH,  TVL_FORM_RAW,  TVL_RES_PERSISTENT, 1, 0x1100u, 48u },
+    { TVL_SEC_SUTRA, TVL_FORM_ELEV, TVL_RES_PERSISTENT, 2, 0x2200u, 96u },
+    { TVL_SEC_BIND,  TVL_FORM_RAW,  TVL_RES_PERSISTENT, 3, 0x3300u, 32u },
+};
+
+/* User: the desktop world. Screen-plane holds (S0, visible-only gates) render
+ * as the GUI; application holds carry streamed asset bodies (sections 5, 6 —
+ * the STREAMED ASSET entries; PERSISTENT sections cannot be hold bodies). */
+static const tvl_hold_spec_t usr_holds[] = {
+    { 0, 0, (uint8_t)TRI_POSITIVE, 5u },              /* shell/app launcher  */
+    { 1, 0, (uint8_t)TRI_NEUTRAL,  TVL_NO_SECTION },   /* screen plane        */
+    { 0, 1, (uint8_t)TRI_POSITIVE, 6u },              /* browser             */
+    { 1, 1, (uint8_t)TRI_POSITIVE, TVL_NO_SECTION },   /* files               */
+    { 2, 0, (uint8_t)TRI_NEGATIVE, 6u },              /* media deck          */
+    { 2, 1, (uint8_t)TRI_NEUTRAL,  TVL_NO_SECTION },   /* second screen       */
+};
+static const tvl_gate_spec_t usr_gates[] = {
+    { 0, 1, 1, 1 }, { 0, 2, 1, 0 }, { 2, 1, 1, 1 }, { 0, 3, 1, 0 },
+    { 0, 4, 1, 0 }, { 4, 5, 1, 1 }, { 2, 4, 1, 0 },
+};
+static const tvl_sec_spec_t usr_secs[] = {
+    { TVL_SEC_MECH,  TVL_FORM_RAW,  TVL_RES_PERSISTENT, 1, 0x4400u, 64u },
+    { TVL_SEC_SUTRA, TVL_FORM_ELEV, TVL_RES_PERSISTENT, 2, 0x5500u, 128u },
+    { TVL_SEC_ORIENT,TVL_FORM_RAW,  TVL_RES_PERSISTENT, 3, 0x6600u, 48u },
+    { TVL_SEC_BIND,  TVL_FORM_RAW,  TVL_RES_PERSISTENT, 4, 0x7700u, 40u },
+    { TVL_SEC_ASSET, TVL_FORM_RAW,  TVL_RES_STREAMED,   5, 0x8800u, 96u },
+    { TVL_SEC_ASSET, TVL_FORM_FOLD, TVL_RES_STREAMED,   6, 0x9900u, 160u },
+};
+
+/* Foundry: the user world plus a workshop hold and a debug gate, so the dev
+ * machine boots a superset of the desktop. STREAMED sections 5, 6, 7 are the
+ * only legal hold bodies. */
+static const tvl_hold_spec_t fnd_holds[] = {
+    { 0, 0, (uint8_t)TRI_POSITIVE, 5u },
+    { 1, 0, (uint8_t)TRI_NEUTRAL,  TVL_NO_SECTION },
+    { 0, 1, (uint8_t)TRI_POSITIVE, 6u },
+    { 1, 1, (uint8_t)TRI_POSITIVE, TVL_NO_SECTION },
+    { 2, 0, (uint8_t)TRI_NEGATIVE, 6u },
+    { 2, 1, (uint8_t)TRI_NEUTRAL,  TVL_NO_SECTION },
+    { 3, 0, (uint8_t)TRI_POSITIVE, 7u },              /* workshop            */
+    { 3, 1, (uint8_t)TRI_NEGATIVE, TVL_NO_SECTION },   /* debug scope         */
+};
+static const tvl_gate_spec_t fnd_gates[] = {
+    { 0, 1, 1, 1 }, { 0, 2, 1, 0 }, { 2, 1, 1, 1 }, { 0, 3, 1, 0 },
+    { 0, 4, 1, 0 }, { 4, 5, 1, 1 }, { 2, 4, 1, 0 },
+    { 0, 6, 1, 0 }, { 6, 7, 1, 0 }, { 7, 0, 1, 0 },
+};
+static const tvl_sec_spec_t fnd_secs[] = {
+    { TVL_SEC_MECH,  TVL_FORM_RAW,  TVL_RES_PERSISTENT, 1, 0xAA00u, 64u },
+    { TVL_SEC_SUTRA, TVL_FORM_ELEV, TVL_RES_PERSISTENT, 2, 0xBB00u, 160u },
+    { TVL_SEC_ORIENT,TVL_FORM_RAW,  TVL_RES_PERSISTENT, 3, 0xCC00u, 48u },
+    { TVL_SEC_BIND,  TVL_FORM_RAW,  TVL_RES_PERSISTENT, 4, 0xDD00u, 48u },
+    { TVL_SEC_ASSET, TVL_FORM_RAW,  TVL_RES_STREAMED,   5, 0xEE00u, 96u },
+    { TVL_SEC_ASSET, TVL_FORM_FOLD, TVL_RES_STREAMED,   6, 0xFF00u, 160u },
+    { TVL_SEC_ASSET, TVL_FORM_RAW,  TVL_RES_STREAMED,   7, 0x1200u, 64u },
+};
+
+static const tvl_world_spec_t s_worlds[TVL_WORLD_COUNT] = {
+    [TVL_WORLD_BOOT] = { 0u, 0u, 0u, NULL, 0u, NULL, 0u, NULL, 0u },
+    [TVL_WORLD_SERVER]  = { 17u, 4u, 9u, srv_holds, 5u, srv_gates, 6u, srv_secs, 3u },
+    [TVL_WORLD_USER]    = { 17u, 4u, 9u, usr_holds, 6u, usr_gates, 7u, usr_secs, 6u },
+    [TVL_WORLD_FOUNDRY] = { 17u, 4u, 9u, fnd_holds, 8u, fnd_gates, 10u, fnd_secs, 7u },
+};
+
+TVL_KEEP uint32_t tvl_rom_build_world(uint32_t world, uint8_t *b, uint32_t cap){
+    if (!b || world >= TVL_WORLD_COUNT) return 0u;
+    if (world == TVL_WORLD_BOOT) return build_probe(b, cap);  /* byte-identical */
+    return build_world(b, cap, &s_worlds[world]);
+}
+
+TVL_KEEP const char *tvl_rom_world_name(uint32_t world){
+    static const char *const names[TVL_WORLD_COUNT] = {
+        "MEGAROM.TVL", "MEGAROM-SERVER.TVL", "MEGAROM-USER.TVL", "MEGAROM-FOUNDRY.TVL",
+    };
+    if (world >= TVL_WORLD_COUNT) return NULL;
+    return names[world];
+}
+
+/* ---- the selection seal -------------------------------------------------- */
+
+static void sel_seal(const uint8_t *b, uint8_t out[TVL_SEL_SEAL_LEN]){
+    uint8_t d[32];
+    sha256d_pair(b, TVL_SEL_HDR + TVL_DIGEST_LEN, NULL, 0u, d);
+    for (uint32_t i = 0; i < TVL_SEL_SEAL_LEN; i++) out[i] = d[i];
+}
+
+TVL_KEEP uint32_t tvl_sel_build(uint32_t world, const uint8_t *rom, uint32_t rom_len,
+                                uint8_t *b, uint32_t cap){
+    uint8_t d[32];
+    if (!b || !rom || world >= TVL_WORLD_COUNT || cap < TVL_SEL_SIZE) return 0u;
+    sha256(rom, rom_len, d);                       /* sha256d: one fold, 32 B */
+    b[0]=TVL_SEL_MAGIC0; b[1]=TVL_SEL_MAGIC1; b[2]=TVL_SEL_MAGIC2; b[3]=TVL_SEL_MAGIC3;
+    wr16(b + 4, (uint16_t)TVL_SEL_VERSION);
+    wr32(b + 6, world);
+    for (uint32_t i = 0; i < TVL_DIGEST_LEN; i++) b[TVL_SEL_HDR + i] = d[i];
+    sel_seal(b, b + TVL_SEL_HDR + TVL_DIGEST_LEN);
+    return TVL_SEL_SIZE;
+}
+
+TVL_KEEP tvl_error_t tvl_sel_parse(const uint8_t *img, uint32_t len, tvl_sel_t *out){
+    uint8_t calc[TVL_SEL_SEAL_LEN];
+    uint32_t world;
+    if (!out) return TVL_E_NULL;
+    out->valid = false;
+    if (!img || len != TVL_SEL_SIZE) return TVL_E_SHORT;
+    if (!(img[0]==TVL_SEL_MAGIC0 && img[1]==TVL_SEL_MAGIC1 &&
+          img[2]==TVL_SEL_MAGIC2 && img[3]==TVL_SEL_MAGIC3)) return TVL_E_MAGIC;
+    if (rd16(img + 4) != (uint16_t)TVL_SEL_VERSION) return TVL_E_VERSION;
+    world = rd32(img + 6);
+    if (world >= TVL_WORLD_COUNT) return TVL_E_FIELD;
+    sel_seal(img, calc);
+    for (uint32_t i = 0; i < TVL_SEL_SEAL_LEN; i++)
+        if (calc[i] != img[TVL_SEL_HDR + TVL_DIGEST_LEN + i]) return TVL_E_SEAL;
+    for (uint32_t i = 0; i < 4u; i++) out->magic[i] = img[i];
+    out->version = rd16(img + 4);
+    out->world_id = world;
+    for (uint32_t i = 0; i < TVL_DIGEST_LEN; i++)
+        out->rom_digest[i] = img[TVL_SEL_HDR + i];
+    for (uint32_t i = 0; i < TVL_SEL_SEAL_LEN; i++)
+        out->seal[i] = img[TVL_SEL_HDR + TVL_DIGEST_LEN + i];
+    out->valid = true;
+    return TVL_OK;
+}
+
+TVL_KEEP bool tvl_sel_admits(const tvl_sel_t *sel, const uint8_t *rom, uint32_t rom_len){
+    uint8_t d[32];
+    if (!sel || !sel->valid || !rom) return false;
+    sha256(rom, rom_len, d);
+    for (uint32_t i = 0; i < TVL_DIGEST_LEN; i++)
+        if (d[i] != sel->rom_digest[i]) return false;
+    return true;
+}
+
 static void probe_copy(void){
     for (uint32_t i = 0; i < s_probe_len; i++) s_work[i] = s_probe[i];
 }
@@ -779,6 +1108,8 @@ static void m_gdup   (uint8_t *b){
     wr16(g + 2u*TVL_GATE_SIZE + 2, rd16(g + 2));
     reseal_all(b);
 }
+
+static int world_array_selfcheck(void);   /* defined below selfcheck */
 
 TVL_KEEP int tvl_rom_selfcheck(void){
     /* STATIC, not a local: tvl_rom_register stores this pointer in g_active,
@@ -976,6 +1307,67 @@ TVL_KEEP int tvl_rom_selfcheck(void){
         g_active = 0;
     }
 
+    /* ---- 8. the world array + selection seal ---------------------------- */
+    if (!world_array_selfcheck()) ok = 0;
+
+    return ok;
+}
+
+/* ---- the world array self-check ------------------------------------------
+ * Every profile must author, parse and read back its own hoard; the boot
+ * profile must stay byte-identical to build_probe(); and the selection seal
+ * must admit exactly the ROM it commits — a tampered cartridge or a tampered
+ * selection is refused. This runs as part of tvl_rom_selfcheck() at boot. */
+static int world_array_selfcheck(void){
+    static uint8_t buf[TVL_WORLD_HDR_CAP];
+    static uint8_t boot1[TVL_WORLD_HDR_CAP], boot2[TVL_WORLD_HDR_CAP];
+    static uint8_t selbuf[TVL_SEL_SIZE];
+    tvl_rom_t r;
+    tvl_sel_t s;
+    tvl_error_t e;
+    uint32_t world, n, n2, sl;
+    int ok = 1;
+
+    /* Boot profile is byte-identical to the embedded reference cartridge. */
+    n = tvl_rom_build_boot(boot1, (uint32_t)sizeof boot1);
+    n2 = tvl_rom_build_world(TVL_WORLD_BOOT, boot2, (uint32_t)sizeof boot2);
+    if (n != n2 || n == 0u) return 0;
+    for (uint32_t i = 0; i < n; i++) if (boot1[i] != boot2[i]) ok = 0;
+
+    for (world = 0; world < TVL_WORLD_COUNT; world++){
+        n = tvl_rom_build_world(world, buf, (uint32_t)sizeof buf);
+        if (n == 0u){ ok = 0; continue; }
+        e = tvl_rom_parse(buf, n, (uint16_t)TRI_POSITIVE, &r);
+        if (e != TVL_OK || !r.valid || r.world_index != 0u){ ok = 0; continue; }
+        if (world == TVL_WORLD_SERVER){
+            if (r.hold_count != 5u || r.gate_count != 6u) ok = 0;
+        } else if (world == TVL_WORLD_USER){
+            if (r.hold_count != 6u || r.gate_count != 7u || r.section_count != 7u) ok = 0;
+        } else if (world == TVL_WORLD_FOUNDRY){
+            if (r.hold_count != 8u || r.gate_count != 10u || r.section_count != 8u) ok = 0;
+        }
+        /* every hold's body, when present, is a STREAMED section */
+        {
+            tvl_hold_t hd;
+            for (uint32_t i = 0; i < r.hold_count; i++){
+                if (!tvl_rom_hold(&r, i, &hd)){ ok = 0; break; }
+                if (hd.section != TVL_NO_SECTION &&
+                    r.sec[hd.section].residency != (uint8_t)TVL_RES_STREAMED) ok = 0;
+            }
+        }
+        /* seal each world against its own image and a tampered twin */
+        sl = tvl_sel_build(world, buf, n, selbuf, (uint32_t)sizeof selbuf);
+        if (sl != TVL_SEL_SIZE){ ok = 0; continue; }
+        if (tvl_sel_parse(selbuf, sl, &s) != TVL_OK || !s.valid ||
+            s.world_id != world) ok = 0;
+        if (!tvl_sel_admits(&s, buf, n)) ok = 0;
+        buf[n - 1] ^= 0x01u;                     /* tamper the cartridge */
+        if (tvl_sel_admits(&s, buf, n)) ok = 0;  /* must refuse           */
+        buf[n - 1] ^= 0x01u;                     /* restore               */
+        selbuf[7] ^= 0x01u;                      /* tamper the selection  */
+        if (tvl_sel_parse(selbuf, sl, &s) == TVL_OK || s.valid) ok = 0;
+        selbuf[7] ^= 0x01u;
+    }
     return ok;
 }
 

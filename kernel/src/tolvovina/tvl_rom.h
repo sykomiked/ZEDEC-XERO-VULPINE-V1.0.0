@@ -308,21 +308,82 @@ const tvl_rom_t *tvl_rom_active(void);
  * wrong-form WORLD section, and a malformed hoard. Returns 1 on pass. */
 int  tvl_rom_selfcheck(void);
 
-/* ---- the boot cartridge: the interface IS the MegaROM --------------------
+/* ---- the world array: one profile per machine, sealed at install ----------
  *
- * These two close stage-2's "the MegaROM container loads and registers at
- * boot" claim WITHOUT introducing a second, divergent authoring format. Both
- * the on-disc MEGAROM.TVL file (emitted by the host tool build_system/
- * mk_megarom.c, which links THIS file and calls tvl_rom_build_boot) and the
- * blob the kernel registers at boot are produced by the SAME build_probe()
- * code, so the file staged on the ESP is byte-for-byte the image the kernel
- * validates — one derivation, two carriers, never a promise the loader can't
- * check. */
+ * The installer image carries the WHOLE array of MegaROMs — every profile a
+ * machine might be configured as. Choosing "which one you need" happens once,
+ * at configuration: the installer writes a BOOTSEL.TVL record that commits
+ * the chosen world's image digest. The loader then refuses ANY cartridge
+ * whose digest differs from the committed one, so a machine cannot casually
+ * flip between server and desktop worlds by renaming a file — re-selecting
+ * means re-sealing, which is the installer's act, not a boot-time toggle.
+ *
+ * The existing build_probe() stays byte-identical as TVL_WORLD_BOOT (the
+ * embedded reference cartridge). The other profiles are authored by the same
+ * spec-driven builder below, so every cartridge in the array shares one
+ * derivation and the same fail-closed validator. */
+
+typedef enum {
+    TVL_WORLD_BOOT    = 0,  /* the canonical embedded reference cartridge    */
+    TVL_WORLD_SERVER  = 1,  /* headless: mesh/ledger/storage/gateway holds   */
+    TVL_WORLD_USER    = 2,  /* desktop: GUI world with screen-plane holds    */
+    TVL_WORLD_FOUNDRY = 3,  /* dev toolchain: user world + workshop holds    */
+    TVL_WORLD_COUNT
+} tvl_world_id_t;
+
+/* Author the named world profile into `b` (>= TVL_HDR_SIZE + 32*TVL_SEC_SIZE
+ * + 1024 to be safe; the largest profile is well under that). Returns its
+ * length, or 0 if `cap` is too small or the profile is unknown. TVL_WORLD_BOOT
+ * returns byte-for-byte what tvl_rom_build_boot() returns. */
+uint32_t tvl_rom_build_world(uint32_t world, uint8_t *b, uint32_t cap);
+
+/* The stable cartridge file name for a profile ("MEGAROM-SERVER.TVL" etc.);
+ * NULL for an unknown id. */
+const char *tvl_rom_world_name(uint32_t world);
+
+/* ---- the selection seal (BOOTSEL.TVL) ------------------------------------ */
+
+#define TVL_SEL_MAGIC0 'B'
+#define TVL_SEL_MAGIC1 'S'
+#define TVL_SEL_MAGIC2 'E'
+#define TVL_SEL_MAGIC3 'L'
+#define TVL_SEL_VERSION 1u
+#define TVL_SEL_HDR     12u   /* magic | version | world_id                  */
+#define TVL_SEL_SEAL_LEN 4u
+#define TVL_SEL_SIZE    (TVL_SEL_HDR + TVL_DIGEST_LEN + TVL_SEL_SEAL_LEN)
+
+/* A committed selection: which world this machine boots, bound to that
+ * cartridge image's SHA-256d so the loader can refuse a swapped cartridge.
+ * The seal is the first 4 bytes of SHA-256d over bytes 0..(size-5); a
+ * tampered world_id or digest fails the seal before any digest comparison. */
+typedef struct {
+    uint8_t  magic[4];
+    uint16_t version;
+    uint32_t world_id;
+    uint8_t  rom_digest[TVL_DIGEST_LEN];
+    uint8_t  seal[TVL_SEL_SEAL_LEN];
+    bool     valid;
+} tvl_sel_t;
+
+/* Build a selection record committing `world` + the image digest of the
+ * `rom_len` bytes at `rom`. Returns the record length (TVL_SEL_SIZE) or 0 on
+ * a null/too-small buffer or an unknown world id. */
+uint32_t tvl_sel_build(uint32_t world, const uint8_t *rom, uint32_t rom_len,
+                       uint8_t *b, uint32_t cap);
+
+/* Parse + fully validate a BOOTSEL.TVL record (magic, version, world range,
+ * seal). Fail-closed: out->valid stays false unless every check passed. */
+tvl_error_t tvl_sel_parse(const uint8_t *img, uint32_t len, tvl_sel_t *out);
+
+/* Does this ROM satisfy the committed selection? Requires a VALID selection
+ * and a byte-exact SHA-256d match against the record's rom_digest — the only
+ * cartridge the loader may run. */
+bool tvl_sel_admits(const tvl_sel_t *sel, const uint8_t *rom, uint32_t rom_len);
 
 /* Author the canonical boot MegaROM image into `b` (>= a few hundred bytes;
  * pass TVL_HDR_SIZE + 32*TVL_SEC_SIZE + 512 to be safe). Returns its length,
  * or 0 if `cap` is too small. It is exactly what tvl_rom_parse accepts and is
- * identical on host and target. */
+ * identical on host and target. Same bytes as tvl_rom_build_world(TVL_WORLD_BOOT). */
 uint32_t tvl_rom_build_boot(uint8_t *b, uint32_t cap);
 
 /* Build the boot MegaROM into static storage, validate it, and register it in
