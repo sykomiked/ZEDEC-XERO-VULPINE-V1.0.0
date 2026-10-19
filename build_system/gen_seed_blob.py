@@ -42,18 +42,49 @@ def upstream_cid(path: pathlib.Path) -> bytes:
     raise SystemExit(f"{path}: no 'cid <v>' line")
 
 
+def sign_seed(seed_digest: bytes, key_path: str) -> tuple[bytes, bytes]:
+    """Ed25519 root seal (the rollback invariant): sign the 32-byte seed
+    digest with the owner's Ed25519 key via openssl. Returns (pubkey, sig),
+    each 32/64 bytes, or (zeros, zeros) when no key is given (unsigned seed).
+    Signing is deterministic, so a fixed key keeps the build reproducible."""
+    import subprocess
+    if not key_path:
+        return b"\0" * 32, b"\0" * 64
+    try:
+        pub = subprocess.run(
+            ["openssl", "pkey", "-in", key_path, "-pubout", "-outform", "DER"],
+            check=True, capture_output=True).stdout[-32:]
+        sig = subprocess.run(
+            ["openssl", "pkeyutl", "-sign", "-rawin", "-inkey", key_path,
+             "-in", "/dev/stdin"],
+            input=seed_digest, check=True, capture_output=True).stdout
+        if len(pub) != 32 or len(sig) != 64:
+            raise SystemExit(f"{key_path}: openssl produced pub={len(pub)} sig={len(sig)}")
+        return pub, sig
+    except FileNotFoundError:
+        raise SystemExit("openssl is required to seal the seed (or omit --sign for an unsigned seed)")
+
+
 def main() -> int:
-    if len(sys.argv) not in (4, 5):
-        sys.stderr.write("usage: gen_seed_blob.py <upstream.cid> <curriculum.car> [prev_seed.bin] <out.h>\n")
+    if len(sys.argv) not in (4, 5, 6, 7):
+        sys.stderr.write("usage: gen_seed_blob.py <upstream.cid> <curriculum.car> [prev_seed.bin] [--sign key.pem] <out.h>\n")
         return 2
-    if len(sys.argv) == 4:
-        upstream_path, car_path, out_path = map(pathlib.Path, sys.argv[1:])
+    args = sys.argv[1:]
+    key_path = None
+    if "--sign" in args:
+        i = args.index("--sign")
+        key_path = args[i + 1]
+        del args[i:i + 2]
+    if len(args) == 3:
+        upstream_path, car_path, out_path = map(pathlib.Path, args)
         prev = b"\0" * 32
-    else:
-        upstream_path, car_path, prev_path, out_path = map(pathlib.Path, sys.argv[1:])
+    elif len(args) == 4:
+        upstream_path, car_path, prev_path, out_path = map(pathlib.Path, args)
         prev = prev_path.read_bytes()
         if len(prev) != 32:
             raise SystemExit(f"{prev_path}: expected 32 bytes, got {len(prev)}")
+    else:
+        raise SystemExit("usage: gen_seed_blob.py <upstream.cid> <curriculum.car> [prev_seed.bin] [--sign key.pem] <out.h>")
     cid = upstream_cid(upstream_path)
     if len(cid) > 63:
         raise SystemExit(f"{upstream_path}: the CID is {len(cid)} bytes; the seed holds up to 63")
@@ -61,6 +92,7 @@ def main() -> int:
     cur_digest = hashlib.sha256(car).digest()
     _, _, _, _, lattice_digest = lattice_build()
     seed_digest = hashlib.sha256(cid + cur_digest + lattice_digest + prev).digest()
+    owner_pub, owner_sig = sign_seed(seed_digest, key_path)
 
     lines = [
         "/* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */",
@@ -79,13 +111,15 @@ def main() -> int:
     ]
 
     def digest_arr(name, d):
-        lines.append(f"static const uint8_t {name}[32] = {{")
+        lines.append(f"static const uint8_t {name}[{len(d)}] = {{")
         lines.append("    " + ", ".join("0x%02x" % b for b in d) + ",")
         lines.append("};")
 
     digest_arr("zxv_seed_cur_digest", cur_digest)
     digest_arr("zxv_seed_lattice_digest", lattice_digest)
     digest_arr("zxv_seed_prev_digest", prev)
+    digest_arr("zxv_seed_owner_pub", owner_pub)
+    digest_arr("zxv_seed_sig", owner_sig)
     digest_arr("zxv_seed_digest", seed_digest)
     lines.append("#endif /* ZXV_SEED_BLOB_H */")
 

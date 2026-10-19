@@ -78,7 +78,7 @@ else ifeq ($(ARCH),riscv32)
   EXTRA_DEFS := -include kernel/include/io.h
   CC        := clang --target=riscv32-unknown-elf
   OBJCOPY   := llvm-objcopy
-  ARCHFLAGS := -std=gnu11 -march=rv32i -mabi=ilp32
+  ARCHFLAGS := -std=gnu11 -march=rv32imac -mabi=ilp32
   ARCHINC   := -Ikernel/arch/riscv
   LINKSCRIPT := kernel/arch/riscv/linker.ld
   ARCH_ASM_SRCS := kernel/arch/riscv/boot_rv32.s

@@ -7,6 +7,7 @@
 #define ZXV_SCP144_EMBED_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 /* Recompute the embedded lattice tables, the 144x144 fold matrix and the
  * digest, run the improved SCP-144 live checks (Cassini identities, the
@@ -15,5 +16,10 @@
  * every check passes; `out` receives one "[SCP144_OK] ..." or
  * "[FAULT] ..." line. */
 bool scp144_boot_selfcheck(void (*out)(const char *));
+
+/* The holographic healing self-audit: re-project the canonical SCP-144
+ * tables into `shadow` and return the number of bytes that differ from the
+ * .rodata ROM (0 = intact; UINT32_MAX = buffer too small). See scp144_embed.c. */
+uint32_t scp144_heal_audit(uint8_t *shadow, uint32_t cap);
 
 #endif /* ZXV_SCP144_EMBED_H */

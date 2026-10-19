@@ -62,6 +62,7 @@ ZXV_COMMON_SRCS := \
     kernel/src/axiom_matrix/axiom_matrix_core.c \
     kernel/src/e8/zphi.c \
     kernel/src/e8/e8.c \
+    kernel/src/e8/fib_lattice.c \
     kernel/src/mixmat/mixmat.c \
     kernel/src/modbind/modbind.c \
     kernel/src/modbind/zxv_decl_gate.c \

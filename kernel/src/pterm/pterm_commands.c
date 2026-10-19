@@ -218,6 +218,15 @@ void pterm_cmd_date(pterm_t *t) {
  * emulated core's next matching bus read returns the replacement. */
 #include "../emu/m5_genie.h"
 
+static int genie_str_eq(const char *a, const char *b)
+{
+    while (*a && *a == *b) {
+        a++;
+        b++;
+    }
+    return *a == *b;
+}
+
 static void pterm_genie_u32(char *buf, uint32_t v)
 {
     char d[10];
@@ -237,12 +246,12 @@ void pterm_cmd_genie(pterm_t *t, const char *sub, const char *arg)
         pterm_write_attr(t, "usage: genie list | genie enter <code> | genie clear\n", PTERM_ATTR_YELLOW);
         return;
     }
-    if (pterm_strcmp(sub, "clear") == 0) {
+    if (genie_str_eq(sub, "clear") == 0) {
         genie_clear();
         pterm_write_attr(t, "genie: interception table cleared\n", PTERM_ATTR_GREEN);
         return;
     }
-    if (pterm_strcmp(sub, "list") == 0) {
+    if (genie_str_eq(sub, "list") == 0) {
         uint32_t n = genie_count();
         pterm_write_attr(t, "genie: active interception vectors\n", PTERM_ATTR_BRIGHT);
         for (uint32_t i = 0; i < n; i++) {
@@ -273,7 +282,7 @@ void pterm_cmd_genie(pterm_t *t, const char *sub, const char *arg)
         if (n == 0) pterm_write(t, "  (empty)\n");
         return;
     }
-    if (pterm_strcmp(sub, "enter") == 0 && arg) {
+    if (genie_str_eq(sub, "enter") == 0 && arg) {
         zxv_genie_patch_t p;
         if (genie_decode_code(arg, &p) != 0) {
             pterm_write_attr(t, "genie: a code is three dash-separated words, e.g. ZXV-LATT-144X\n",

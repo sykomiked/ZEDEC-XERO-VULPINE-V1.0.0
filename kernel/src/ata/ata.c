@@ -25,34 +25,10 @@
  * dependency either -- hence no irq_ctrl_ready.
  */
 
-#if defined(__x86_64__) || defined(__i386__) || defined(__i686__)
-static inline void outb(uint16_t port, uint8_t val) {
-    __asm__ __volatile__("outb %0, %1" : : "a"(val), "Nd"(port));
-}
-static inline uint8_t inb(uint16_t port) {
-    uint8_t ret;
-    __asm__ __volatile__("inb %1, %0" : "=a"(ret) : "Nd"(port));
-    return ret;
-}
-static inline void outw(uint16_t port, uint16_t val) {
-    __asm__ __volatile__("outw %0, %1" : : "a"(val), "Nd"(port));
-}
-static inline uint16_t inw(uint16_t port) {
-    uint16_t ret;
-    __asm__ __volatile__("inw %1, %0" : "=a"(ret) : "Nd"(port));
-    return ret;
-}
-
-#else
-/* ATA polled PIO is x86 port I/O; on every other substrate the driver is
- * inert (the devices attach through MMIO virtio/vmx3 paths instead), and
- * the host tests use the same stubs. Reads return 0xFF/0xFFFF so a probe
- * fails cleanly rather than hanging on a phantom disk. */
-static inline void outb(uint16_t port, uint8_t val) { (void)port; (void)val; }
-static inline uint8_t inb(uint16_t port) { (void)port; return 0xFF; }
-static inline void outw(uint16_t port, uint16_t val) { (void)port; (void)val; }
-static inline uint16_t inw(uint16_t port) { (void)port; return 0xFFFF; }
-#endif
+/* The polled-PIO port helpers come from the architecture's io.h (real
+ * x86 port I/O; inert 0xFF/0xFFFF stubs on every other substrate, so a
+ * probe fails cleanly rather than hanging on a phantom disk). */
+#include "io.h"
 #define ATA_SR_BSY          0x80
 #define ATA_SR_DF           0x20
 #define ATA_SR_DRQ          0x08

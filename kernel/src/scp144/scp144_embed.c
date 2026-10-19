@@ -24,6 +24,8 @@
 #include "zxv_scp144_blob.h"
 #include "zxv_seed_blob.h"
 #include "../robin_debanks/sha256.h"
+#include "../robin_debanks/ed25519_verify.h"
+#include "../e8/fib_lattice.h"
 #include <stdint.h>
 #include <stddef.h>
 
@@ -182,7 +184,79 @@ static int check_seed(void)
     sha256_update(&c, zxv_seed_prev_digest, 32);
     sha256_final(&c, got);
     if (!bytes_eq(got, zxv_seed_digest, 32)) return 62;
+    /* the root seal (the rollback invariant): when a signature is present,
+     * the seed digest must be signed by the owner's Ed25519 key, so no
+     * recursive derivation of the seed can be tainted by an unauthorized
+     * write. An all-zero signature is an explicitly unsigned seed. */
+    {
+        uint32_t nonzero = 0;
+        for (uint32_t i = 0; i < 64; i++)
+            if (zxv_seed_sig[i]) {
+                nonzero = 1;
+                break;
+            }
+        if (nonzero && !ed25519_verify(zxv_seed_digest, 32, zxv_seed_sig, zxv_seed_owner_pub))
+            return 63;
+    }
     return 0;
+}
+
+/* The holographic healing self-audit: re-project the canonical SCP-144
+ * tables (the Fibonacci ladder, the Cassini determinants and the Zeckendorf
+ * masks and energies) into `shadow` as their little-endian serialization,
+ * and report how many bytes differ from the .rodata ROM. Zero means the
+ * ROM is intact; otherwise the caller has a clean re-derived shadow that
+ * can regenerate the 144x144 matrix (healing from the seed's invariants).
+ * Returns UINT32_MAX when the buffer is too small. */
+uint32_t scp144_heal_audit(uint8_t *shadow, uint32_t cap)
+{
+    uint32_t need = sizeof scp144_blob_fib + sizeof scp144_blob_fib_ext +
+                    sizeof scp144_blob_cassini + sizeof scp144_blob_zeck_mask +
+                    sizeof scp144_blob_zeck_energy;
+    uint32_t o = 0, bad = 0;
+    const uint8_t *rf = (const uint8_t *) scp144_blob_fib;
+    const uint8_t *rfe = (const uint8_t *) scp144_blob_fib_ext;
+    const uint8_t *rc = (const uint8_t *) scp144_blob_cassini;
+    const uint8_t *rm = (const uint8_t *) scp144_blob_zeck_mask;
+    const uint8_t *re = (const uint8_t *) scp144_blob_zeck_energy;
+    if (!shadow || cap < need) return UINT32_MAX;
+    recompute_ladder();
+    for (uint32_t i = 0; i < SCP144_BLOB_FIB_N; i++) {
+        shadow[o] = (uint8_t) (fib[i] & 0xFFu);
+        shadow[o + 1u] = (uint8_t) (fib[i] >> 8);
+        bad += (shadow[o] != rf[2u * i]) + (shadow[o + 1u] != rf[2u * i + 1u]);
+        o += 2u;
+    }
+    for (uint32_t i = 0; i < SCP144_BLOB_FIB_N + 2u; i++) {
+        shadow[o] = (uint8_t) (fib_ext[i] & 0xFFu);
+        shadow[o + 1u] = (uint8_t) (fib_ext[i] >> 8);
+        bad += (shadow[o] != rfe[2u * i]) + (shadow[o + 1u] != rfe[2u * i + 1u]);
+        o += 2u;
+    }
+    for (uint32_t k = 0; k < 12u; k++) {
+        int32_t det = (int32_t) fib_ext[k + 2u] * (int32_t) fib_ext[k] -
+                      (int32_t) fib_ext[k + 1u] * (int32_t) fib_ext[k + 1u];
+        uint32_t u = (uint32_t) det;
+        for (uint32_t b = 0; b < 4u; b++) {
+            shadow[o + b] = (uint8_t) (u >> (b * 8u));
+            bad += shadow[o + b] != rc[4u * k + b];
+        }
+        o += 4u;
+    }
+    for (uint32_t v = 0; v < SCP144_BLOB_ZECK_N; v++) {
+        uint32_t e = 0;
+        uint16_t m = scp144_zeckendorf_mode(v, &e);
+        shadow[o] = (uint8_t) (m & 0xFFu);
+        shadow[o + 1u] = (uint8_t) (m >> 8);
+        bad += (shadow[o] != rm[2u * v]) + (shadow[o + 1u] != rm[2u * v + 1u]);
+        o += 2u;
+        for (uint32_t b = 0; b < 4u; b++) {
+            shadow[o + b] = (uint8_t) (e >> (b * 8u));
+            bad += shadow[o + b] != re[4u * v + b];
+        }
+        o += 4u;
+    }
+    return bad;
 }
 
 static char *put_str(char *p, const char *s)
@@ -213,6 +287,16 @@ bool scp144_boot_selfcheck(void (*out)(const char *))
     if ((fail_step = check_digest()) != 0) goto fault;
     if ((fail_step = check_live()) != 0) goto fault;
     if ((fail_step = check_seed()) != 0) goto fault;
+    /* 7. the Fibonacci lattice ladder (fib_lattice.c): the two Type-II
+     * anchors F6 = 8 and F12 = 144, the 144 harmonic and the enumerated
+     * kissing numbers. The digest line then covers both ROMs. */
+    {
+        int fl = fib_lattice_selfcheck();
+        if (fl != 0) {
+            fail_step = 70 + fl;
+            goto fault;
+        }
+    }
     p = line;
     p = put_str(p, "[SCP144_OK] 144D lattice + tunnel + seed selfcheck ");
     p = put_hex8(p, scp144_blob_digest);

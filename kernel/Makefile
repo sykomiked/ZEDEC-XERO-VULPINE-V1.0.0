@@ -2185,6 +2185,11 @@ endif
 .PHONY: test-scp144
 test-scp144:
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/lpres -Isrc/event_space -Isrc/surplus -Isrc/modbind -Isrc -Iinclude src/scp144/test_scp144.c src/scp144/scp144.c src/tls/aead.c src/mlkem/keccak.c -o /tmp/test_scp144 && /tmp/test_scp144 > /tmp/test_scp144.log 2>&1 && echo "[PASS] test_scp144" || { tail -40 /tmp/test_scp144.log; echo "[FAIL] test_scp144"; exit 1; }
+	@G=$${ZXV_TMP:-/tmp}/scp144_embed_gen; rm -rf $$G; mkdir -p $$G; \
+	python3 ../build_system/gen_scp144_blob.py $$G/zxv_scp144_blob.h; \
+	python3 ../build_system/gen_seed_blob.py ../build_system/zxv_upstream.cid /dev/null $$G/zxv_seed_blob.h; \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/e8 src/e8/test_fib_lattice.c src/e8/fib_lattice.c -o /tmp/test_fib_lattice && /tmp/test_fib_lattice && echo "[PASS] test_fib_lattice"; \
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wno-deprecated-declarations -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -I$$G -Isrc/scp144 -Isrc/tls -Isrc/mlkem -Isrc/robin_debanks -Iinclude -Isrc/modbind src/scp144/test_scp144_embed.c src/scp144/scp144.c src/scp144/scp144_embed.c src/e8/fib_lattice.c src/tls/aead.c src/mlkem/keccak.c src/robin_debanks/sha256.c -o /tmp/test_scp144_embed && /tmp/test_scp144_embed > /tmp/test_scp144_embed.log 2>&1 && echo "[PASS] test_scp144_embed" || { tail -20 /tmp/test_scp144_embed.log; echo "[FAIL] test_scp144_embed"; exit 1; }
 
 # The libzxv facade (src/engine/zxv_engine.h): compress, route, decompress.
 .PHONY: test-vinea
