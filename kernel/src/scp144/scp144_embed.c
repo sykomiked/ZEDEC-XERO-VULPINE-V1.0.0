@@ -15,12 +15,18 @@
  *      bijective AC tunnel contract->expand round trip, the lattice binding's
  *      determinism, and the cavity clock's invariants;
  *   6. the fractal seed chain (zxv_seed_blob.h) — the seed digest commits the
- *      release root, the curriculum, the lattice ROM and the previous seed.
+ *      release root, the curriculum, the lattice ROM and the previous seed;
+ *   7. the stage-0 unfold (zxv_grow.c): the seed is grown ring by ring into
+ *      a bounded arena — each rung emitting its Cassini determinant, the new
+ *      Zeckendorf modes and the matrix shell the dimension jump adds — and
+ *      the transcript must land on the committed zxv_seed_grow_root, the
+ *      plant this release was built from.
  *
  * Every check must pass; a failure prints one [FAULT] line and the caller
  * halts before [BOOT_OK]. Freestanding: no libc, no allocation, no floats. */
 #include "scp144_embed.h"
 #include "scp144.h"
+#include "zxv_grow.h"
 #include "zxv_scp144_blob.h"
 #include "zxv_seed_blob.h"
 #include "../robin_debanks/sha256.h"
@@ -259,6 +265,25 @@ uint32_t scp144_heal_audit(uint8_t *shadow, uint32_t cap)
     return bad;
 }
 
+/* The stage-0 unfold: grow the seed's twelve rings into a bounded static
+ * arena (the whole plant is 166,824 bytes of canonical geometry) and land
+ * on the committed grow root — the ELF proves it carries the rules, not
+ * just the fruit. rom_diff != 0 means the ROM rotted but the plant still
+ * grew true (the heal audit reports the same rot). */
+static int check_grow(void)
+{
+    static uint8_t arena[ZXV_SEED_GROW_BYTES];
+    zxv_grow_t st;
+    int rings;
+    if (zxv_grow_bytes(ZXV_GROW_RUNGS) != ZXV_SEED_GROW_BYTES) return 81;
+    rings = zxv_grow(&st, arena, sizeof arena, ZXV_GROW_RUNGS);
+    if (rings != (int) ZXV_GROW_RUNGS || st.fault != ZXV_GROW_OK) return 82;
+    if (st.written != ZXV_SEED_GROW_BYTES) return 83;
+    if (st.rom_diff != 0) return 84;
+    if (!bytes_eq(st.root, zxv_seed_grow_root, 32)) return 85;
+    return 0;
+}
+
 static char *put_str(char *p, const char *s)
 {
     while (*s) *p++ = *s++;
@@ -297,6 +322,7 @@ bool scp144_boot_selfcheck(void (*out)(const char *))
             goto fault;
         }
     }
+    if ((fail_step = check_grow()) != 0) goto fault;
     p = line;
     p = put_str(p, "[SCP144_OK] 144D lattice + tunnel + seed selfcheck ");
     p = put_hex8(p, scp144_blob_digest);

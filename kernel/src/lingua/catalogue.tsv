@@ -43,7 +43,7 @@
 1976	S	statistics	catalogue	-	-
 1976	SAS	statistics	catalogue	-	-
 1977	Icon	string	catalogue	-	-
-1977	AWK	text	next3	-	-
+1977	AWK	text	run	Fielddrake	kernel/src/lingua/zl_awk.c
 1977	Bourne shell	shell	catalogue	-	-
 1978	Modula-2	algol	run	Moduledrake	kernel/src/lingua/zl_pascal.c (a Wirth-family dialect)
 1978	TeX	typesetting	catalogue	-	-

@@ -65,6 +65,37 @@ def sign_seed(seed_digest: bytes, key_path: str) -> tuple[bytes, bytes]:
         raise SystemExit("openssl is required to seal the seed (or omit --sign for an unsigned seed)")
 
 
+def grow_root() -> tuple[bytes, int]:
+    """The stage-0 unfold's transcript root — mirrors kernel/src/scp144/
+    zxv_grow.c byte-for-byte. Ring k emits the rung's dimension (LE16) and
+    Cassini determinant (LE32), the Zeckendorf modes of the new coordinates
+    (LE16 mask + LE32 energy for v in [F_{k-1}, F_k)), and the shell of
+    matrix cells the dimension jump adds ((i,j) in [0,F_k)^2 outside
+    [0,F_{k-1})^2, LE64, row-major). The twelve rings partition the whole
+    144-dimensional geometry exactly once — the plant's rings. Returns
+    (sha256 transcript root, total grown bytes)."""
+    import struct as _s
+    from gen_scp144_blob import FIB
+    cassini, masks, energies, matrix, _ = lattice_build()
+    h = hashlib.sha256()
+    prev = 0
+    total = 0
+    for r, dim in enumerate(FIB):
+        h.update(_s.pack("<H", dim))
+        h.update(_s.pack("<i", cassini[r]))
+        for v in range(prev, dim):
+            h.update(_s.pack("<H", masks[v]))
+            h.update(_s.pack("<I", energies[v]))
+        for i in range(dim):
+            for j in range(dim):
+                if i < prev and j < prev:
+                    continue
+                h.update(_s.pack("<q", matrix[i][j]))
+        total += 6 + 6 * (dim - prev) + 8 * (dim * dim - prev * prev)
+        prev = dim
+    return h.digest(), total
+
+
 def main() -> int:
     if len(sys.argv) not in (4, 5, 6, 7):
         sys.stderr.write("usage: gen_seed_blob.py <upstream.cid> <curriculum.car> [prev_seed.bin] [--sign key.pem] <out.h>\n")
@@ -93,6 +124,7 @@ def main() -> int:
     _, _, _, _, lattice_digest = lattice_build()
     seed_digest = hashlib.sha256(cid + cur_digest + lattice_digest + prev).digest()
     owner_pub, owner_sig = sign_seed(seed_digest, key_path)
+    grow, grown = grow_root()
 
     lines = [
         "/* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */",
@@ -121,6 +153,11 @@ def main() -> int:
     digest_arr("zxv_seed_owner_pub", owner_pub)
     digest_arr("zxv_seed_sig", owner_sig)
     digest_arr("zxv_seed_digest", seed_digest)
+    # The committed growth transcript: the kernel unfolds the seed ring by
+    # ring (zxv_grow.c) and must land on this root, or the grown plant is
+    # not the plant this release was built from and boot fails closed.
+    digest_arr("zxv_seed_grow_root", grow)
+    lines.append(f"#define ZXV_SEED_GROW_BYTES {grown}u")
     lines.append("#endif /* ZXV_SEED_BLOB_H */")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)

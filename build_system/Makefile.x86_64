@@ -345,6 +345,7 @@ SRCS := \
     kernel/arch/x86_64/vna_host.c \
     kernel/src/scp144/scp144.c \
     kernel/src/scp144/scp144_embed.c \
+    kernel/src/scp144/zxv_grow.c \
     kernel/src/entropy/entropy_jitter.c \
     kernel/src/vinea/vna_agree.c \
     kernel/src/vinea/vna_cid.c \
