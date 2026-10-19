@@ -17,7 +17,7 @@
  *     payload_length   EXACT byte length of the canonical record
  *     integrity_ref    first 3 bytes of SHA3-256(record): a framing check only,
  *                      never a security claim — security comes from the
- *                      ML-DSA-65 signature over the full 256-bit-hashed bytes.
+ *                      ML-DSA-87 signature over the full 256-bit-hashed bytes.
  * Unwrapping fails closed on: bad header, wrong class for the schema, length
  * that does not match the frame count, non-zero padding, integrity mismatch.
  *

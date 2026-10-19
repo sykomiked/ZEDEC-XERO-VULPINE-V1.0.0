@@ -218,7 +218,7 @@ static void test_acpi_structures(void)
     printf("=== ACPI Structure Tests ===\n");
     assert(sizeof(acpi_header_t) > 0);
     assert(sizeof(acpi_madt_t) > 0);
-    assert(ACPI_MAX_TABLES == 16);
+    assert(ACPI_MAX_TABLES == 64); /* room for the many SSDTs laptops ship */
 
     acpi_state_t state;
     memset(&state, 0, sizeof(state));
@@ -285,7 +285,18 @@ static void test_m5_router(void)
     assert(M5_PROTO_DTMF == 10);
     assert(M5_PROTO_QUANTUM == 14);
     assert(M5_PROTO_NEUTRINO == 15);
-    printf("  [PASS] 20 protocol types defined\n");
+    /* Extended slots (merged from the deleted tests/test_net_vino.c). */
+    assert(M5_PROTO_RADAR == 20);
+    assert(M5_PROTO_LIDAR == 21);
+    assert(M5_PROTO_ULF == 22);
+    assert(M5_PROTO_TETRA == 23);
+    assert(M5_PROTO_ZIGBEE == 25);
+    assert(M5_PROTO_NBIOT == 30);
+    assert(M5_PROTO_WIMAX == 34);
+    assert(M5_PROTO_INMARSAT == 37);
+    assert(M5_PROTO_ACOUSTIC == 41);
+    assert(M5_PROTO_VISIBLE_LIGHT == 42);
+    printf("  [PASS] protocol type slots defined\n");
 
     static m5_router_t r;
     memset(&r, 0, sizeof(r));

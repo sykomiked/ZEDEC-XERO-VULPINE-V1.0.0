@@ -1,0 +1,5 @@
+# Nobody has reported on P-1004 yet.
+payments = P-1001 P-1002 P-1003 P-1004
+sender   = 1 1 1 0
+receiver = 1 1 1 0
+rtgs     = 1 1 1 0

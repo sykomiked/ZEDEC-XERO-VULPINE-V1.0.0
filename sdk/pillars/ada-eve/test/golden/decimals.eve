@@ -1,0 +1,11 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# decimals.eve - the types of decimals.ads, in Eve.
+eve decimals
+units = dec(1, 0)
+atto = dec(18, 18)
+big = dec(18, 0)
+rate = dec(5, 4) -1 .. 1
+cents = dec(18, 2)
+mix { u: units; a: atto; b: big; r: rate; c: cents }

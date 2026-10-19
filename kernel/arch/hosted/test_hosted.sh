@@ -29,7 +29,11 @@ fi
 "$T/test_guard"
 
 # the app itself: the same source list build_desktop.sh uses (app_sources.sh)
-python3 "$HERE/gen_ui.py" "$HERE/zxv_ui.html" "$T/zxv_ui.c"
+python3 "$HERE/gen_ui.py" "$HERE/zxv_ui.html" "$T/zxv_ui.c" \
+    --table-out "$T/ui_table.json" --samples-out "$T/ui_samples.json" --html-out "$T/ui_page.html"
+# the window's words all come from kernel/src/i18n (and its script matches the C module)
+python3 "$HERE/check_ui_i18n.py" "$HERE/zxv_ui.html" "$T/ui_table.json" "$T/ui_samples.json" \
+    "$T/ui_page.html"
 sh "$HERE/app_sources.sh" incs > "$T/incs"
 sh "$HERE/app_sources.sh" srcs > "$T/srcs"
 sh "$HERE/app_sources.sh" vinea > "$T/vinea"
@@ -62,7 +66,20 @@ if [ -n "$DEFS" ]; then
     for f in "$K"/src/tensor/zt*.c; do set -- "$@" "$f"; done
     "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN -I"$HERE" -I"$K/src/tensor" "$@" -o "$T/test_glue"
     "$T/test_glue"
+    # several models at once: slots, agents, a LoRA adapter per agent (M6, G6)
+    set -- "$HERE/test_zxv_swarm_slots.c" "$HERE/zxv_model_host.c" "$HERE/zxv_zt_glue.c"
+    for f in "$K"/src/tensor/zt*.c; do set -- "$@" "$f"; done
+    "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN $DEFS -I"$HERE" -I"$K/src/tensor" "$@" -lpthread \
+        -o "$T/test_swarm_slots"
+    "$T/test_swarm_slots" "$T"
 fi
+
+# the 64-state tag on one answer (zxv_answer_tag.h)
+printf '%s\n' arch/hosted/test_zxv_answer_tag.c arch/hosted/zxv_answer_tag.c src/lpres/lpres_hex.c \
+    src/lpres/lpres.c src/robin_debanks/sha256.c > "$T/tag"
+args "$T/tag"
+run_cc "$T/test_tag"
+"$T/test_tag"
 
 # the swarm budget governs generation (zxv_budget_gate.h)
 printf '%s\n' arch/hosted/test_zxv_budget_gate.c arch/hosted/zxv_budget_gate.c \
@@ -83,10 +100,20 @@ args "$T/net" "$T/vinea"
 run_cc "$T/test_net"
 "$T/test_net"
 
+# remote inference between two nodes: PQ TCP session, paid request, fee settlement
+# (zxv_peer_host.h), the server in a forked child as on a second machine
+printf '%s\n' arch/hosted/test_zxv_peer_host.c arch/hosted/zxv_peer_host.c \
+    arch/hosted/zxv_http_guard.c src/pay/pay_ledger.c src/pay/pay_util.c src/pay/pay_assure.c \
+    src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c \
+    src/swarm/swarm_hk.c src/tensor/zt.c > "$T/peer"
+args "$T/peer" "$T/vinea"
+run_cc "$T/test_peer"
+"$T/test_peer"
+
 "$CC" -std=c11 -Wall -Wextra -Werror -I"$K/src/tensor" "$HERE/test_write_gguf.c" -o "$T/write_gguf"
 "$T/write_gguf" "$T/tiny-test.gguf"
 
 ASAN_OPTIONS=detect_leaks=0 python3 "$HERE/test_host_api.py" "$T/zxv-host"
 ASAN_OPTIONS=detect_leaks=0 python3 "$HERE/test_host_api.py" "$T/zxv-host" "$T/tiny-test.gguf"
 ASAN_OPTIONS=detect_leaks=0 python3 "$HERE/test_host_net.py" "$T/zxv-host"
-echo "[PASS] hosted app: API guard, forward-pass glue, budget gate, net host, end-to-end API, model slot, peers, updates, notifications"
+echo "[PASS] hosted app: window strings from i18n, API guard, forward-pass glue, budget gate, net host, peer host, end-to-end API, model slot, peers, updates, notifications"

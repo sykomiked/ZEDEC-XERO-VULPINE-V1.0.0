@@ -1,0 +1,516 @@
+# ZXV Hardware License — Version 1.1
+
+Copyright (c) 2026 Michael Laurence Curzi & 36N9 GENETICS LLC
+PO Box 6, Calpine, CA 96124-0006, United States — deal@zedec.ai
+
+This is a source-available licence. It is not an open source licence and is
+not the Apache License.
+
+SPDX-License-Identifier: LicenseRef-ZXV-Hardware-1.1
+
+---
+
+## Preamble
+
+36N9 GENETICS LLC and Michael Laurence Curzi publish the ZXV hardware designs
+openly and on purpose, as prior art, so that they stay free of patents for
+everyone. Anyone may study, build and improve them for non-commercial
+purposes without charge. Anyone who uses these files to manufacture or sell
+hardware for commercial purposes agrees, as the price of that permission, to
+pay a royalty to the ILLUMAHEART FOUNDATION.
+
+---
+
+## 1. Definitions
+
+**1.1 "Licensor"** means 36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006,
+United States, and Michael Laurence Curzi, and their successors and assigns.
+
+**1.2 "Foundation"** means ILLUMAHEART FOUNDATION, an Arizona domestic
+nonprofit corporation, Arizona Corporation Commission entity ID 23851761,
+known place of business 7220 N 387th Ave, Tonopah, AZ 85354, United States,
+or any successor designated under Section 7.4.
+
+**1.3 "Licensed Materials"** means the hardware design files the Licensor
+publishes under this Licence, in any form, including schematics, printed
+circuit board layouts and fabrication outputs (such as Gerber and drill
+files), hardware description language and register-transfer level source
+(such as Verilog, SystemVerilog, VHDL, Chisel), netlists, synthesis and
+place-and-route scripts, physical layout and mask data (such as GDSII and
+OASIS), mechanical and chassis drawings and CAD models, bills of materials,
+test vectors, Configuration Files, and their documentation, together with
+any Derivative Design.
+
+**1.4 "Configuration Files"** means microcode, firmware images that are part
+of the hardware design, FPGA or reconfigurable-fabric bitstreams, hardware
+emulation profiles, and any other file that sets or changes the behaviour of
+a Product's reconfigurable hardware, including hardware updates and upgrades
+the Licensor publishes after a Product is made.
+
+**1.5 "Derivative Design"** means any design, in any form, that is copied
+from, adapted from, translated from, or incorporates all or any substantial
+part of the Licensed Materials, including a modified, ported, re-targeted,
+scaled, re-synthesised or re-laid-out version, and any output a tool
+produces from the Licensed Materials.
+
+**1.6 "Licensed Mask Works"** means all mask works and semiconductor
+topographies (including registrations under 17 U.S.C. Chapter 9 and
+equivalent rights in other countries) owned by the Licensor that are
+embodied in the Licensed Materials.
+
+**1.7 "Product"** means any physical article made, in whole or in part,
+using the Licensed Materials, a Derivative Design, a Licensed Mask Work, or
+Configuration Files, including integrated circuits, dies, chiplets, wafers,
+packaged parts, modules, circuit boards, assemblies, chassis, and any device
+or system that incorporates any of them, and any reconfigurable device while
+it runs Configuration Files.
+
+**1.8 "Commercial Purpose"** means any use intended for or directed toward
+commercial advantage or monetary compensation, including manufacturing,
+having manufactured, selling, leasing, licensing, offering for sale or
+importing a Product; providing a Product, or a service performed using a
+Product, to others for a fee; and use of a Product inside a for-profit
+organisation in its operations beyond internal evaluation of up to 100
+units for up to 12 months.
+
+**1.9 "Noncommercial Purpose"** means any purpose that is not a Commercial
+Purpose, including personal study, hobby and private use; teaching and
+academic research at an accredited educational institution; research at a
+government or public research body; and use by a charitable or nonprofit
+organisation for its charitable purpose, in each case without sale of
+Products.
+
+**1.10 "Gross Revenue"** means all amounts invoiced, received or receivable,
+in cash or in kind, by You and Your Affiliates for the sale, lease, licence
+or other disposal of Products, and for services performed using Products,
+before any deduction for costs, commissions, taxes or expenses, except
+(a) sales, use and value-added taxes separately stated and remitted;
+(b) actual credits for returned Products; and (c) separately stated
+freight. Non-arm's-length transfers, including to Affiliates, are valued
+at the arm's-length price.
+
+**1.11 "Affiliate"** means any entity that controls, is controlled by, or is
+under common control with You, where control means ownership of more than
+50% of the voting interests or the power to direct management.
+
+**1.12 "Commercial Licence Agreement"** means the agreement in Section 4,
+accepted by signature or by the electronic acceptance process the Licensor
+provides.
+
+**1.13 "Certification Mark"** means the mark ZXV CERTIFIED and any related
+logo, as described in Section 8.
+
+**1.14 "Official Services"** means the update channel through which the
+Licensor distributes signed Configuration Files, the device attestation and
+key-provisioning service, and any ZXV network, registry or marketplace the
+Licensor or the Foundation operates.
+
+**1.15 "You"** means the individual or legal entity exercising rights under
+this Licence, and, for the Commercial Licence Agreement, its Affiliates.
+
+**1.16 "Public Infrastructure Use"** means use of a Product by, or supplied
+to and used by, a Public Body or a regulated public utility, solely to build,
+operate or maintain critical or public infrastructure that serves the public
+good, including water and sanitation, energy generation and distribution,
+public health and hospitals, emergency and disaster-response services,
+public transport, public communications networks, public education, and
+environmental monitoring.
+
+**1.17 "Military Use"** means use of a Product, by anyone, in or for
+military operations: combat or combat-support operations, weapons,
+munitions, weapon targeting, and military intelligence or surveillance
+operations. Use by armed forces, defence ministries or their contractors for
+non-military purposes, such as administration, logistics, training, health,
+engineering, communications or disaster relief outside combat operations,
+is not Military Use.
+
+**1.18 "Public Body"** means a national, state, regional or local
+government, a government agency, or an intergovernmental organisation, and a nonprofit acting under contract to one of them for that purpose.
+
+---
+
+## 2. Defensive Publication
+
+**2.1 Purpose.** The Licensor publishes the Licensed Materials so that they
+become prior art. The Licensor does not intend to seek patents on them.
+
+**2.2 Licensor non-assertion.** If the Licensor nonetheless holds or obtains
+any patent claim that reads on the Licensed Materials as published, the
+Licensor irrevocably agrees not to assert it against anyone who complies
+with this Licence.
+
+**2.3 No patents on derivatives by licensees (grant-back).** If You obtain,
+or file for, any patent with a claim that reads on a Derivative Design You
+made or on the use of the Licensed Materials, You grant the Licensor, the
+Foundation and every person licensed under this Licence a worldwide,
+royalty-free, non-exclusive, irrevocable licence under that claim, for any
+purpose permitted by this Licence.
+
+---
+
+## 3. Open Tier: Noncommercial Licence
+
+**3.1 Grant.** The Licensor grants You a worldwide, royalty-free,
+non-exclusive, non-transferable licence, under its copyright and Licensed
+Mask Works, to reproduce, study, modify, and create Derivative Designs of
+the Licensed Materials; to make, use and give away Products without charge;
+and to distribute the Licensed Materials and Derivative Designs under
+Section 6; in each case solely for a Noncommercial Purpose.
+
+**3.2 Evaluation by anyone.** Any person, including a for-profit
+organisation, may view, study, simulate and internally evaluate the
+Licensed Materials, and build up to 10 prototype Products for internal
+evaluation that are not sold or used in production, without charge.
+
+**3.3 Perpetual.** The licence in Section 3 is perpetual unless terminated
+under Section 9.
+
+**3.4 No commercial rights.** No right is granted under Section 3 for any
+Commercial Purpose. Any Commercial Purpose involving the Licensed Materials
+or a Product requires the Commercial Licence Agreement. Nothing other than
+this Licence or a separate signed agreement gives You permission to copy,
+adapt or use the Licensed Materials or Licensed Mask Works for a Commercial
+Purpose, and doing so without one infringes the Licensor's rights.
+
+---
+
+## 4. Commercial Licence Agreement (Royalty-Bearing)
+
+**4.1 Acceptance.** You may use the Licensed Materials for a Commercial
+Purpose only after accepting this Section 4, by signing it or by completing
+the Licensor's electronic acceptance and registration process, which records
+Your legal name, address and acceptance date. Acceptance forms a binding
+contract between You and the Licensor, for the benefit of the Foundation.
+
+**4.2 Grant.** On acceptance, and conditioned on Your continuing compliance
+with Sections 4.3 to 4.7, the Licensor grants You a worldwide,
+non-exclusive, non-transferable licence, under its copyright and Licensed
+Mask Works, to reproduce and adapt the Licensed Materials and to make, have
+made, use, sell, offer for sale, lease, import and otherwise dispose of
+Products for any Commercial Purpose, and access to the Official Services for
+those Products on the Licensor's published terms.
+
+**4.3 Royalty.** You shall pay a running royalty of **eighteen percent (18%)
+of Gross Revenue** from all Products. The royalty is payable directly to the
+Foundation, at the payment address or account the Foundation designates in
+writing, and is not payable to the Licensor.
+
+**4.4 Payment and reports.** Within 45 days after the end of each calendar
+quarter, You shall (a) pay the royalty accrued in that quarter, in United
+States dollars, and (b) deliver to the Foundation and the Licensor a report
+in the form of Schedule A. Late payments bear interest at 1% per month or
+the maximum lawful rate, whichever is lower.
+
+**4.5 Records and audit.** You shall keep complete records supporting each
+report for 5 years. The Licensor or the Foundation may, on 30 days'
+notice and not more than once per year, have an independent accountant audit
+them. If an audit shows an underpayment of more than 5%, You shall pay the
+shortfall, interest and the audit cost.
+
+**4.6 Pass-through to contract manufacturers.** If You have Products made by
+a third party, You shall bind that party in writing to use the Licensed
+Materials only to make Products for You, and You remain liable for royalties
+on those Products.
+
+**4.7 Nature of the payment.** Royalty payments are consideration for the
+licence in Section 4.2. They are not gifts or charitable contributions by
+You.
+
+**4.8 Exhaustion.** Once the royalty has been paid on a Product, that Product
+may be resold, used and repaired by any downstream purchaser without further
+royalty. Updated Configuration Files the Licensor later publishes may be
+installed on a royalty-paid Product without further royalty, subject to the
+update terms of the Official Services.
+
+**4.9 Separate agreements.** The Licensor may agree different terms with any
+person in a separate signed agreement.
+
+---
+
+## 4A. Public Infrastructure Exemption
+
+**4A.1 Exemption.** No royalty under Section 4.3 is payable on Products, or
+on the part of Gross Revenue from Products, that are used solely for Public
+Infrastructure Use or for rescue uses under Section 4A.7(a), and never for
+any other Military Use. All other terms of this
+Licence, including acceptance (4.1), reports (4.4), attribution (Section 6)
+and export control (Section 10), still apply.
+
+**4A.2 Conditions.** To rely on the exemption You shall:
+
+(a) register each exempt project with the Licensor before first delivery,
+    naming the Public Body or utility, the infrastructure, and the
+    approximate number of Products;
+(b) report exempt units separately in each quarterly report, with zero
+    royalty;
+(c) obtain from the Public Body or utility a written statement that the
+    Products will be used only for Public Infrastructure Use or rescue
+    uses under Section 4A.7(a), and not for any other Military Use, and keep it with Your records under Section 4.5; and
+(d) not resell, divert or transfer exempt Products for any other use.
+
+**4A.3 Contractors.** A private company that supplies Products to a Public
+Body or utility for Public Infrastructure Use may claim the exemption for
+the revenue from that supply only. Its other revenue remains royalty-bearing.
+
+**4A.4 Loss of exemption.** If an exempt Product is used for anything other
+than Public Infrastructure Use or rescue uses under Section 4A.7(a), the exemption is lost
+for that Product from the start, and the full royalty, with interest under
+Section 4.4, becomes due from the party that received the exemption.
+
+**4A.5 Voluntary contributions.** Public Bodies and utilities may still
+contribute to the Foundation voluntarily. Such contributions are not
+royalties and create no obligation.
+
+**4A.6 Armed forces may use Products for non-military purposes.** Armed
+forces and defence ministries may use Products for non-military purposes at
+any time, under the same terms as any other user. Such use is not eligible
+for the exemption in Section 4A.1 unless it is also Public Infrastructure
+Use or a rescue use under Section 4A.7(a).
+
+**4A.7 Military Use is prohibited except in these cases.** No licence is
+granted under this Licence, in either tier, for any Military Use except:
+
+(a) **Rescue and life-saving.** Search and rescue, medical evacuation,
+    disaster relief, and other missions whose sole purpose is to save human
+    life, by any party. These uses qualify for the royalty exemption in
+    Section 4A.1 on the same conditions.
+(b) **Defence of national sovereignty.** Use by or for a nation, or its
+    people, while it is under (i) an actual armed attack by an external
+    state or force, or (ii) an armed insurgency within its territory, solely
+    to defend itself against that attack or insurgency and only for as long
+    as it continues. Use under (b) may include weapons, munitions and weapon
+    targeting. These uses are royalty-exempt
+    under Section 4A.1.
+
+**4A.8 Limits on defensive use.** Use under Section 4A.7(b):
+
+(a) must comply with international humanitarian law and international human
+    rights law;
+(b) must not be directed against civilians, peaceful protest, political
+    opposition, journalists, or any person not taking direct part in
+    hostilities;
+(c) does not cover offensive operations beyond what is needed to repel the
+    attack or end the insurgency, or the occupation of another state's
+    territory; and
+(d) ends when the attack or insurgency ends.
+
+An "armed insurgency" means organised armed groups engaged in protracted
+armed violence against the state, at the level of a non-international armed
+conflict under international humanitarian law. Riots, protests, isolated
+violence and political dissent are not an armed insurgency.
+
+**4A.9 Showing a permitted use.** A party relying on Section 4A.7(b) shall,
+on request, give the Licensor reasonable evidence of the attack or
+insurgency, such as a United Nations Security Council record, a notification
+under Article 51 of the United Nations Charter, a recognised declaration of
+armed conflict, or an equivalent public record.
+
+**4A.10 Prohibited use terminates.** Any Military Use outside Section 4A.7,
+or in breach of Section 4A.8, is unlicensed and terminates all licences of
+the party engaged in it, without a cure period.
+
+---
+
+## 5. Hardware Emulation and Third-Party Rights
+
+Configuration Files and Derivative Designs may let a Product emulate other
+hardware. This Licence grants rights only in the Licensor's own materials.
+You are solely responsible for obtaining any rights needed to emulate
+hardware, instruction sets, firmware or interfaces owned by others.
+
+---
+
+## 6. Distribution and Attribution
+
+**6.1 Distribution.** When You distribute the Licensed Materials or any
+Derivative Design, in any form, You shall:
+
+(a) license them only under this Licence, and impose no further restrictions;
+(b) keep intact all copyright, mask work, trademark, attribution and licence
+    notices, including SPDX identifiers;
+(c) include a copy of this Licence;
+(d) mark modified files with a prominent notice stating that You changed
+    them and the date; and
+(e) provide the complete design source of any Derivative Design You
+    distribute, in the preferred form for making modifications.
+
+**6.2 Attribution notice.** The "Attribution Notice" is:
+
+> Based on the ZXV hardware designs by Michael Laurence Curzi &
+> 36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006, United States,
+> deal@zedec.ai. Licensed under the ZXV Hardware License.
+
+The Licensor may update the contact details by publishing a revised notice
+in the repository; You shall use the current version for new Products and
+new distributions.
+
+**6.3 Attribution is required in every use.** Under both the Open Tier and
+the Commercial Licence Agreement, You shall give the Attribution Notice:
+
+(a) in every copy of the Licensed Materials and every Derivative Design You
+    distribute, in a NOTICE or README file at the top of the design;
+(b) for every Product You make available to others, in its user
+    documentation or product information, and on any "About", settings,
+    boot or information screen the Product has;
+(c) on the Product itself where practical: printed circuit boards shall
+    carry a short form ("ZXV design: Curzi / 36N9 GENETICS") on the
+    silkscreen, and chassis or packaging shall carry it on a label, unless
+    there is no reasonable space; integrated circuits may carry it in the
+    package marking or, if not practical, in a readable identification
+    register or device information string;
+(d) in any publication, paper, presentation or product listing that
+    describes work based on the Licensed Materials, as a citation to
+    Michael Laurence Curzi & 36N9 GENETICS LLC.
+
+**6.4 No endorsement.** The Attribution Notice credits the origin of the
+design only. You shall not state or imply that the Licensor or the
+Foundation endorses, warrants or manufactured Your Product unless it holds
+the Certification Mark under Section 8.
+
+**6.5 Moral rights.** To the extent the law of any country gives the authors
+a right to be identified as authors, they assert it.
+
+---
+
+## 7. The Foundation
+
+**7.1 Third-party beneficiary.** The Foundation is an intended third-party
+beneficiary of Sections 4.3 to 4.6 and may enforce them directly.
+
+**7.2 No obligations on the Foundation.** The Foundation gives no warranty,
+assumes no obligation, and has no liability under this Licence.
+
+**7.3 No control.** Only the Licensor may grant, modify or terminate licences
+under this Licence.
+
+**7.4 Successor.** If the Foundation dissolves, loses its nonprofit status,
+or cannot accept payments, the Licensor may designate by public notice a
+successor organisation exempt under section 501(c)(3) of the U.S. Internal
+Revenue Code or its equivalent, and royalties then accruing are payable to it.
+
+---
+
+## 8. Certification Mark
+
+**8.1** ZXV CERTIFIED is a certification mark owned by the Foundation. It certifies that a Product (a) was made under a Commercial
+Licence Agreement in good standing with royalties paid, and (b) meets the
+published ZXV conformance tests.
+
+**8.2** Only Products that meet Section 8.1 may use the Certification Mark,
+connect to the Official Services as certified devices, or receive signed
+Configuration File updates through the Official Services.
+
+**8.3** This Licence grants no other right to use the names or marks ZXV,
+ZEDEC, XERO, VULPINE, GlyphMap, 36N9 GENETICS, ILLUMAHEART, or any other mark
+of the Licensor or the Foundation, except to state truthfully that a design
+or Product is derived from the ZXV hardware designs.
+
+---
+
+## 9. Termination
+
+**9.1 Non-payment.** If You fail to pay any royalty or deliver any report
+when due, and do not cure that failure within 30 days after written notice
+from the Licensor or the Foundation, every licence granted to You under this
+Licence terminates automatically at the end of that period.
+
+**9.2 Other breach.** If You breach any other term and do not cure within
+30 days after written notice, every licence granted to You terminates.
+
+**9.3 Effect.** After termination: (a) any further copying, adaptation or
+use of the Licensed Materials, Licensed Mask Works or Configuration Files by
+You is unlicensed and infringes the Licensor's rights; (b) You must stop
+using the Certification Mark; (c) Your Products lose certified status and
+access to the Official Services for units sold after termination; and
+(d) unpaid royalties, interest and the Licensor's reasonable collection costs
+remain due as a contract debt. The Licensor and the Foundation may pursue
+all remedies available at law or in equity.
+
+**9.3A Exemption breach.** A breach of Section 4A.2 is a breach under
+Section 9.2, and Section 4A.4 also applies.
+
+**9.4 Reinstatement.** The Licensor may reinstate a terminated licence in
+writing once all amounts owed, interest and reasonable enforcement costs are
+paid.
+
+**9.5 Survival.** Sections 2, 4.4, 6.3 (for copies and Products already
+distributed), 4.5, 7, 9.3, 11, 12 and 14 survive
+termination. Royalty-paid Products in the hands of purchasers remain
+licensed.
+
+---
+
+## 10. Export Control
+
+You shall comply with all export control, sanctions and nuclear-materials
+laws that apply to the Licensed Materials and Products, including the U.S.
+Export Administration Regulations and, for any component containing
+deuterium oxide (D2O), 10 C.F.R. Part 110 and equivalent foreign rules.
+
+## 11. Disclaimer of Warranty
+
+THE LICENSED MATERIALS AND OFFICIAL SERVICES ARE PROVIDED "AS IS", WITHOUT
+WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE AND
+NON-INFRINGEMENT. THE LICENSOR DOES NOT WARRANT THAT ANY PRODUCT MADE FROM
+THEM WILL WORK, IS SAFE, OR COMPLIES WITH ANY LAW, STANDARD OR
+CERTIFICATION. YOU ARE SOLELY RESPONSIBLE FOR THE DESIGN, MANUFACTURE,
+TESTING, CERTIFICATION AND SAFETY OF ANY PRODUCT. PRODUCTS ARE NOT DESIGNED
+OR CERTIFIED FOR LIFE-SUPPORT, MEDICAL, AVIATION, NUCLEAR, WEAPONS OR OTHER
+SAFETY-CRITICAL USE.
+
+## 12. Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL THE LICENSOR OR THE
+FOUNDATION BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+CONSEQUENTIAL OR EXEMPLARY DAMAGES ARISING FROM THIS LICENCE, THE LICENSED
+MATERIALS, THE OFFICIAL SERVICES OR ANY PRODUCT, HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+## 13. Relationship to the ZXV Software
+
+The ZXV software in the same repository (kernel, SDKs, desktop app) is
+licensed under the Apache License, Version 2.0, and is not covered by this
+Licence. Nothing in this Licence limits rights granted under the Apache
+License for that software. Files are governed by the licence named in their
+SPDX header and the repository's licence map.
+
+## 14. General
+
+**14.1 Reservation.** All rights not expressly granted are reserved. No
+licence is granted by implication or estoppel.
+
+**14.2 Governing law and venue.** Arizona law and applicable U.S. federal law
+govern, without regard to conflict of laws rules. Exclusive venue lies in the
+state and federal courts in Maricopa County, Arizona, except that the
+Licensor may seek injunctive relief in any competent court.
+
+**14.3 Severability and reformation.** An unenforceable provision shall be
+reformed to the minimum extent needed to make it enforceable; the rest stays
+in effect. If the royalty in Section 4.3 is unenforceable as applied to any
+Product or period, the royalty for it is the highest enforceable royalty.
+
+**14.4 Versions.** The Licensor may publish revised versions. Licensed
+Materials remain under the version they were released under unless the
+Licensor states otherwise.
+
+**14.5 Entire licence.** This Licence is the entire agreement on its subject
+for anyone not party to a separate signed agreement under Section 4.9.
+
+---
+
+## Schedule A — Quarterly Royalty Report
+
+| Field | Value |
+|-------|-------|
+| Licensee legal name, address, acceptance date / registration ID | |
+| Reporting quarter | |
+| Product name / part number | |
+| Country of sale | |
+| Units manufactured | |
+| Units sold, leased or otherwise disposed of | |
+| Gross Revenue (USD) | |
+| Permitted exclusions (itemised) | |
+| Royalty due at 18% (USD) | |
+| Payment date and reference | |
+| Signed by an officer of the licensee | |

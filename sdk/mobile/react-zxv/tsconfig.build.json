@@ -1,0 +1,12 @@
+// Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+// SPDX-License-Identifier: Apache-2.0
+//
+// The published build: the sources only (no Node types: they run in
+// browsers and React Native).
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": []
+  },
+  "include": ["src"]
+}

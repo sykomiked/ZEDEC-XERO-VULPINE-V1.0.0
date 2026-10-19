@@ -1,0 +1,9 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A relief fund of $2,500,000.00 for five districts. Money is in cents.
+# Every district first gets the floor ($50,000.00); the rest is shared by
+# population. One population per district, in the order of `districts`.
+districts = North Harbour Ridge Valley Coast
+fund      = 250000000
+floor     = 5000000

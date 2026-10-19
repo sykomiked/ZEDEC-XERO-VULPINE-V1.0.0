@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ZXV Operator API, OpenAPI 3.1. Hand-written contract for the sample gateway
-# in bindings/dotnet/samples/Zxv.Gateway. Paths and operationIds match the
+# in sdk/dotnet/samples/Zxv.Gateway. Paths and operationIds match the
 # gateway; tests/Zxv.Gateway.Tests checks that every path the gateway serves
 # is described here and vice versa. The gateway also generates an OpenAPI 3.0
 # document at runtime at /openapi/v1.json.
@@ -26,8 +26,8 @@ info:
     **Currencies.** ISO 20022 messages carry ISO 4217 alpha codes in `Ccy`.
     The Vino rail numerics DEBIT 555, CREDIT 777 and EQUITY 888 are
     platform-internal (all three are unassigned in ISO 4217) and appear only
-    in `railNumerics` of a balance. Their platform jurisdiction codes (NCR,
-    NRE and PNS) are not ISO 3166 countries and never appear in a country field.
+    in `railNumerics` of a balance. Their platform jurisdiction codes (NRE,
+    NCR and PNS) are not ISO 3166 countries and never appear in a country field.
     Platform-private units such as `VFV` can be held on the ledger but are
     refused for wire payments.
 

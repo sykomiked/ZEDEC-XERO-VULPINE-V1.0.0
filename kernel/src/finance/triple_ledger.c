@@ -73,6 +73,60 @@ uint32_t triple_ledger_create_account(triple_ledger_t *tl,
     return tl->num_accounts++;
 }
 
+/* Overflow guards. On the kernel path surplus_real_t is Q32.32 in an int64,
+ * and an edge-valued amount (found by fuzz/econ/fuzz_econ_triple.c) made the
+ * balance and total sums signed-overflow (undefined behaviour) instead of
+ * being refused. A posting that cannot be represented is now refused before
+ * anything changes. The TEST_HOST build uses double and needs no guard. */
+#ifdef TEST_HOST
+static bool tl_add(surplus_real_t a, surplus_real_t b, surplus_real_t *r)
+{
+    *r = SR_ADD(a, b);
+    return true;
+}
+static bool tl_sub(surplus_real_t a, surplus_real_t b, surplus_real_t *r)
+{
+    *r = SR_SUB(a, b);
+    return true;
+}
+#else
+static bool tl_add(surplus_real_t a, surplus_real_t b, surplus_real_t *r)
+{
+    return !__builtin_add_overflow(a, b, r);
+}
+static bool tl_sub(surplus_real_t a, surplus_real_t b, surplus_real_t *r)
+{
+    return !__builtin_sub_overflow(a, b, r);
+}
+#endif
+
+/* a + b, clamped to the representable range instead of overflowing */
+static surplus_real_t tl_add_sat(surplus_real_t a, surplus_real_t b)
+{
+    surplus_real_t r;
+    if (tl_add(a, b, &r)) return r;
+    return SR_CMP(b, SR_ZERO) > 0 ? surplus_real_t_max : -surplus_real_t_max;
+}
+
+/* Would a posting of (debit, credit) on `ledger` of account `a` fit, given
+ * extra amounts already headed for the system totals (for a transfer, whose
+ * other leg lands first)? */
+static bool tl_post_fits(const triple_ledger_t *tl, const account_t *a, ledger_type_t ledger,
+                         surplus_real_t debit, surplus_real_t credit, surplus_real_t pend_assets,
+                         surplus_real_t pend_liab)
+{
+    surplus_real_t delta, t, assets, liab;
+    if (!tl_sub(debit, credit, &delta)) return false;
+    if (!tl_add(a->balance[ledger], delta, &t)) return false;
+    if (ledger != LEDGER_FINANCIAL) return true;
+    if (!tl_add(a->conventional_balance, delta, &t)) return false;
+    if (!tl_add(tl->total_assets, pend_assets, &assets) || !tl_add(assets, debit, &assets))
+        return false;
+    if (!tl_add(tl->total_liabilities, pend_liab, &liab) || !tl_add(liab, credit, &liab))
+        return false;
+    return tl_sub(assets, liab, &t);
+}
+
 int32_t triple_ledger_post(triple_ledger_t *tl,
                             uint32_t account_id,
                             ledger_type_t ledger,
@@ -87,7 +141,8 @@ int32_t triple_ledger_post(triple_ledger_t *tl,
     if ((uint32_t) ledger >= LEDGER_MAX) return -1;
     account_t *a = &tl->accounts[account_id];
     if (a->num_entries >= 256) return -1;
-    
+    if (!tl_post_fits(tl, a, ledger, debit, credit, SR_ZERO, SR_ZERO)) return -1;
+
     ledger_entry_t *e = &a->entries[a->num_entries];
     e->id = tl->next_entry_id++;
     e->timestamp = 0; /* Caller should set */
@@ -151,6 +206,16 @@ int32_t triple_ledger_transfer(triple_ledger_t *tl,
     /* All six legs or none: check capacity before the first post. */
     if (tl->accounts[from_id].num_entries + 3u > 256u ||
         tl->accounts[to_id].num_entries + 3u > 256u)
+        return -1;
+    /* ...and refuse up front any leg whose sums would overflow (the from
+     * leg's credit reaches the totals before the to leg's debit). */
+    const account_t *fa = &tl->accounts[from_id], *ta = &tl->accounts[to_id];
+    if (!tl_post_fits(tl, fa, LEDGER_FINANCIAL, SR_ZERO, amount, SR_ZERO, SR_ZERO) ||
+        !tl_post_fits(tl, ta, LEDGER_FINANCIAL, amount, SR_ZERO, SR_ZERO, amount) ||
+        !tl_post_fits(tl, fa, LEDGER_PROVENANCE, SR_ZERO, amount, SR_ZERO, SR_ZERO) ||
+        !tl_post_fits(tl, ta, LEDGER_PROVENANCE, amount, SR_ZERO, SR_ZERO, SR_ZERO) ||
+        !tl_post_fits(tl, fa, LEDGER_EXTERNALITY, SR_ZERO, phi, SR_ZERO, SR_ZERO) ||
+        !tl_post_fits(tl, ta, LEDGER_EXTERNALITY, phi, SR_ZERO, SR_ZERO, SR_ZERO))
         return -1;
 
     /* Credit from account */
@@ -284,8 +349,9 @@ void triple_ledger_update_health(triple_ledger_t *tl) {
     surplus_real_t total_ell = SR_ZERO;
     uint32_t i;
     for (i = 0; i < tl->num_accounts; i++) {
-        total = SR_ADD(total, tl->accounts[i].coverage_ratio);
-        total_ell = SR_ADD(total_ell, tl->accounts[i].externality_phase);
+        /* saturating: a sum of in-range ratios can exceed Q32.32 */
+        total = tl_add_sat(total, tl->accounts[i].coverage_ratio);
+        total_ell = tl_add_sat(total_ell, tl->accounts[i].externality_phase);
     }
     if (tl->num_accounts > 0) {
         tl->total_coverage = SR_DIV(total, SR_FROM_INT(tl->num_accounts));
@@ -312,12 +378,16 @@ void triple_ledger_export_conventional(const triple_ledger_t *tl,
     uint32_t i;
     for (i = 0; i < tl->num_accounts; i++) {
         surplus_real_t bal = tl->accounts[i].conventional_balance;
+        /* Sums of many in-range balances can still exceed Q32.32: the
+         * report saturates rather than overflow (found by fuzz_econ_triple). */
         if (SR_CMP(bal, SR_ZERO) >= 0) {
-            report->balance_sheet_assets = SR_ADD(report->balance_sheet_assets, bal);
+            report->balance_sheet_assets = tl_add_sat(report->balance_sheet_assets, bal);
         } else {
-            report->balance_sheet_liabilities = SR_ADD(report->balance_sheet_liabilities, -bal);
+            surplus_real_t mag;
+            if (!tl_sub(SR_ZERO, bal, &mag)) mag = surplus_real_t_max;
+            report->balance_sheet_liabilities = tl_add_sat(report->balance_sheet_liabilities, mag);
         }
     }
-    report->balance_sheet_equity = SR_SUB(report->balance_sheet_assets,
-                                           report->balance_sheet_liabilities);
+    report->balance_sheet_equity =
+        tl_add_sat(report->balance_sheet_assets, -report->balance_sheet_liabilities);
 }

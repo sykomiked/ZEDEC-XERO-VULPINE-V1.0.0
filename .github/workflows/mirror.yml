@@ -1,0 +1,127 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copies an already PUBLISHED GitHub release to one mirror. Manual only: the
+# owner runs it from the Actions tab after pressing "Publish release".
+#
+#   huggingface        the release assets, the model card
+#                      (docs/release/HUGGING_FACE_PAGE.md) and the
+#                      redistributable models in macos/models.manifest, in
+#                      one commit to the model repository named in hf_repo
+#                      (build_system/hf_mirror.py). Needs the HF_TOKEN secret.
+#   software-heritage  asks the Software Heritage archive to save this
+#                      repository now (public repositories only; no secret).
+#
+#   - dry_run is on by default: it checks and prints exactly what would be
+#     sent, and sends nothing.
+#   - To send, turn dry_run off AND type the release tag into confirm.
+#   - It refuses a draft release, a missing release, and a SHA256SUMS that
+#     does not match the downloaded assets.
+#   - Zenodo needs no workflow: once the owner switches the repository on at
+#     zenodo.org, each published release is archived from .zenodo.json.
+#     GitLab is a pull mirror set up on gitlab.com (docs/release/MIRRORS.md).
+name: Mirror a published release (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Published release tag, e.g. v0.1.0-preview'
+        required: true
+        type: string
+      target:
+        description: 'Where to copy it'
+        required: true
+        type: choice
+        options: [huggingface, software-heritage]
+      hf_repo:
+        description: 'Hugging Face model repository OWNER/NAME (huggingface only)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Check and print only; send nothing'
+        required: true
+        type: boolean
+        default: true
+      confirm:
+        description: 'To send for real: type the tag again'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mirror-${{ inputs.target }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  mirror:
+    name: ${{ inputs.target }} ${{ inputs.tag }}${{ inputs.dry_run && ' (dry run)' || '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      TAG: ${{ inputs.tag }}
+      TARGET: ${{ inputs.target }}
+      HF_REPO: ${{ inputs.hf_repo }}
+      DRY: ${{ inputs.dry_run }}
+      CONFIRM: ${{ inputs.confirm }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: The release is published and the request is confirmed
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "::error::'$TAG' is not a release tag"; exit 1; }
+          draft="$(gh release view "$TAG" --json isDraft --jq .isDraft)" || { echo "::error::no release $TAG"; exit 1; }
+          if [ "$draft" != false ]; then echo "::error::$TAG is still a draft; publish it first"; exit 1; fi
+          if [ "$DRY" != true ] && [ "$CONFIRM" != "$TAG" ]; then
+            echo "::error::dry_run is off but confirm is not '$TAG'; nothing sent"
+            exit 1
+          fi
+          if [ "$TARGET" = huggingface ] && ! [[ "$HF_REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; then
+            echo "::error::hf_repo must be OWNER/NAME"
+            exit 1
+          fi
+      - name: Download the release and check SHA256SUMS
+        if: inputs.target == 'huggingface'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/assets"
+          gh release download "$TAG" --dir "$RUNNER_TEMP/assets"
+          (cd "$RUNNER_TEMP/assets" && sha256sum -c SHA256SUMS)
+          n_assets="$(find "$RUNNER_TEMP/assets" -type f ! -name SHA256SUMS | wc -l)"
+          n_sums="$(wc -l < "$RUNNER_TEMP/assets/SHA256SUMS")"
+          [ "$n_assets" = "$n_sums" ] || { echo "::error::$n_assets assets but $n_sums checksums"; exit 1; }
+      - name: Hugging Face
+        if: inputs.target == 'huggingface'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet huggingface_hub==1.33.0
+          if [ "$DRY" = true ]; then
+            python3 build_system/hf_mirror.py "$RUNNER_TEMP/assets" "$HF_REPO" --dry-run
+          else
+            test -n "$HF_TOKEN" || { echo "::error::the HF_TOKEN repository secret is not set"; exit 1; }
+            python3 build_system/hf_mirror.py "$RUNNER_TEMP/assets" "$HF_REPO"
+          fi
+      - name: Software Heritage
+        if: inputs.target == 'software-heritage'
+        run: |
+          set -euo pipefail
+          origin="https://github.com/$GH_REPO"
+          api="https://archive.softwareheritage.org/api/1/origin/save/git/url/$origin/"
+          if [ "$DRY" = true ]; then
+            echo "dry run: would POST $api"
+            exit 0
+          fi
+          curl -fsS -X POST "$api" | tee "$RUNNER_TEMP/swh.json"
+          echo "Software Heritage save request sent for $origin" >> "$GITHUB_STEP_SUMMARY"

@@ -1,24 +1,42 @@
 ZEDEC XERO VULPINE (ZXV)
 VOVINA SHAKINA M5 Axiomatic Kernel
 
-Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+Copyright (c) 2024-2026 Michael Laurence Curzi & 36N9 GENETICS LLC
+PO Box 6, Calpine, CA 96124-0006, United States
+deal@zedec.ai
+
+This product includes software developed by Michael Laurence Curzi and
+36N9 GENETICS LLC.
 
 Licensed under the Apache License, Version 2.0 (the "License"). You may not
 use this Work except in compliance with the License. A copy is in the
 LICENSE file at the repository root and at
 http://www.apache.org/licenses/LICENSE-2.0.
 
+Hardware designs under the hardware/ directory are NOT covered by the Apache
+License. They are licensed under the ZXV Hardware License 1.1; see
+hardware/LICENSE and hardware/NOTICE.
+
+The ASCW Golden fonts under assets/fonts/ascw-golden/ (ZXV's UI and system
+font) are NOT covered by the Apache License. They are modified versions of
+fonts under the SIL Open Font License 1.1 and stay under it; see
+assets/fonts/ascw-golden/OFL.txt and FONTLOG.md. Packages that carry them
+carry those two files with them.
+
 --------------------------------------------------------------------------
 ATTRIBUTION
 --------------------------------------------------------------------------
 
-Under section 4(d) of the License, redistributions that include a NOTICE
-file must carry the following attribution, in the source distribution, the
-documentation, or a display where such notices normally appear (About box,
---version output, boot banner):
+Section 4(d) of the License requires anyone who distributes this Work or a
+Derivative Work of it to include a readable copy of the attribution below,
+in at least one of these places: a NOTICE file distributed with it; the
+source form or documentation, if provided with it; or a display the work
+generates, wherever such third-party notices normally appear (for example
+an About box, licences screen, or --version output). It may not be removed.
 
     ZEDEC XERO VULPINE (ZXV) / VOVINA SHAKINA M5 Axiomatic Kernel
-    Copyright (c) Michael Laurence Curzi and 36N9 Genetics, LLC
+    Copyright (c) 2024-2026 Michael Laurence Curzi & 36N9 GENETICS LLC
+    PO Box 6, Calpine, CA 96124-0006, United States - deal@zedec.ai
     Licensed under the Apache License, Version 2.0
 
 --------------------------------------------------------------------------
@@ -87,11 +105,357 @@ publications, WIPO and ISO standards) are implemented from those public
 specifications. The specifications are the property of their publishers.
 
 --------------------------------------------------------------------------
+TIAMAT MODEL CREDITS
+--------------------------------------------------------------------------
+
+Tiamat Productive Agency AI is built from open models made by the
+people and teams below. Each cell carries a Tiamat dragon name; the
+upstream model, its creator and its source stay credited here and in
+docs/release/swarm_model_manifest.json, whether or not the model's
+licence asks for it. Every model listed is Apache-2.0; its licence and
+any NOTICE it ships travel with its weights. The dragon names are ours
+and do not suggest endorsement by any creator.
+
+Spinewyrm  <-  Qwen/Qwen2.5-1.5B-Instruct
+    by Qwen team, Alibaba Cloud
+    https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct (revision 989aa7980e4c)
+    built on Qwen/Qwen2.5-1.5B
+Kindlewyrm  <-  Qwen/Qwen2.5-0.5B-Instruct
+    by Qwen team, Alibaba Cloud
+    https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct (revision 7ae557604adf)
+    built on Qwen/Qwen2.5-0.5B
+Awllindworm  <-  Qwen/Qwen2.5-Coder-0.5B-Instruct
+    by Qwen team, Alibaba Cloud
+    https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct (revision ea3f2471cf1b)
+    built on Qwen/Qwen2.5-Coder-0.5B
+Parleywyvern  <-  utter-project/EuroLLM-1.7B-Instruct
+    by UTTER consortium (Unbabel, Instituto Superior Tecnico, University of Edinburgh, Aveni, Sorbonne Universite, Naver Labs Europe, University of Amsterdam), funded by EU Horizon Europe
+    https://huggingface.co/utter-project/EuroLLM-1.7B-Instruct (revision a25c7fa65fc2)
+    built on utter-project/EuroLLM-1.7B
+    GGUF conversion by mradermacher: mradermacher/EuroLLM-1.7B-Instruct-GGUF
+Greetwyvern  <-  HuggingFaceTB/SmolLM3-3B
+    by Hugging Face (SmolLM / SmolVLM team)
+    https://huggingface.co/HuggingFaceTB/SmolLM3-3B (revision a07cc9a04f16)
+    built on HuggingFaceTB/SmolLM3-3B-Base
+Hostwyvern  <-  arcee-ai/AFM-4.5B
+    by Arcee AI
+    https://huggingface.co/arcee-ai/AFM-4.5B (revision e84d19711eca)
+    built on arcee-ai/AFM-4.5B-Base
+Heraldwyvern  <-  Qwen/Qwen2.5-7B-Instruct
+    by Qwen team, Alibaba Cloud
+    https://huggingface.co/Qwen/Qwen2.5-7B-Instruct (revision a09a35458c70)
+    built on Qwen/Qwen2.5-7B
+Mendlindworm  <-  sandeeprdy1729/TIMPS-Coder-0.5B
+    by Sandeep Reddy (TIMPS)
+    https://huggingface.co/sandeeprdy1729/TIMPS-Coder-0.5B (revision 236e77a2c793)
+    built on Qwen/Qwen2.5-Coder-0.5B-Instruct
+Codelindworm  <-  Qwen/Qwen2.5-Coder-1.5B-Instruct
+    by Qwen team, Alibaba Cloud
+    https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct (revision 2e1fd397ee46)
+    built on Qwen/Qwen2.5-Coder-1.5B
+Wardendrake  <-  JackKozmo29/codeguard-jev-style-1.5b
+    by JackKozmo29
+    https://huggingface.co/JackKozmo29/codeguard-jev-style-1.5b (revision 1c72673434d4)
+    built on Qwen/Qwen2.5-1.5B-Instruct
+Reviewdrake  <-  DharaneswarReddy/codereview-agent
+    by Dharaneswar Reddy
+    https://huggingface.co/DharaneswarReddy/codereview-agent (revision e6d0b78df8c6)
+    built on unsloth/qwen2.5-1.5b-instruct-unsloth-bnb-4bit
+Bastiondrake  <-  vitorallo/securereview-coder-32B-FP8
+    by vitorallo (Foil)
+    https://huggingface.co/vitorallo/securereview-coder-32B-FP8 (revision d0c0f9c519e7)
+    built on Qwen/Qwen2.5-Coder-32B-Instruct
+Toolhatchling  <-  FrontiersMind/Nandi-Mini-150M-Tool-Calling
+    by FrontiersMind
+    https://huggingface.co/FrontiersMind/Nandi-Mini-150M-Tool-Calling (revision d0f1124a4086)
+    built on FrontiersMind/Nandi-Mini-150M
+Toolwyvern  <-  ajvikram/toolcall-2b
+    by ajvikram
+    https://huggingface.co/ajvikram/toolcall-2b (revision e74096d01e0f)
+    built on Qwen/Qwen3.5-2B
+Tagwyrmling  <-  llmware/slim-ner-tool
+    by llmware (AI Bloks)
+    https://huggingface.co/llmware/slim-ner-tool (revision 860f1f937875)
+Gistwyrm  <-  pszemraj/led-base-book-summary
+    by Peter Szemraj (pszemraj)
+    https://huggingface.co/pszemraj/led-base-book-summary (revision 842ba9376965)
+Briefwyrm  <-  mithulaartigala/reasoning-summarizer-qwen3.5-0.8b-preview
+    by Mithula Artigala
+    https://huggingface.co/mithulaartigala/reasoning-summarizer-qwen3.5-0.8b-preview (revision 558fc651bf01)
+    built on Qwen/Qwen3.5-0.8B-Base
+Numberwyrm  <-  Qwen/Qwen2.5-Math-1.5B
+    by Qwen team, Alibaba Cloud
+    https://huggingface.co/Qwen/Qwen2.5-Math-1.5B (revision 4a83ca6e4526)
+    built on Qwen/Qwen2.5-1.5B
+    GGUF conversion by mradermacher: mradermacher/Qwen2.5-Math-1.5B-GGUF
+Theoremwyrm  <-  zbeeb/Qwen2.5-Math-1.5B-GRPO-Staleness-4
+    by zbeeb
+    https://huggingface.co/zbeeb/Qwen2.5-Math-1.5B-GRPO-Staleness-4 (revision 5f0c1ff0a0ce)
+    built on Qwen/Qwen2.5-Math-1.5B
+Puzzlewyrm  <-  OpceanAI/Yuuki-RxG-nano
+    by OpceanAI
+    https://huggingface.co/OpceanAI/Yuuki-RxG-nano (revision 26a65645833a)
+    built on WeiboAI/VibeThinker-1.5B
+Verdictwyrmling  <-  Pankaj8922/bert-small-nli
+    by Pankaj8922
+    https://huggingface.co/Pankaj8922/bert-small-nli (revision cd578a157edb)
+    built on prajjwal1/bert-small
+Weighwyrmling  <-  cross-encoder/nli-deberta-v3-xsmall
+    by sentence-transformers / cross-encoder (UKP Lab, Nils Reimers, Tom Aarsen)
+    https://huggingface.co/cross-encoder/nli-deberta-v3-xsmall (revision a15087641532)
+    built on microsoft/deberta-v3-xsmall
+Debatelindworm  <-  iamjayeshc/ArgParser-v4-Qwen1.5B
+    by Jayesh C (iamjayeshc)
+    https://huggingface.co/iamjayeshc/ArgParser-v4-Qwen1.5B (revision 5254c540c3ab)
+    built on Qwen/Qwen2.5-1.5B-Instruct
+Fallacydrakeling  <-  heavyhelium/electra-base-logic-fallacy
+    by heavyhelium
+    https://huggingface.co/heavyhelium/electra-base-logic-fallacy (revision 8327c1fac323)
+    built on google/electra-base-discriminator
+Sophismdrake  <-  MidhunKanadan/roberta-large-fallacy-classification
+    by Midhun Kanadan
+    https://huggingface.co/MidhunKanadan/roberta-large-fallacy-classification (revision 3ca022bde21e)
+    built on roberta-large
+Indexserpent  <-  sentence-transformers/all-MiniLM-L6-v2
+    by sentence-transformers (UKP Lab, Nils Reimers); MiniLM by Microsoft
+    https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2 (revision 1110a243fdf4)
+    built on nreimers/MiniLM-L6-H384-uncased
+Shelfserpent  <-  sentence-transformers/all-MiniLM-L12-v2
+    by sentence-transformers (UKP Lab, Nils Reimers); MiniLM by Microsoft
+    https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2 (revision a50ef00143b4)
+    built on microsoft/MiniLM-L12-H384-uncased
+Bridgeserpent  <-  dragonkue/multilingual-e5-small-ko
+    by dragonkue
+    https://huggingface.co/dragonkue/multilingual-e5-small-ko (revision bba4cb8e3299)
+    built on intfloat/multilingual-e5-small
+Twinserpent  <-  exp-models/dragonkue-KoEn-E5-Tiny
+    by dragonkue / exp-models
+    https://huggingface.co/exp-models/dragonkue-KoEn-E5-Tiny (revision 292c09c78c71)
+    built on intfloat/multilingual-e5-small, dragonkue/multilingual-e5-small-ko
+Sortserpent  <-  jinaai/jina-reranker-v1-tiny-en
+    by Jina AI
+    https://huggingface.co/jinaai/jina-reranker-v1-tiny-en (revision aca45de6945b)
+Swiftserpent  <-  jinaai/jina-reranker-v1-turbo-en
+    by Jina AI
+    https://huggingface.co/jinaai/jina-reranker-v1-turbo-en (revision b8c14f4e723d)
+Rankserpent  <-  BAAI/bge-reranker-v2-m3
+    by BAAI (Beijing Academy of Artificial Intelligence)
+    https://huggingface.co/BAAI/bge-reranker-v2-m3 (revision 953dc6f6f85a)
+Spotwyvern  <-  PaddlePaddle/PP-OCRv6_small_det_onnx
+    by PaddlePaddle team (Baidu)
+    https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx (revision 28fe5895c24f)
+Letterwyvern  <-  PaddlePaddle/PP-OCRv6_small_rec_onnx
+    by PaddlePaddle team (Baidu)
+    https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx (revision b8f84f0b80c5)
+Scrollwyvern  <-  tiiuae/Falcon-OCR
+    by Technology Innovation Institute (TII)
+    https://huggingface.co/tiiuae/Falcon-OCR (revision fe757d59ecd7)
+Watchwyvern  <-  HuggingFaceTB/SmolVLM2-500M-Video-Instruct
+    by Hugging Face (SmolLM / SmolVLM team)
+    https://huggingface.co/HuggingFaceTB/SmolVLM2-500M-Video-Instruct (revision 7b375e1b73b1)
+    built on HuggingFaceTB/SmolVLM-500M-Instruct
+    GGUF conversion by ggml-org: ggml-org/SmolVLM2-500M-Video-Instruct-GGUF
+    GGUF conversion by ggml-org: ggml-org/SmolVLM2-500M-Video-Instruct-GGUF
+Sightwyvern  <-  HuggingFaceTB/SmolVLM-Instruct
+    by Hugging Face (SmolLM / SmolVLM team)
+    https://huggingface.co/HuggingFaceTB/SmolVLM-Instruct (revision 81cd9a775a4d)
+    built on HuggingFaceTB/SmolLM2-1.7B-Instruct, google/siglip-so400m-patch14-384
+Glimpsewyvern  <-  Quazim0t0/Byrne-VLM-131M
+    by Quazim0t0
+    https://huggingface.co/Quazim0t0/Byrne-VLM-131M (revision c00ae5156dc2)
+Listenlindworm  <-  allenai/OLMoASR
+    by Allen Institute for AI (Ai2)
+    https://huggingface.co/allenai/OLMoASR (revision 6841d494515b)
+Dictatelindworm  <-  ibm-granite/granite-4.0-1b-speech
+    by IBM Granite team
+    https://huggingface.co/ibm-granite/granite-4.0-1b-speech (revision bd87ab862416)
+    built on ibm-granite/granite-4.0-1b-base
+Hearinglindworm  <-  ibm-granite/granite-speech-3.3-2b
+    by IBM Granite team
+    https://huggingface.co/ibm-granite/granite-speech-3.3-2b (revision 4ac2f02f413c)
+    built on ibm-granite/granite-3.3-2b-instruct
+Minutelindworm  <-  ibm-granite/granite-speech-4.1-2b-plus
+    by IBM Granite team
+    https://huggingface.co/ibm-granite/granite-speech-4.1-2b-plus (revision 1454e6e1e338)
+    built on ibm-granite/granite-4.0-1b-base
+Chimedrake  <-  onnx-community/Kokoro-82M-v1.0-ONNX
+    by hexgrad (Kokoro); ONNX export by onnx-community; architecture StyleTTS 2 by Yinghao Aaron Li et al.
+    https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX (revision 1939ad2a8e41)
+    built on hexgrad/Kokoro-82M
+Purrdrake  <-  KittenML/kitten-tts-nano-0.1
+    by KittenML
+    https://huggingface.co/KittenML/kitten-tts-nano-0.1 (revision 7d99aae46867)
+Choirdrake  <-  parler-tts/parler-tts-mini-multilingual
+    by Parler-TTS (Hugging Face)
+    https://huggingface.co/parler-tts/parler-tts-mini-multilingual (revision e0e121325d1f)
+Polyglotwyvern  <-  google/madlad400-3b-mt
+    by Google Research (MADLAD-400 team)
+    https://huggingface.co/google/madlad400-3b-mt (revision fa184c675da0)
+Tidedrakeling  <-  amazon/chronos-bolt-tiny
+    by Amazon Science (Chronos team)
+    https://huggingface.co/amazon/chronos-bolt-tiny (revision a0e552de8349)
+Tidedrake  <-  amazon/chronos-bolt-mini
+    by Amazon Science (Chronos team)
+    https://huggingface.co/amazon/chronos-bolt-mini (revision 251268337516)
+Ledgerdrake  <-  autogluon/mitra-classifier
+    by AutoGluon team (Amazon)
+    https://huggingface.co/autogluon/mitra-classifier (revision c425e9fa0910)
+Gaugedrake  <-  autogluon/mitra-regressor
+    by AutoGluon team (Amazon)
+    https://huggingface.co/autogluon/mitra-regressor (revision 5f277aa8f690)
+Lanterndrake  <-  AungMoonLord/bert-log-anomaly-detection
+    by AungMoonLord
+    https://huggingface.co/AungMoonLord/bert-log-anomaly-detection (revision 9ece304f330c)
+    built on google-bert/bert-base-uncased
+Currentdrake  <-  Fazmaj/modernbert-flow-anomaly-classifier
+    by Fazmaj
+    https://huggingface.co/Fazmaj/modernbert-flow-anomaly-classifier (revision cbf6d2c482ec)
+    built on answerdotai/ModernBERT-base
+Humdrake  <-  ManasKumar28/mimii-distilhubert-anomaly
+    by Manas Kumar
+    https://huggingface.co/ManasKumar28/mimii-distilhubert-anomaly (revision 68b6b27b477c)
+    built on ntu-spml/distilhubert
+Recordlindworm  <-  MidlightDDK/pocketsql-0.5b
+    by MidlightDDK
+    https://huggingface.co/MidlightDDK/pocketsql-0.5b (revision de60f0f65152)
+    built on Qwen/Qwen2.5-Coder-0.5B-Instruct
+Shieldwyvern  <-  ibm-granite/granite-guardian-hap-38m
+    by IBM Granite team
+    https://huggingface.co/ibm-granite/granite-guardian-hap-38m (revision faf9291163c7)
+Thornwyvern  <-  lakresi/toxic-comment-moderator
+    by Lloyd Akresi
+    https://huggingface.co/lakresi/toxic-comment-moderator (revision f76c8eac4bc2)
+    built on distilbert-base-uncased
+Sievewyvern  <-  navodPeiris/minilm-toxic-spam-classifier
+    by Navod Peiris
+    https://huggingface.co/navodPeiris/minilm-toxic-spam-classifier (revision d3948e3a10fa)
+    built on nreimers/MiniLMv2-L6-H384-distilled-from-BERT-Large
+Rustlewyrmling  <-  mispeech/ced-tiny
+    by Xiaomi speech team (mispeech; Heinrich Dinkel et al.)
+    https://huggingface.co/mispeech/ced-tiny (revision ace276d29dd0)
+Murmurwyrmling  <-  mispeech/ced-mini
+    by Xiaomi speech team (mispeech)
+    https://huggingface.co/mispeech/ced-mini (revision 26c3ebcae85d)
+Thunderwyrmling  <-  mispeech/ced-small
+    by Xiaomi speech team (mispeech)
+    https://huggingface.co/mispeech/ced-small (revision 06bb40c5ec08)
+Sketchwyvern  <-  AuroraAI-Research/AuroraIMG-6M
+    by AuroraAI-Research
+    https://huggingface.co/AuroraAI-Research/AuroraIMG-6M (revision 3d66743c3139)
+Tilewyvern  <-  Arrexel/pattern-diffusion
+    by Alex Reid (Arrexel)
+    https://huggingface.co/Arrexel/pattern-diffusion (revision 89dbf0d25ec8)
+Muralwyvern  <-  alfredplpl/CommonArt-PoC
+    by alfredplpl (Yasunori Ozaki)
+    https://huggingface.co/alfredplpl/CommonArt-PoC (revision 2bb53274c9fe)
+Gripdrake  <-  lerobot/smolvla_base
+    by Hugging Face LeRobot team
+    https://huggingface.co/lerobot/smolvla_base (revision 5e8d12a6e297)
+    built on HuggingFaceTB/SmolVLM2-500M-Video-Instruct
+Reachdrake  <-  lerobot/smolvla_libero
+    by Hugging Face LeRobot team
+    https://huggingface.co/lerobot/smolvla_libero (revision a24f1f380461)
+    built on lerobot/smolvla_base
+Pairdrake  <-  lerobot/smolvla_robotwin
+    by Hugging Face LeRobot team
+    https://huggingface.co/lerobot/smolvla_robotwin (revision eb55d3a74f6c)
+    built on lerobot/smolvla_base
+Armdrakeling  <-  ThiennNguyen/act_so101_small
+    by Thien Nguyen
+    https://huggingface.co/ThiennNguyen/act_so101_small (revision 8b10bec9c359)
+Alembicwyrm  <-  Haamipromax/HamAI-Science-1b
+    by Haamipromax
+    https://huggingface.co/Haamipromax/HamAI-Science-1b (revision cfc2dbf29ac6)
+    built on TinyLlama/TinyLlama-1.1B-Chat-v1.0
+    GGUF conversion by mradermacher: mradermacher/HamAI-Science-1b-GGUF
+Starwyrm  <-  eaddario/MiniCPM5-1B-GGUF
+    by Ed Addario (GGUF); model by OpenBMB
+    https://huggingface.co/eaddario/MiniCPM5-1B-GGUF (revision 1286cf588f44)
+    built on openbmb/MiniCPM5-1B
+Senatewyrm  <-  autotrust/JEV-27B-VL
+    by autotrust
+    https://huggingface.co/autotrust/JEV-27B-VL (revision 9e53b8a809d2)
+    built on Qwen/Qwen3.8-27B
+Choicewyrmling  <-  chinhnc/Quyet-1.0-Tiny
+    by Chinh Nguyen
+    https://huggingface.co/chinhnc/Quyet-1.0-Tiny (revision fba8ca9292a7)
+    built on jhu-clsp/mmBERT-small
+Choicewyrm  <-  chinhnc/Quyet-1.0-Small
+    by Chinh Nguyen
+    https://huggingface.co/chinhnc/Quyet-1.0-Small (revision f007dfeb4874)
+    built on aisingapore/SEA-LION-ModernBERT-300M
+Balancewyrm  <-  samratduttaofficial/WaterSheep
+    by Samrat Dutta
+    https://huggingface.co/samratduttaofficial/WaterSheep (revision 236de6496b53)
+    built on answerdotai/ModernBERT-base
+Fablehatchling  <-  BananaMind/StoryBananaMind-7.5M
+    by BananaMind
+    https://huggingface.co/BananaMind/StoryBananaMind-7.5M (revision b25ca49faaf1)
+Fablewyvern  <-  VertexAGI/prism-creative-1-mini
+    by VertexAGI
+    https://huggingface.co/VertexAGI/prism-creative-1-mini (revision 771d4e01f292)
+    built on mlx-community/Qwen3-4B-Instruct-2507-4bit
+Statutewyrmling  <-  sallani/EUAIAct-Qwen2.5-0.5B-Edge
+    by sallani
+    https://huggingface.co/sallani/EUAIAct-Qwen2.5-0.5B-Edge (revision 04524ad173bf)
+    built on Qwen/Qwen2.5-0.5B-Instruct
+Compliancewyrm  <-  AlexandruGirlea/precommiteu-models
+    by Alexandru Girlea
+    https://huggingface.co/AlexandruGirlea/precommiteu-models (revision 5d319e03bb48)
+    built on Qwen/Qwen2.5-Coder-7B-Instruct
+Dutywyrm  <-  PrinceRansom7/gemma4-e2b-it-regulatory-obligation-v1
+    by PrinceRansom7; base Gemma 4 by Google DeepMind
+    https://huggingface.co/PrinceRansom7/gemma4-e2b-it-regulatory-obligation-v1 (revision e1c4042c5c4c)
+    built on google/gemma-4-E2B-it
+Covenantwyrm  <-  zenlm/zen-legal
+    by zenlm
+    https://huggingface.co/zenlm/zen-legal (revision 94fb1cac02fb)
+    built on Qwen/Qwen3-8B
+
+Also thanked: creators whose models we checked and could not ship
+(see docs/release/SWARM_MODEL_VERIFICATION.md for why):
+    prithivMLmods/Draco-CoderMini-3B
+    Qwen/Qwen2.5-Coder-3B-Instruct
+    llmware/slim-extract-tool
+    llmware/slim-summary-tool
+    Dongwei/Qwen2.5-1.5B-Open-R1-GRPO_Math
+    EliaMengozzi/fallama
+    eulogik/TinyDoc-VLM-256M
+    docling-project/SmolDocling-256M-preview
+    nums-ai/causilo
+    melihemin/qwen2.5-0.5b-text2sql-full
+    saadxsalman/SS-350M-SQL-Strict-GGUF
+    openjev/openjev
+    yasserrmd/MegaSciMoE-1.2B
+    Arigadam/TinyStories-with-EOS
+    DavidAU/L3.2-Rogue-Creative-Instruct-Uncensored-7B-GGUF
+    Cactus-Compute/needle2
+    llmware/slim-sql-1b-v0
+    eulogik/nanoforecast-500k
+    zerooneresearch/predictlm-mini-13m
+    hexgrad/Kokoro-82M
+    stetteh/otics-anomaly
+    kkonathala/powerplant-anomaly-transformer
+    nvidia/Kumo-Anomaly
+    ash12321/deep-svdd-anomaly-detection
+    jibala1022/easyrec-base
+    DamonDemon/SpanUQ
+    PaddlePaddle/PP-OCRv6_tiny_rec
+    litert-community/SmolVLM2-500M
+    onnx-community/kitten-tts-nano-0.1-ONNX
+    mudler/ced-gguf
+    segmind/Segmind-Vega
+
+(end of Tiamat model credits)
+
+--------------------------------------------------------------------------
 CONTRIBUTORS
 --------------------------------------------------------------------------
 
 Michael Laurence Curzi <mlcurzi@gmail.com>  —  author, architect
-36N9 Genetics, LLC                          —  rights holder
+36N9 GENETICS LLC                           —  rights holder
+                                              PO Box 6, Calpine, CA 96124-0006
+                                              deal@zedec.ai
 
 Contributions are accepted under the License (section 5). Contributors
 retain copyright in their own contributions. Add yourself here when you

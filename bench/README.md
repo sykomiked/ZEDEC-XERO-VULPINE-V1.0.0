@@ -14,6 +14,9 @@ yet.
 | `make -C bench legacy-bench` | The same check, then a conversions-per-second figure |
 | `make -C bench smoke` | Offline checks: `legacy`, plus `zt_bench` refusing a weightless GGUF, plus the Python parser self-test |
 | `make -C bench tensor MODEL=m.gguf [N=32] [PROMPT="..."]` | Tensor benchmark on a GGUF model you supply |
+| `make -C bench qwen [ARM64=1]` | Downloads Qwen2.5-1.5B-Instruct Q4_K_M (1,117,320,736 bytes) to `~/.cache/zxv/models`, checks its SHA-256 against the hash Hugging Face publishes, then runs 8 fixed chat prompts on every kernel set: tokens/s, whether every run computed the same logit bits, and whether each answer is right. `ARM64=1` adds an aarch64 build under qemu |
+| `/tmp/zxv_bench/zt_bench MODEL.gguf --ranks P` or `--tcp RANK HOST0,HOST1,... PORT` | Tensor-parallel run (kernel/src/tensor/zt_model.h T23): P processes on this machine, or one rank per host over TCP. Prints the same token ids and `zt.logits_fnv` as one process, plus each rank's multiply-adds, peak memory and bytes sent. Results: `bench/results/2026-10-12-tensor-parallel/REPORT.md`; design: `docs/HPC_DESIGN.md` |
+| `make -C bench zt_dump zt_golden` | `zt_dump` writes every position's logits for a list of token ids (to compare with another runtime); `zt_golden` applies one golden-ratio part of the engine (phi scales, coil + holographic coding, E8) to a real model's weights first. Results and how to reproduce: `bench/results/2026-10-10-qwen2.5-1.5b/REPORT.md`; comparison scripts and the llama.cpp reference runner are in `bench/tensor/compare/` |
 
 Build output goes to `/tmp/zxv_bench` (override with `OUT=dir`).
 `make -C kernel verify-all` runs the `legacy` golden check; CI runs it in the
@@ -28,7 +31,10 @@ Build output goes to `/tmp/zxv_bench` (override with `OUT=dir`).
 - `run_tensor_bench.py` runs `zt_bench`, then, **only if llama.cpp is on PATH**:
   `llama-bench` on the same model with the same prompt length and N (tokens/s),
   and `llama-completion` (or `llama-cli`) greedy (`--temp 0 --top-k 1`) on the
-  same prompt. It reports whether the first N generated tokens match. The match
+  same prompt. Both llama.cpp tools run on the CPU (`-ngl 0`) as plain
+  completion (`-no-cnv`), and every program gets the same `--threads`
+  (default: every CPU; `make -C bench tensor ... THREADS=8 BATCH=128`).
+  It reports whether the first N generated tokens match. The match
   is checked on the decoded text, byte for byte, because the llama.cpp tools do
   not print token ids. A mismatch is reported with the offset of the first
   differing byte. `--json out.json` writes the summary.
@@ -40,6 +46,15 @@ Build output goes to `/tmp/zxv_bench` (override with `OUT=dir`).
       make -C bench smoke                     # also writes /tmp/zxv_bench/tok_only.gguf
       python3 bench/tensor/make_tiny_model.py /tmp/zxv_bench/tok_only.gguf /tmp/zxv_bench/tiny.gguf
       make -C bench tensor MODEL=/tmp/zxv_bench/tiny.gguf N=8
+
+- `make_synth_model.py TOKENIZER_ONLY.gguf OUT.gguf --shape qwen1.5b --type q8_0|q4_k
+  --vocab 151936` writes a model with the Qwen2.5-1.5B shape (28 layers, 1536
+  wide, n_ff 8960, 151936-row tied output) and random quantized weights (about
+  1.6 GB for q8_0, 1.0 GB for q4_k). Its tokens/s are **synthetic**: they
+  measure the kernels and the memory system of the machine they run on, not a
+  real model. `zt_bench --kern c|avx2|avx512|neon --threads N` picks the
+  matrix kernels (kernel/src/tensor/zt_simd.h) and the thread count; every
+  choice prints the same token ids.
 
 To reproduce a real comparison, pick a model the engine supports (see
 `docs/SYSTEM_REFERENCE.md`, tensor entry), use the same GGUF file for both

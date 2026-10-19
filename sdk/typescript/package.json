@@ -1,0 +1,59 @@
+{
+  "name": "@zedec/zxv",
+  "version": "1.6.0",
+  "description": "TypeScript SDK for the ZXV platform core (libzxv): exact rationals, four-valued logic, capabilities, budgets, phase ticks, UBH-168 frames, swarm economy, post-quantum crypto and a deterministic integer inference engine. Node-API addon for servers, WebAssembly for browsers.",
+  "license": "Apache-2.0",
+  "author": "Michael Laurence Curzi and 36N9 Genetics, LLC",
+  "type": "module",
+  "engines": {
+    "node": ">=20.10"
+  },
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "browser": "./dist/src/browser.js",
+      "node": "./dist/src/index.js",
+      "default": "./dist/src/browser.js"
+    },
+    "./wasm": {
+      "types": "./dist/src/browser.d.ts",
+      "default": "./dist/src/browser.js"
+    },
+    "./zxv.wasm": "./wasm/zxv.wasm",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/src",
+    "wasm/zxv.wasm",
+    "wasm/zxv_wasm_shim.c",
+    "wasm/zxv_wasm_shim.h",
+    "native/binding.gyp",
+    "native/zxv_addon.cc",
+    "native/include/zxv_api.h",
+    "native/build/Release/zxv_addon.node",
+    "lib",
+    "scripts",
+    "README.md"
+  ],
+  "scripts": {
+    "install": "node scripts/install.mjs",
+    "build:native": "node-gyp rebuild --directory native",
+    "build:wasm": "node scripts/build-wasm.mjs",
+    "build:ts": "tsc -p tsconfig.json",
+    "build": "npm run build:native && npm run build:wasm && npm run build:ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build:ts && node --test --test-concurrency=1 dist/test/vectors.test.js dist/test/engine.test.js dist/test/platform.test.js dist/test/hexagram.test.js dist/test/hardware.test.js dist/test/abi15.test.js dist/test/abi16.test.js dist/test/browser.test.js",
+    "example": "node dist/examples/quickstart.js",
+    "prepack": "npm run build:ts && node scripts/prepack.mjs"
+  },
+  "dependencies": {
+    "node-addon-api": "8.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "node-gyp": "11.0.0",
+    "typescript": "5.7.2"
+  }
+}

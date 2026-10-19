@@ -24,6 +24,8 @@ import tempfile
 import time
 
 FAILS = []
+FONTS = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'assets', 'fonts',
+                                     'ascw-golden'))
 
 
 def check(cond, msg):
@@ -65,7 +67,7 @@ def main(binary, gguf=None):
     env = dict(os.environ, HOME=home, XDG_DATA_HOME=os.path.join(home, 'xdg'))
     env.pop('ZXV_TOKEN', None)
     proc = subprocess.Popen([binary, '--no-window', '--port', '0', '--models-dir', models,
-                             '--exit-with-parent'],
+                             '--fonts-dir', FONTS, '--exit-with-parent'],
                             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                             stderr=subprocess.DEVNULL, text=True, env=env)
     try:
@@ -92,6 +94,21 @@ def main(binary, gguf=None):
         check(b'X-ZXV-Token' in html and b'#&]token=' in html, 'page carries the token plumbing')
         check(token.encode() not in html, 'page does not contain the token')
         check('X-Frame-Options: DENY' in hdr and "frame-ancestors 'none'" in hdr, 'page refuses framing')
+
+        # --- the window's font: ASCW Golden, by file name only
+        check(b"'ZXV UI'" in html and "font-src 'self'" in hdr, 'page asks for ASCW Golden')
+        st, fh, body = raw(port, 'GET', '/fonts/ASCW-Golden-Latin2.ttf', [host])
+        want = open(os.path.join(FONTS, 'ASCW-Golden-Latin2.ttf'), 'rb').read()
+        check(st == 200 and 'Content-Type: font/ttf' in fh and body == want, 'serves Latin II')
+        st, fh, body = raw(port, 'GET', '/fonts/ASCW-Golden-Javanese.otf', [host])
+        check(st == 200 and 'font/otf' in fh and body[:4] == b'OTTO', 'serves an OpenType face')
+        for path in ('/fonts/../LICENSE', '/fonts/ASCW-..%2F..%2FLICENSE.ttf', '/fonts/x.ttf',
+                     '/fonts/ASCW-Golden-Latin2.ttf.bak', '/fonts/ASCW-Nope.ttf'):
+            st, _, _ = raw(port, 'GET', path, [host])
+            check(st == 404, 'no font at %s' % path)
+        st, _, _ = raw(port, 'GET', '/fonts/ASCW-Golden-Latin2.ttf',
+                       [('Host', 'rebind.evil.example:%d' % port)])
+        check(st == 403, 'fonts keep the Host check')
 
         # --- refused: none of these may run, and none may stop the app
         bad = [
@@ -138,6 +155,21 @@ def main(binary, gguf=None):
         check(s['cycle'] > 0, 'market cycles ran')
         check(total == s['tokens_per_cycle'], 'allotments %d == T %d' % (total, s['tokens_per_cycle']))
         check(s['held'] == 0 and s['settled'] == s['cycle'], 'every cycle settled')
+        check(s['ledger_halt'] == 0 and s['ledger_synced'] == 2 * s['cycle'] and s['ledger_postings'] > 0,
+              'every cycle reconciled with the ledger of record, at the levy and after paying out '
+              '(%d syncs, %d postings)' % (s['ledger_synced'], s['ledger_postings']))
+        check(s['levied'] == s['fees'] - s['bounties_returned'] and s['bounties_returned'] <= s['fees'],
+              'the fee loop: %d levied = %d fees - %d bounties returned' %
+              (s['levied'], s['fees'], s['bounties_returned']))
+        transfers = s['ledger_postings'] - s['ledger_issues']
+        check(s['audit'] == 'active' and s['audit_events'] == 0 and
+              s['ledger_audited'] == transfers and s['audit_records'] >= transfers,
+              'the node self-audits and signs every ledger transfer (%d of %d, state %s)' %
+              (s['ledger_audited'], transfers, s['audit']))
+        q = s['quest']
+        check(len(q['skills']) == 8 and q['refused'] == 0 and
+              all(k['level'] == 0 and k['points'] == 0 for k in q['skills']),
+              'quest: eight skills, nothing credited before the owner trades')
         check(len(s['agents']) >= 1 and s['agents'][0]['name'] == 'Companion', 'companion first')
         check('model' in s, 'state reports the model slot')
         c = s.get('companion', {})
@@ -165,6 +197,18 @@ def main(binary, gguf=None):
             st, _, ans = raw(port, 'POST', '/api/ask', [host, same, auth], b'hello there, swarm')
             check(st == 200 and (b'tokens' in ans or m['can_generate']),
                   'ask goes through the model slot: %s' % ans[:120].decode('utf-8', 'replace'))
+            if m['can_generate']:
+                st, _, body = raw(port, 'GET', '/api/state', [host, auth, ('Sec-Fetch-Site', 'same-origin')])
+                c = json.loads(body)['companion']
+                t = c.get('last_tag', {})
+                check(t.get('base') == 'true' and t.get('phase') == 'manifest' and
+                      t.get('polarity') in ('negentropic', 'neutral', 'entropic') and
+                      t.get('action') in ('proceed', 'wait') and t.get('saturated') == 0 and
+                      t.get('tokens', 0) > 0 and t.get('code') == (48 | ({'entropic': 0,
+                      'neutral': 1, 'negentropic': 3}[t['polarity']] << 2) | 3),
+                      'the answer carries its 64-state tag: %s' % t)
+                check(c.get('quarantined') == 0 and c.get('quarantine_ok') is True,
+                      'a clean answer is not quarantined, and the empty log verifies')
         else:
             check(not s['model']['loaded'], 'no model is a normal state')
 

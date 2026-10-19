@@ -9,14 +9,14 @@
  * test_rails_canon.c checks each of them and the runtime mappings.
  *
  *   rail    numeric  jurisdiction  meaning
- *   DEBIT   555      NCR           what an account holds (asset / backing)
- *   CREDIT  777      NRE           what an account owes (claim / liability)
+ *   DEBIT   555      NRE           what an account holds (asset / backing)
+ *   CREDIT  777      NCR           what an account owes (claim / liability)
  *   EQUITY  888      PNS           debit - credit (live equity)
  *
  * 555, 777 and 888 are unassigned in ISO 4217: they are platform-internal
- * numerics, not currencies, and conventional parsers reject them. NCR, NRE
- * and PNS are platform jurisdiction codes (New California Republic, Neo
- * Roman Empire, Principality of New Sicily), NOT ISO 3166 country codes,
+ * numerics, not currencies, and conventional parsers reject them. NRE, NCR
+ * and PNS are platform jurisdiction codes (Neo Roman Empire, New
+ * California Republic, Principality of New Sicily), NOT ISO 3166 country codes,
  * and travel only in /ZXV/ fields. The cbank resolution designator 811 is a
  * procedure class, not a rail, and is deliberately not listed here.
  *
@@ -33,8 +33,8 @@
 #define ZXV_RAIL_CODE_CREDIT 777u
 #define ZXV_RAIL_CODE_EQUITY 888u
 
-#define ZXV_RAIL_CODE_DEBIT_JURIS  "NCR" /* New California Republic (not ISO 3166)    */
-#define ZXV_RAIL_CODE_CREDIT_JURIS "NRE" /* Neo Roman Empire (not ISO 3166)           */
+#define ZXV_RAIL_CODE_DEBIT_JURIS  "NRE" /* Neo Roman Empire (not ISO 3166)    */
+#define ZXV_RAIL_CODE_CREDIT_JURIS "NCR" /* New California Republic (not ISO 3166)           */
 #define ZXV_RAIL_CODE_EQUITY_JURIS "PNS" /* Principality of New Sicily (not ISO 3166) */
 
 /* True iff `code` is one of the three rail numerics. */

@@ -1,0 +1,33 @@
+; payment.gmap -- global map for ^ZXPAY, a synthetic payment journal.
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; ^ZXPAY(BATCH,SEQ)              one payment
+; ^ZXPAY(BATCH)                  the batch header
+; ^ZXPAY("B",REF,BATCH,SEQ)      the cross-reference by payment reference
+GLOBAL ^ZXPAY
+
+NODE ^ZXPAY(BATCH,SEQ)
+  KEY   BATCH        INTEGER(9)
+  KEY   SEQ          INTEGER(9)
+  PIECE 1 REF        TEXT(16)       REQUIRED
+  PIECE 2 AMOUNT     NUMBER(15,2)   REQUIRED
+  PIECE 3 CCY        TEXT(3)        REQUIRED
+  PIECE 4 FROM       INTEGER(10)    REQUIRED
+  PIECE 5 TO         INTEGER(10)    REQUIRED
+  PIECE 6 VALUE-DATE DATE
+  PIECE 7 STATUS     TEXT(1)
+  ; piece 8 is not used
+  PIECE 9 MEMO       TEXT(40)
+
+NODE ^ZXPAY(BATCH)
+  KEY   BATCH        INTEGER(9)
+  PIECE 1 OPENED     DATE           REQUIRED
+  PIECE 2 COUNT      INTEGER(6)
+  PIECE 3 TOTAL      NUMBER(18,2)
+  PIECE 4 NAME       TEXT(30)
+
+NODE ^ZXPAY("B",REF,BATCH,SEQ)
+  KEY   REF          TEXT(16)
+  KEY   BATCH        INTEGER(9)
+  KEY   SEQ          INTEGER(9)

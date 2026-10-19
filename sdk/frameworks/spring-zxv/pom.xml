@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>org.zedec</groupId>
+  <artifactId>spring-zxv</artifactId>
+  <version>1.1.0</version>
+  <packaging>pom</packaging>
+
+  <name>ZXV for Spring Boot (parent)</name>
+  <description>Spring Boot 3 auto-configuration over the ZXV SDK for the JVM (org.zedec:zxv).</description>
+
+  <licenses>
+    <license>
+      <name>Apache-2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+    </license>
+  </licenses>
+
+  <modules>
+    <module>zxv-spring-boot-starter</module>
+    <module>zxv-spring-boot-sample</module>
+  </modules>
+
+  <properties>
+    <maven.compiler.release>22</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <spring-boot.version>3.5.16</spring-boot.version>
+    <zxv.version>1.6.0</zxv.version>
+    <!-- Where the C library was built (sdk/libzxv/build). Each module is
+         sdk/frameworks/spring-zxv/<module>, so this resolves per module. -->
+    <zxv.native.dir>${project.basedir}/../../../libzxv/build</zxv.native.dir>
+    <zxv.lib.file>libzxv.so</zxv.lib.file>
+    <zxv.library>${zxv.native.dir}/${zxv.lib.file}</zxv.library>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring-boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.zedec</groupId>
+        <artifactId>zxv</artifactId>
+        <version>${zxv.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.zedec</groupId>
+        <artifactId>zxv-spring-boot-starter</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>3.13.0</version>
+          <configuration>
+            <release>22</release>
+            <parameters>true</parameters>
+            <failOnWarning>true</failOnWarning>
+            <compilerArgs>
+              <arg>-Xlint:all,-restricted,-try,-processing</arg>
+            </compilerArgs>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>3.5.2</version>
+          <configuration>
+            <!-- Tests run on the class path, so native access is granted to ALL-UNNAMED. -->
+            <useModulePath>false</useModulePath>
+            <argLine>--enable-native-access=ALL-UNNAMED -Dzxv.library=${zxv.library}</argLine>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-jar-plugin</artifactId>
+          <version>3.4.2</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-resources-plugin</artifactId>
+          <version>3.3.1</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-install-plugin</artifactId>
+          <version>3.1.3</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-clean-plugin</artifactId>
+          <version>3.4.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-maven-plugin</artifactId>
+          <version>${spring-boot.version}</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+
+  <profiles>
+    <profile>
+      <id>macos</id>
+      <activation><os><family>mac</family></os></activation>
+      <properties>
+        <zxv.lib.file>libzxv.dylib</zxv.lib.file>
+      </properties>
+    </profile>
+  </profiles>
+</project>

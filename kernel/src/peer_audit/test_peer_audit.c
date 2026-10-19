@@ -6,14 +6,13 @@
 #include <string.h>
 #include "peer_audit.h"
 #include "pa_runtime.h"
-#include "../pqsec/pq_security.h" /* prototype drift vs pa_pq.h is a compile error */
 #include "../lpres/lpres.h"
 #include "../tensor/zt.h"
 #include "../robin_debanks/sha256.h"
 
 _Static_assert(PA_NODE_ACTIVE == (int) LPRES_STATE_TRUE, "ACTIVE is S+");
 _Static_assert(PA_NODE_CONTRADICTION == (int) LPRES_STATE_BOTH, "CONTRADICTION is BOTH");
-_Static_assert(PA_SIG_LEN == PQ_MLDSA65_SIG_BYTES, "sig size");
+_Static_assert(PA_SIG_LEN == PQM_MLDSA87_SIG_BYTES, "sig size");
 
 static int g_pass, g_fail;
 #define CHECK(cond, msg)                                                                           \
@@ -104,7 +103,7 @@ static void setup(void)
     for (uint32_t i = 0; i < N_NODES; i++) {
         uint8_t seed[32];
         memset(seed, (int) (0x40 + i), 32);
-        pq_mldsa65_keygen(seed, g_pk[i], g_sk[i]);
+        pqm_mldsa87_keygen(seed, g_pk[i], g_sk[i]);
         g_ids[i] = 101 + i;
     }
     for (uint32_t i = 0; i < N_NODES; i++) {
@@ -204,8 +203,8 @@ static pa_verdict_t run_committee(const pa_record_t *rec, uint32_t n_faulty, uin
             g_votes[i].vote = g_votes[i].vote == PA_VOTE_ACCEPT ? PA_VOTE_REJECT : PA_VOTE_ACCEPT;
             uint8_t vh[32];
             pa_vote_hash(&g_votes[i], vh);
-            pq_mldsa65_sign(g_sk[vi], vh, 32, (const uint8_t *) PA_CTX_VOTE,
-                            (uint32_t) strlen(PA_CTX_VOTE), NULL, g_votes[i].sig);
+            pqm_mldsa87_sign(g_sk[vi], vh, 32, (const uint8_t *) PA_CTX_VOTE,
+                             (uint32_t) strlen(PA_CTX_VOTE), NULL, g_votes[i].sig);
         }
     }
     return pa_quorum(&g_ctx[observer], rh, comm, K_COMM, F_FAULT, g_votes, K_COMM, NULL);
@@ -374,8 +373,8 @@ static void sign_evidence(uint32_t signer, pa_evidence_t *e)
 {
     uint8_t eh[32];
     pa_evidence_hash(e, eh);
-    pq_mldsa65_sign(g_sk[signer], eh, 32, (const uint8_t *) PA_CTX_EVIDENCE,
-                    (uint32_t) strlen(PA_CTX_EVIDENCE), NULL, e->sig);
+    pqm_mldsa87_sign(g_sk[signer], eh, 32, (const uint8_t *) PA_CTX_EVIDENCE,
+                     (uint32_t) strlen(PA_CTX_EVIDENCE), NULL, e->sig);
 }
 
 static void test_false_accusation(void)

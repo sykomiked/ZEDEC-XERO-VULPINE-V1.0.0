@@ -293,12 +293,12 @@ static bool money_valid(const dm_money_t *a)
         a->currency[3] != 0)
         return false;
     if (a->memo[DM_MONEY_MEMO - 1] != 0) return false;
-    return a->amount > 0;
+    return a->amount > 0 && a->amount <= DM_MONEY_AMOUNT_MAX;
 }
 
 int32_t dm_money_encode(const dm_money_t *a, uint8_t *out, uint32_t cap)
 {
-    if (!a || !out) return -1;
+    if (!a || !out || a->amount > DM_MONEY_AMOUNT_MAX) return -1;
     dm_w_t w;
     dm_w_init(&w, out, cap);
     dm_w_bytes(&w, a->action_id, DM_ID_BYTES);
@@ -468,6 +468,7 @@ dm_status_t dm_money_ask(dm_mesh_t *m, const uint8_t peer[DM_ID_BYTES], const dm
     st = dm_send_app(m, peer, DM_APP_MONEY_ASK, buf, (uint32_t) n, now_ms);
     if (st != DM_OK) return st;
     dm_mcpy(&m->money_asked, a, sizeof *a);
+    dm_mcpy(m->money_asked_to, peer, DM_ID_BYTES);
     m->money_asked_used = 1;
     return DM_OK;
 }
@@ -567,7 +568,11 @@ void dm_remote_on_app(dm_mesh_t *m, dm_peer_t *p, uint8_t app, const uint8_t *d,
         break;
     }
     case DM_APP_MONEY_ANSWER: {
+        /* Only the held device the action was sent to may answer it (approve
+         * or decline): an answer from any other peer, held or not, is dropped
+         * and leaves the request pending. */
         if (!m->money_asked_used || n < DM_MONEY_WIRE) break;
+        if (!dm_meq(p->id, m->money_asked_to, DM_ID_BYTES)) break;
         dm_money_t a;
         if (dm_money_decode(&a, d, DM_MONEY_WIRE) != DM_OK) break;
         uint8_t x[DM_MONEY_WIRE], y[DM_MONEY_WIRE];

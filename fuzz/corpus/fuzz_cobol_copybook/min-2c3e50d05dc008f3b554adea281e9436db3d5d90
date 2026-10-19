@@ -1,0 +1,4 @@
+05  <<<<<<<<<N-ID PIC X OC 05 1CCR].
+    05  <<<<<TXN-ID PIC X D.
+CURS 6 TIMEÚ.
+    05 05  <<< PIC X OCCUR0 

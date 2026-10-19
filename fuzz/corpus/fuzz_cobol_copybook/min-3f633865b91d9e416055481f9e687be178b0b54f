@@ -1,0 +1,2 @@
+-ID PIC X O
+    05 1-ID PIC X OCCURS 8 TIM6RD

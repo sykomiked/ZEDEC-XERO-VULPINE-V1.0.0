@@ -1,0 +1,24 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# payments.eve - the types of examples/payments.ads, in Eve.
+eve payments
+currency = (ngn, ghs, kes, zar, usd)
+account_id = 0 .. 2**32 - 1
+money = dec(15, 2)
+fee = money -999.99 .. 999.99
+date8 = 19000101 .. 29991231        # YYYYMMDD
+line_no = 1 .. 4
+status = (fresh, posted, refused)
+lines = [line_no] money
+
+payment {
+  ref: str(16)
+  amount: money
+  ccy: currency
+  from, to: account_id
+  value_date: date8
+  fee_charge: fee
+  breakdown: lines
+  state: status fresh .. posted
+}

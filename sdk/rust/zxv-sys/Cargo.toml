@@ -1,0 +1,23 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "zxv-sys"
+description = "Raw FFI bindings to libzxv, the ZXV platform C ABI (zxv_api.h)"
+links = "zxv"
+build = "build.rs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+# Regenerate src/bindings.rs from zxv_api.h with bindgen (needs libclang).
+regenerate = ["dep:bindgen"]
+# Link libzxv.a statically instead of libzxv.so.
+static = []
+
+[build-dependencies]
+bindgen = { version = "0.71", optional = true, default-features = false, features = ["runtime"] }

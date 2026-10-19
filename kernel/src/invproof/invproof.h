@@ -80,8 +80,9 @@
  * are the scattered case at high quality (isolated +/-1 noise across the whole
  * frame), which is why this bound is generous rather than tight. */
 #define ZXI_MAX_RUNS  8192u
-#define ZXI_HDR_BYTES 88u   /* magic4 ver2 kind2 state_len4 runs4 d_before32
-                             * d_after32 seal4 = 88 */
+/* header: magic4 ver2 kind2 state_len4 runs4 d_before32 d_after32
+ * reserved4 (zero) seal4 = 88 */
+#define ZXI_HDR_BYTES 88u
 #define ZXI_RUN_HDR   6u    /* offset4 + len2 */
 
 typedef enum {

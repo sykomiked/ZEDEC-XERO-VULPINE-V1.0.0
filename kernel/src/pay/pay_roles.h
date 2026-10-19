@@ -165,7 +165,7 @@ typedef struct {
     pay_role_t role;
     uint32_t id;
     char name[71];
-    char jurisdiction[8]; /* platform jurisdiction label, e.g. "NCR" (non-ISO) */
+    char jurisdiction[8]; /* platform jurisdiction label, e.g. "NRE" (non-ISO) */
     char country[3];      /* ISO 3166 alpha-2 of the legal seat, or ""          */
     pay_limits_t limits;
     pay_fee_rule_t fee;
@@ -184,7 +184,7 @@ typedef struct {
 } pay_role_cfg_t;
 
 /* Defaults: no limits, no fee, the default assurance-fee policy, no screening, no
- * gateways, equity disabled, jurisdiction from the platform default ("NCR"),
+ * gateways, equity disabled, jurisdiction from the platform default ("NRE"),
  * no settlement asset (an institution never defaults to VFV). */
 pay_status_t pay_role_init(pay_role_cfg_t *c, pay_role_t role, uint32_t id, const char *name);
 /* Check the configuration for its role (LEI/BIC/IBAN, ledger, fee). */

@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding=="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+<FIToFICstmrCdtTpHdr><MsgId>MSG-1</MsgId><CreDtTm>2026-112:00:00Z</CreDtTm></GrpHersml

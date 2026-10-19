@@ -1,0 +1,109 @@
+== x86 full c t1
+zt.kern=c
+zt.prefill_tps=14.5
+zt.gen_tps=6.25
+zt.lm_n_sat=0
+zt.n_codes=162
+zt.codes_fnv=19c8427048ddd211
+zt.dec_rtf=1.3411
+zt.pcm_fnv=f9817db845a627ee
+zt.n_sat=0
+zt.n_clip=0
+== x86 full c t2
+zt.kern=c
+zt.prefill_tps=26.8
+zt.gen_tps=11.05
+zt.lm_n_sat=0
+zt.n_codes=162
+zt.codes_fnv=19c8427048ddd211
+zt.dec_rtf=0.7318
+zt.pcm_fnv=f9817db845a627ee
+zt.n_sat=0
+zt.n_clip=0
+== x86 full avx2 t1
+zt.kern=avx2
+zt.prefill_tps=25.2
+zt.gen_tps=10.44
+zt.lm_n_sat=0
+zt.n_codes=162
+zt.codes_fnv=19c8427048ddd211
+zt.dec_rtf=1.0024
+zt.pcm_fnv=f9817db845a627ee
+zt.n_sat=0
+zt.n_clip=0
+== x86 full avx2 t2
+zt.kern=avx2
+zt.prefill_tps=45.3
+zt.gen_tps=16.94
+zt.lm_n_sat=0
+zt.n_codes=162
+zt.codes_fnv=19c8427048ddd211
+zt.dec_rtf=0.5628
+zt.pcm_fnv=f9817db845a627ee
+zt.n_sat=0
+zt.n_clip=0
+== x86 full avx512 t1
+zt.kern=avx512
+zt.prefill_tps=28.1
+zt.gen_tps=10.79
+zt.lm_n_sat=0
+zt.n_codes=162
+zt.codes_fnv=19c8427048ddd211
+zt.dec_rtf=0.8495
+zt.pcm_fnv=f9817db845a627ee
+zt.n_sat=0
+zt.n_clip=0
+== x86 full avx512 t2
+zt.kern=avx512
+zt.prefill_tps=54.1
+zt.gen_tps=18.63
+zt.lm_n_sat=0
+zt.n_codes=162
+zt.codes_fnv=19c8427048ddd211
+zt.dec_rtf=0.4758
+zt.pcm_fnv=f9817db845a627ee
+zt.n_sat=0
+zt.n_clip=0
+== x86 full avx512vnni t1
+zt.kern=avx512vnni
+zt.prefill_tps=29.2
+zt.gen_tps=10.39
+zt.lm_n_sat=0
+zt.n_codes=162
+zt.codes_fnv=19c8427048ddd211
+zt.dec_rtf=0.8794
+zt.pcm_fnv=f9817db845a627ee
+zt.n_sat=0
+zt.n_clip=0
+== x86 full avx512vnni t2
+zt.kern=avx512vnni
+zt.prefill_tps=48.5
+zt.gen_tps=16.54
+zt.lm_n_sat=0
+zt.n_codes=162
+zt.codes_fnv=19c8427048ddd211
+zt.dec_rtf=0.5338
+zt.pcm_fnv=f9817db845a627ee
+zt.n_sat=0
+zt.n_clip=0
+== x86 short LM (--max 24) c
+zt.n_codes=21
+zt.codes_fnv=e52ed7cdeabc1c1d
+zt.pcm_fnv=063fd91c16b9ec95
+== arm64 qemu decoder c
+zt.kern=c
+zt.n_codes=162
+zt.codes_fnv=19c8427048ddd211
+zt.dec_s=32.289
+zt.pcm_fnv=f9817db845a627ee
+== arm64 qemu decoder neon
+zt.kern=neon
+zt.n_codes=162
+zt.codes_fnv=19c8427048ddd211
+zt.dec_s=26.477
+zt.pcm_fnv=f9817db845a627ee
+== arm64 qemu short LM (--max 24) neon
+zt.n_codes=21
+zt.codes_fnv=e52ed7cdeabc1c1d
+zt.pcm_fnv=063fd91c16b9ec95
+arm64 neon WAV == x86 c WAV

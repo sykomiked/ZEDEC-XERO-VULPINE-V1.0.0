@@ -119,14 +119,14 @@ int physics_measure(physics_state_t *s, uint32_t body_idx) {
 }
 
 bool physics_check_conservation(const physics_state_t *s) {
-    rational_t ke = (rational_t){0, 1};
+    /* Summed in double: the old int64 rational sum (kinetic * 10^6) overflowed
+     * for large energies, which is undefined behaviour. */
+    double ke_mag = 0.0;
     for (uint32_t i = 0; i < s->num_bodies; i++) {
         double v = cabs(s->bodies[i].velocity);
         double m = rational_mag(s->bodies[i].mass);
-        double kinetic = 0.5 * m * v * v;
-        ke = rmag_add_quotas(ke, (rational_t){(int64_t)(kinetic * 1000000), 1000000});
+        ke_mag += 0.5 * m * v * v;
     }
-    double ke_mag = rational_mag(ke);
     double te_mag = rational_mag(s->total_energy);
     if (s->current_step > 0 && te_mag > 0) {
         double drift = fabs(ke_mag - te_mag) / te_mag;

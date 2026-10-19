@@ -1,0 +1,6 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# broken.zc — a contract with a mistake, for `zc-tool check` (it must fail).
+fn fee(amount: int[0..10^12], bps: int[0..10000]) -> int[0..0]
+    proposes rat[0..10^12] den<100 max 1;

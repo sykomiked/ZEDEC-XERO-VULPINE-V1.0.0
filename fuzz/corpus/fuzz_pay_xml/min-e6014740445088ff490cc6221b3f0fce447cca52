@@ -1,0 +1,4 @@
+<?xml version="0" ="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+<BkToCstmrStmt>
+<GrpHdr><MsgId>C1</MsgId><CreDtTm>00>00Z</CreDtTm><Anf>/ZXV/</gG

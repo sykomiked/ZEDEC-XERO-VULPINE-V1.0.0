@@ -1,0 +1,5 @@
+<?xml voding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+<BkToCstmrStmt>
+<GrpHdr><MsgId>C1</MsgId><CreDtTm>200Z</CreDtTm></GrpHdr>
+<Stmt>d¿><CreDtT Ccy="USD"5t>

@@ -148,7 +148,8 @@ bool ch_default_verify_sig(const stash_bucket_t *bucket);
 /* Deposit peer tokens into (or top up) a Stash Bucket. proof_sig must
  * verify against peer_pubkey for the deposit to count toward balance.
  * Returns bucket index on success, -1 if capacity exceeded, -2 if
- * signature verification failed (deposit rejected, trust penalized). */
+ * signature verification failed (deposit rejected, trust penalized), -3 if
+ * the bucket's new balance would not fit in 64 bits (nothing changes). */
 int32_t count_house_deposit(count_house_t *ch, const word168_t *peer_id,
                              const uint8_t peer_pubkey[CH_PUBKEY_LEN],
                              uint64_t amount,

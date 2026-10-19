@@ -154,6 +154,20 @@ static void test_market_cycle_and_settle(void)
     CHECK(slot(&b, 3)->allotted == 443 && slot(&b, 3)->allotted_mk == 310, "model 3: 133 + 310");
     CHECK(m.pot == 250 && fin(&m, 1) == 900 && fin(&m, 3) == 950, "M5 bids paid into the pot");
     CHECK(swarm_market_conserved(&m), "M8 conserved while the pot is open");
+    CHECK(swarm_market_levy(&m, 251) == SWARM_ERR_ARG &&
+              swarm_market_release(&m, 1) == SWARM_ERR_ARG &&
+              swarm_market_levy(0, 0) == SWARM_ERR_ARG &&
+              swarm_market_release(0, 0) == SWARM_ERR_ARG && m.pot == 250 && m.levied == 0,
+          "M10 no levy beyond the pot, no release beyond what was levied");
+    CHECK(swarm_market_levy(&m, 250) == SWARM_OK && m.pot == 0 && m.levied == 250 &&
+              swarm_market_conserved(&m),
+          "M10 the whole pot levied: still conserved (M8)");
+    m.levied--;
+    CHECK(!swarm_market_conserved(&m), "M8 counts what is levied");
+    m.levied++;
+    CHECK(swarm_market_release(&m, 250) == SWARM_OK && m.pot == 250 && m.levied == 0 &&
+              swarm_market_conserved(&m),
+          "M10 released back into the pot");
 
     /* M6: income 250 * 13/21 = 154, dividend 96. Value 30 : 10 ->
      * 115 r 20 and 38 r 20, tie to the lower index -> 116, 38. */

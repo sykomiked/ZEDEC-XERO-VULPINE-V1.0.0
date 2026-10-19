@@ -6,8 +6,8 @@
  * from) and the current time; it hands back the bytes to send, each tagged
  * with a destination address, in a caller-provided outbox. It never opens a
  * socket, reads a clock or draws entropy on its own (its DRBG is seeded by the
- * host). NAT traversal, hole punching and the UDP/stream glue are the host
- * layer's job (arch/hosted), not this module's.
+ * host). It has the NAT traversal messages (below); the sockets, port
+ * mapping and the UDP/stream glue are the host layer's job (arch/hosted).
  *
  * What it does:
  *   - verifies every message (vna_msg_open) before anything else;
@@ -30,7 +30,22 @@
  *     no route to the destination exists, delivered in order, exactly once
  *     (receiver dedupe), when the destination becomes reachable;
  *   - passes every outgoing and incoming frame through an optional transform
- *     hook (vna_xform_t, vna_frame.h), the integration point for src/ehop.
+ *     hook (vna_xform_t, vna_frame.h), the integration point for src/ehop;
+ *   - NAT TRAVERSAL (basic). N1 every PONG carries the address the PING came
+ *     from; vna_node_reflexive reports the address distinct peers agree on
+ *     (STUN-like, but signed). N2 vna_node_punch asks a contact R to
+ *     introduce this node to a peer R knows; R sends each side the other's
+ *     address and both PING it, which opens both NAT mappings (UDP hole
+ *     punching through a rendezvous, RFC 5128). The PONG must come from the
+ *     NodeID that was introduced. N3 introductions relayed and acted on are
+ *     rate limited (VNA_PUNCH_RATE per second), and each is a single PING of
+ *     the same size as the request, so they cannot be used to amplify.
+ *     N4 vna_node_keepalive pings idle contacts so NAT mappings stay open.
+ *     The host does the sockets, port mapping (NAT-PMP) and timing;
+ *   - carries AIPI calls, claims and payment notices (VNA_MSG_AIPI) to a
+ *     handler (src/aipi/aipi_vna.h). A CALL is accepted only under an
+ *     agreement that shares compute with the caller, within its compute
+ *     quota (one unit per call).
  *
  * PURELY PEER TO PEER. Every node runs the same code with the same rules. A
  * high-capacity always-on node (a "server" someone connects to enhance the
@@ -47,10 +62,11 @@
 #include "vna_cmd.h"
 
 #define VNA_NODE_PENDING 64u
-#define VNA_NODE_LOOKUPS 3u
+#define VNA_NODE_LOOKUPS 8u
 #define VNA_NODE_EVENTS  8u
 #define VNA_OUTBOX_MAX   64u
-#define VNA_MSG_WIRE_MAX 13700u /* largest framed message */
+#define VNA_MSG_WIRE_MAX                                                                           \
+    (VNA_BODY_MAX + VNA_PK_LEN + VNA_SIG_LEN + 247u) /* largest framed message */
 
 #define VNA_FL_RESPONSE 0x0001u /* HK message flag: this answers rpc */
 
@@ -75,6 +91,7 @@ typedef struct {
     uint16_t len;
     vna_id_t key;
     vna_id_t publisher;
+    uint8_t rtype;
     uint64_t created, expires, republish_at;
     bool used;
 } vna_store_slot_t;
@@ -101,7 +118,8 @@ typedef enum {
     VNA_P_BOOT,
     VNA_P_STORE,
     VNA_P_HK,
-    VNA_P_SPOOL
+    VNA_P_SPOOL,
+    VNA_P_PUNCH
 } vna_pending_kind_t;
 
 typedef struct {
@@ -186,6 +204,36 @@ uint32_t vna_spool_pending(const vna_spool_t *s, const vna_id_t *dst);
 
 typedef uint64_t (*vna_trust_fn)(void *ctx, const vna_id_t *peer);
 
+/* A trade receipt (vna_econ.h) from `from`, inside a verified message. The
+ * node only carries receipts: the owner's book decides (vna_book_apply), so
+ * the handler gets the receipt bytes and the sender, and answers, if at all,
+ * with vna_node_send_rcpt after vna_node_handle returns. */
+typedef vna_status_t (*vna_rcpt_fn)(void *ctx, const vna_id_t *from, const uint8_t *rcpt,
+                                    uint32_t len, uint64_t now);
+
+/* An AIPI message from `from`, inside a verified message (the node checked
+ * the degree and quota for a CALL). The handler may answer at once with
+ * vna_node_send_aipi into ob. */
+typedef vna_status_t (*vna_aipi_fn)(void *ctx, const vna_id_t *from, const vna_b_aipi_t *b,
+                                    uint64_t now, vna_outbox_t *ob);
+
+/* A public-space message (vna_space.h) from `from`, sent from addr, inside a
+ * verified message. The handler may answer at once into ob. */
+typedef vna_status_t (*vna_space_fn)(void *ctx, const vna_id_t *from, const uint8_t *addr,
+                                     uint32_t addr_len, const vna_b_space_t *b, uint64_t now,
+                                     vna_outbox_t *ob);
+
+#define VNA_NODE_REFLEX 8u /* N1: reflexive-address reports kept */
+#define VNA_PUNCH_RATE  8u /* N3: introductions per second, relayed or acted on */
+
+typedef struct {
+    bool used;
+    vna_id_t reporter;
+    uint8_t addr[VNA_ADDR_MAX];
+    uint8_t addr_len;
+    uint64_t at;
+} vna_reflex_t;
+
 typedef struct {
     const vna_identity_t *idn;
     vna_node_cfg_t cfg;
@@ -200,6 +248,8 @@ typedef struct {
     vna_usage_t *usage;
     vna_trust_fn trust;
     void *trust_ctx;
+    vna_rcpt_fn rcpt;
+    void *rcpt_ctx;
     vna_pending_t pend[VNA_NODE_PENDING];
     vna_node_lookup_t lks[VNA_NODE_LOOKUPS];
     vna_event_t ev[VNA_NODE_EVENTS];
@@ -219,6 +269,23 @@ typedef struct {
     /* statistics */
     uint32_t evictions, evict_kept, stores_ok, stores_refused, unexpected, denied, hk_refused;
     uint32_t sent, received, dropped_out, xform_refused, seeded;
+    uint32_t rcpt_in, rcpt_refused, rcpt_out;
+    /* NAT traversal (N1-N4) */
+    vna_reflex_t reflex[VNA_NODE_REFLEX];
+    uint64_t punch_sec;
+    uint32_t punch_in_sec;
+    uint32_t punch_asked, punch_relayed, punch_intros, punch_refused, punch_ok;
+    /* AIPI */
+    vna_aipi_fn aipi;
+    void *aipi_ctx;
+    vna_b_aipi_t aipi_in_b;
+    uint32_t aipi_in, aipi_refused, aipi_out;
+    /* public spaces */
+    vna_space_fn space;
+    void *space_ctx;
+    vna_b_space_t space_in_b, space_out_b;
+    uint32_t space_store_cap; /* SPACE records kept for others at degree ROUTE */
+    uint32_t space_in, space_refused, space_out;
 } vna_node_t;
 
 typedef struct {
@@ -236,6 +303,14 @@ typedef struct {
 
 vna_status_t vna_node_init(vna_node_t *n, const vna_identity_t *idn, const vna_node_cfg_t *cfg,
                            const vna_node_mem_t *mem, const uint8_t seed[32]);
+
+/* A node whose identity outlives a restart must not reuse message sequence
+ * numbers: peers keep a replay window per NodeID and refuse any seq at or
+ * below what they saw. Call right after vna_node_init with a floor above
+ * every seq the identity used before (the host derives it from the wall
+ * clock: ms x 1024, so more than 1024 messages per ms would be needed to
+ * overtake it). It only ever raises the counter. */
+void vna_node_resume_seq(vna_node_t *n, uint64_t floor);
 
 /* Attach the owner's agreement (may be NULL: then everything beyond routing
  * is refused), usage table and trust function. */
@@ -289,6 +364,12 @@ vna_status_t vna_node_send_hk(vna_node_t *n, const vna_id_t *dst, const char *te
                               uint32_t ordinal, bool is_response, uint64_t rpc, uint64_t now,
                               vna_outbox_t *ob);
 
+/* Trade receipts: set the handler (NULL refuses every receipt), and send
+ * one (canonical bytes, at most VNA_RCPT_WIRE_MAX) to a known contact. */
+void vna_node_set_rcpt_handler(vna_node_t *n, vna_rcpt_fn fn, void *ctx);
+vna_status_t vna_node_send_rcpt(vna_node_t *n, const vna_id_t *dst, const uint8_t *rcpt,
+                                uint32_t len, uint64_t now, vna_outbox_t *ob);
+
 /* Next Hackronomicon event (a request the agreement allows, or a response to
  * one of ours). */
 bool vna_node_poll_event(vna_node_t *n, vna_event_t *ev);
@@ -322,6 +403,46 @@ void vna_node_set_xform(vna_node_t *n, const vna_xform_t *x);
 /* Copy up to max contacts out of the routing table (for the host to persist
  * as cached peers together with the node records it received). */
 uint32_t vna_node_contacts(const vna_node_t *n, vna_contact_t *out, uint32_t max);
+
+/* N1: the reflexive address most distinct peers reported (written to addr,
+ * its length to *len); returns how many peers reported it, 0 if none. */
+uint32_t vna_node_reflexive(const vna_node_t *n, uint8_t addr[VNA_ADDR_MAX], uint8_t *len);
+
+/* N2: ask the contact `via` to introduce this node to `target`. */
+vna_status_t vna_node_punch(vna_node_t *n, const vna_id_t *target, const vna_id_t *via,
+                            uint64_t now, vna_outbox_t *ob);
+
+/* N4: PING up to max contacts not heard from for idle_ms. Returns how many. */
+uint32_t vna_node_keepalive(vna_node_t *n, uint64_t now, uint64_t idle_ms, uint32_t max,
+                            vna_outbox_t *ob);
+
+/* AIPI: set the handler (NULL refuses every AIPI message) and send one
+ * (kind, amount, data) to a known contact. */
+void vna_node_set_aipi_handler(vna_node_t *n, vna_aipi_fn fn, void *ctx);
+vna_status_t vna_node_send_aipi(vna_node_t *n, const vna_id_t *dst, uint8_t kind, uint64_t amount,
+                                const uint8_t *data, uint32_t len, uint64_t now, vna_outbox_t *ob);
+/* As vna_node_send_aipi, to a peer that may not be a contact yet (a provider
+ * found in the DHT): sent to addr unless dst is a contact, whose verified
+ * address is then used. The message is addressed to dst, so only dst can
+ * act on it. */
+vna_status_t vna_node_send_aipi_at(vna_node_t *n, const vna_id_t *dst, const uint8_t *addr,
+                                   uint32_t addr_len, uint8_t kind, uint64_t amount,
+                                   const uint8_t *data, uint32_t len, uint64_t now,
+                                   vna_outbox_t *ob);
+
+/* Public spaces: set the handler (NULL refuses every space message) and
+ * send one message, to addr unless dst is a contact (as vna_node_send_aipi_at). */
+void vna_node_set_space_handler(vna_node_t *n, vna_space_fn fn, void *ctx);
+vna_status_t vna_node_send_space_at(vna_node_t *n, const vna_id_t *dst, const uint8_t *addr,
+                                    uint32_t addr_len, uint8_t kind, const vna_id_t *space,
+                                    const uint8_t *data, uint32_t len, uint64_t now,
+                                    vna_outbox_t *ob);
+/* Keep up to `cap` public-space records (rtype VNA_REC_SPACE) for other
+ * nodes even at degree ROUTE (0: only at degree STORE, as every record).
+ * Spaces live in the DHT only if their members hold each other's records,
+ * so the host turns this on while the owner is in a public space. Every
+ * other record type still needs degree STORE. */
+void vna_node_space_store(vna_node_t *n, uint32_t cap);
 
 /* Records currently held. */
 uint32_t vna_node_store_count(const vna_node_t *n);

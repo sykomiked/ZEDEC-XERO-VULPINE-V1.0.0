@@ -4,9 +4,9 @@
  *
  * MESSAGE (schema vna_msg_schema, all little-endian, version 1)
  *   magic "VNA2" | version | type | flags | features | src NodeID | dst NodeID |
- *   pow nonce | seq | timestamp_ms | rpc id | body<u16 len> | ML-DSA-65 pk |
- *   ML-DSA-65 signature
- * The signature (context "vinea/v2/msg") covers every byte before it, so
+ *   pow nonce | seq | timestamp_ms | rpc id | body<u16 len> | ML-DSA-87 pk |
+ *   ML-DSA-87 signature
+ * The signature (context "vinea/v3/msg") covers every byte before it, so
  * it binds the type, both NodeIDs (a message for node A cannot be replayed to
  * node B), the sequence, the timestamp, the rpc id and the body.
  *
@@ -20,7 +20,7 @@
  *      would be a replay, so dropping it is exact)
  *   4. timestamp window and replay window (read-only)
  *   5. NodeID binding SHA3-256(pk) == src and PoW (via the verified key cache)
- *   6. ML-DSA-65 signature
+ *   6. ML-DSA-87 signature
  *   7. commit: replay window advanced, message hash remembered
  */
 #ifndef VNA_WIRE_H
@@ -34,9 +34,12 @@
 #define VNA_REC_MAGIC   0x32524E56u /* "VNR2" */
 #define VNA_K           20u         /* bucket size and replication factor */
 #define VNA_PAYLOAD_MAX 2600u
-#define VNA_REC_MAX     8000u
-#define VNA_BODY_MAX    8192u
+#define VNA_REC_MAX     (139u + VNA_PAYLOAD_MAX + VNA_PK_LEN + VNA_SIG_LEN)
+#define VNA_BODY_MAX    (VNA_REC_MAX + 192u)
 #define VNA_HK_MAX      255u
+/* a trade receipt (vna_econ.h VNA_RCPT_MAX); it travels in one vna_b_rec_t */
+#define VNA_RCPT_WIRE_MAX (582u + 2u * VNA_SIG_LEN)
+_Static_assert(VNA_RCPT_WIRE_MAX <= VNA_REC_MAX, "a trade receipt must fit a DHT record body");
 
 typedef enum {
     VNA_MSG_PING = 1,
@@ -50,7 +53,11 @@ typedef enum {
     VNA_MSG_HK = 9,         /* one canonical Hackronomicon command line */
     VNA_MSG_SPOOL = 10,     /* one store-and-forward item (vna_spool_item_t) */
     VNA_MSG_SPOOL_ACK = 11, /* its acknowledgement (vna_b_spool_ack_t) */
-    VNA_MSG_TYPE_MAX = 11
+    VNA_MSG_RCPT = 12,      /* one trade receipt (vna_econ.h), body vna_b_rec_t */
+    VNA_MSG_PUNCH = 13,     /* NAT traversal: introduction request / introduction (vna_b_punch_t) */
+    VNA_MSG_AIPI = 14,      /* one AIPI call, claim or payment notice (vna_b_aipi_t) */
+    VNA_MSG_SPACE = 15, /* public spaces: join, welcome, presence, leave, event (vna_b_space_t) */
+    VNA_MSG_TYPE_MAX = 15
 } vna_msg_type_t;
 
 typedef struct {
@@ -103,7 +110,74 @@ typedef struct {
     uint8_t text[VNA_HK_MAX];
 } vna_b_hk_t;
 
+/* PONG body (optional; empty from older nodes): the transport address the
+ * responder saw the PING come from. This is how a node behind a NAT learns
+ * its public (reflexive) address, as STUN does (RFC 8489 XOR-MAPPED-ADDRESS),
+ * except the answer is signed by the responder. One peer's word proves
+ * nothing, so vna_node_reflexive counts it only when distinct peers agree. */
+typedef struct {
+    uint16_t addr_len;
+    uint8_t addr[VNA_ADDR_MAX];
+} vna_b_addr_t;
+
+/* PUNCH (UDP hole punching through a rendezvous peer R, RFC 5128 sec. 3.3):
+ *   REQ   A -> R  "introduce me to `peer`" (R must already know `peer`).
+ *   INTRO R -> B  "`peer` (A) is at `addr`"; and R -> A "B is at `addr`".
+ * On an INTRO each side PINGs the address it was given, expecting exactly
+ * that NodeID, which opens both NAT mappings; the PONG proves the identity.
+ * R takes A's address from the datagram, never from the body. */
+typedef enum { VNA_PUNCH_REQ = 1, VNA_PUNCH_INTRO = 2 } vna_punch_kind_t;
+typedef struct {
+    uint8_t kind;
+    vna_id_t peer;
+    uint16_t addr_len;
+    uint8_t addr[VNA_ADDR_MAX];
+} vna_b_punch_t;
+
+/* AIPI over Vinea (src/aipi): the call record, an executor's claim, or a
+ * payment notice, carried as opaque bytes. The message signature (ML-DSA-87)
+ * authenticates the sender, so a claim's executor field is checked against
+ * the message's src by the receiver before the claim counts. */
+#define VNA_AIPI_DATA_MAX 2600u
+typedef enum {
+    VNA_AIPI_CALL = 1,  /* data: call record; amount: the bounty offered */
+    VNA_AIPI_CLAIM = 2, /* data: claim bytes (aipi_claim_encode) */
+    VNA_AIPI_PAID = 3,  /* data: call CID (binary); amount: what the caller pays */
+    VNA_AIPI_BUSY = 4   /* data: call CID; the executor declines this call */
+} vna_aipi_kind_t;
+typedef struct {
+    uint8_t kind;
+    uint64_t amount;
+    uint16_t len;
+    uint8_t data[VNA_AIPI_DATA_MAX];
+} vna_b_aipi_t;
+
+/* Public spaces (vna_space.h): one space message. `space` is the space id
+ * (the SHA-256 digest inside its CID); data depends on the kind: an EVENT
+ * carries a sealed event record (rtype VNA_REC_SPACE_EV, signed by its
+ * author, so it can be forwarded), a WELCOME the space's genesis block and a
+ * member list; JOIN, PRESENCE and LEAVE carry nothing (the message itself is
+ * signed by the sender). */
+#define VNA_SPACE_MSG_DATA_MAX VNA_REC_MAX
+typedef enum {
+    VNA_SPACE_M_JOIN = 1,
+    VNA_SPACE_M_WELCOME = 2,
+    VNA_SPACE_M_PRESENCE = 3,
+    VNA_SPACE_M_LEAVE = 4,
+    VNA_SPACE_M_EVENT = 5
+} vna_space_msg_kind_t;
+typedef struct {
+    uint8_t kind;
+    vna_id_t space;
+    uint16_t len;
+    uint8_t data[VNA_SPACE_MSG_DATA_MAX];
+} vna_b_space_t;
+
 extern const vna_schema_t vna_msg_schema;
+extern const vna_schema_t vna_b_addr_schema;
+extern const vna_schema_t vna_b_punch_schema;
+extern const vna_schema_t vna_b_aipi_schema;
+extern const vna_schema_t vna_b_space_schema;
 extern const vna_schema_t vna_b_key_schema;
 extern const vna_schema_t vna_b_nodes_schema;
 extern const vna_schema_t vna_b_rec_schema;
@@ -111,7 +185,15 @@ extern const vna_schema_t vna_b_ack_schema;
 extern const vna_schema_t vna_b_hk_schema;
 
 /* ---- signed DHT records ---- */
-typedef enum { VNA_REC_PROVIDER = 1, VNA_REC_AGREEMENT = 2 } vna_rec_type_t;
+/* SPACE: a public space's host or directory entry (vna_space.h, stored in
+ * the DHT); SPACE_EV: an event in a space, signed by its author, carried in
+ * VNA_MSG_SPACE and never stored in the DHT. */
+typedef enum {
+    VNA_REC_PROVIDER = 1,
+    VNA_REC_AGREEMENT = 2,
+    VNA_REC_SPACE = 3,
+    VNA_REC_SPACE_EV = 4
+} vna_rec_type_t;
 typedef enum { VNA_VIS_PUBLIC = 0, VNA_VIS_PRIVATE = 1 } vna_visibility_t;
 
 typedef struct {
@@ -188,8 +270,8 @@ vna_status_t vna_rec_verify(vna_verifier_t *v, const uint8_t *buf, uint32_t len,
 /* ---- signed node records (identity + where to reach it) ----
  *
  * A node record is the node's vna_id identity (NodeID = SHA3-256(pk), PoW
- * nonce) bound by its own ML-DSA-65 signature (context
- * "vinea/v2/node-record") to the transport addresses it can be reached at,
+ * nonce) bound by its own ML-DSA-87 signature (context
+ * "vinea/v3/node-record") to the transport addresses it can be reached at,
  * a monotonically increasing seq, and a lifetime. It is what a LAN
  * announcement carries and what a host persists as a "cached peer": anyone
  * can check it offline, nobody but the key holder can make or change one.
@@ -203,7 +285,7 @@ vna_status_t vna_rec_verify(vna_verifier_t *v, const uint8_t *buf, uint32_t len,
 #define VNA_NR_ADDRS      4u
 #define VNA_NR_HIGHCAP    0x01u
 #define VNA_NR_GOODBYE    0x02u /* leaving: drop this node (signed, so not spoofable) */
-#define VNA_NODEREC_MAX   5520u
+#define VNA_NODEREC_MAX   (259u + VNA_PK_LEN + VNA_SIG_LEN)
 
 typedef struct {
     uint16_t len;
@@ -241,12 +323,12 @@ vna_status_t vna_noderec_verify(vna_verifier_t *v, const uint8_t *buf, uint32_t 
                                 uint64_t skew_ms, vna_noderec_t *r);
 
 /* ---- store-and-forward (offline outbox) items ----
- * Signed by the origin at enqueue time (context "vinea/v2/spool-item"), so a
+ * Signed by the origin at enqueue time (context "vinea/v3/spool-item"), so a
  * queue persisted by the host is tamper-evident and the receiver sees what
  * the owner authorised and when. Delivered inside a fresh VNA_MSG_SPOOL
  * message (new seq/ts, so the message replay window still holds). */
 #define VNA_SPOOL_MAGIC    0x32534E56u /* "VNS2" */
-#define VNA_SPOOL_ITEM_MAX 3700u
+#define VNA_SPOOL_ITEM_MAX (391u + VNA_SIG_LEN)
 
 typedef struct {
     uint32_t magic;

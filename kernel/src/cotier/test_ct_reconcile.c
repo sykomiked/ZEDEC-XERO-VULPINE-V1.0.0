@@ -42,6 +42,15 @@ static double unif(void)
     return (next() >> 11) * (1.0 / 9007199254740992.0) * 2 - 1;
 }
 
+/* double -> Q16.16, clamped: an out-of-range conversion is undefined
+ * behaviour (clang's UBSan float-cast-overflow reported it here) */
+static zt_fx fxd(double v)
+{
+    if (v >= 2147483647.0) return INT32_MAX;
+    if (v <= -2147483648.0) return INT32_MIN;
+    return (zt_fx) v;
+}
+
 /* ---- float64 references ---- */
 
 static double h2d(uint16_t h)
@@ -238,9 +247,9 @@ int main(int argc, char **argv)
         double scale = ldexp(1.0, (int) (next() % 30) - 8);
         for (uint32_t i = 0; i < NV; i++) {
             cat[i] = (uint8_t) (next() % ncat);
-            r[i] = (zt_fx) (unif() * scale * 65536 / 8);
+            r[i] = fxd(unif() * scale * 65536 / 8);
             double mixw = (it % 3) * 0.4;
-            a[i] = (zt_fx) (((1 - mixw) * r[i] + mixw * unif() * scale * 65536 / 8));
+            a[i] = fxd(((1 - mixw) * r[i] + mixw * unif() * scale * 65536 / 8));
         }
         ct_decomp_t d;
         if (ct_decompose(r, a, NV, cat, ncat, ncat, &d) != 0) continue;
@@ -263,8 +272,8 @@ int main(int argc, char **argv)
             uint32_t ncat = 4, N = 4;
             for (uint32_t i = 0; i < NV; i++) {
                 cat[i] = (uint8_t) (i % ncat);
-                r[i] = cat[i] == 0 ? (zt_fx) (unif() * 65536 * 4) : 0;
-                a[i] = (zt_fx) (unif() * 65536 * 4);
+                r[i] = cat[i] == 0 ? fxd(unif() * 65536 * 4) : 0;
+                a[i] = fxd(unif() * 65536 * 4);
             }
             double ny = 0, npar = 0, nx = 0, dp = 0;
             for (uint32_t i = 0; i < NV; i++) {
@@ -295,7 +304,7 @@ int main(int argc, char **argv)
     {
         for (uint32_t i = 0; i < NV; i++) {
             cat[i] = (uint8_t) (i / 16);
-            r[i] = (zt_fx) ((1 + cat[i]) * 65536 * (1 + 0.3 * unif()));
+            r[i] = fxd((1 + cat[i]) * 65536 * (1 + 0.3 * unif()));
         }
         ct_decomp_t d;
         memcpy(a, r, sizeof a);
@@ -327,8 +336,8 @@ int main(int argc, char **argv)
             double sr = ldexp(1, (int) (next() % 24) - 8), sa = sr * (0.01 + 4 * fabs(unif()));
             double nr = 0, na = 0;
             for (uint32_t i = 0; i < NV; i++) {
-                r[i] = (zt_fx) (unif() * sr * 65536 / 8);
-                a[i] = (zt_fx) (unif() * sa * 65536 / 8);
+                r[i] = fxd(unif() * sr * 65536 / 8);
+                a[i] = fxd(unif() * sa * 65536 / 8);
                 nr += (double) r[i] * r[i];
                 na += (double) a[i] * a[i];
             }
@@ -365,7 +374,7 @@ int main(int argc, char **argv)
         uint32_t v;
         ct_decomp_t d;
         for (uint32_t i = 0; i < NV; i++) {
-            r[i] = (zt_fx) ((unif() + 2) * 65536 * (1 + cat[i]));
+            r[i] = fxd((unif() + 2) * 65536 * (1 + cat[i]));
             a[i] = r[i] + r[i] / 10;
         }
         v = ct_drift_check(&cfg, r, a, NV, cat, 8, 0, &st, &d);

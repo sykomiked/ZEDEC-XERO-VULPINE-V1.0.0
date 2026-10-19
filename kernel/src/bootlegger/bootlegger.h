@@ -13,21 +13,21 @@
  * Enforcement) -- descriptive first, pun second, never the other way.
  *
  * WHAT IS REAL
- *   - Handshake (protocol version 2), three messages, initiator A, responder B:
+ *   - Handshake (protocol version 3), three messages, initiator A, responder B:
  *       HELLO  A->B  version, Nonce_A, Identity_A, EphemeralKey_A
  *       REPLY  B->A  version, Nonce_B, Identity_B, EphemeralKey_B,
- *                    ct_B = ML-KEM-768.Encaps(EphemeralKey_A),
- *                    sig_B = ML-DSA-65(sk_B, H(T), ctx "bootlegger-v2-resp")
- *       FINISH A->B  ct_A = ML-KEM-768.Encaps(EphemeralKey_B),
- *                    sig_A = ML-DSA-65(sk_A, H(T), ctx "bootlegger-v2-init"),
+ *                    ct_B = ML-KEM-1024.Encaps(EphemeralKey_A),
+ *                    sig_B = ML-DSA-87(sk_B, H(T), ctx "bootlegger-v3-resp")
+ *       FINISH A->B  ct_A = ML-KEM-1024.Encaps(EphemeralKey_B),
+ *                    sig_A = ML-DSA-87(sk_A, H(T), ctx "bootlegger-v3-init"),
  *                    confirm = HMAC(k_confirm, "initiator finished" || H(T))
- *     where Identity_* is the peer's long-term ML-DSA-65 public key (FIPS 204,
- *     pqsec/pq_mldsa65.c), EphemeralKey_* a fresh ML-KEM-768 key (FIPS 203,
- *     mlkem/mlkem768.c), Nonce_* 32 fresh random bytes, and
+ *     where Identity_* is the peer's long-term ML-DSA-87 public key (FIPS 204,
+ *     pqsec/pq_mldsa87.c), EphemeralKey_* a fresh ML-KEM-1024 key (FIPS 203,
+ *     pqsec/pq_mlkem1024.c), Nonce_* 32 fresh random bytes, and
  *       T = Identity_A || EphemeralKey_A || Nonce_B || Identity_B ||
  *           EphemeralKey_B || Nonce_A
  *     encoded with the shared canonical length-prefixed encoder
- *     (provenance/zx_provenance.h, domain "bootlegger-v2-handshake", the
+ *     (provenance/zx_provenance.h, domain "bootlegger-v3-handshake", the
  *     protocol version as the first field), hashed with SHA-256. Each side
  *     signs H(T) with its long-term identity key; the different context
  *     strings keep one side's signature from being reflected as the other's.
@@ -37,7 +37,11 @@
  *     transcript (so an ephemeral key swapped by a man in the middle, a
  *     replayed REPLY or FINISH from another session, and any edited field all
  *     fail), a peer presenting our own identity (reflection), an identity that
- *     does not match a pinned one, and a FINISH whose key confirmation fails.
+ *     does not match a pinned one, an ephemeral key that fails the FIPS 203
+ *     modulus check, and a FINISH whose key confirmation fails.
+ *   - v3 moved from ML-KEM-768 / ML-DSA-65 to ML-KEM-1024 / ML-DSA-87, the
+ *     same category-5 primitives as the pqsec layered hybrid. v2 peers are
+ *     refused (version check), not downgraded to.
  *   - Session keys: both ML-KEM shared secrets AND the transcript hash:
  *       k = HKDF-SHA256(salt = SHA-256(canon(H(T), H(ct_B), H(ct_A))),
  *                       ikm  = ss_B || ss_A)
@@ -64,7 +68,7 @@
  *     A HELLO replayed after eviction gets a REPLY with a fresh Nonce_B, so the
  *     replayer still cannot produce sig_A over the new transcript.
  *   - The `encrypted` channel flag and call session_key fields are labels.
- *   - ML-DSA-65 sign/verify use tens of KiB of stack (reference code); run the
+ *   - ML-DSA-87 sign/verify use tens of KiB of stack (reference code); run the
  *     handshake on a thread with a large enough stack.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
@@ -80,7 +84,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "../mlkem/mlkem768.h"
+#include "../pqsec/pq_matrix_algs.h"
 
 /* ============================================================
  * Protocol Constants
@@ -88,7 +92,7 @@
 
 #define BOOTLEGGER_MAGIC       "TCPZEDEC"
 #define BOOTLEGGER_MAGIC_LEN   8
-#define BOOTLEGGER_VERSION      2 /* the only version accepted: v1 had no nonce */
+#define BOOTLEGGER_VERSION      3 /* the only version accepted: v1 had no nonce, v2 was category 3 */
 #define BOOTLEGGER_MAX_PEERS   256
 #define BOOTLEGGER_MAX_CHUNKS  65536
 #define BOOTLEGGER_CHUNK_SIZE  4096
@@ -100,9 +104,12 @@
 #define BOOTLEGGER_MSG_HDR      3 /* type(1) + length(2, big-endian) */
 #define BOOTLEGGER_NONCE_BYTES  32
 #define BOOTLEGGER_RAND_BYTES   32
-#define BOOTLEGGER_ID_PK_BYTES  1952 /* ML-DSA-65 public key (PQ_MLDSA65_PK_BYTES) */
-#define BOOTLEGGER_ID_SK_BYTES  4032 /* ML-DSA-65 secret key */
-#define BOOTLEGGER_ID_SIG_BYTES 3309 /* ML-DSA-65 signature */
+#define BOOTLEGGER_ID_PK_BYTES  2592 /* ML-DSA-87 public key (PQM_MLDSA87_PK_BYTES) */
+#define BOOTLEGGER_ID_SK_BYTES  4896 /* ML-DSA-87 secret key */
+#define BOOTLEGGER_ID_SIG_BYTES 4627 /* ML-DSA-87 signature */
+#define BOOTLEGGER_EK_BYTES     PQM_MLKEM1024_EK_BYTES /* ephemeral ML-KEM-1024 key */
+#define BOOTLEGGER_DK_BYTES     PQM_MLKEM1024_DK_BYTES
+#define BOOTLEGGER_CT_BYTES     PQM_MLKEM1024_CT_BYTES
 #define BOOTLEGGER_REPLAY_SLOTS 64
 
 /* Error codes (all negative; 0 is success) */
@@ -156,7 +163,7 @@ typedef enum {
  * Data Structures
  * ============================================================ */
 
-/* Long-term identity: an ML-DSA-65 key pair. sk is secret. */
+/* Long-term identity: an ML-DSA-87 key pair. sk is secret. */
 typedef struct {
     uint8_t pk[BOOTLEGGER_ID_PK_BYTES];
     uint8_t sk[BOOTLEGGER_ID_SK_BYTES];
@@ -166,20 +173,20 @@ typedef struct {
 typedef struct {
     uint16_t version;
     uint8_t nonce[BOOTLEGGER_NONCE_BYTES];
-    uint8_t identity[BOOTLEGGER_ID_PK_BYTES]; /* long-term ML-DSA-65 public key */
-    uint8_t ek[MLKEM768_EK_BYTES];            /* ephemeral ML-KEM-768 key */
+    uint8_t identity[BOOTLEGGER_ID_PK_BYTES]; /* long-term ML-DSA-87 public key */
+    uint8_t ek[BOOTLEGGER_EK_BYTES];          /* ephemeral ML-KEM-1024 key */
 } bootlegger_hello_t;
 
 /* REPLY (B->A). */
 typedef struct {
     bootlegger_hello_t hello;             /* B's version, nonce, identity, ephemeral key */
-    uint8_t ct[MLKEM768_CT_BYTES];        /* encapsulation to A's ephemeral key */
+    uint8_t ct[BOOTLEGGER_CT_BYTES];      /* encapsulation to A's ephemeral key */
     uint8_t sig[BOOTLEGGER_ID_SIG_BYTES]; /* B's signature over H(T) */
 } bootlegger_reply_t;
 
 /* FINISH (A->B). */
 typedef struct {
-    uint8_t ct[MLKEM768_CT_BYTES];        /* encapsulation to B's ephemeral key */
+    uint8_t ct[BOOTLEGGER_CT_BYTES];      /* encapsulation to B's ephemeral key */
     uint8_t sig[BOOTLEGGER_ID_SIG_BYTES]; /* A's signature over H(T) */
     uint8_t confirm[32];                  /* key confirmation (HMAC-SHA256) */
 } bootlegger_finish_t;
@@ -197,8 +204,8 @@ typedef struct {
     uint8_t role; /* 1 = initiator, 2 = responder */
     uint8_t stage;
     uint8_t nonce_self[BOOTLEGGER_NONCE_BYTES];
-    uint8_t ek_self[MLKEM768_EK_BYTES];
-    uint8_t dk_self[MLKEM768_DK_BYTES];
+    uint8_t ek_self[BOOTLEGGER_EK_BYTES];
+    uint8_t dk_self[BOOTLEGGER_DK_BYTES];
     uint8_t peer_identity[BOOTLEGGER_ID_PK_BYTES]; /* responder: A's identity */
     uint8_t t_hash[32];
     uint8_t ss_reply[32];   /* responder: the secret it encapsulated to A */
@@ -342,7 +349,7 @@ typedef struct {
 int bootlegger_init(bootlegger_node_t *node, uint16_t port);
 int bootlegger_shutdown(bootlegger_node_t *node);
 
-/* Identity: derive an ML-DSA-65 key pair from a 32-byte secret seed. */
+/* Identity: derive an ML-DSA-87 key pair from a 32-byte secret seed. */
 int bootlegger_identity_init(bootlegger_identity_t *id, const uint8_t seed[32]);
 /* Peer id: first 4 bytes (BE) of SHA3-256(identity public key). */
 uint32_t bootlegger_peer_id_of(const uint8_t identity[BOOTLEGGER_ID_PK_BYTES]);
@@ -375,10 +382,10 @@ int bootlegger_hs_accept(bootlegger_hs_t *hs, bootlegger_conn_t *conn,
 
 /* The transcript hash H(T) both sides sign (exposed for tests and tools). */
 void bootlegger_transcript_hash(uint16_t version, const uint8_t id_a[BOOTLEGGER_ID_PK_BYTES],
-                                const uint8_t ek_a[MLKEM768_EK_BYTES],
+                                const uint8_t ek_a[BOOTLEGGER_EK_BYTES],
                                 const uint8_t nonce_b[BOOTLEGGER_NONCE_BYTES],
                                 const uint8_t id_b[BOOTLEGGER_ID_PK_BYTES],
-                                const uint8_t ek_b[MLKEM768_EK_BYTES],
+                                const uint8_t ek_b[BOOTLEGGER_EK_BYTES],
                                 const uint8_t nonce_a[BOOTLEGGER_NONCE_BYTES], uint8_t out[32]);
 
 /* Seal / open one message: hdr(3) || ciphertext || tag(16). seal returns the

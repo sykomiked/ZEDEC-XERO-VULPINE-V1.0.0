@@ -13,13 +13,13 @@ static uint32_t cstrlen(const char *s)
 void vna_sign(const uint8_t sk[VNA_SK_LEN], const char *ctx, const uint8_t *msg, uint32_t len,
               const uint8_t rnd[32], uint8_t sig[VNA_SIG_LEN])
 {
-    pq_mldsa65_sign(sk, msg, len, (const uint8_t *) ctx, cstrlen(ctx), rnd, sig);
+    pqm_mldsa87_sign(sk, msg, len, (const uint8_t *) ctx, cstrlen(ctx), rnd, sig);
 }
 
 bool vna_verify(const uint8_t pk[VNA_PK_LEN], const char *ctx, const uint8_t *msg, uint32_t len,
                 const uint8_t sig[VNA_SIG_LEN])
 {
-    return pq_mldsa65_verify(pk, msg, len, (const uint8_t *) ctx, cstrlen(ctx), sig);
+    return pqm_mldsa87_verify(pk, msg, len, (const uint8_t *) ctx, cstrlen(ctx), sig);
 }
 
 void vna_node_id(const uint8_t pk[VNA_PK_LEN], vna_id_t *out)
@@ -29,7 +29,7 @@ void vna_node_id(const uint8_t pk[VNA_PK_LEN], vna_id_t *out)
 
 bool vna_pow_ok(const vna_id_t *id, uint64_t nonce, uint32_t bits)
 {
-    static const char tag[] = "vinea/v2/pow";
+    static const char tag[] = "vinea/v3/pow";
     uint8_t buf[sizeof tag - 1 + VNA_ID_LEN + 8];
     uint8_t h[32];
     if (bits == 0) return true;
@@ -45,7 +45,7 @@ vna_status_t vna_identity_create(vna_identity_t *idn, const uint8_t seed[32], ui
                                  uint64_t max_tries)
 {
     if (!idn || !seed || pow_bits > 32) return VNA_ERR_ARG;
-    pq_mldsa65_keygen(seed, idn->pk, idn->sk);
+    pqm_mldsa87_keygen(seed, idn->pk, idn->sk);
     vna_node_id(idn->pk, &idn->id);
     idn->pow_bits = pow_bits;
     for (uint64_t n = 0; n < max_tries; n++) {

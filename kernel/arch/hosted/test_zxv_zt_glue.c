@@ -64,6 +64,16 @@ int main(void)
           "chat-wrapped greedy reply matches the engine's reference chain (%d tokens%s%s)", (int) g,
           err[0] ? ": " : "", err);
 
+    zxv_zt_verdict_t vd;
+    zxv_zt_last_verdict(&vd);
+    CHECK(vd.n_gen == v->n_greedy && vd.n_first + vd.n_second == vd.n_gen &&
+              vd.n_first == vd.n_gen / 2 && !vd.forward_error && vd.n_sat == 0,
+          "verdict: %u tokens split %u/%u, no saturation, no error", vd.n_gen, vd.n_first,
+          vd.n_second);
+    CHECK(vd.margin_first + vd.margin_second > 0,
+          "verdict: greedy picks have a positive margin over the runner-up (%llu, %llu)",
+          (unsigned long long) vd.margin_first, (unsigned long long) vd.margin_second);
+
     char out2[4096];
     g = zxv_zt_generate_n(&mg, &tok, ids, n, v->n_greedy, out2, sizeof out2, err, sizeof err);
     CHECK(g == (int32_t) v->n_greedy && !strcmp(out, out2),
@@ -77,11 +87,16 @@ int main(void)
     int32_t *many = calloc(4096, sizeof *many);
     g = zxv_zt_generate_n(&mg, &tok, many, 4096, 4, out, sizeof out, err, sizeof err);
     CHECK(g < 0 && err[0], "a prompt longer than the context is refused: %s", err);
+    zxv_zt_last_verdict(&vd);
+    CHECK(!vd.forward_error && vd.n_gen == 0 && vd.margin_first == 0,
+          "verdict: a request refused before the forward pass leaves it clear");
     free(many);
 
     int32_t bad[2] = {ids[0], 999999};
     g = zxv_zt_generate_n(&mg, &tok, bad, 2, 4, out, sizeof out, err, sizeof err);
     CHECK(g < 0, "an out-of-range token id is refused: %s", err);
+    zxv_zt_last_verdict(&vd);
+    CHECK(vd.forward_error && vd.n_gen == 0, "verdict: the refused forward pass is recorded");
 
     zxv_zt_release();
     g = zxv_zt_generate_n(&tg, &tok, ids, n, 4, out, sizeof out, err, sizeof err);

@@ -1,0 +1,13 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# How many backups a prune removes: all but the newest keep, none when
+# there are fewer (zxv_keepsake.c zks_prune).
+record prune
+  snapshots: 9(9)
+  keep: 9(9)
+procedure
+  if snapshots <= keep
+    answer 0
+  end-if
+  answer snapshots - keep

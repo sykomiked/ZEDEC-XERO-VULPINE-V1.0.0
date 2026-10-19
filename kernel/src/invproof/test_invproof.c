@@ -56,6 +56,15 @@ int main(void)
     CHECK(zxi_verify(wit, (uint32_t) wl, after, N, scratch, N) == ZXI_OK,
           "witness verifies: applying the undo restores `before`");
     CHECK(memcmp(scratch, before, N) == 0, "recovered state is byte-identical to `before`");
+    {
+        /* the witness depends only on the two states, not on what the output
+         * buffer held before (bytes 80..83 used to be left unwritten) */
+        static uint8_t w2[sizeof(wit)];
+        memset(w2, 0xA5, sizeof w2);
+        int wl2 = zxi_build(before, after, N, w2, sizeof(w2));
+        CHECK(wl2 == wl && memcmp(w2, wit, (size_t) wl) == 0,
+              "witness bytes do not depend on prior buffer contents");
+    }
 
     /* an unchanged transition is still a valid (empty) witness */
     state_init();

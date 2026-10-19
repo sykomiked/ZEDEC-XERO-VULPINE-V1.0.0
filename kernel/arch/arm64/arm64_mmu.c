@@ -72,6 +72,13 @@ extern char _data_start[];
 /* Copy the kernel's identity L2 table and the 1GB block at 0x40000000
  * so a per-process page table can include the kernel mapping while
  * still overriding specific 2MB/L3 regions for user code and stack. */
+/* The kernel's own L0 table: TTBR0 goes back to it when the process table
+ * it was on is released (el0_userspace.c release_slot). */
+uint64_t arm64_mmu_kernel_ttbr0(void)
+{
+    return (uint64_t) l0_table;
+}
+
 void arm64_copy_pt_template(uint64_t *l2_dst, uint64_t *l1_block_1gb) {
     for (int i = 0; i < TABLE_ENTRIES; i++)
         l2_dst[i] = l2_table[i];

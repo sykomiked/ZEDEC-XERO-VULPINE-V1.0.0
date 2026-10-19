@@ -64,7 +64,7 @@ static const vna_field_t rh_fields[] = {
 };
 static const vna_schema_t rh_schema = {"sess_rec_hdr", 0x0024, 1, rh_fields, 3};
 
-static uint8_t g_buf[8192]; /* single-threaded scratch for transcript encodings */
+static uint8_t g_buf[VNA_HS3_INNER_MAX]; /* single-threaded scratch for the M3 inner encoding */
 
 void vna_hs_clear(vna_hs_t *hs)
 {
@@ -76,11 +76,11 @@ static void th_of(const char *tag, const uint8_t *data, uint32_t len, uint8_t ou
     vna_htag(tag, data, len, out);
 }
 
-/* hybrid = SHAKE256("vinea/v2/hybrid" || ss_k || ss_x || th2); prk = Extract(th2, hybrid) */
+/* hybrid = SHAKE256("vinea/v3/hybrid" || ss_k || ss_x || th2); prk = Extract(th2, hybrid) */
 static void derive_prk(const uint8_t ss_k[32], const uint8_t ss_x[32], const uint8_t th2[32],
                        uint8_t prk[32])
 {
-    static const char tag[] = "vinea/v2/hybrid";
+    static const char tag[] = "vinea/v3/hybrid";
     uint8_t in[sizeof tag - 1 + 96];
     uint8_t hyb[32];
     vna_copy(in, tag, sizeof tag - 1);
@@ -95,14 +95,14 @@ static void derive_prk(const uint8_t ss_k[32], const uint8_t ss_x[32], const uin
 
 static void derive_hs_key(const uint8_t prk[32], uint8_t k[32])
 {
-    static const char info[] = "vinea/v2 hs3";
+    static const char info[] = "vinea/v3 hs3";
     (void) hkdf_expand(prk, (const uint8_t *) info, sizeof info - 1, k, 32);
 }
 
 static void derive_traffic(const uint8_t prk[32], const uint8_t th4[32], bool initiator,
                            vna_sess_t *s)
 {
-    static const char lab[] = "vinea/v2 traffic";
+    static const char lab[] = "vinea/v3 traffic";
     uint8_t info[sizeof lab - 1 + 32];
     uint8_t okm[88];
     vna_copy(info, lab, sizeof lab - 1);
@@ -139,11 +139,11 @@ int32_t vna_hs_initiate(vna_hs_t *hs, const vna_identity_t *self, const vna_id_t
     m->init_id = self->id;
     m->resp_id = *peer_id;
     x25519_public(m->x, hs->x_sk);
-    mlkem768_keygen(rnd + 32, rnd + 64, m->ek, hs->kem_dk);
+    pqm_mlkem1024_keygen(rnd + 32, rnd + 64, m->ek, hs->kem_dk);
     vna_copy(m->nonce, rnd + 96, 32);
     int32_t n = vna_schema_pack(&vna_hs1_schema, m, out, cap, true);
     if (n < 0) return -1;
-    th_of("vinea/v2/hs1", out, (uint32_t) n, hs->th);
+    th_of("vinea/v3/hs1", out, (uint32_t) n, hs->th);
     hs->state = VNA_HS_SENT_M1;
     return n;
 }
@@ -170,7 +170,7 @@ int32_t vna_hs_respond(vna_hs_t *hs, const vna_identity_t *self, uint32_t pow_bi
         return VNA_ERR_DST;
     hs->peer = hs->m1.init_id; /* claimed; proven in M3 */
     hs->peer_features = hs->m1.features;
-    th_of("vinea/v2/hs1", m1, m1_len, hs->th);
+    th_of("vinea/v3/hs1", m1, m1_len, hs->th);
 
     vna_copy(hs->x_sk, rnd, 32);
     vna_hs2_t *m = &hs->m2;
@@ -182,7 +182,11 @@ int32_t vna_hs_respond(vna_hs_t *hs, const vna_identity_t *self, uint32_t pow_bi
     m->pow = self->pow_nonce;
     x25519_public(m->x, hs->x_sk);
     if (!x25519_shared(ss_x, hs->x_sk, hs->m1.x)) return VNA_ERR_CRYPTO; /* low-order point */
-    mlkem768_encaps(hs->m1.ek, rnd + 32, m->ct, ss_k);
+    if (!pqm_mlkem1024_encaps(hs->m1.ek, rnd + 32, m->ct, ss_k)) { /* FIPS 203 modulus check */
+        vna_wipe(ss_x, 32);
+        vna_wipe(hs->x_sk, 32);
+        return VNA_ERR_CRYPTO;
+    }
     vna_copy(m->nonce, rnd + 64, 32);
     vna_copy(m->pk, self->pk, VNA_PK_LEN);
     vna_zero(m->sig, VNA_SIG_LEN);
@@ -221,7 +225,7 @@ int32_t vna_hs_initiator_finish(vna_hs_t *hs, const uint8_t *m2, uint32_t m2_len
     vna_h2(hs->th, h, hs->th); /* th2 */
     if (!vna_verify(m->pk, VNA_CTX_HS_RESP, hs->th, 32, m->sig)) return VNA_ERR_SIG;
     if (!x25519_shared(ss_x, hs->x_sk, m->x)) return VNA_ERR_CRYPTO;
-    mlkem768_decaps(hs->kem_dk, m->ct, ss_k);
+    pqm_mlkem1024_decaps(hs->kem_dk, m->ct, ss_k);
     derive_prk(ss_k, ss_x, hs->th, hs->prk);
     vna_wipe(ss_x, 32);
     vna_wipe(ss_k, 32);

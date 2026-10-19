@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# payment.eve - one payment message, field by field. payment.ads declares
+# the same types in Ada; the run checks that both have the same digest.
+eve payments
+currency = (usd, eur, gbp, jpy, chf, cad, aud, cny, inr, brl, ngn, ghs, kes, zar)
+account_id = 0 .. 2**32 - 1
+money = dec(15, 2)
+amount_due = money 0.01 .. 9999999999999.99
+date8 = 19000101 .. 29991231        # YYYYMMDD
+
+payment {
+  ref: str(16)
+  amount: amount_due
+  ccy: currency
+  debtor, creditor: account_id
+  value_date: date8
+}

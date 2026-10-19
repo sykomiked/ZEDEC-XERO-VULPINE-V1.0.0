@@ -9,6 +9,10 @@
    - llama-bench on the same model, same prompt length and N (tokens/s), and
    - llama-completion (or llama-cli) greedy (--temp 0, --top-k 1) on the same
      prompt, and whether its first N tokens' text equals the engine's text.
+   Both run on the CPU (-ngl 0, so a Metal or CUDA build does not compare
+   its GPU with the engine's CPU) as plain completion (-no-cnv: an instruct
+   model's chat template would otherwise wrap the prompt), with the same
+   thread count as the engine.
 3. Prints a summary and, with --json FILE, writes it as JSON.
 
 Nothing is downloaded. Nothing is claimed: the numbers belong to the machine,
@@ -21,7 +25,8 @@ offset of the first differing byte.
 
 Usage:
   run_tensor_bench.py --zt-bench PATH --model MODEL.gguf [-n 32] [--prompt TEXT]
-                      [--threads T] [--json OUT.json]
+                      [--threads T] [--batch B] [--json OUT.json]
+  --threads defaults to every CPU, for the engine and llama.cpp alike.
   run_tensor_bench.py --self-test       (offline checks of the output parsers)
 """
 import argparse
@@ -101,11 +106,10 @@ def run(cmd, timeout):
 def llama_greedy(model, prompt, n, threads, timeout):
     """Greedy continuation bytes from llama.cpp, or (None, why)."""
     common = ["-m", model, "-p", prompt, "-n", str(n), "--temp", "0", "--top-k", "1",
-              "-s", "0", "--no-display-prompt", "--no-warmup"]
-    if threads:
-        common += ["-t", str(threads)]
+              "-s", "0", "--no-display-prompt", "--no-warmup", "-ngl", "0", "-no-cnv",
+              "-t", str(threads)]
     tried = []
-    for exe, extra in (("llama-completion", []), ("llama-cli", ["-no-cnv"])):
+    for exe, extra in (("llama-completion", []), ("llama-cli", [])):
         path = shutil.which(exe)
         if not path:
             continue
@@ -139,7 +143,8 @@ def main():
     ap.add_argument("--model")
     ap.add_argument("-n", type=int, default=32)
     ap.add_argument("--prompt", default="The capital of France is")
-    ap.add_argument("--threads", type=int, default=0)
+    ap.add_argument("--threads", type=int, default=os.cpu_count() or 1)
+    ap.add_argument("--batch", type=int, default=0, help="engine prefill batch (0: zt_bench's)")
     ap.add_argument("--timeout", type=int, default=3600)
     ap.add_argument("--json")
     ap.add_argument("--self-test", action="store_true")
@@ -156,14 +161,18 @@ def main():
         "model_bytes": os.path.getsize(a.model),
         "prompt": a.prompt,
         "n": a.n,
+        "threads": a.threads,
         "machine": {"platform": platform.platform(), "machine": platform.machine(),
                     "processor": platform.processor(), "cpus": os.cpu_count()},
         "note": "measured on this machine only; no result is claimed beyond it",
     }
     with tempfile.TemporaryDirectory() as td:
         txt = os.path.join(td, "zt.txt")
-        rc, out, err = run([a.zt_bench, a.model, "--prompt", a.prompt, "-n", str(a.n),
-                            "--text", txt], a.timeout)
+        cmd = [a.zt_bench, a.model, "--prompt", a.prompt, "-n", str(a.n), "--text", txt,
+               "--threads", str(a.threads)]
+        if a.batch:
+            cmd += ["--batch", str(a.batch)]
+        rc, out, err = run(cmd, a.timeout)
         if rc != 0:
             sys.stderr.write(err.decode(errors="replace"))
             print("[FAIL] zt_bench exited %d on this model" % rc)
@@ -174,7 +183,8 @@ def main():
     summary["zt"] = {k: zt[k] for k in zt if k != "ids"}
     summary["zt"]["ids"] = zt["ids"]
     summary["zt"]["text"] = zt_text.decode("utf-8", errors="replace")
-    print("ZXV integer engine (kernel/src/tensor):")
+    print("ZXV integer engine (kernel/src/tensor), kernels %s, %s threads:"
+          % (zt.get("kern"), zt.get("threads")))
     print("  prompt tokens %d, prefill %.2f tokens/s" % (zt["n_prompt"], zt["prefill_tps"]))
     print("  generated %d tokens greedily, %.2f tokens/s (stop: %s)"
           % (zt["n_gen"], zt["gen_tps"], zt.get("stop")))
@@ -182,9 +192,8 @@ def main():
 
     lb = shutil.which("llama-bench")
     if lb:
-        cmd = [lb, "-m", a.model, "-p", str(zt["n_prompt"]), "-n", str(a.n), "-o", "json"]
-        if a.threads:
-            cmd += ["-t", str(a.threads)]
+        cmd = [lb, "-m", a.model, "-p", str(zt["n_prompt"]), "-n", str(a.n), "-o", "json",
+               "-ngl", "0", "-t", str(a.threads)]
         rc, out, err = run(cmd, a.timeout)
         tests = parse_llama_bench(out.decode(errors="replace")) if rc == 0 else []
         summary["llama_bench"] = tests or {"error": "llama-bench exited %d" % rc}

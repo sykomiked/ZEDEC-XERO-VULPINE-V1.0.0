@@ -219,10 +219,9 @@ static inline uint32_t m5_coverage_permille(rational_t r, trit_t ell)
     uint64_t q = fx_udiv64((uint64_t) t, (uint64_t) d, 0);
     return q > 0x7FFFFFFFu ? 0x7FFFFFFFu : (uint32_t) q;
 }
-static inline int64_t m5_gcd(int64_t a, int64_t b) {
-    if(a<0) a=-a;
-    if(b<0) b=-b;
-    while(b){int64_t t=b; b=a%b; a=t;} return a;
+static inline int64_t m5_gcd(int64_t a, int64_t b)
+{
+    return zx_gcd_i64(a, b);
 }
 static inline rational_t rational_normalize(rational_t r) {
     if(r.den<0){r.num=-r.num; r.den=-r.den;}

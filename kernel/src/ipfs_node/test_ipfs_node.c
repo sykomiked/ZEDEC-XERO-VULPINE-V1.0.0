@@ -329,6 +329,19 @@ static void test_bases(void)
     CHECK(ipfsn_base32_decode("mzxw6", 5, out, 64) == 3 && memcmp(out, "foo", 3) == 0,
           "base32 'foo' (RFC 4648)");
     CHECK(ipfsn_base58_decode("0OIl", 4, out, 64) < 0, "base58 excluded chars rejected");
+    {
+        /* leading '1's count toward the 96-byte bound, so whatever decodes
+         * also re-encodes (fuzz_ipfs_cid found 97 decoded bytes) */
+        char t[132];
+        static uint8_t big[256];
+        memset(t, 'h', sizeof t);
+        t[0] = '1';
+        t[129] = '1';
+        t[130] = '1';
+        t[131] = 0;
+        CHECK(ipfsn_base58_decode(t, 131, big, sizeof big) < 0,
+              "base58 decode refuses more than 96 bytes, leading zeros included");
+    }
     CHECK(ipfsn_base58_encode((const uint8_t *) "hello world", 11, s, sizeof s) > 0 &&
               strcmp(s, "StV1DL6CwTryKyV") == 0,
           "base58 'hello world' (draft-msporny-base58)");

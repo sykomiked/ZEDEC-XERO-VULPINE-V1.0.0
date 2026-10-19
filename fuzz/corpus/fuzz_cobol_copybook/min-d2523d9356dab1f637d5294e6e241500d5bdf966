@@ -1,0 +1,9 @@
+01CCRD.
+    05  <<<<<<<<<<<<TXN-ID pIC X OCCURS 6 TIMES.
+    05 1CCRD.
+ 05  <<<<<TXN-ID PIC X OCCURS 6 TIMES.
+   Û OMP.
+   05 Bà¯       05 A PIC S8(4) COMS.
+   05 Bà¯                07     PIC C) OMP.
+0   0Ëßß·IST-AMT      05  HISTI Sß«¶²½S.ô
+       PT-AMT)        PIC S04 99 C8 OM

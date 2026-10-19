@@ -62,9 +62,23 @@ typedef enum {
 /* Validate and load `image` (`len` bytes). Calls `map` once per PT_LOAD
  * segment. On success writes the entry VA to *entry_out and returns
  * ELF_OK; otherwise returns a negative elf_result_t and does not call
- * map again after the first failure. */
+ * map again after the first failure. AArch64, window ELF_VA_MIN..MAX. */
 elf_result_t elf_load(const uint8_t *image, uint64_t len,
                       elf_map_fn map, void *ctx, uint64_t *entry_out);
+
+/* The same loader for another architecture or user window: the x86-64
+ * port passes EM_X86_64 and its own user range. Every check is identical;
+ * ELF_ERR_MACHINE then means "not target->machine". */
+#define ELF_EM_AARCH64 183
+#define ELF_EM_X86_64  62
+typedef struct {
+    uint16_t machine; /* e_machine the image must carry */
+    uint64_t va_min;  /* every segment and the entry inside [va_min, va_max) */
+    uint64_t va_max;
+} elf_target_t;
+
+elf_result_t elf_load_target(const elf_target_t *target, const uint8_t *image, uint64_t len,
+                             elf_map_fn map, void *ctx, uint64_t *entry_out);
 
 const char *elf_strerror(elf_result_t r);
 

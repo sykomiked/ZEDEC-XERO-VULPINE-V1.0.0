@@ -1,0 +1,7 @@
+<Project>
+  <!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC -->
+  <!-- SPDX-License-Identifier: Apache-2.0 -->
+  <!-- Same settings as sdk/dotnet (net8.0, nullable, warnings as errors,
+       latest-recommended analyzers, ZxvNativeDir = sdk/libzxv). -->
+  <Import Project="../../dotnet/Directory.Build.props" />
+</Project>

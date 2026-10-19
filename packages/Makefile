@@ -7,7 +7,12 @@
 #   libzxv-pqc     ML-KEM-768/1024, ML-DSA-65/87, SLH-DSA-SHAKE-128s/256s, SHA-3
 #   libzxv-tensor  the integer tensor engine (kernel/src/tensor zt*.c)
 #   libzxv-legacy  COBOL / Fortran / EBCDIC data codecs, Lightning Rod and
-#                  the exact rationals they convert into
+#                  the exact rationals they convert into, and the treaty
+#                  parser (COBOL copybook record <-> Sutra text, zxt.h)
+#   libzxv-econ    the engine facade: compress (multilateral netting), route
+#                  (asymmetric corridors), decompress (ledger postings with
+#                  the 0.08889% assurance fee) over pay_ledger, and the
+#                  treaty runner with its CALL 'ZXV_ENGINE' entry (zxt_exec.h)
 #
 #   make -C packages          build all three into packages/build/<lib>/
 #   make -C packages check    build, then link and run each smoke example
@@ -61,12 +66,28 @@ TENSOR_HDRS := $(addprefix tensor/,zt.h zt_gguf.h zt_tok.h zt_rope.h zt_lattice.
 # Only the data transcoders of kernel/src/legacy (cobol, fortran, ebcdic);
 # its telephony codecs (sip, ss7, tcap, ...) are not part of this package.
 LEGACY_SRCS := $(KSRC)/legacy/cobol.c $(KSRC)/legacy/fortran.c $(KSRC)/legacy/ebcdic.c \
-	$(KSRC)/lightningrod/lightningrod.c $(KSRC)/rational/rational.c
-LEGACY_IFLAGS := -I$(KSRC)/legacy -I$(KSRC)/lightningrod -I$(KSRC)/rational
+	$(KSRC)/lightningrod/lightningrod.c $(KSRC)/rational/rational.c $(KSRC)/treaty/zxt.c
+LEGACY_IFLAGS := -I$(KSRC)/legacy -I$(KSRC)/lightningrod -I$(KSRC)/rational -I$(KSRC)/treaty
 LEGACY_HDRS := legacy/cobol.h legacy/fortran.h legacy/ebcdic.h lightningrod/lightningrod.h \
-	rational/rational.h
+	rational/rational.h treaty/zxt.h
 
-LIBS := pqc tensor legacy
+# ---- libzxv-econ -------------------------------------------------------
+# kernel/src/engine/zxv_engine.h and what it stands on. pay_assure borrows
+# swarm_capped_split (the anti-monopoly split), pay_util zt_udiv64 (64-bit
+# division without libgcc on 32-bit targets).
+ECON_SRCS := $(KSRC)/engine/zxv_engine.c $(KSRC)/abacus/abacus.c $(KSRC)/rational/rational.c \
+	$(KSRC)/pay/pay_ledger.c $(KSRC)/pay/pay_util.c $(KSRC)/pay/pay_assure.c \
+	$(KSRC)/swarm/swarm_market.c $(KSRC)/swarm/swarm_budget.c $(KSRC)/swarm/swarm_emotion.c \
+	$(KSRC)/tensor/zt.c $(KSRC)/mlkem/keccak.c \
+	$(KSRC)/treaty/zxt.c $(KSRC)/treaty/zxt_exec.c $(KSRC)/treaty/zxt_cobol.c
+ECON_IFLAGS := -I$(KINC) -I$(KSRC)/modbind -I$(KSRC)/e8 -I$(KSRC)/event_space -I$(KSRC)/surplus \
+	-I$(KSRC)/engine -I$(KSRC)/pay -I$(KSRC)/abacus -I$(KSRC)/rational -I$(KSRC)/swarm \
+	-I$(KSRC)/tensor -I$(KSRC)/mlkem -I$(KSRC)/zcapital -I$(KSRC)/treaty
+ECON_HDRS := engine/zxv_engine.h pay/pay_ledger.h pay/pay_util.h pay/pay_rails.h \
+	pay/pay_assure.h zcapital/zcap_forms.h abacus/abacus.h rational/rational.h \
+	treaty/zxt.h treaty/zxt_exec.h
+
+LIBS := pqc tensor legacy econ
 
 .PHONY: all check clean $(LIBS) $(addprefix check-,$(LIBS))
 all: $(LIBS)
@@ -94,6 +115,7 @@ endef
 $(eval $(call build_lib,pqc,$(PQC_SRCS),$(PQC_IFLAGS),$(PQC_HDRS)))
 $(eval $(call build_lib,tensor,$(TENSOR_SRCS),$(TENSOR_IFLAGS),$(TENSOR_HDRS)))
 $(eval $(call build_lib,legacy,$(LEGACY_SRCS),$(LEGACY_IFLAGS),$(LEGACY_HDRS)))
+$(eval $(call build_lib,econ,$(ECON_SRCS),$(ECON_IFLAGS),$(ECON_HDRS)))
 
 # Undefined symbols a library may leave to its host: the compiler's memory
 # builtins. Anything else (malloc, printf, a kernel symbol) fails the check.
@@ -103,6 +125,7 @@ MEM_UNDEF := memcpy|memset|memmove|memcmp
 ALLOWED_pqc := $(MEM_UNDEF)
 ALLOWED_tensor := $(MEM_UNDEF)
 ALLOWED_legacy := $(MEM_UNDEF)|__divti3|__modti3|__divmodti4|__udivti3|__umodti3
+ALLOWED_econ := $(ALLOWED_legacy)
 
 # check_lib(name, extra smoke flags)
 define check_lib
@@ -123,6 +146,7 @@ SHELL := /bin/bash
 $(eval $(call check_lib,pqc,))
 $(eval $(call check_lib,tensor,))
 $(eval $(call check_lib,legacy,))
+$(eval $(call check_lib,econ,))
 
 # zxv_pqc.h re-declares prototypes from pq_security.h: compile both in one
 # translation unit so a signature change in the kernel header fails here.
@@ -133,7 +157,7 @@ check-pqc-decls: pqc
 		{ echo "[FAIL] libzxv-pqc: zxv_pqc.h disagrees with pq_security.h"; exit 1; }
 
 check: check-pqc-decls $(addprefix check-,$(LIBS))
-	@echo "[PASS] packages: libzxv-pqc, libzxv-tensor, libzxv-legacy build and run standalone"
+	@echo "[PASS] packages: libzxv-pqc, libzxv-tensor, libzxv-legacy, libzxv-econ build and run standalone"
 
 clean:
 	rm -rf $(BUILD)

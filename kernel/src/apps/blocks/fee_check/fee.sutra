@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The fee on a payment, in Sutra: the record is the working storage (its
+# pictures say how big each value may be), the procedure is COBOL's
+# COMPUTE and IF. Amounts and fees are in cents, the rate in basis points
+# (1/100 of a percent). A fee that does not fit 9(7) is a size error:
+# refused, never cut short. fee.kron says the same thing in KRON.
+record fee-calc
+  amount: 9(9)
+  rate: 9(4)
+  fee: 9(7)
+procedure
+  compute fee = amount * rate / 10000
+  if fee < 50
+    compute fee = 50
+  end-if
+  answer fee

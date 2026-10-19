@@ -4,18 +4,18 @@
  *
  * THE THREE RAILS (the same codes as vino_stores.h and iso20022.h)
  * ----------------------------------------------------------------
- *   DEBIT  555  NCR  what an account holds (asset / backing). VFV's default
+ *   DEBIT  555  NRE  what an account holds (asset / backing). VFV's default
  *                    numeric code is also 555 (platform-internal, not ISO
- *                    4217), so VFV's platform jurisdiction is NCR.
- *   CREDIT 777  NRE  what an account owes (claim / liability). Only ISSUER
+ *                    4217), so VFV's platform jurisdiction is NRE.
+ *   CREDIT 777  NCR  what an account owes (claim / liability). Only ISSUER
  *                    accounts may carry a CREDIT balance: no debt for holders.
  *   EQUITY 888  PNS  debit - credit, posted on every line ("everything has
  *                    equity"). For a share asset (pay_equity) a holder's
  *                    EQUITY balance is its share count.
  *   555, 777 and 888 are all unassigned in ISO 4217: internal rail numerics,
  *   never written into an ISO 20022 Ccy attribute.
- *   Each rail carries its platform jurisdiction code (NCR New California
- *   Republic, NRE Neo Roman Empire, PNS Principality of New Sicily). None is
+ *   Each rail carries its platform jurisdiction code (NRE Neo Roman
+ *   Empire, NCR New California Republic, PNS Principality of New Sicily). None is
  *   an ISO 3166 country: they travel only as /ZXV/... remittance data and are
  *   never emitted in a Ctry field (pay_iso_country_ok guards all three).
  *
@@ -101,8 +101,8 @@
 #define PAY_RAIL_DEBIT_CODE   ZXV_RAIL_CODE_DEBIT        /* 555, unassigned in ISO 4217 */
 #define PAY_RAIL_CREDIT_CODE  ZXV_RAIL_CODE_CREDIT       /* 777, unassigned in ISO 4217 */
 #define PAY_RAIL_EQUITY_CODE  ZXV_RAIL_CODE_EQUITY       /* 888, unassigned in ISO 4217 */
-#define PAY_RAIL_DEBIT_JURIS  ZXV_RAIL_CODE_DEBIT_JURIS  /* "NCR" (not ISO 3166) */
-#define PAY_RAIL_CREDIT_JURIS ZXV_RAIL_CODE_CREDIT_JURIS /* "NRE" (not ISO 3166) */
+#define PAY_RAIL_DEBIT_JURIS  ZXV_RAIL_CODE_DEBIT_JURIS  /* "NRE" (not ISO 3166) */
+#define PAY_RAIL_CREDIT_JURIS ZXV_RAIL_CODE_CREDIT_JURIS /* "NCR" (not ISO 3166) */
 #define PAY_RAIL_EQUITY_JURIS ZXV_RAIL_CODE_EQUITY_JURIS /* "PNS" (not ISO 3166) */
 typedef enum {
     PAY_RAIL_DEBIT = 0,
@@ -111,7 +111,7 @@ typedef enum {
     PAY_RAIL_COUNT
 } pay_rail_t;
 uint16_t pay_rail_code(pay_rail_t r);
-/* Rail -> its platform jurisdiction code ("NCR" / "NRE" / "PNS"), "" for an
+/* Rail -> its platform jurisdiction code ("NRE" / "NCR" / "PNS"), "" for an
  * unknown rail. Never NULL; never an ISO 3166 country. */
 const char *pay_rail_juris(pay_rail_t r);
 
@@ -178,10 +178,10 @@ typedef struct {
     char vfv_alpha[8];     /* "VFV" — platform-internal code, NOT ISO 4217 */
     uint16_t vfv_numeric;  /* 555 = PAY_RAIL_DEBIT_CODE (not ISO 4217)     */
     uint8_t vfv_minor;     /* 2                                            */
-    char jurisdiction[8];  /* "NCR" — VFV's rail (DEBIT) jurisdiction, NOT
+    char jurisdiction[8];  /* "NRE" — VFV's rail (DEBIT) jurisdiction, NOT
                               ISO 3166; emitted as /ZXV/JURIS/<code>      */
     bool jurisdiction_iso; /* false: never emitted as a country code       */
-    /* Per-rail jurisdiction codes, indexed by pay_rail_t: "NCR", "NRE",
+    /* Per-rail jurisdiction codes, indexed by pay_rail_t: "NRE", "NCR",
      * "PNS". Never ISO 3166 and never emitted as a country code. */
     char rail_juris[PAY_RAIL_COUNT][8];
 } pay_platform_t;

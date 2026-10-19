@@ -17,8 +17,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#define VNA_VERSION  2u
-#define VNA_ID_LEN   32u /* NodeID = SHA3-256(ML-DSA-65 public key); never truncated */
+#define VNA_VERSION  3u  /* v3: ML-DSA-87 identities, ML-KEM-1024 sessions */
+#define VNA_ID_LEN   32u /* NodeID = SHA3-256(ML-DSA-87 public key); never truncated */
 #define VNA_HASH_LEN 32u
 #define VNA_ADDR_MAX 32u /* opaque transport address, defined by the host layer */
 
@@ -30,7 +30,7 @@ typedef enum {
     VNA_OK = 0,
     VNA_ERR_ARG = -1,         /* NULL or out-of-range argument */
     VNA_ERR_PARSE = -2,       /* malformed bytes (bounds, lengths, enum ranges) */
-    VNA_ERR_SIG = -3,         /* ML-DSA-65 signature does not verify */
+    VNA_ERR_SIG = -3,         /* ML-DSA-87 signature does not verify */
     VNA_ERR_BINDING = -4,     /* NodeID != SHA3-256(public key) */
     VNA_ERR_POW = -5,         /* NodeID proof-of-work below the required difficulty */
     VNA_ERR_STALE = -6,       /* timestamp outside the acceptance window */

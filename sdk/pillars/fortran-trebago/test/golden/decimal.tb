@@ -1,0 +1,14 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! decimal.tb - ten times 0.1 is exactly 1. In REAL(8) the same loop gives
+! 0.9999999999999999. Decimal literals are exact: 0.1 means 1/10.
+trebago decimal
+  in  x(n)
+  out s, t
+  s = sum(k = 1:10, 0.1)
+  t = sum(i, x(i)) - 1
+end
+!> in x = 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1
+!> expect s = 1
+!> expect t = 0

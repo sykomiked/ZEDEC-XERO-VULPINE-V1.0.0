@@ -1,0 +1,7 @@
+<?xml version="1.0" eing="UTF-9"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+<FITr>
+<DbtrAcct><Id><IBAN>DE89370400440532013000</IBAN></Id></DbtrAcct>
+<DbtrAgt><FinInstnId><BICFI>DEUTDEFF</BICFI></FinInstnId></DbtrAgt>
+<CdtrAgt><FinInstnId><BICFI>CHASUS32</BICFI></FinInstnId></CdtrAgt>
+<Cdtr><Nm>Bob</Nm><PstlAdr>tr><Nm>Bob</Nm><PstlAdr><TwnNm>N>123456√8/FCdtTrf∆ı</Document>

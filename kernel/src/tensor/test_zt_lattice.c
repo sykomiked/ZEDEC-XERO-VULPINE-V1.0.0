@@ -13,6 +13,7 @@
 #include <time.h>
 #include "zt.h"
 #include "zt_lattice.h"
+#include "../e8/e8_lattice.h"
 
 static int fails;
 #define CHECK(c, ...)                                                                              \
@@ -522,12 +523,121 @@ static void test_leech(void)
     free(minv);
 }
 
+/* The local search as it was first written (recomputing every root with
+ * e8l_root2 and the whole distance per candidate), kept as the reference the
+ * table-driven, incremental zt_e8_quantize must equal index for index. */
+static void ref_target(const zt_fx x[8], int32_t s, int32_t T[8], int64_t R[8])
+{
+    for (uint32_t i = 0; i < 8; i++) {
+        int32_t qq = x[i] / s, rr = x[i] - qq * s;
+        if (rr < 0) qq--, rr += s;
+        int64_t t = 2 * (int64_t) qq, r = 2 * (int64_t) rr;
+        if (r >= s) t++, r -= s;
+        if (t > 124 || (t == 124 && r > 0))
+            t = 124, r = 0;
+        else if (t < -124)
+            t = -124, r = 0;
+        T[i] = (int32_t) t;
+        R[i] = r;
+    }
+}
+
+static int64_t ref_metric(const int32_t T[8], const int64_t R[8], int64_t s, const int8_t v[8])
+{
+    int64_t m = s * zt_e8_norm2(v);
+    for (uint32_t i = 0; i < 8; i++) m -= 2 * ((int64_t) T[i] * s + R[i]) * v[i];
+    return m;
+}
+
+static zt_fx ref_round_shift(int64_t p, uint32_t k)
+{
+    uint64_t u = p < 0 ? (uint64_t) 0 - (uint64_t) p : (uint64_t) p;
+    u = (u + ((uint64_t) 1 << (k - 1))) >> k;
+    if (u > (uint64_t) INT32_MAX) u = (uint64_t) INT32_MAX;
+    return p < 0 ? -(zt_fx) u : (zt_fx) u;
+}
+
+static uint16_t ref_e8_quantize(const int8_t *table, const zt_fx x[8], zt_fx scale)
+{
+    int8_t v[8], best[8];
+    zt_fx xs[8];
+    int32_t T[8];
+    int64_t R[8];
+    if (!zt_e8_nearest(x, scale, v)) return 0;
+    if (zt_e8_norm2(v) <= 32) return (uint16_t) zt_e8_encode(table, v);
+    int32_t s = scale > ZT_E8_SCALE_MAX ? ZT_E8_SCALE_MAX : scale;
+    ref_target(x, s, T, R);
+    int64_t bm = 0;
+    for (uint32_t i = 0; i < 8; i++) best[i] = 0;
+    uint32_t lo = 0, hi = 65536;
+    for (uint32_t it = 0; it < 16; it++) {
+        uint32_t mid = (lo + hi) >> 1;
+        for (uint32_t i = 0; i < 8; i++) xs[i] = ref_round_shift((int64_t) x[i] * mid, 16);
+        zt_e8_nearest(xs, s, v);
+        if (zt_e8_norm2(v) > 32) {
+            hi = mid;
+            continue;
+        }
+        lo = mid;
+        int64_t m = ref_metric(T, R, s, v);
+        if (m < bm) {
+            bm = m;
+            for (uint32_t i = 0; i < 8; i++) best[i] = v[i];
+        }
+    }
+    for (uint32_t it = 0; it < 64; it++) {
+        int8_t bestr[8];
+        int64_t bd = 0;
+        for (uint32_t r = 0; r < 240; r++) {
+            int8_t e[8], t[8];
+            e8l_root2(r, e);
+            for (uint32_t i = 0; i < 8; i++) t[i] = (int8_t) (best[i] + e[i]);
+            if (zt_e8_norm2(t) > 32) continue;
+            int64_t d = ref_metric(T, R, s, t) - bm;
+            if (d < bd) {
+                bd = d;
+                for (uint32_t i = 0; i < 8; i++) bestr[i] = t[i];
+            }
+        }
+        if (bd == 0) break;
+        bm += bd;
+        for (uint32_t i = 0; i < 8; i++) best[i] = bestr[i];
+    }
+    return (uint16_t) zt_e8_encode(table, best);
+}
+
+static void test_e8_quantize_ref(void)
+{
+    uint32_t n = 300000, outside = 0, mism = 0;
+    for (uint32_t k = 0; k < n; k++) {
+        zt_fx x[8], s;
+        uint32_t mode = (uint32_t) (rnd() % 4);
+        for (int i = 0; i < 8; i++) {
+            x[i] = mode == 0   ? rnd_fx(65536)
+                   : mode == 1 ? rnd_fx(4096) * (rnd() % 8 ? 1 : 40) /* heavy tail */
+                   : mode == 2 ? rnd_fx(1 << 29)                     /* saturating */
+                               : rnd_fx(1000);
+        }
+        s = mode == 3 ? (zt_fx) (1 + rnd() % 3000) : zt_e8_scale(x, 8);
+        if (rnd() % 16 == 0) s = (zt_fx) (1 + rnd() % 100);
+        int8_t v[8];
+        zt_e8_nearest(x, s, v);
+        outside += zt_e8_norm2(v) > 32;
+        mism += zt_e8_quantize(book, x, s) != ref_e8_quantize(book, x, s);
+    }
+    CHECK(mism == 0,
+          "zt_e8_quantize == the original root-by-root search on %u inputs (%u outside the "
+          "ball, %u mismatches)",
+          n, outside, mism);
+}
+
 int main(void)
 {
     clock_t t0 = clock();
     test_e8_codebook();
     test_e8_nearest();
     test_e8_mse();
+    test_e8_quantize_ref();
     test_golay();
     test_leech();
     {

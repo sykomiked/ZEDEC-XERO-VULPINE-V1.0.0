@@ -1,8 +1,8 @@
 /*
  * bootlegger.c — Boot Legger P2P transport for ZEDEC pqOS
  *
- * What is real here: the v2 handshake (ML-DSA-65 identities signing a
- * transcript of both ephemeral ML-KEM-768 keys and both nonces, replay cache,
+ * What is real here: the v3 handshake (ML-DSA-87 identities signing a
+ * transcript of both ephemeral ML-KEM-1024 keys and both nonces, replay cache,
  * version check), session keys from both KEM secrets and the transcript, and
  * ChaCha20-Poly1305 message sealing. What is not: any transport. Every
  * operation that would move bytes returns BOOTLEGGER_ENOTIMPL (or
@@ -90,14 +90,14 @@ int bootlegger_shutdown(bootlegger_node_t *node)
 }
 
 /* ============================================================
- * Handshake v2: ML-DSA-65 identities, ML-KEM-768 ephemeral keys, signed
+ * Handshake v3: ML-DSA-87 identities, ML-KEM-1024 ephemeral keys, signed
  * transcript, replay cache. See bootlegger.h for the protocol.
  * ============================================================ */
 
-#if PQ_MLDSA65_PK_BYTES != BOOTLEGGER_ID_PK_BYTES ||                                               \
-    PQ_MLDSA65_SK_BYTES != BOOTLEGGER_ID_SK_BYTES ||                                               \
-    PQ_MLDSA65_SIG_BYTES != BOOTLEGGER_ID_SIG_BYTES
-#    error "bootlegger identity sizes do not match ML-DSA-65"
+#if PQM_MLDSA87_PK_BYTES != BOOTLEGGER_ID_PK_BYTES ||                                              \
+    PQM_MLDSA87_SK_BYTES != BOOTLEGGER_ID_SK_BYTES ||                                              \
+    PQM_MLDSA87_SIG_BYTES != BOOTLEGGER_ID_SIG_BYTES
+#    error "bootlegger identity sizes do not match ML-DSA-87"
 #endif
 
 #define BL_ROLE_INIT        1
@@ -105,8 +105,8 @@ int bootlegger_shutdown(bootlegger_node_t *node)
 #define BL_STAGE_HELLO_SENT 1
 #define BL_STAGE_REPLY_SENT 2
 
-static const char BL_CTX_RESP[] = "bootlegger-v2-resp";
-static const char BL_CTX_INIT[] = "bootlegger-v2-init";
+static const char BL_CTX_RESP[] = "bootlegger-v3-resp";
+static const char BL_CTX_INIT[] = "bootlegger-v3-init";
 
 uint32_t bootlegger_peer_id_of(const uint8_t identity[BOOTLEGGER_ID_PK_BYTES])
 {
@@ -118,7 +118,7 @@ uint32_t bootlegger_peer_id_of(const uint8_t identity[BOOTLEGGER_ID_PK_BYTES])
 int bootlegger_identity_init(bootlegger_identity_t *id, const uint8_t seed[32])
 {
     if (!id || !seed) return BOOTLEGGER_EINVAL;
-    pq_mldsa65_keygen(seed, id->pk, id->sk);
+    pqm_mldsa87_keygen(seed, id->pk, id->sk);
     return 0;
 }
 
@@ -162,7 +162,7 @@ static void bl_replay_remember(bootlegger_replay_cache_t *rc, const uint8_t n[32
 #define BL_RNG_BYTES 160
 static void bl_expand(const uint8_t rnd[BOOTLEGGER_RAND_BYTES], uint8_t out[BL_RNG_BYTES])
 {
-    static const char label[] = "bootlegger-v2-rng";
+    static const char label[] = "bootlegger-v3-rng";
     uint8_t in[BOOTLEGGER_RAND_BYTES + sizeof(label) - 1];
     bl_memcpy(in, rnd, BOOTLEGGER_RAND_BYTES);
     bl_memcpy(in + BOOTLEGGER_RAND_BYTES, label, sizeof(label) - 1);
@@ -171,31 +171,31 @@ static void bl_expand(const uint8_t rnd[BOOTLEGGER_RAND_BYTES], uint8_t out[BL_R
 }
 
 void bootlegger_transcript_hash(uint16_t version, const uint8_t id_a[BOOTLEGGER_ID_PK_BYTES],
-                                const uint8_t ek_a[MLKEM768_EK_BYTES],
+                                const uint8_t ek_a[BOOTLEGGER_EK_BYTES],
                                 const uint8_t nonce_b[BOOTLEGGER_NONCE_BYTES],
                                 const uint8_t id_b[BOOTLEGGER_ID_PK_BYTES],
-                                const uint8_t ek_b[MLKEM768_EK_BYTES],
+                                const uint8_t ek_b[BOOTLEGGER_EK_BYTES],
                                 const uint8_t nonce_a[BOOTLEGGER_NONCE_BYTES], uint8_t out[32])
 {
     zxp_canon_t c;
-    zxp_canon_init(&c, "bootlegger-v2-handshake");
+    zxp_canon_init(&c, "bootlegger-v3-handshake");
     zxp_canon_u32(&c, version);
     zxp_canon_bytes(&c, id_a, BOOTLEGGER_ID_PK_BYTES);
-    zxp_canon_bytes(&c, ek_a, MLKEM768_EK_BYTES);
+    zxp_canon_bytes(&c, ek_a, BOOTLEGGER_EK_BYTES);
     zxp_canon_bytes(&c, nonce_b, BOOTLEGGER_NONCE_BYTES);
     zxp_canon_bytes(&c, id_b, BOOTLEGGER_ID_PK_BYTES);
-    zxp_canon_bytes(&c, ek_b, MLKEM768_EK_BYTES);
+    zxp_canon_bytes(&c, ek_b, BOOTLEGGER_EK_BYTES);
     zxp_canon_bytes(&c, nonce_a, BOOTLEGGER_NONCE_BYTES);
     zxp_canon_final(&c, out);
 }
 
-/* auth_tag = HMAC(tx_key || rx_key, "bootlegger v2 auth" || H(T) || peer_id_hash) */
+/* auth_tag = HMAC(tx_key || rx_key, "bootlegger v3 auth" || H(T) || peer_id_hash) */
 static void bl_auth_tag(const bootlegger_conn_t *conn, uint8_t out[32])
 {
     uint8_t key[2 * BOOTLEGGER_KEY_SIZE], msg[18 + 32 + 32];
     bl_memcpy(key, conn->tx_key, BOOTLEGGER_KEY_SIZE);
     bl_memcpy(key + BOOTLEGGER_KEY_SIZE, conn->rx_key, BOOTLEGGER_KEY_SIZE);
-    bl_memcpy(msg, "bootlegger v2 auth", 18);
+    bl_memcpy(msg, "bootlegger v3 auth", 18);
     bl_memcpy(msg + 18, conn->transcript_hash, 32);
     bl_memcpy(msg + 50, conn->peer_id_hash, 32);
     hmac_sha256(key, sizeof(key), msg, sizeof(msg), out);
@@ -212,7 +212,7 @@ static void bl_install_session(bootlegger_conn_t *conn, bool initiator, const ui
 {
     uint8_t salt[32], ikm[64], prk[HASH_LEN], i2r[32], r2i[32];
     zxp_canon_t c;
-    zxp_canon_init(&c, "bootlegger-v2-keys");
+    zxp_canon_init(&c, "bootlegger-v3-keys");
     zxp_canon_bytes(&c, t_hash, 32);
     zxp_canon_bytes(&c, ct_b_h, 32);
     zxp_canon_bytes(&c, ct_a_h, 32);
@@ -220,9 +220,9 @@ static void bl_install_session(bootlegger_conn_t *conn, bool initiator, const ui
     bl_memcpy(ikm, ss_b, 32);
     bl_memcpy(ikm + 32, ss_a, 32);
     hkdf_extract(salt, sizeof(salt), ikm, sizeof(ikm), prk);
-    (void) hkdf_expand(prk, (const uint8_t *) "bootlegger v2 i2r", 17, i2r, 32);
-    (void) hkdf_expand(prk, (const uint8_t *) "bootlegger v2 r2i", 17, r2i, 32);
-    (void) hkdf_expand(prk, (const uint8_t *) "bootlegger v2 confirm", 21, confirm_key, 32);
+    (void) hkdf_expand(prk, (const uint8_t *) "bootlegger v3 i2r", 17, i2r, 32);
+    (void) hkdf_expand(prk, (const uint8_t *) "bootlegger v3 r2i", 17, r2i, 32);
+    (void) hkdf_expand(prk, (const uint8_t *) "bootlegger v3 confirm", 21, confirm_key, 32);
 
     bl_memcpy(conn->tx_key, initiator ? i2r : r2i, 32);
     bl_memcpy(conn->rx_key, initiator ? r2i : i2r, 32);
@@ -277,6 +277,7 @@ static int bl_check_peer_hello(const bootlegger_conn_t *conn, const bootlegger_i
     if (bl_is_zero(h->nonce, BOOTLEGGER_NONCE_BYTES)) return BOOTLEGGER_ENONCE;
     if (bl_replay_seen(rc, h->nonce)) return BOOTLEGGER_EREPLAY;
     if (bl_eq(h->identity, self->pk, BOOTLEGGER_ID_PK_BYTES)) return BOOTLEGGER_EAUTH;
+    if (!pqm_mlkem1024_check_ek(h->ek)) return BOOTLEGGER_EAUTH; /* FIPS 203 modulus check */
     if (conn->pinned) {
         uint8_t ih[32];
         sha256(h->identity, BOOTLEGGER_ID_PK_BYTES, ih);
@@ -298,14 +299,14 @@ int bootlegger_hs_initiate(bootlegger_hs_t *hs, const bootlegger_identity_t *sel
         bl_memset(r, 0, sizeof(r));
         return bl_fail(hs, 0, BOOTLEGGER_EREPLAY); /* entropy was reused */
     }
-    mlkem768_keygen(r + 32, r + 64, hs->ek_self, hs->dk_self);
+    pqm_mlkem1024_keygen(r + 32, r + 64, hs->ek_self, hs->dk_self);
     bl_memset(r, 0, sizeof(r));
     bl_replay_remember(rc, hs->nonce_self);
 
     out->version = BOOTLEGGER_VERSION;
     bl_memcpy(out->nonce, hs->nonce_self, BOOTLEGGER_NONCE_BYTES);
     bl_memcpy(out->identity, self->pk, BOOTLEGGER_ID_PK_BYTES);
-    bl_memcpy(out->ek, hs->ek_self, MLKEM768_EK_BYTES);
+    bl_memcpy(out->ek, hs->ek_self, BOOTLEGGER_EK_BYTES);
     hs->role = BL_ROLE_INIT;
     hs->stage = BL_STAGE_HELLO_SENT;
     return 0;
@@ -330,22 +331,25 @@ int bootlegger_hs_respond(bootlegger_hs_t *hs, bootlegger_conn_t *conn,
         bl_memset(r, 0, sizeof(r));
         return bl_fail(hs, conn, BOOTLEGGER_EREPLAY);
     }
-    mlkem768_keygen(r + 32, r + 64, hs->ek_self, hs->dk_self);
+    pqm_mlkem1024_keygen(r + 32, r + 64, hs->ek_self, hs->dk_self);
     bl_replay_remember(rc, hs->nonce_self);
 
     /* encapsulate to A's ephemeral key (ss stays here until FINISH) */
-    mlkem768_encaps(in->ek, r + 96, out->ct, hs->ss_reply);
-    sha256(out->ct, MLKEM768_CT_BYTES, hs->ct_reply_h);
+    if (!pqm_mlkem1024_encaps(in->ek, r + 96, out->ct, hs->ss_reply)) {
+        bl_memset(r, 0, sizeof(r));
+        return bl_fail(hs, conn, BOOTLEGGER_EAUTH);
+    }
+    sha256(out->ct, BOOTLEGGER_CT_BYTES, hs->ct_reply_h);
 
     out->hello.version = BOOTLEGGER_VERSION;
     bl_memcpy(out->hello.nonce, hs->nonce_self, BOOTLEGGER_NONCE_BYTES);
     bl_memcpy(out->hello.identity, self->pk, BOOTLEGGER_ID_PK_BYTES);
-    bl_memcpy(out->hello.ek, hs->ek_self, MLKEM768_EK_BYTES);
+    bl_memcpy(out->hello.ek, hs->ek_self, BOOTLEGGER_EK_BYTES);
 
     bootlegger_transcript_hash(BOOTLEGGER_VERSION, in->identity, in->ek, hs->nonce_self, self->pk,
                                hs->ek_self, in->nonce, hs->t_hash);
-    pq_mldsa65_sign(self->sk, hs->t_hash, 32, (const uint8_t *) BL_CTX_RESP,
-                    (uint32_t) (sizeof(BL_CTX_RESP) - 1), r + 128, out->sig);
+    pqm_mldsa87_sign(self->sk, hs->t_hash, 32, (const uint8_t *) BL_CTX_RESP,
+                     sizeof(BL_CTX_RESP) - 1, r + 128, out->sig);
     bl_memset(r, 0, sizeof(r));
 
     bl_memcpy(hs->peer_identity, in->identity, BOOTLEGGER_ID_PK_BYTES);
@@ -370,19 +374,23 @@ int bootlegger_hs_finish(bootlegger_hs_t *hs, bootlegger_conn_t *conn,
      * a reply from another session, or any edited field fails here. */
     bootlegger_transcript_hash(BOOTLEGGER_VERSION, self->pk, hs->ek_self, in->hello.nonce,
                                in->hello.identity, in->hello.ek, hs->nonce_self, hs->t_hash);
-    if (!pq_mldsa65_verify(in->hello.identity, hs->t_hash, 32, (const uint8_t *) BL_CTX_RESP,
-                           (uint32_t) (sizeof(BL_CTX_RESP) - 1), in->sig))
+    if (!pqm_mldsa87_verify(in->hello.identity, hs->t_hash, 32, (const uint8_t *) BL_CTX_RESP,
+                            sizeof(BL_CTX_RESP) - 1, in->sig))
         return bl_fail(hs, conn, BOOTLEGGER_EAUTH);
     bl_replay_remember(rc, in->hello.nonce);
 
     uint8_t r[BL_RNG_BYTES], ss_b[32], ss_a[32], ct_b_h[32], ct_a_h[32], ck[32];
     bl_expand(rnd, r);
-    mlkem768_decaps(hs->dk_self, in->ct, ss_b);
-    sha256(in->ct, MLKEM768_CT_BYTES, ct_b_h);
-    mlkem768_encaps(in->hello.ek, r + 96, out->ct, ss_a);
-    sha256(out->ct, MLKEM768_CT_BYTES, ct_a_h);
-    pq_mldsa65_sign(self->sk, hs->t_hash, 32, (const uint8_t *) BL_CTX_INIT,
-                    (uint32_t) (sizeof(BL_CTX_INIT) - 1), r + 128, out->sig);
+    pqm_mlkem1024_decaps(hs->dk_self, in->ct, ss_b);
+    sha256(in->ct, BOOTLEGGER_CT_BYTES, ct_b_h);
+    if (!pqm_mlkem1024_encaps(in->hello.ek, r + 96, out->ct, ss_a)) {
+        bl_memset(r, 0, sizeof(r));
+        bl_memset(ss_b, 0, sizeof(ss_b));
+        return bl_fail(hs, conn, BOOTLEGGER_EAUTH);
+    }
+    sha256(out->ct, BOOTLEGGER_CT_BYTES, ct_a_h);
+    pqm_mldsa87_sign(self->sk, hs->t_hash, 32, (const uint8_t *) BL_CTX_INIT,
+                     sizeof(BL_CTX_INIT) - 1, r + 128, out->sig);
     bl_install_session(conn, true, hs->t_hash, ss_b, ct_b_h, ss_a, ct_a_h, in->hello.identity, ck);
     bl_confirm_tag(ck, hs->t_hash, out->confirm);
 
@@ -401,13 +409,13 @@ int bootlegger_hs_accept(bootlegger_hs_t *hs, bootlegger_conn_t *conn,
     bl_conn_clear_auth(conn);
     if (hs->role != BL_ROLE_RESP || hs->stage != BL_STAGE_REPLY_SENT)
         return bl_fail(hs, conn, BOOTLEGGER_ESTATE);
-    if (!pq_mldsa65_verify(hs->peer_identity, hs->t_hash, 32, (const uint8_t *) BL_CTX_INIT,
-                           (uint32_t) (sizeof(BL_CTX_INIT) - 1), in->sig))
+    if (!pqm_mldsa87_verify(hs->peer_identity, hs->t_hash, 32, (const uint8_t *) BL_CTX_INIT,
+                            sizeof(BL_CTX_INIT) - 1, in->sig))
         return bl_fail(hs, conn, BOOTLEGGER_EAUTH);
 
     uint8_t ss_a[32], ct_a_h[32], ck[32], want[32];
-    mlkem768_decaps(hs->dk_self, in->ct, ss_a);
-    sha256(in->ct, MLKEM768_CT_BYTES, ct_a_h);
+    pqm_mlkem1024_decaps(hs->dk_self, in->ct, ss_a);
+    sha256(in->ct, BOOTLEGGER_CT_BYTES, ct_a_h);
     bl_install_session(conn, false, hs->t_hash, hs->ss_reply, hs->ct_reply_h, ss_a, ct_a_h,
                        hs->peer_identity, ck);
     bl_confirm_tag(ck, hs->t_hash, want);
@@ -1035,8 +1043,8 @@ int bootlegger_garlic_unwrap(bootlegger_conn_t *conn, uint8_t *data, uint16_t *l
  * p2p_transport_ready in the narrow sense that its primitives work; it moves
  * no bytes (see bootlegger.h).
  *
- * REQUIRES_NONE: the crypto it now calls (pq_mldsa65_*, sha3_256, shake256,
- * sha256, mlkem768_*, aead_*, hkdf_*) are leaf primitives, not declared modules.
+ * REQUIRES_NONE: the crypto it now calls (pqm_mldsa87_*, sha3_256, shake256,
+ * sha256, pqm_mlkem1024_*, aead_*, hkdf_*) are leaf primitives, not declared modules.
  */
 #ifndef TEST_HOST
 #    include "zxv_decl.h"

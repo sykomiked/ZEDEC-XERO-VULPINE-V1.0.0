@@ -3,6 +3,8 @@ Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 SPDX-License-Identifier: Apache-2.0
 -->
 
+> **Superseded (2026-10-15).** The current architecture is [docs/ARCHITECTURE.md](ARCHITECTURE.md) and every module is described in [docs/SYSTEM_REFERENCE.md](SYSTEM_REFERENCE.md). This file is kept for the record; where it disagrees with them or with the code, they win.
+
 # ZXV Architecture Overview, with Gaps and Improvements
 
 Surveyed 2026-10-09 on branch `claude/project-thread-j44rs9`. Line numbers are as of that date and will drift. `kernel/Makefile` was being edited by other workers during the survey, so its line numbers are approximate.
@@ -16,6 +18,14 @@ Surveyed 2026-10-09 on branch `claude/project-thread-j44rs9`. Line numbers are a
 > - Gap 21: the ARM64 boot step now fails without `[BOOT_OK]`; x86_64, riscv64, riscv32 and arm32 still end in `|| true`.
 > - Gap 22: `build_desktop.sh` and `test_hosted.sh` now take every `swarm_*.c` and `zt*.c`.
 > - Still open as written: gaps 3 (no host socket glue; `arch/hosted` links no Vinea, ipfs_node, call, social or `zx_notify_host.c`), 10 (four capital orderings: `zcapital`, `vino.h`, `finance/capital_forms.h`, plus `vino.c`'s names), 17 (`a.out` and the two `.dll` files are still tracked).
+
+> **Status on 2026-10-15.** Checked against the code:
+>
+> - Gap 1: the P0 evidence "No `zt_model*` file in `kernel/src/tensor`" and the `docs/TENSOR_ENGINE.md` quote no longer hold: `kernel/src/tensor/zt_model.c` is the forward pass, and `bench/results/` holds timing reports.
+> - Gap 2 (licences): closed apart from one header. `NOTICE` now names Apache-2.0 for the code, the ZXV Hardware License 1.1 for `hardware/` and OFL-1.1 for the ASCW Golden fonts. `LICENSES/` exists with Apache-2.0, OFL-1.1 and the ZXV Hardware licences 1.0 and 1.1, and `REUSE.toml` is at the root. One file header still names the old instruments: `kernel/src/speech/test_speech_fixture.h`.
+> - Gap 3: partly closed. The app links the Vinea node, the IPFS node sources and `zx_notify_host.c` (`kernel/arch/hosted/app_sources.sh`, `kernel/arch/hosted/zxv_net_host.c`).
+> - Gap 15 and every mention of `carracho` below: the code is now `kernel/src/vinea`, described in [VINEA.md](VINEA.md). `carr_common.h` and `carr_econ.h` no longer exist.
+> - Gap 20: `docs/CARRACHO.md`, `docs/PAY_RAILS.md`, `docs/NETWORK_STACK.md`, `docs/HOST_API.md` and `docs/MODELS.md` were never written; read the names as suggestions, not links.
 
 ## Summary
 
@@ -526,7 +536,7 @@ Ordered by how much each one blocks the product goal: a signed macOS companion a
   - No macOS CI runner (`.github/workflows/ci.yml`).
   - The hosted app has no update check.
 - **Fix:**
-  - Add a `macos-14` CI job that runs `build_desktop.sh` then `codesign --options runtime` with entitlements (network client and server, user-selected files read-only for models), `notarytool submit --wait` and `stapler`.
+  - Add a `macos-14` CI job that runs `build_desktop.sh` then `codesign --options runtime` with entitlements (network client and server, user-selected files read-only for models), `notarytool submit --wait` and `stapler`. (Decided 2026-10-11: releases ship ad-hoc signed without a Developer ID or notarisation; users allow the first open once, as `docs/MAC_APP.md` describes.)
   - Add a first-run model picker that downloads a licence-checked GGUF to `~/Library/Application Support/ZXV/models` and verifies it by CID.
   - Add a hybrid-signed update check (Gap 8).
   - Ship a LaunchAgent plist as an opt-in "start at login".

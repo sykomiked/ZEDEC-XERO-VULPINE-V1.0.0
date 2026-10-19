@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+<FIToFICstmrCdtTrf>
+<GrpHdr><MsgIdDtTm><NbOfTxs>1</NbOfTxs>		<SttlmInf><SttlmMtd>INDA</Sttlml vZXV/JUURIS/e

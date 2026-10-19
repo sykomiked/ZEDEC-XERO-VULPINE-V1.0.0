@@ -48,6 +48,7 @@
 #include "../rational/rational.h"
 #include "../lpres/lpres.h"
 #include "../edp_risk/edp_risk.h"
+#include "../../include/zxv_fixed.h"
 
 /* ===== language registry ===== */
 typedef enum {
@@ -106,7 +107,8 @@ typedef struct {
 
 /* ===== ops boundary: a language front/back-end ===== */
 /* lower: a source representation -> IR.   lift: IR -> a target representation.
- * Both return OC_OK (0) or a negative oc_status_t. A back/front-end that is
+ * lower returns OC_OK (0) or a negative oc_status_t; lift returns the number
+ * of bytes it wrote to `out` (>= 0) or a negative oc_status_t. A back/front-end that is
  * not bound is simply absent from the registry (fails closed). */
 typedef int32_t (*oc_lower_fn)(const void *src, uint32_t len, oc_ir_t *out);
 typedef int32_t (*oc_lift_fn)(const oc_ir_t *ir, void *out, uint32_t cap);
@@ -293,10 +295,7 @@ static inline rat_t oc_rat_from_sutra(int64_t num, int64_t den) {
     r.valid = 1;
     /* Normalize */
     if (r.num == 0) { r.den = 1; return r; }
-    int64_t a = r.num < 0 ? -r.num : r.num;
-    int64_t b = r.den < 0 ? -r.den : r.den;
-    while (b) { int64_t t = a % b; a = b; b = t; }
-    int64_t g = a;
+    int64_t g = zx_gcd_i64(r.num, r.den);
     r.num /= g; r.den /= g;
     if (r.den < 0) { r.num = -r.num; r.den = -r.den; }
     return r;

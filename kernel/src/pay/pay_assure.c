@@ -148,6 +148,7 @@ bool pay_commons_deposit(pay_commons_t *c, pay_unit_kind_t unit, uint64_t amount
 
 bool pay_commons_conserved(const pay_commons_t *c)
 {
+    if (!c) return false;
     for (int i = 0; i < PAY_UNIT_KIND_COUNT; i++)
         if (c->allocated[i] > c->received[i] || c->pool[i] != c->received[i] - c->allocated[i])
             return false;

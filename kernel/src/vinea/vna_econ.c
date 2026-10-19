@@ -76,7 +76,7 @@ static void entry_hash(const vna_lentry_t *e, uint8_t out[32])
 static void ledger_init(vna_ledger_t *l)
 {
     vna_zero(l, sizeof *l);
-    vna_htag("vinea/v2/ledger-genesis", 0, 0, l->base);
+    vna_htag("vinea/v3/ledger-genesis", 0, 0, l->base);
     vna_copy(l->tip, l->base, 32);
 }
 
@@ -183,7 +183,7 @@ vna_status_t vna_book_add_peer(vna_book_t *b, const vna_id_t *id, const uint8_t 
         vna_zero(a, sizeof *a);
         a->id = *id;
         vna_copy(a->pk, pk, VNA_PK_LEN);
-        vna_htag("vinea/v2/pair-genesis", 0, 0, a->pair_prev);
+        vna_htag("vinea/v3/pair-genesis", 0, 0, a->pair_prev);
         a->used = true;
     }
     a->member = member;
@@ -269,19 +269,19 @@ static bool all_zero(const uint8_t *p, uint32_t n)
  * here the check is a read-only gate that refuses trades the agreement would
  * never honour. Memory leases are checked at the agreement's longest lease. */
 static bool trade_allowed(vna_book_t *b, const vna_agreement_t *agr, vna_usage_t *us,
-                          const vna_account_t *a, const vna_receipt_t *r, uint64_t now)
+                          const vna_account_t *a, uint8_t resource, uint64_t units, uint64_t now)
 {
-    if (r->resource == VNA_RES_ROUTE) return true;
+    if (resource == VNA_RES_ROUTE) return true;
     if (!agr) return false;
-    if (r->resource == VNA_RES_FILE) {
+    if (resource == VNA_RES_FILE) {
         static const vna_id_t none;
         return agr->degree >= VNA_DEG_SERVE &&
                vna_agree_check(agr, us, &a->id, vna_book_trust(b, &a->id), VNA_RES_ROUTE, &none, 0,
                                0, now, false) == VNA_OK;
     }
-    uint32_t cycles = r->resource == VNA_RES_MEMORY ? 1u : 0u;
-    return vna_agree_check(agr, us, &a->id, vna_book_trust(b, &a->id), (vna_resource_t) r->resource,
-                           0, r->units, cycles, now, false) == VNA_OK;
+    uint32_t cycles = resource == VNA_RES_MEMORY ? 1u : 0u;
+    return vna_agree_check(agr, us, &a->id, vna_book_trust(b, &a->id), (vna_resource_t) resource, 0,
+                           units, cycles, now, false) == VNA_OK;
 }
 
 static vna_status_t apply_parsed(vna_book_t *b, const vna_receipt_t *r, const uint8_t *bytes,
@@ -321,7 +321,7 @@ static vna_status_t apply_parsed(vna_book_t *b, const vna_receipt_t *r, const ui
     case VNA_TR_PAY:
         if (i_sell) { /* the peer spends tokens I issued, for my resource */
             if (a->bal[VNA_TK_EXTERNAL][f] < p) return VNA_ERR_FUNDS;
-            if (!trade_allowed(b, agr, us, a, r, now)) return VNA_ERR_DENIED;
+            if (!trade_allowed(b, agr, us, a, r->resource, r->units, now)) return VNA_ERR_DENIED;
             a->bal[VNA_TK_EXTERNAL][f] -= p;
             b->burned[VNA_TK_EXTERNAL][f] += p;
             debit = ai;
@@ -343,7 +343,7 @@ static vna_status_t apply_parsed(vna_book_t *b, const vna_receipt_t *r, const ui
             debit = VNA_ACC_SELF;
             credit = ai;
         } else {
-            if (!trade_allowed(b, agr, us, a, r, now)) return VNA_ERR_DENIED;
+            if (!trade_allowed(b, agr, us, a, r->resource, r->units, now)) return VNA_ERR_DENIED;
             a->receivable[f] = vna_sat_add(a->receivable[f], p);
             debit = ai;
             credit = VNA_ACC_SELF;
@@ -374,6 +374,20 @@ static vna_status_t apply_parsed(vna_book_t *b, const vna_receipt_t *r, const ui
     ledger_triple(b, VNA_TK_EXTERNAL, f, r->mode, &a->id, p, debit, credit, a->pair_prev, sigs,
                   r->demand_x1000, r->pair_seq, r->ts, rnd);
     return VNA_OK;
+}
+
+vna_status_t vna_book_check_sale(vna_book_t *b, const vna_agreement_t *agr, vna_usage_t *us,
+                                 const vna_id_t *buyer, uint8_t mode, uint8_t form,
+                                 uint8_t resource, uint64_t units, uint64_t price, uint64_t now)
+{
+    if (!b || !buyer || (mode != VNA_TR_PAY && mode != VNA_TR_CREDIT) ||
+        resource >= VNA_RES_COUNT || form >= VNA_FORMS)
+        return VNA_ERR_ARG;
+    if (!priceable(form)) return VNA_ERR_INALIENABLE;
+    vna_account_t *a = vna_book_find(b, buyer);
+    if (!a) return VNA_ERR_ARG;
+    if (mode == VNA_TR_PAY && a->bal[VNA_TK_EXTERNAL][form] < price) return VNA_ERR_FUNDS;
+    return trade_allowed(b, agr, us, a, resource, units, now) ? VNA_OK : VNA_ERR_DENIED;
 }
 
 vna_status_t vna_book_apply(vna_book_t *b, const uint8_t *bytes, uint32_t len,
@@ -560,7 +574,7 @@ vna_status_t vna_book_settle(vna_book_t *b, uint64_t now, vna_drbg_t *rng, vna_r
         b->pool[f] = 0;
         b->burned[VNA_TK_NEUTRAL][f] += x;
         uint8_t ref[32];
-        vna_htag("vinea/v2/expire", (const uint8_t *) &b->cycle, sizeof b->cycle, ref);
+        vna_htag("vinea/v3/expire", (const uint8_t *) &b->cycle, sizeof b->cycle, ref);
         vna_drbg_gen(rng, rnd, 32);
         ledger_triple(b, VNA_TK_NEUTRAL, f, 0x13, 0, x, VNA_ACC_BURN, VNA_ACC_POOL, ref, 1, 0,
                       b->cycle, now, rnd);
@@ -669,7 +683,7 @@ vna_status_t vna_gate_export(vna_gate_t *g, const uint8_t owner_secret[32], swar
     b->pool[form] += got;
     b->minted[VNA_TK_NEUTRAL][form] += got;
     b->burned[VNA_TK_INTERNAL][form] += got;
-    vna_htag("vinea/v2/gate-export", (const uint8_t *) &g->cycle, sizeof g->cycle, ref);
+    vna_htag("vinea/v3/gate-export", (const uint8_t *) &g->cycle, sizeof g->cycle, ref);
     vna_sha3(ref, 32, rnd); /* signature randomness is hedged; derived nonce is fine */
     ledger_triple(b, VNA_TK_NEUTRAL, form, 0x11, 0, got, VNA_ACC_POOL, VNA_ACC_MINT, ref, 1, 0,
                   g->cycle, b->cycle, rnd);
@@ -693,7 +707,7 @@ vna_status_t vna_gate_import(vna_gate_t *g, const uint8_t owner_secret[32], vna_
     g->ops++;
     g->imported += amount;
     b->minted[VNA_TK_INTERNAL][form] += amount;
-    vna_htag("vinea/v2/gate-import", (const uint8_t *) &g->cycle, sizeof g->cycle, ref);
+    vna_htag("vinea/v3/gate-import", (const uint8_t *) &g->cycle, sizeof g->cycle, ref);
     vna_sha3(ref, 32, rnd);
     ledger_triple(b, VNA_TK_INTERNAL, form, 0x12, 0, amount, VNA_ACC_SELF, VNA_ACC_MINT, ref, 1, 0,
                   g->cycle, b->cycle, rnd);

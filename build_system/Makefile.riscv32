@@ -159,6 +159,16 @@ KERNEL_SRCS = \
     kernel/src/denconnect/denconnect.c \
     kernel/src/deploy/deploy.c \
     kernel/src/desktop/zxv_shell.c \
+    kernel/src/desktop/zxv_shell_font.c \
+    kernel/src/zui/zui_desk.c \
+    kernel/src/zui/zui_wm.c \
+    kernel/src/zui/zui_dock.c \
+    kernel/src/zui/zui_canvas.c \
+    kernel/src/zui/zui_progress.c \
+    kernel/src/zui/zui_motion.c \
+    kernel/src/zui/zui_input.c \
+    kernel/src/zui/zui_keymap.c \
+    kernel/src/zui/zui_layout.c \
     kernel/src/desktop/render_boot.c \
     kernel/src/dual_space/dual_space.c \
     kernel/src/dualtrack/dualtrack.c \
@@ -341,6 +351,16 @@ KERNEL_SRCS = \
     kernel/src/tls/aead.c \
     kernel/src/tls/record.c \
     kernel/src/tls/handshake.c \
+    kernel/src/tls/sha512.c \
+    kernel/src/tls/digest.c \
+    kernel/src/tls/bn.c \
+    kernel/src/tls/ecdsa.c \
+    kernel/src/tls/rsa.c \
+    kernel/src/tls/x509.c \
+    kernel/src/tls/trust.c \
+    kernel/src/timesvc/sntp.c \
+    kernel/src/timesvc/timesvc.c \
+    kernel/src/timesvc/tz.c \
     kernel/src/bringup/arch_globals.c \
     kernel/freestanding.c \
     kernel/compat/softfloat_stubs.c
@@ -472,3 +492,14 @@ ZXV_GENDIR    := $(OBJDIR)/gen
 ZXV_PHASE_HDR := $(ZXV_GENDIR)/zxv_phase_table.h
 $(shell mkdir -p $(ZXV_GENDIR) && sh $(CURDIR)/build_system/gen_phase_table.sh $(CURDIR)/$(ZXV_PHASE_HDR) 2> $(CURDIR)/$(ZXV_GENDIR)/phase_census.txt)
 CFLAGS += -I$(ZXV_GENDIR)
+
+# FAIL-CLOSED BOOT TEST HOOK (roadmap 2.14). `make ZXV_BOOT_INJECT=n` forces one
+# boot check in the kernel main to fail (1 = declaration gate, 2 = MegaROM) so
+# build_system/test_boot_fail_closed.sh can boot the refusal path itself. The
+# value lives in a generated header rewritten only when it changes, so -MMD
+# rebuilds exactly the main when it flips and never leaves a stale injected
+# object behind. Default 0: nothing injected.
+ZXV_BOOT_INJECT ?= 0
+ZXV_INJECT_HDR  := $(ZXV_GENDIR)/zxv_boot_inject.h
+ZXV_INJECT_DEF  := \#define ZXV_BOOT_INJECT $(ZXV_BOOT_INJECT)
+$(shell l='$(ZXV_INJECT_DEF)'; grep -qxF "$$l" $(ZXV_INJECT_HDR) 2>/dev/null || echo "$$l" > $(ZXV_INJECT_HDR))

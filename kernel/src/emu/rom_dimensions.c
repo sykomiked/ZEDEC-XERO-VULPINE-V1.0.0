@@ -209,7 +209,9 @@ static uint32_t shade_rgb(uint32_t c, int32_t s)
     int r = (int) ((((c >> 16) & 255) * (int64_t) s) >> 16),
         g = (int) ((((c >> 8) & 255) * (int64_t) s) >> 16),
         b = (int) (((c & 255) * (int64_t) s) >> 16);
-    if(r>255)r=255; if(g>255)g=255; if(b>255)b=255;
+    if (r > 255) r = 255;
+    if (g > 255) g = 255;
+    if (b > 255) b = 255;
     return (uint32_t)((r<<16)|(g<<8)|b);
 }
 static uint32_t add_white(uint32_t c, int32_t a)
@@ -218,7 +220,9 @@ static uint32_t add_white(uint32_t c, int32_t a)
     if (a > FX1) a = FX1;
     int wv = (int) ((255 * (int64_t) a) >> 16);
     int r = (int) ((c >> 16) & 255) + wv, g = (int) ((c >> 8) & 255) + wv, b = (int) (c & 255) + wv;
-    if(r>255)r=255; if(g>255)g=255; if(b>255)b=255;
+    if (r > 255) r = 255;
+    if (g > 255) g = 255;
+    if (b > 255) b = 255;
     return (uint32_t)((r<<16)|(g<<8)|b);
 }
 

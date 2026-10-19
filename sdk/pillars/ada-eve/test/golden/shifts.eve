@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# shifts.eve - the types of shifts.ads, in Eve.
+eve shifts
+day = (mon, tue, wed, thu, fri, sat, sun)
+weekday = day mon .. fri
+weekend = day sat .. sun
+hour = 0 .. 23
+minutes = 0 .. 24 * 60
+week = [day] minutes
+work_hour = hour 8 .. 17
+rota = [weekday, work_hour, boolean] boolean
+slot { on: weekday; start: work_hour; off: weekend }
+plan {
+  first, last: slot
+  total: week
+  grid: rota
+}

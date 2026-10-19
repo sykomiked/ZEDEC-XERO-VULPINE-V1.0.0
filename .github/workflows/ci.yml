@@ -1,132 +1,344 @@
 name: CI
 
+# Speed (docs/CI.md): superseded runs on a pull request are cancelled, each
+# job runs only when its inputs changed (build_system/ci_changes.sh), and the
+# slow tier (mutation, fuzzing, coverage, cross-CPU KATs, MSan, integer
+# sanitizer, riscv/arm32 boots, UEFI discs) runs nightly, on manual runs, and
+# on pull requests once they are ready for review (not on pushes to main: the
+# merged pull request already passed it).
+# The ci-gate job at the end is the one check a merge needs: it is reported
+# only by a ready pull request's run, and only passes when every job that the
+# change needs, slow tier included, passed (docs/CI.md, "Merge gate").
+# Locally, scripts/verify-local.sh runs the same checks before a push.
+
 on:
   push:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
+    types: [ opened, synchronize, reopened, ready_for_review ]
+    # No path filter: every pull request must report ci-gate, the check a
+    # merge requires, or an SDK-only pull request could never be merged.
+    # SDK-only changes run quick-checks and ci-gate here (two short jobs);
+    # the sdk*.yml workflows test the SDKs themselves.
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || (github.ref == 'refs/heads/main' && github.sha) || github.ref }}
+  # Only pull request runs are cancelled by a newer push; every commit on
+  # main/develop keeps its result. Each main commit gets its own group, since
+  # a group holds one pending run and quick merges would otherwise cancel the
+  # queued one, leaving main's newest finished run (and the badge) cancelled.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  build-arm64:
-    runs-on: ubuntu-22.04
+  # The required check `ci-gate` is a commit status, not this workflow's last
+  # job: that job is created only once every job before it has had a runner,
+  # so on a busy queue GitHub showed "Expected - waiting for status" for
+  # hours, and a cancelled run never reported at all. This job marks the
+  # commit pending within seconds; ci-gate-result sets the final state.
+  ci-gate-pending:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      statuses: write
     steps:
-      - uses: actions/checkout@v5
-      - name: Install ARM64 toolchain
+      - name: Mark ci-gate pending on the commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api "repos/${{ github.repository }}/statuses/$SHA" -f state=pending -f context=ci-gate \
+            -f target_url="$RUN" -f description="CI run started; the gate reports when it ends"
+  # Change detection, Apache-2.0 check and clang-format in one short job.
+  # Every other job reads its outputs; a lint failure does not hide them.
+  quick-checks:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    outputs:
+      kernel: ${{ steps.changes.outputs.kernel }}
+      dotnet: ${{ steps.changes.outputs.dotnet }}
+      mac: ${{ steps.changes.outputs.mac }}
+      proofs: ${{ steps.changes.outputs.proofs }}
+      zxvd: ${{ steps.changes.outputs.zxvd }}
+      heavy: ${{ steps.changes.outputs.heavy }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Which commit this change is compared with
+        # A pull request run checks out GitHub's merge commit, whose first
+        # parent is the target branch as it was when the merge was made.
+        # Diffing against that parent gives exactly the pull request's files.
+        # It used to diff against the live origin/main, which moves: when
+        # main gained the pull request itself (#77 was merged 5 s after it
+        # was marked ready) the diff came out empty, every job was skipped
+        # and the run reported success without running a single test.
+        # A push compares with the commit before it.
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then B=$(git rev-parse HEAD^1); else B="$BEFORE"; fi
+          echo "base: ${B:-<none: everything>}"
+          echo "BASE=$B" >> "$GITHUB_ENV"
+      - name: Which jobs this change needs
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+          REF: ${{ github.ref }}
+        run: |
+          B="$BASE"
+          if git cat-file -e "$B^{commit}" 2>/dev/null; then B=$(git merge-base "$B" HEAD); fi
+          build_system/ci_changes.sh "$B" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Check every file is on Apache-2.0
+        run: python3 build_system/relicense_apache.py --check
+      - name: Install clang-format and PyYAML
+        run: pip install clang-format==18.1.8 pyyaml
+      - name: Every pull request workflow keeps drafts on the fast tier
+        run: python3 build_system/check_workflow_tiers.py
+      - name: The SDK workflows start on exactly what libzxv is built from
+        # build_system/sdk_kernel_deps.py: the compiler's list of libzxv's
+        # kernel inputs must match the sdk*.yml path filters, so an SDK
+        # workflow neither misses a change nor starts on unrelated modules.
+        run: python3 build_system/sdk_kernel_deps.py --check
+      - name: zxvd's error codes are one registry
+        # build_system/check_zxvd_errors.py: every ZXVD_E_* in range, unique,
+        # and listed in zxvd_rpc.h X4, docs/ZXVD.md and the OpenRPC spec.
+        run: python3 build_system/check_zxvd_errors.py
+      - name: The mutation config parses and is consistent
+        # A merge that keeps both sides of a targets.json entry used to pass
+        # every fast job and then fail all three mutation shards on a ready
+        # pull request (#89, #110). Checking it here fails in seconds instead.
+        run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --check-config
+      - name: Check formatting of the C files this change touches
+        # Style is in .clang-format. Older files predate it, so only the lines
+        # a pull request or push changes are checked. Nightly and manual runs
+        # have no change to compare, so the whole history would be "changed"
+        # and every pre-.clang-format file would fail; they skip this step.
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+        run: |
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then BASE=$(git rev-list --max-parents=0 HEAD | tail -1); fi
+          # Only the changed lines are checked, so a one-line header edit does
+          # not force a full reformat of an older file. New files are all
+          # changed lines, so they stay fully checked.
+          MB=$(git merge-base "$BASE" HEAD)
+          # git clang-format does not read .clang-format-ignore, so its
+          # entries (generated tables, vendored code) become exclude pathspecs.
+          set -f
+          EXCL=$(grep -vE '^[[:space:]]*(#|$)' .clang-format-ignore | sed 's/^/:(exclude,glob)/')
+          out=$(git clang-format --binary "$(command -v clang-format)" --diff "$MB" HEAD -- 'kernel/*.c' 'kernel/*.h' $EXCL || true)
+          set +f
+          case "$out" in
+            ""|"no modified files to format"|"clang-format did not modify any files") echo "formatting OK" ;;
+            *) echo "$out"; exit 1 ;;
+          esac
+
+  host-tests:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu qemu-system-arm xorriso
+          sudo apt-get install -y gcc make clang libxml2-utils gnucobol3 swtpm gcc-aarch64-linux-gnu qemu-user gfortran gforth
+      - name: Seven-strata layer check
+        run: |
+          build_system/verify_layers.sh
+          python3 tests/harness/test_verify_strata.py
+      - name: Run host tests
+        env:
+          ZXV_REQUIRE_COBOL: "1"
+          ZXV_REQUIRE_LINGUA_REF: "1"
+          ZXV_REQUIRE_SWTPM: "1"
+        run: |
+          cd kernel
+          make verify-all
+
+  # zxvd's unit tests (every kernel/arch/hosted/test_zxvd_*.sh), the app and
+  # zui tests, then the daemon built and driven end to end. zxvd.yml runs the
+  # same per platform and sanitizer; this copy is what puts zxvd under
+  # ci-gate. One script, so the two cannot list different tests.
+  zxvd:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.zxvd == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: zxvd unit tests and end to end (kernel/arch/hosted/zxvd_checks.sh)
+        env:
+          CC: gcc
+        run: sh kernel/arch/hosted/zxvd_checks.sh "$RUNNER_TEMP/zxvd-checks"
+
+  # QEMU boots of the two shipping targets (Apple Silicon/ARM PCs and x86_64
+  # PCs) on every push. Each arch is its own step and every step runs even
+  # after a failure, so one red arch does not hide the other.
+  boot:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install ARM64 and x86_64 toolchains
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ccache gcc-aarch64-linux-gnu qemu-system-arm gcc nasm qemu-system-x86 xorriso grub-pc-bin grub-common
+          sudo /usr/sbin/update-ccache-symlinks
+          echo "/usr/lib/ccache" >> "$GITHUB_PATH"
+      - name: Cache ccache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: ccache-boot-${{ github.sha }}
+          restore-keys: ccache-boot-
       - name: Build ARM64
         run: |
           make -f build_system/Makefile.arm64 clean
-          make -f build_system/Makefile.arm64 all
+          make -j"$(nproc)" -f build_system/Makefile.arm64 all
       - name: Run ARM64 in QEMU
         # The kernel never exits, so timeout always stops QEMU; the step
         # passes only if the serial log reached [BOOT_OK] without a fault
         # marker. Same check on all five targets: build_system/ci_boot_check.sh.
         run: build_system/ci_boot_check.sh arm64 build_system/Makefile.arm64 30 "[AI_OK]"
+      # The same kernel, used: two boots on one blank disk, commands typed
+      # into the EL0 shell over serial. Proves the ROADMAP G7 items protected
+      # userspace, P-TERM, files that survive a reboot, and signed-only run
+      # (a tampered package and an unsigned file are both refused).
+      - name: ARM64 user session (EL0 shell, persistence, signed-only run)
+        run: python3 build_system/arm64_session_check.py kernel_arm64.elf "$RUNNER_TEMP"
       - name: Upload ARM64 artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: kernel-arm64
           path: kernel_arm64.elf
-
-  build-x86_64:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install x86_64 toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc nasm qemu-system-x86 xorriso grub-pc-bin grub-common
       - name: Build x86_64
+        if: ${{ !cancelled() }}
         run: |
           make -f build_system/Makefile.x86_64 clean
-          make -f build_system/Makefile.x86_64 all
+          make -j"$(nproc)" -f build_system/Makefile.x86_64 all
       - name: Run x86_64 in QEMU
-        run: build_system/ci_boot_check.sh x86_64 build_system/Makefile.x86_64 30 "[AI_OK]"
+        if: ${{ !cancelled() }}
+        # [SCHED_OK]: ring-3 processes preempted by the LAPIC timer, and a
+        # user fault ending only its own process (x86_userspace.c).
+        run: build_system/ci_boot_check.sh x86_64 build_system/Makefile.x86_64 30 "[AI_OK]" "[SCHED_OK]"
       - name: Upload x86_64 artifacts
-        uses: actions/upload-artifact@v5
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
         with:
           name: kernel-x86_64
           path: kernel_x86_64.elf
+      - run: ccache -s
 
-  build-riscv64:
+  # Slow tier: the other three boots (riscv64, riscv32, arm32), one job.
+  boot-extra:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    env:
+      OPENSBI_TAG: v1.3.1
     steps:
-      - uses: actions/checkout@v5
-      - name: Install RISC-V 64-bit toolchain
-        run: |
-          sudo apt-get update
-          # qemu-system-riscv64 ships in qemu-system-misc (Ubuntu has no
-          # package of that name), with the rv64 OpenSBI firmware QEMU loads.
-          sudo apt-get install -y gcc-riscv64-linux-gnu qemu-system-misc
-      - name: Build RISC-V 64-bit
-        run: |
-          make -f build_system/Makefile.riscv clean
-          make -f build_system/Makefile.riscv all
-      - name: Run RISC-V 64-bit in QEMU
-        run: build_system/ci_boot_check.sh riscv64 build_system/Makefile.riscv 30
-      - name: Upload RISC-V 64-bit artifacts
-        uses: actions/upload-artifact@v5
-        with:
-          name: kernel-riscv64
-          path: kernel_riscv.elf
-          if-no-files-found: error
-
-  build-riscv32:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install RISC-V 32-bit toolchain
+      - uses: actions/checkout@v7
+      - name: Install RISC-V and ARM32 toolchains
+        # qemu-system-riscv64 ships in qemu-system-misc (Ubuntu has no
+        # package of that name), with the rv64 OpenSBI firmware QEMU loads.
         # Ubuntu ships no riscv32 cross compiler; the riscv64 one builds rv32
         # through -march=rv32... -mabi=ilp32d (see Makefile.riscv32).
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-riscv64-linux-gnu qemu-system-misc
+          sudo apt-get install -y ccache gcc-riscv64-linux-gnu qemu-system-misc gcc-arm-linux-gnueabihf qemu-system-arm
+          sudo /usr/sbin/update-ccache-symlinks
+          echo "/usr/lib/ccache" >> "$GITHUB_PATH"
+      - name: Cache ccache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: ccache-boot-extra-${{ github.sha }}
+          restore-keys: ccache-boot-extra-
+      - name: Build RISC-V 64-bit
+        run: |
+          make -f build_system/Makefile.riscv clean
+          make -j"$(nproc)" -f build_system/Makefile.riscv all
+      - name: Run RISC-V 64-bit in QEMU
+        run: build_system/ci_boot_check.sh riscv64 build_system/Makefile.riscv 30
+      - name: Upload RISC-V 64-bit artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: kernel-riscv64
+          path: kernel_riscv.elf
+          if-no-files-found: error
+      - name: RISC-V 64-bit refuses a failed boot check
+        # Roadmap 2.14: each injected boot-check failure must stop the boot
+        # before [BOOT_OK]. Runs after the upload, and rebuilds the normal image.
+        if: ${{ !cancelled() }}
+        run: build_system/test_boot_fail_closed.sh riscv64 build_system/Makefile.riscv 20
       - name: Build RISC-V 32-bit
+        if: ${{ !cancelled() }}
         run: |
           make -f build_system/Makefile.riscv32 clean
-          make -f build_system/Makefile.riscv32 all
+          make -j"$(nproc)" -f build_system/Makefile.riscv32 all
+      - name: Cache the rv32 OpenSBI firmware
+        id: sbi-cache
+        if: ${{ !cancelled() }}
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/opensbi-fw
+          key: opensbi-rv32-${{ env.OPENSBI_TAG }}-ubuntu-22.04-elf
       - name: Build rv32 OpenSBI firmware
         # Ubuntu ships rv64 OpenSBI only, and qemu-system-riscv32 -M virt
         # cannot start without an rv32 one (see build_system/riscv32_sbi.sh).
         # Built from a pinned upstream tag with the same riscv64 cross gcc;
         # the run target picks it up through ZXV_RV32_SBI.
+        if: ${{ !cancelled() && steps.sbi-cache.outputs.cache-hit != 'true' }}
         run: |
-          git clone --depth 1 --branch v1.3.1 https://github.com/riscv-software-src/opensbi.git "$RUNNER_TEMP/opensbi"
+          git clone --depth 1 --branch "$OPENSBI_TAG" https://github.com/riscv-software-src/opensbi.git "$RUNNER_TEMP/opensbi"
           make -C "$RUNNER_TEMP/opensbi" -j"$(nproc)" PLATFORM=generic PLATFORM_RISCV_XLEN=32 CROSS_COMPILE=riscv64-linux-gnu-
-          echo "ZXV_RV32_SBI=$RUNNER_TEMP/opensbi/build/platform/generic/firmware/fw_dynamic.bin" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/opensbi-fw"
+          # riscv32_sbi.sh accepts the .bin only with its .elf beside it
+          cp "$RUNNER_TEMP"/opensbi/build/platform/generic/firmware/fw_dynamic.{bin,elf} "$RUNNER_TEMP/opensbi-fw/"
       - name: Run RISC-V 32-bit in QEMU
-        run: build_system/ci_boot_check.sh riscv32 build_system/Makefile.riscv32 30
+        if: ${{ !cancelled() }}
+        run: ZXV_RV32_SBI="$RUNNER_TEMP/opensbi-fw/fw_dynamic.bin" build_system/ci_boot_check.sh riscv32 build_system/Makefile.riscv32 30
       - name: Upload RISC-V 32-bit artifacts
-        uses: actions/upload-artifact@v5
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
         with:
           name: kernel-riscv32
           path: kernel_riscv32.elf
-
-  build-arm32:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install ARM32 toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-arm-linux-gnueabihf qemu-system-arm
+      - name: RISC-V 32-bit refuses a failed boot check
+        if: ${{ !cancelled() }}
+        run: ZXV_RV32_SBI="$RUNNER_TEMP/opensbi-fw/fw_dynamic.bin" build_system/test_boot_fail_closed.sh riscv32 build_system/Makefile.riscv32 20
       - name: Build ARM32
+        if: ${{ !cancelled() }}
         run: |
           make -f build_system/Makefile.arm32 clean
-          make -f build_system/Makefile.arm32 all
+          make -j"$(nproc)" -f build_system/Makefile.arm32 all
       - name: Run ARM32 in QEMU
+        if: ${{ !cancelled() }}
         run: build_system/ci_boot_check.sh arm32 build_system/Makefile.arm32 30
       - name: Upload ARM32 artifacts
-        uses: actions/upload-artifact@v5
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
         with:
           name: kernel-arm32
           path: zedec_xero_arm32.elf
           if-no-files-found: error
+      - name: ARM32 refuses a failed boot check
+        if: ${{ !cancelled() }}
+        run: build_system/test_boot_fail_closed.sh arm32 build_system/Makefile.arm32 20
+      - run: ccache -s
 
   host-tests:
     runs-on: ubuntu-22.04
@@ -148,41 +360,73 @@ jobs:
         run: python3 tools/qa_inventory.py --strict --output build/qa/inventory.json
 
   lint:
+  uefi-disc:
+    # Bare-metal UEFI discs, built in the same pinned Docker toolchain used on a
+    # Mac (build_system/Dockerfile.baremetal), then booted from the disc by the
+    # real firmware (OVMF / QEMU_EFI). Fails closed: the step passes only if the
+    # serial log reaches [BOOT_OK] and [AI_OK] with no fault marker. Slow tier:
+    # the toolchain image is built from scratch each run.
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            screen: "[AI_OK]"
+          # x86_64 must also bring up the on-screen console a real PC needs.
+          - arch: x86_64
+            screen: "UEFI GOP text console"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
+      - name: Build toolchain image
+        run: docker build -f build_system/Dockerfile.baremetal -t zxv-baremetal .
+      - name: Build ${{ matrix.arch }} kernel and UEFI disc
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/baremetal_images.sh ${{ matrix.arch }}
+      - name: Boot ${{ matrix.arch }} disc under UEFI firmware
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/uefi_boot_check.sh ${{ matrix.arch }} "" 90 "[AI_OK]" "${{ matrix.screen }}"
+      # Standard class drivers (kernel/src/hwdrv) on one of every emulated
+      # device they cover: NVMe, SATA, xHCI keyboard + storage, Intel NICs,
+      # HD Audio. Each must bind and pass its boot self-test.
+      - name: Class drivers on emulated hardware
+        if: ${{ matrix.arch == 'x86_64' }}
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/hw_drivers_check.sh "" 150
+      # ACPI (kernel/src/acpi) on QEMU's firmware tables: the AML namespace
+      # loads, \_S5_/S3/power button/processors are reported, the power
+      # button and a direct request both power the machine off through S5,
+      # and S3 entry suspends the guest. Batteries, lid, thermal, backlight
+      # and CPPC are host-tested only (QEMU's q35 tables have none).
+      - name: ACPI power management on emulated hardware
+        if: ${{ matrix.arch == 'x86_64' }}
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/acpi_check.sh "" 150
+      # Golden disc model check with a 3 MiB test file as the model: verified
+      # when intact, caught when one byte changes (docs/BAREMETAL.md).
+      - name: Golden disc model check (${{ matrix.arch }})
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/test_golden_disc.sh ${{ matrix.arch }} 60
+      - name: Upload ${{ matrix.arch }} disc
+        uses: actions/upload-artifact@v7
         with:
-          fetch-depth: 0
-      - name: Install clang-format
-        run: pip install clang-format==18.1.8
-      - name: Check formatting of the C files this change touches
-        # Style is in .clang-format. Older files predate it, so only the lines
-        # a pull request or push changes are checked.
-        env:
-          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
-        run: |
-          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then BASE=$(git rev-list --max-parents=0 HEAD | tail -1); fi
-          # Only the changed lines are checked, so a one-line header edit does
-          # not force a full reformat of an older file. New files are all
-          # changed lines, so they stay fully checked.
-          MB=$(git merge-base "$BASE" HEAD)
-          # git clang-format does not read .clang-format-ignore, so its
-          # entries (generated tables, vendored code) become exclude pathspecs.
-          set -f
-          EXCL=$(grep -vE '^[[:space:]]*(#|$)' .clang-format-ignore | sed 's/^/:(exclude,glob)/')
-          out=$(git clang-format --binary "$(command -v clang-format)" --diff "$MB" HEAD -- 'kernel/*.c' 'kernel/*.h' $EXCL || true)
-          set +f
-          case "$out" in
-            ""|"no modified files to format"|"clang-format did not modify any files") echo "formatting OK" ;;
-            *) echo "$out"; exit 1 ;;
-          esac
+          name: uefi-disc-${{ matrix.arch }}
+          path: |
+            dist/discs/zxv-${{ matrix.arch }}-uefi.img
+            dist/discs/SHA256SUMS
+          if-no-files-found: error
 
   # The turnkey Mac app: native shell + engine, universal (arm64 + x86_64),
   # tested and packaged by build_desktop.sh on Apple's own toolchain. Signs
   # and notarises only when the repository has the signing secrets; without
   # them (forks, pull requests) the app is ad-hoc signed and still tested.
+  #
+  # Optional self-hosted Mac (docs/CI.md, "Self-hosted Mac runner"): OFF
+  # unless the repository variable ZXV_MAC_RUNNER is set to "self-hosted".
+  # Even then, pull requests from forks always stay on GitHub's macos-14, so
+  # outside code never runs on the owner's machine.
   macos-app:
-    runs-on: macos-14
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.mac == 'true' }}
+    runs-on: ${{ (vars.ZXV_MAC_RUNNER == 'self-hosted' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted", "macOS", "ARM64", "zxv-mac"]') || 'macos-14' }}
     timeout-minutes: 45
     env:
       ZXV_SIGN_IDENTITY: ${{ secrets.ZXV_SIGN_IDENTITY }}
@@ -193,8 +437,8 @@ jobs:
       ZXV_NOTARY_KEY_ID: ${{ secrets.ZXV_NOTARY_KEY_ID }}
       ZXV_NOTARY_ISSUER: ${{ secrets.ZXV_NOTARY_ISSUER }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install tools
@@ -249,6 +493,11 @@ jobs:
           done
           pgrep -fl "ZXV.app/Contents/MacOS/zxv-engine"
           sleep 3
+          # the engine is zxvd: its control socket answers (macos/ZXVApp.m, SOCKET)
+          SOCK="$HOME/Library/Application Support/ZXV/run/zxvd.sock"
+          test -S "$SOCK"
+          cc -std=c11 -Wall -Wextra -Werror macos/zxv_rpc_client.c macos/zxv_rpc_call.c -o "$RUNNER_TEMP/zxv-rpc-call"
+          "$RUNNER_TEMP/zxv-rpc-call" "$SOCK" '{"jsonrpc":"2.0","id":1,"method":"zxvd.version"}' | grep '"protocol":"zxvd-rpc/1"'
           # a polite Quit (as from the menu); some runners refuse Apple Events
           osascript -e 'tell application id "com.36n9genetics.zxv-swarm" to quit' ||
             echo "::warning::Apple Event quit refused on this runner"
@@ -263,9 +512,10 @@ jobs:
             sleep 1
           done
           if pgrep -fl "ZXV.app/Contents/MacOS/"; then echo "ZXV left a process running"; exit 1; fi
+          if [ -e "$SOCK" ]; then echo "the control socket was left behind"; exit 1; fi
           tail -n 20 "$HOME/Library/Logs/ZXV/engine.log" || true
       - name: Upload the Mac packages
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: zxv-macos
           path: |
@@ -281,45 +531,57 @@ jobs:
   # The .NET SDK for operator teams: the C ABI shim with its conformance
   # test, then the SDK and gateway built with warnings as errors and tested.
   dotnet-sdk:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.dotnet == 'true' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     defaults:
       run:
-        working-directory: bindings/dotnet
+        working-directory: sdk/dotnet
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
-      - name: Native shim (C ABI) and its conformance test
-        run: make -C native test
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('sdk/dotnet/**/*.csproj', 'sdk/dotnet/Directory.Packages.props', 'sdk/dotnet/global.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: libzxv (the C ABI) and its conformance tests
+        run: make -C ../libzxv test
       - name: Build (Release, warnings as errors)
         run: dotnet build Zxv.sln -c Release -p:ZxvSkipNativeBuild=true
       - name: Test
         run: dotnet test Zxv.sln -c Release --no-build --logger "trx;LogFileName=results.trx"
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: dotnet-test-results
-          path: bindings/dotnet/tests/**/TestResults/*.trx
+          path: sdk/dotnet/tests/**/TestResults/*.trx
 
   # Machine-checked models in proofs/ (see proofs/README.md): TLC on the
   # TLA+ ledger models, Lean 4 on the headroom and rational proofs. These are
   # models of the C code, not a proof of the C code itself.
   proofs:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.proofs == 'true' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     env:
       TLA_VERSION: '1.7.4'
       TLA_SHA256: 936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88
       LEAN_VERSION: '4.15.0'
       LEAN_SHA256: af71a2569a9f68337de2434829b3008cd8e32c436e9cb6bd8c84a2c2ba3585c9
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
       - name: Cache pinned tools
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: proofs/.tools
           key: proofs-tools-tla${{ env.TLA_VERSION }}-lean${{ env.LEAN_VERSION }}
@@ -344,7 +606,7 @@ jobs:
         run: LEAN="$PWD/proofs/.tools/lean-${LEAN_VERSION}-linux/bin/lean" proofs/check.sh lean
       - name: TLC model checking
         run: PROOFS_LOGDIR="$RUNNER_TEMP/tlc-logs" proofs/check.sh tla
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: tlc-logs
@@ -352,13 +614,17 @@ jobs:
 
   # Post-quantum KATs on other CPUs: the NIST ACVP/KAT tests cross-compiled for
   # aarch64, riscv64, armhf (32-bit), i686 (32-bit) and s390x (big-endian) and
-  # run under qemu-user. Then the valgrind secret-branch check (ctgrind) of
+  # run under qemu-user, and the grammar-mask and evidence-head digests
+  # (build_system/ai_cross.sh) compared with the host's. Then the valgrind secret-branch check (ctgrind) of
   # ML-KEM-768 decaps/encaps (gated) and ML-DSA-65 sign (reported only), and
   # the legacy-transcoder golden traces. No model is downloaded.
   kat-cross:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install cross toolchains, qemu-user and valgrind
         run: |
           sudo apt-get update
@@ -369,7 +635,262 @@ jobs:
             libc6-dev-s390x-cross valgrind
       - name: KATs on aarch64, riscv64, armhf, i686, s390x (qemu-user)
         run: KAT_CROSS_STRICT=1 make -C kernel kat-cross
+      - name: Grammar masks and evidence-head fits, same bits on the same five CPUs
+        run: KAT_CROSS_STRICT=1 bash build_system/ai_cross.sh
       - name: Secret-dependent branch check under valgrind (ctgrind)
         run: make -C kernel ct-valgrind
       - name: Legacy transcoder golden traces
         run: make -C bench legacy
+
+  # Mutation testing on a small fixed subset (the full run is slow; see
+  # tests/MUTATION_REPORT.md), split into three parallel shards balanced by
+  # mutant count (mutate.py --shard). Every CI target is in exactly one shard,
+  # and each shard fails when one of its scores drops below the measured
+  # baseline recorded in tests/harness/mutator/targets.json.
+  mutation-subset:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [ 1, 2, 3 ]
+    name: mutation-subset (${{ matrix.shard }}/3)
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc make
+      - name: Mutation harness self-test
+        run: python3 tests/harness/mutator/mutate.py --selftest
+      - name: Mutation score gate (CI subset, shard ${{ matrix.shard }}/3)
+        run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --ci --shard ${{ matrix.shard }}/3 --jobs 4 --out mutation-results
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: mutation-results-${{ matrix.shard }}
+          path: mutation-results/*.txt
+
+  # ---- sanitizers, fuzzing and coverage (fuzz/README.md) ----------------
+  # The kernel Makefile's host-test recipes call gcc/cc directly. These jobs
+  # put fuzz/tools/san-cc first on PATH as gcc and cc. It rebuilds each
+  # hosted test with the job's flags. Freestanding and cross compiles pass
+  # through unchanged. TSan: no job. Nothing in kernel/src or the hosted app
+  # uses threads (zx_notify_host.c forks a separate process), so a race
+  # detector has nothing to check.
+  sanitize-asan-ubsan:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
+          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
+      - name: Host test suite under ASan + UBSan (clang, abort on first report)
+        run: |
+          mkdir -p "$RUNNER_TEMP/san" && ln -s "$PWD/fuzz/tools/san-cc" "$RUNNER_TEMP/san/gcc" && ln -s "$PWD/fuzz/tools/san-cc" "$RUNNER_TEMP/san/cc"
+          export PATH="$RUNNER_TEMP/san:$PATH" SANCC_CC=clang
+          # LeakSanitizer is off: kernel/src/sched/sched.c exports
+          # sched_yield(sched_t *), which in a hosted test binary replaces
+          # libc's sched_yield. LSan's stop-the-world calls sched_yield and
+          # crashes inside the kernel scheduler (test_dharma). See
+          # docs/AUDIT_REPORT.md.
+          export ASAN_OPTIONS=detect_leaks=0
+          export SANCC_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -fsanitize-ignorelist=$PWD/fuzz/sanitizer-ignorelist.txt -Wno-error -Wno-unknown-warning-option -Wno-unused-command-line-argument"
+          make -C kernel verify-all
+
+  sanitize-integer:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
+          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
+      - name: Economy, pay, rational and RMAG tests under -fsanitize=integer
+        # Unsigned wrap that the algorithm needs (hash and cipher cores) is in
+        # fuzz/sanitizer-ignorelist.txt. No test is skipped.
+        run: |
+          mkdir -p "$RUNNER_TEMP/san" && ln -s "$PWD/fuzz/tools/san-cc" "$RUNNER_TEMP/san/gcc" && ln -s "$PWD/fuzz/tools/san-cc" "$RUNNER_TEMP/san/cc"
+          export PATH="$RUNNER_TEMP/san:$PATH" SANCC_CC=clang
+          export SANCC_MATCH='src/(pay|vino|rmag|rational|count_house|finance|zcapital|cbank|porter_house|surplus)/test_|src/swarm/test_swarm_economy'
+          export SANCC_FLAGS="-fsanitize=integer -fno-sanitize-recover=all -fsanitize-ignorelist=$PWD/fuzz/sanitizer-ignorelist.txt -Wno-error -Wno-unknown-warning-option -Wno-unused-command-line-argument"
+          make -C kernel verify-all
+      - name: Ledger property harnesses under -fsanitize=integer
+        run: |
+          make -C fuzz OUT=build/int CC_REPLAY=clang ED25519_GCC= PROP_ITERS=500 \
+            REPLAY_SAN="-fsanitize=address,undefined,integer -fno-sanitize-recover=all -fsanitize-ignorelist=$PWD/fuzz/sanitizer-ignorelist.txt" prop
+
+  sanitize-msan:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
+    runs-on: ubuntu-24.04
+    # 35 min on batch 2; the tensor tests (#124) run long under MSan
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
+          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
+      - name: Fuzz corpora and ledger properties under MSan
+        # MSan needs every byte's producer instrumented. libc is not, so the
+        # job keeps to code whose libc use MSan intercepts (memcpy, stdio,
+        # dirent). That covers the replay harnesses and the subset of host
+        # tests that fuzz/tools/msan_tests.sh names.
+        run: |
+          make -C fuzz OUT=build/msan CC_REPLAY=clang ED25519_GCC= PROP_ITERS=300 \
+            REPLAY_SAN="-fsanitize=memory -fsanitize-memory-track-origins=2 -fno-omit-frame-pointer -fno-sanitize-recover=all" replay prop
+      - name: Host test subset under MSan
+        run: fuzz/tools/msan_tests.sh
+
+  fuzz-smoke:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-11 make clang llvm
+          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
+      - name: Replay the committed corpora (gcc, ASan + UBSan)
+        run: make -C fuzz replay prop PROP_ITERS=1000
+      - name: Every libFuzzer harness for 30 s
+        run: make -C fuzz smoke SMOKE_SECS=30
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: fuzz-crashes
+          path: fuzz/build/artifacts/
+
+  coverage:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
+          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
+      - name: Line, branch and MC/DC coverage (clang source-based)
+        run: |
+          fuzz/tools/coverage.sh
+          cat fuzz/build/cov/COVERAGE.table.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: |
+            fuzz/build/cov/summary.json
+            fuzz/build/cov/report.txt
+            fuzz/build/cov/COVERAGE.table.md
+
+  # ---- merge gate (docs/CI.md, "Merge gate") ----------------------------
+  # The one check branch protection requires. On a ready pull request (and
+  # on main, nightly and manual runs) it is named ci-gate and passes only
+  # when quick-checks passed, no job failed or was cancelled, and, when the
+  # change touches code, every slow-tier job actually ran and passed. A
+  # skipped job counts as passing for a required check, so requiring the
+  # individual jobs could let a run that skipped everything through; this
+  # job checks the skips against what the change needs.
+  # It always reports under the one name ci-gate, so the required check
+  # never sits at "Expected - waiting for status". On a draft it fails at
+  # once with "mark it ready for review": a draft runs the fast tier only,
+  # so its green fast tier can never satisfy the merge rule. Every job above
+  # has a time limit, so a hung job fails the gate within that limit instead
+  # of holding it for GitHub's six-hour default.
+  ci-gate:
+    name: ci-gate-result
+    needs: [ ci-gate-pending, quick-checks, host-tests, zxvd, boot, boot-extra, uefi-disc, macos-app, dotnet-sdk, proofs, kat-cross, mutation-subset, sanitize-asan-ubsan, sanitize-integer, sanitize-msan, fuzz-smoke, coverage ]
+    # always(): a cancelled run (a newer push, or fail-fast) still reports,
+    # as a failure naming the cancelled jobs, instead of staying pending.
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      statuses: write
+    steps:
+      - name: Every job the change needs ran and passed
+        id: gate
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          KERNEL: ${{ needs.quick-checks.outputs.kernel }}
+          HEAVY: ${{ needs.quick-checks.outputs.heavy }}
+          ZXVD: ${{ needs.quick-checks.outputs.zxvd }}
+          DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          def done(ok, why):
+              with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                  f.write(f"ok={'true' if ok else 'false'}\nwhy={why[:140]}\n")
+              sys.exit(0 if ok else 1)
+          if os.environ.get("DRAFT") == "true":
+              print("ci-gate: this pull request is a draft, which runs the fast tier only.")
+              print("Mark it ready for review: the full checks start then and this gate reports again.")
+              done(False, "Draft: fast tier only. Mark it ready for review to run the full checks.")
+          needs = json.loads(os.environ["NEEDS"])
+          needs.pop("ci-gate-pending", None)
+          kernel = os.environ.get("KERNEL") == "true"
+          heavy = os.environ.get("HEAVY") == "true"
+          zxvd = os.environ.get("ZXVD") == "true"
+          slow = ["boot-extra", "uefi-disc", "kat-cross", "mutation-subset",
+                  "sanitize-integer", "sanitize-msan", "fuzz-smoke", "coverage"]
+          fast = ["host-tests", "boot", "sanitize-asan-ubsan"]
+          bad = []
+          for job, v in needs.items():
+              r = v["result"]
+              print(f"{r:10} {job}")
+              if r in ("failure", "cancelled"):
+                  bad.append(f"{job}: {r}")
+          if needs["quick-checks"]["result"] != "success":
+              bad.append("quick-checks did not pass")
+          if kernel:
+              must = fast + (slow if heavy else [])
+              for job in must:
+                  if needs[job]["result"] != "success":
+                      bad.append(f"{job}: {needs[job]['result']} but this change needs it")
+          if zxvd and needs["zxvd"]["result"] != "success":
+              bad.append(f"zxvd: {needs['zxvd']['result']} but this change needs it")
+          if not heavy:
+              print("fast tier only: this run cannot satisfy the merge gate")
+          if bad:
+              print("\nci-gate FAILED:")
+              print("\n".join("  " + b for b in sorted(set(bad))))
+              done(False, "; ".join(sorted(set(bad))))
+          print("\nci-gate passed")
+          done(True, "Every job this change needs passed")
+          PY
+      - name: Report ci-gate on the commit
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          OK: ${{ steps.gate.outputs.ok }}
+          WHY: ${{ steps.gate.outputs.why }}
+        run: |
+          if [ "$OK" = true ]; then state=success; else state=failure; fi
+          gh api "repos/${{ github.repository }}/statuses/$SHA" -f state="$state" -f context=ci-gate \
+            -f target_url="$RUN" -f description="${WHY:-the gate step did not finish}"

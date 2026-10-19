@@ -10,16 +10,24 @@
 #   2 ACYCLIC    the requires-graph must have no cycle (a cycle never boots)
 #   3 PROVIDED   every REQUIRES must be PROVIDED by something
 #   4 CONTRACT   two providers of one capability must agree on version
+#   5 STRATA     every module has one of the seven strata, and no stratum
+#                includes from a higher one (build_system/strata.txt)
 #
-# Checks 2-4 are enforced at runtime by modbind_verify_graph(); this is the
-# static half, so a violation fails the BUILD rather than the boot.
+# Checks 2 and 4 are enforced at runtime by modbind_verify_graph(). Check 3 is
+# also enforced statically, over the union of every arch, by verify_strata.py;
+# the per-image half stays with modbind at boot. Checks 1, 3 and 5 fail the
+# BUILD rather than the boot.
 set -u
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT" || exit 2
 fail=0
 
-# Layer map. A module not listed is UNASSIGNED -- reported, not failed, because
-# assigning 278 files by guess would be worse than admitting the gap.
+# Layer map, on the thirteen-layer scale of PROVENANCE/THIRTEEN_LAYERS.md. It
+# also feeds gen_phase_table.sh, which turns a module's layer into its l13
+# phase, so a new case here changes coupling at boot: add one only on evidence.
+# A module not listed here is skipped by check 1 and given a derived phase.
+# The assignment every module MUST have is its stratum, in strata.txt (check
+# 5), which fails on any module left out.
 layer_of() {
   case "$1" in
     # sha256 is a PURE FUNCTION over bytes with no dependencies -- substrate,
@@ -317,13 +325,25 @@ while IFS= read -r f; do
 done < <(find kernel/src -name '*.c' ! -name 'test_*' ! -name 'debug_*' 2>/dev/null)
 
 [ -f /tmp/vl_fail.$$ ] && { fail=$(wc -l < /tmp/vl_fail.$$); rm -f /tmp/vl_fail.$$; }
-echo "  unassigned modules (reported, not failed): $unassigned"
+echo "  modules with no thirteen-layer case (skipped by check 1): $unassigned"
+
+# Check 5 (and the static half of check 3): the seven strata.
+if command -v python3 >/dev/null 2>&1; then
+  python3 build_system/verify_strata.py || strata_fail=1
+else
+  echo "  STRATA      python3 not found; the strata check cannot run"
+  strata_fail=1
+fi
 echo
 if [ "${fail:-0}" -gt 0 ]; then
   echo "FAIL: $fail layer violation(s). A module may not depend upward."
   exit 1
 fi
-echo "PASS: no module includes from a higher layer."
-echo "NOTE: checks 2-4 (acyclic / provided / contract) run at boot via"
-echo "      modbind_verify_graph(). Static enforcement of those needs the"
-echo "      PROVIDES/REQUIRES declarations to exist in source first."
+if [ "${strata_fail:-0}" -ne 0 ]; then
+  echo "FAIL: strata check. Every module needs a stratum in"
+  echo "      build_system/strata.txt and may not include a higher one."
+  exit 1
+fi
+echo "PASS: no module includes from a higher layer or stratum."
+echo "NOTE: checks 2 and 4 (acyclic / contract) run at boot via"
+echo "      modbind_verify_graph()."

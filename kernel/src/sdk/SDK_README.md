@@ -225,11 +225,7 @@ The kernel supports 32 languages natively, including:
 
 ## License
 
-All code in this SDK is licensed under:
-- OPL-1.1 (Open Piracy License)
-- CC BY-SA 4.0
-- Royal Writ of the Sicilian Crown 1.0
-- SEL-3.3
+All code in this SDK is licensed under the Apache License, Version 2.0.
 
 See `LICENSE` at repository root.
 
@@ -237,5 +233,5 @@ See `LICENSE` at repository root.
 
 - **Architect**: Midnight Miqu 70B — `http://216.243.220.53:8000/v1/chat/completions`
 - **Coder**: Qwen 2.5 Coder 32B — `http://216.243.220.53:8001/v1/chat/completions`
-- **Email**: deal@zedec.ai
+- **Support tickets**: SCENIC BYPASS CONSULTING, LLC, see [SUPPORT.md](../../../SUPPORT.md)
 - **Reference**: M5-SDK-2026-001

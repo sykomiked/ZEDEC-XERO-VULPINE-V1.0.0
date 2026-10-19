@@ -329,6 +329,9 @@ int main(void)
             int rc = browser_resolve_url(base, cases[k].ref, out, sizeof(out));
             char msg[256];
             snprintf(msg, sizeof(msg), "resolve(\"%.64s\") == \"%.64s\"%s%.100s", cases[k].ref, cases[k].want,
+            /* Room for both case strings, the label and the whole result. */
+            char msg[BROWSER_MAX_URL_LEN + 256];
+            snprintf(msg, sizeof(msg), "resolve(\"%.64s\") == \"%.64s\"%s%s", cases[k].ref, cases[k].want,
                      (rc == BROWSER_OK && strcmp(out, cases[k].want) == 0) ? "" : "  got: ",
                      (rc == BROWSER_OK && strcmp(out, cases[k].want) == 0) ? "" : out);
             CHECK(rc == BROWSER_OK && strcmp(out, cases[k].want) == 0, msg);

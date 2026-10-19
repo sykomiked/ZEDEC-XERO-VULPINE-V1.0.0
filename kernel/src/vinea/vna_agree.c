@@ -95,7 +95,7 @@ vna_status_t vna_agree_cid(const vna_agreement_t *a, uint8_t cid[32])
 
 void vna_agree_key(const vna_id_t *owner, vna_id_t *key)
 {
-    vna_htag("vinea/v2/agreement-of", owner->b, VNA_ID_LEN, key->b);
+    vna_htag("vinea/v3/agreement-of", owner->b, VNA_ID_LEN, key->b);
 }
 
 uint8_t vna_res_min_degree(vna_resource_t r)

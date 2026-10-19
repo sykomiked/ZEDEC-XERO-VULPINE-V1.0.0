@@ -5,6 +5,11 @@
 # Author: H.M. Michael-Laurence: Curzi (c)
 # License: Apache-2.0
 
+# A rule for one object file comes before `all` below, so without this a bare
+# `make -f build_system/Makefile.arm64` built only uart_pl011.o and left an
+# old kernel_arm64.elf in place (build_system/arm64_accept.sh calls it bare).
+.DEFAULT_GOAL := all
+
 CROSS_COMPILE ?= aarch64-linux-gnu-
 CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)ld
@@ -58,7 +63,7 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -MMD -MP \
          -DKERNEL_SIM_DEVICES=$(KERNEL_SIM_DEVICES) \
          -DENABLE_EL0_USERSPACE=1 -DENABLE_TICK_IRQ=1 \
-         -DENABLE_EVENT_LOOP=1 \
+         -DENABLE_EVENT_LOOP=1 -DZXV_BOOT_TAKE \
          $(CFLAGS_EXTRA) \
          -Dmemset=fs_memset -Dmemcpy=fs_memcpy -Dstrlen=fs_strlen \
          -Dstrcmp=fs_strcmp -Dstrcpy=fs_strcpy \
@@ -204,6 +209,7 @@ ARM64_ARCH_OBJS = \
     $(OBJDIR)/kernel/arch/arm64/el0_userspace.o \
     $(OBJDIR)/kernel/arch/arm64/user_procs.o \
     $(OBJDIR)/kernel/arch/arm64/ramdisk.o \
+    $(OBJDIR)/kernel/arch/arm64/bootmem_arm64.o \
     $(OBJDIR)/kernel/arch/arm64/virtio_blk.o \
     $(OBJDIR)/kernel/arch/arm64/virtio_net.o \
     $(OBJDIR)/kernel/arch/arm64/virtio_input.o \
@@ -285,12 +291,25 @@ KERNEL_SRCS = \
     kernel/src/tls/aead.c \
     kernel/src/tls/record.c \
     kernel/src/tls/handshake.c \
+    kernel/src/tls/sha512.c \
+    kernel/src/tls/digest.c \
+    kernel/src/tls/bn.c \
+    kernel/src/tls/ecdsa.c \
+    kernel/src/tls/rsa.c \
+    kernel/src/tls/x509.c \
+    kernel/src/tls/trust.c \
+    kernel/src/timesvc/sntp.c \
+    kernel/src/timesvc/timesvc.c \
+    kernel/src/timesvc/tz.c \
     kernel/src/crit168/crit_168_word.c \
     kernel/src/mm/mm.c \
     kernel/src/sched/sched.c \
     kernel/src/vfs/vfs.c \
     kernel/src/fat32/fat32.c \
     kernel/src/zxvfs/zxvfs.c \
+    kernel/src/pmm/pmm.c \
+    kernel/src/crash/crash.c \
+    kernel/src/crash/bootctl.c \
     kernel/src/loader/elf.c \
     kernel/src/loader/zsp.c \
     kernel/src/loader/abupdate.c \
@@ -375,6 +394,16 @@ KERNEL_SRCS = \
     kernel/src/zxvfs/zxvfs_tri.c \
     kernel/src/vbe/vbe.c \
     kernel/src/desktop/zxv_shell.c \
+    kernel/src/desktop/zxv_shell_font.c \
+    kernel/src/zui/zui_desk.c \
+    kernel/src/zui/zui_wm.c \
+    kernel/src/zui/zui_dock.c \
+    kernel/src/zui/zui_canvas.c \
+    kernel/src/zui/zui_progress.c \
+    kernel/src/zui/zui_motion.c \
+    kernel/src/zui/zui_input.c \
+    kernel/src/zui/zui_keymap.c \
+    kernel/src/zui/zui_layout.c \
     kernel/src/cellular_multikernel/cellular_multikernel.c \
     kernel/src/net/jdr_piratenet.c \
     kernel/src/synthesis/synthesis_engine.c \
@@ -464,7 +493,6 @@ KERNEL_SRCS = \
     kernel/src/logistics/logistics.c \
     kernel/src/pirate_apps/pirate_apps.c \
     \
-    kernel/src/acpi/acpi.c \
     kernel/src/apps/demo_cross_lang.c \
     kernel/src/apps/apps.c \
     kernel/src/audio/audio.c \
@@ -539,6 +567,7 @@ KERNEL_SRCS = \
     kernel/src/swarm/swarm_overlap.c \
     kernel/src/swarm/swarm_phase.c \
     kernel/src/swarm/swarm_quality.c \
+    kernel/src/swarm/swarm_yield.c \
     kernel/src/swarm/swarm_reserve.c \
     kernel/src/swarm/swarm_self.c \
     kernel/src/tensor/zt.c \
@@ -596,10 +625,12 @@ KERNEL_SRCS = \
 #
 # The remaining orphans are the x86 port-I/O cluster (ata, keyboard, mouse, pci,
 # pic, timer, net/rtl8139) -- `impossible constraint in 'asm'` on aarch64, which
-# is not an arm64 question -- and kernel/src/apps/{clock_app,dharma_monitor,
-# notes_app,vfs_stub}.c. Those four are NOT a missing include path: the three
-# app files reference types (clock_app_t, notes_app_t, dharma_monitor_app_t,
-# oseq_state_t, tantra_engine_t) that apps.h does not declare, and vfs_stub.c
+# is not an arm64 question -- and kernel/experimental/m5_apps/{clock_app,
+# dharma_monitor}.c plus kernel/src/apps/{notes_app,vfs_stub}.c (those two are
+# host-tested by kernel verify-all's test-orphans). Those four are
+# NOT a missing include path: the three app files reference types
+# (clock_app_t, notes_app_t, dharma_monitor_app_t, oseq_state_t,
+# tantra_engine_t) that apps.h does not declare, and vfs_stub.c
 # is a host-test stub that would collide with kernel/src/vfs/vfs.c by its own
 # description. apps.c itself is in.
 # ---------------------------------------------------------------------------
@@ -672,8 +703,13 @@ $(TARGET_BIN): $(TARGET)
 # Stub is -fno-pic (PC-relative adrp/add, no runtime relocs) + no FP/NEON.
 EFI_APP = BOOTAA64.EFI
 EFI_OBJS = kernel/arch/arm64/efi_header.o kernel/arch/arm64/efi_stub.o kernel/arch/arm64/efi_tramp.o kernel/arch/arm64/efi_kernel_blob.o
-$(EFI_APP): $(TARGET_BIN) kernel/arch/arm64/efi_stub.c kernel/arch/arm64/efi_header.S kernel/arch/arm64/efi_tramp.S kernel/arch/arm64/efi_kernel_blob.S build_system/efi_stub.ld
-	$(CC) -c -O2 -ffreestanding -fno-pic -fno-stack-protector -mgeneral-regs-only -o kernel/arch/arm64/efi_stub.o kernel/arch/arm64/efi_stub.c
+$(EFI_APP): $(TARGET_BIN) kernel/arch/arm64/efi_stub.c kernel/arch/efi_models.h kernel/arch/zxv_handoff.h kernel/arch/arm64/efi_header.S kernel/arch/arm64/efi_tramp.S kernel/arch/arm64/efi_kernel_blob.S build_system/efi_stub.ld
+	@# handoff v2 checks the kernel's whole window, image AND BSS, so the stub
+	@# needs __kernel_end (the boot stack sits inside it on arm64).
+	@KEND=$$($(CROSS_COMPILE)nm $(TARGET) | awk '/ __kernel_end$$/{print "0x"$$1}'); \
+	 test -n "$$KEND" || { echo "  [EFI][arm64] ERROR: __kernel_end not found in $(TARGET)"; exit 1; }; \
+	 echo "  [EFI][arm64] kernel window 0x40080000 .. $$KEND"; \
+	 $(CC) -c -O2 -ffreestanding -fno-pic -fno-stack-protector -mgeneral-regs-only -DZXV_KERNEL_END=$${KEND}ULL -o kernel/arch/arm64/efi_stub.o kernel/arch/arm64/efi_stub.c
 	$(CC) -c -o kernel/arch/arm64/efi_header.o kernel/arch/arm64/efi_header.S
 	$(CC) -c -o kernel/arch/arm64/efi_tramp.o kernel/arch/arm64/efi_tramp.S
 	$(CC) -c -o kernel/arch/arm64/efi_kernel_blob.o kernel/arch/arm64/efi_kernel_blob.S

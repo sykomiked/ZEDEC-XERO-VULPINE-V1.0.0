@@ -73,6 +73,8 @@ typedef struct {
 } pa_runtime_t;
 
 void pa_xfer_encode(const pa_xfer_t *x, uint8_t out[PA_XFER_IN_LEN]);
+/* The pay_status_t a transfer's output carries (0 = PAY_OK). */
+int32_t pa_xfer_status(const uint8_t out[PA_XFER_OUT_LEN]);
 bool pa_xfer_decode(const uint8_t *in, uint32_t len, pa_xfer_t *x);
 void pa_budget_encode(const pa_budget_req_t *b, uint8_t out[PA_BUDGET_IN_LEN]);
 

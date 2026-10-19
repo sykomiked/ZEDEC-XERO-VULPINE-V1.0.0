@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+<BkToCstmr>
+<cct>
+<Bal><Tp><CdOrPrtry><Cd>OPBD</Cd></CdOrPrtry></Tp><Amt sion="1.0" encoding="TTF-8"?>
+<D></Dt></Batry>
+</Stmt>
+</BkToCstmrStmt>
+</Document>

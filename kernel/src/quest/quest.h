@@ -234,7 +234,7 @@ typedef struct {
     uint64_t pool_amount; /* VFV minor units to share on completion        */
     uint8_t state;        /* qst_goal_state_t */
     uint32_t season_opened, season_completed;
-    bool fraud_after_settle; /* evidence rejected after payout: reverse in pay */
+    bool fraud_after_settle; /* evidence rejected after disbursement: reverse in pay */
     bool settle_started;     /* quest_pay P3: first attempt's tick and initiator */
     uint64_t settle_tick;    /* are reused on reruns so they stay idempotent    */
     uint32_t settle_initiator;

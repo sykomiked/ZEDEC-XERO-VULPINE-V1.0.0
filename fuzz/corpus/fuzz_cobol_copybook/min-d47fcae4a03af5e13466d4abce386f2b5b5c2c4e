@@ -1,0 +1,23 @@
+         PIC
+   05 A PIC S0(4) ;COMP.
+   05 
+   05 A PIC S0( PIC S         PIC
+05 A PIC S0(4) COMP.
+   05 
+   05 A PIC S0(4) COMP.
+   05 B)V9.
+   05 A PIC (4) COMP.
+   05 B PIC 9( 05 A PIC S0(4) COMP.
+   02 B PIC C
+   PIC S         PIC
+   05 A PIC S0(4) COMP.
+   05 
+   05 A PIC S0(4) COMP.
+   05 B PIC (4) COMP.
+   05 B PIC 9( 05 A PIC S0(4) COMP.
+   02 B PIC C
+   05 A PIC S0(4) COMP(3)V9.
+   05 A PIC (4) PIC (4B COMP.
+   05 B 4) COMP¿¿¿3)V9.
+   05 A PIC (4) PIC (4B COMP.
+   05 B PIC 9( 05 A PIC S0(

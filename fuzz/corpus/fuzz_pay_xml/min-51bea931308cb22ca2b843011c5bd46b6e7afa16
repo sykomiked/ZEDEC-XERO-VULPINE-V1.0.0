@@ -1,0 +1,8 @@
+<?xml version="1.0coding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+<FIToFICstmrCdtTrf>
+<GrpHdr><MsgId>MSG-1</MsgId><CreDtTm>2026-10-09T12:00:00Z</CreDtTm><Nb>
+<Pmt Ccy=U"SD">9886.56</InId><Othr><Id>123456789</Id></Othr></Id></CdtrAcct>
+<R.001.08">
+FFIToFICstmrCdtTndTorfE>
+<

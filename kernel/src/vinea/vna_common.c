@@ -120,7 +120,7 @@ void vna_htag(const char *tag, const uint8_t *data, uint32_t len, uint8_t out[32
 
 void vna_drbg_seed(vna_drbg_t *d, const uint8_t *seed, uint32_t len)
 {
-    vna_htag("vinea/v2/drbg-seed", seed, len, d->key);
+    vna_htag("vinea/v3/drbg-seed", seed, len, d->key);
     d->ctr = 0;
     d->seeded = true;
 }

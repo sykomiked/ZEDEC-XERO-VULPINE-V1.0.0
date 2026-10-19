@@ -62,6 +62,41 @@ static inline int64_t fx_sdiv64(int64_t n, int64_t d)
     return neg ? (int64_t) ((uint64_t) 0 - q) : (int64_t) q;
 }
 
+/* The kernel's one GCD. Binary (Stein) form: shifts and subtracts only, so
+ * like fx_udiv64 it needs no 64-bit divide helper on rv32/arm32. gcd(0,0)=0.
+ * m5_gcd, sig_gcd and rational's igcd are thin wrappers over it. */
+static inline uint64_t zx_gcd_u64(uint64_t a, uint64_t b)
+{
+    unsigned k = 0;
+    if (a == 0) return b;
+    if (b == 0) return a;
+    while (((a | b) & 1u) == 0) {
+        a >>= 1;
+        b >>= 1;
+        k++;
+    }
+    while ((a & 1u) == 0) a >>= 1;
+    do {
+        while ((b & 1u) == 0) b >>= 1;
+        if (a > b) {
+            uint64_t t = a;
+            a = b;
+            b = t;
+        }
+        b -= a;
+    } while (b);
+    return a << k;
+}
+
+/* Signed form: gcd(|a|, |b|). Only a result of 2^63 (both inputs in
+ * {0, INT64_MIN}) does not fit and comes back as INT64_MIN. */
+static inline int64_t zx_gcd_i64(int64_t a, int64_t b)
+{
+    uint64_t ua = a < 0 ? (uint64_t) (-(a + 1)) + 1u : (uint64_t) a; /* |a|, no wrap */
+    uint64_t ub = b < 0 ? (uint64_t) (-(b + 1)) + 1u : (uint64_t) b;
+    return (int64_t) zx_gcd_u64(ua, ub);
+}
+
 /* Full 64x64 -> 128-bit unsigned product as (hi, lo), from 32-bit halves. */
 static inline void fx_umul64_wide(uint64_t a, uint64_t b, uint64_t *hi, uint64_t *lo)
 {

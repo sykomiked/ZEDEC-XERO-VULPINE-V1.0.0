@@ -67,6 +67,17 @@ int main(void)
     printf("=== TLS 1.3 key schedule (RFC 4231 / 5869 / 8448 vectors) ===\n");
     uint8_t buf[256], key[256], data[256], prk[32], okm[128];
     uint32_t kn;
+    {
+        /* Long messages: HMAC streams. Values from Python's hmac module;
+         * an older build returned 32 zero bytes past 512 bytes. */
+        static uint8_t big[1000];
+        for (uint32_t i = 0; i < sizeof big; i++) big[i] = (uint8_t) (i * 7u);
+        uint8_t mac[32];
+        hmac_sha256((const uint8_t *) "key", 3, big, 1000, mac);
+        CHECK(eqhex(mac, "bcbddf13e808f3e29dc5bf65f4492381615c1cd2bf36ce2c4f29ea0a6874245f", 32), "HMAC-SHA256 over 1000 bytes matches Python hmac");
+        hmac_sha256((const uint8_t *) "key", 3, big, 513, mac);
+        CHECK(eqhex(mac, "18f0ab9a7d317a2c98667eaa4e39c8d7275b88e8b3141a397ece7356ee3a8c2a", 32), "HMAC-SHA256 over 513 bytes (one past the old bound) matches Python hmac");
+    }
 
     /* ================= RFC 4231: HMAC-SHA-256 ================= */
     {

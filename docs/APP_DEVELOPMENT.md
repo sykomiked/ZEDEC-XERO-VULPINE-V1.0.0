@@ -11,7 +11,7 @@ This guide covers how to write an app today, which pieces are real and tested, a
 |---|---|---|
 | Write a native app inside the OS (editor, tool, game, assistant skill) | C11 in `kernel/src/apps`, with `kernel/src/appkit`, `speech`, `xlate`, `i18n` and the module headers | Works. This is how the bundled apps are built. |
 | Write against the documented SDK facade `m5_api.h` | `kernel/src/sdk` | **Declarations only.** See the gaps below. |
-| Write a .NET service or desktop app | `bindings/dotnet` (`Zxv.Sdk` over the C ABI `native/zxv_api.h`) | In progress. Covers payments, ledger and currencies. |
+| Write a .NET service or desktop app | `sdk/dotnet` (`Zxv.Sdk` over the C ABI `native/zxv_api.h`) | In progress. Covers payments, ledger and currencies. |
 | Call the core from COBOL, Fortran, Pascal, Ada, PL/I or RPG | `bindings/` (`zx_legacy_api.h`, `build_lib.sh`) | In progress. The C, COBOL, Fortran, Pascal and Ada examples build and run. |
 
 ## 1. A native app, step by step
@@ -37,7 +37,7 @@ The template shows the shape every app uses:
 - **A key handler, a tick and a render**, wired to the launcher.
 - **A main loop** that yields with `m5_syscall(M5_SYS_YIELD, …)`.
 
-Real examples of the same shape are in `kernel/src/apps/`: `notes_app.c` (it has a test, `test_notes.c`), `wallet_app.c`, `clock_app.c` and `treaty_app.c`. Register a new app in `kernel/src/apps/apps.c` and `apps.h`.
+A real example of the same shape is `kernel/src/apps/notes_app.c` (it has a test, `test_notes.c`); `wallet_app.c`, `clock_app.c` and `treaty_app.c` were moved to `kernel/experimental/m5_apps` because they do not build (`kernel/experimental/README.md`). Register a new app in `kernel/src/apps/apps.c` and `apps.h`.
 
 ### 1.3 Documents and editing: AppKit
 
@@ -99,6 +99,10 @@ There are two layers:
 - **Interface text** comes from `kernel/src/i18n` (778 CLDR locales). Keep message ids in your state and render them at the edge with `i18n_msg()`. This is the Enochian-core rule: the core stores keys, the edge shows text.
 - **User content** (posts, messages, documents others wrote) goes through `xlate_view()` with the reader's `xlate_prefs_t`. Show `xlate_marker_label()` whenever `XLATE_F_MACHINE` is set, and offer "Show original" with `xlate_prefs_toggle_original()`.
 
+### 1.5a Coding languages: a basket, not one
+
+An app is built from several coding languages, each feature in the one that suits it (Sutra for money, Eve for limits, KRON for numbers, any libzxv SDK language or WebAssembly for the rest), bound by the app's `.zxapp` manifest and joined by the paraconsistent logic. Critical features are written twice and must agree. Apps are composed from reusable, versioned components (blocks) with checked contracts, so most new apps are a new screen over blocks that already exist. See [APP_MODEL.md](APP_MODEL.md).
+
 ### 1.6 Test on the host, then cross-compile
 
 Host test, from `kernel/` with the Makefile's `CPATH`:
@@ -124,7 +128,7 @@ make -C kernel -f build_system/Makefile.arm64 all
 
 `build_system/build_desktop.sh` builds the hosted swarm (`kernel/arch/hosted/zxv_host.c`) for macOS, Windows and Linux with zig. That build carries no Apple frameworks. To ship `zx_speech_mac.m`, compile it on a Mac with clang and link `-framework Speech -framework AVFoundation -framework Foundation`. The app bundle also needs a usage string in `Info.plist`.
 
-## 2. The .NET SDK (`bindings/dotnet`, in progress)
+## 2. The .NET SDK (`sdk/dotnet`, in progress)
 
 - `native/zxv_api.h` is a stable C ABI with opaque handles, scalars only, status codes, caller-owned buffers with a two-call length pattern, UTF-8, and versioning (rules R1-R8 in the header).
 - `src/Zxv.Native` holds the P/Invoke layer and `src/Zxv.Sdk` the idiomatic API: Money, Currencies, Ledger, Messaging, Cards, Conformance and DI extensions.

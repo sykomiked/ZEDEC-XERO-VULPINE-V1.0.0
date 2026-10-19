@@ -1,0 +1,282 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# zxvd: the daemon that joins the swarm, the model slot, the settlement
+# spine and libzxv in one process, driven end to end over its JSON-RPC
+# socket (kernel/arch/hosted/test_zxvd.py). Runs on every branch, so the
+# wiring is gated whatever a PR's base is.
+name: zxvd
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'sdk/pillars/**', 'tools/zxvg/**', 'api/zxvd.openrpc.json',
+            'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
+            'sdk/kits/aipi/**', 'sdk/kits/z-wasm/**', 'sdk/kits/z-contract/**', '.github/workflows/zxvd.yml']
+  pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
+    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'sdk/pillars/**', 'tools/zxvg/**', 'api/zxvd.openrpc.json',
+            'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
+            'sdk/kits/aipi/**', 'sdk/kits/z-wasm/**', 'sdk/kits/z-contract/**', '.github/workflows/zxvd.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Pushes run only on main and develop; pull requests run on every update and
+# a newer push to the same pull request cancels the older run.
+concurrency:
+  group: zxvd-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  e2e:
+    name: zxvd ${{ matrix.os }} ${{ matrix.cc }}${{ matrix.san && ' asan+ubsan' || '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc }
+          - { os: ubuntu-24.04, cc: clang }
+          - { os: ubuntu-24.04, cc: gcc, san: '1' }
+          - { os: ubuntu-24.04-arm, cc: gcc }
+          - { os: macos-14, cc: clang }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: RPC layer unit test (stub host, real libzxv, socket)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_rpc.sh
+      - name: Chat unit test (zxvd_chat.h, through the RPC layer)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_chat.sh
+      - name: Payments unit test (zxvd_pay.h, ISO 20022, netting, passkeys, escrow)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_pay.sh
+      - name: AIPI host unit test (real AIPI core, Z-Wasm sandbox)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_aipi.sh
+      - name: Cards unit test (real cardnet issuer, ML-DSA-65 holder signatures)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_cards.sh
+      - name: Passkeys unit test (real ident passkeys, ML-DSA-65 assertions)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_ident.sh
+      - name: Seats unit test (real seats module, Argon2id, the seats file)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_seats.sh
+      - name: Power unit test (real power ledger on a Linux-style fixture)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_power.sh
+      - name: Public spaces unit test (pspace.*, hall.* on two real net hosts)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_pspace.sh
+      - name: Economy modules unit test (svault, vswap, vauction, zenny, zstats)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_econ.sh
+      - name: Economy groups unit tests (bonds, derivatives, grants, estate; real engines)
+        env:
+          CC: ${{ matrix.cc }}
+        run: |
+          sh kernel/arch/hosted/test_zxvd_instruments.sh
+          sh kernel/arch/hosted/test_zxvd_estate.sh
+      - name: Companion unit test (companion.*, real swarm DNA, emotion and evolution)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_companion.sh
+      - name: Web4 envelope feed unit test (real web4_agent envelopes, ML-DSA-65, consent)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_web4.sh
+      - name: IRC gateway unit tests (engine, TLS 1.3 server, ML-DSA-87 records, bridge)
+        env:
+          CC: ${{ matrix.cc }}
+          OPENSSL: '0'
+        run: sh kernel/arch/hosted/test_zxvd_irc.sh
+      - name: The ZXV folder behind the built-in apps (zxv_files.c)
+        run: |
+          ${{ matrix.cc }} -std=c11 -O1 -Wall -Wextra -Werror ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }} \
+            -Ikernel/arch/hosted kernel/arch/hosted/test_zxv_files.c kernel/arch/hosted/zxv_files.c \
+            -o "$RUNNER_TEMP/test_zxv_files"
+          "$RUNNER_TEMP/test_zxv_files"
+      - name: App models (Burrow, Quillon, Glint, Spindle, Murmuration) on the real dispatcher
+        env:
+          CC: ${{ matrix.cc }}
+          CFLAGS: ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }}
+        run: sh kernel/src/apps/test_apps.sh
+      - name: App manifests and their KRON logic (zxapp)
+        env:
+          CC: ${{ matrix.cc }}
+          CFLAGS: ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }}
+        run: sh kernel/src/apps/test_zxapp.sh
+      - name: The apps' native screens, driven by clicks and keys (zui views)
+        env:
+          CC: ${{ matrix.cc }}
+          CFLAGS: ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }}
+        run: sh kernel/src/zui/views/test_views.sh
+      - name: zui system pieces (accessibility, input, notices, privacy, clipboard, share, capture, lock, display)
+        env:
+          CC: ${{ matrix.cc }}
+          CFLAGS: ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }}
+        run: sh kernel/src/zui/test_zui_toolkit.sh
+      - name: Vector tools (icon linter, SVG to ZXVG on the test fixture)
+        run: |
+          python3 -m unittest tools/zxvg/test_lint_icons.py
+          python3 tools/zxvg/svg2zxvg.py tools/zxvg/test/fixture.svg /tmp/fixture.zxvg
+          python3 tools/zxvg/svg2zxvg.py kernel/src/zui/brand/fox.svg /tmp/fox.zxvg --c zxv_fox /tmp/fox_zxvg.inc
+          cmp /tmp/fox_zxvg.inc kernel/src/zui/brand/fox_zxvg.inc
+      - name: zui present layers (X11 and Vulkan under Xvfb, Direct3D 11 cross-built)
+        if: matrix.os == 'ubuntu-24.04' && matrix.cc == 'gcc' && !matrix.san
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb xdotool imagemagick libx11-dev libxext-dev libvulkan-dev \
+            mesa-vulkan-drivers gcc-mingw-w64-x86-64 >/dev/null
+          sh kernel/arch/hosted/test_zui_present.sh
+      - name: Power reader and zxpower (fixture test, then this runner live)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxpower.sh
+      - name: Build zxvd against libzxv
+        env:
+          CC: ${{ matrix.cc }}
+          SANITIZE: ${{ matrix.san }}
+        run: sh kernel/arch/hosted/build_zxvd.sh "$RUNNER_TEMP/zxvd"
+      - name: The method spec matches the daemon
+        run: python3 kernel/arch/hosted/check_zxvd_spec.py "$RUNNER_TEMP/zxvd/zxvd"
+      - name: End to end, no model
+        run: python3 kernel/arch/hosted/test_zxvd.py "$RUNNER_TEMP/zxvd/zxvd"
+      - name: Built-in apps through the window's /api/rpc
+        run: python3 kernel/arch/hosted/test_staple_apps.py "$RUNNER_TEMP/zxvd/zxvd"
+      - name: Phone link (pairing, encrypted frames, phone permissions, revoke)
+        run: python3 kernel/arch/hosted/test_zxvd_phone.py "$RUNNER_TEMP/zxvd/zxvd"
+      - name: IRC gateway through OpenSSL (pinned certificate, the swarm, the switch)
+        run: python3 kernel/arch/hosted/test_zxvd_irc.py "$RUNNER_TEMP/zxvd/zxvd"
+      - name: End to end, with the tokenizer test model
+        run: |
+          ${{ matrix.cc }} -std=c11 -Wall -Wextra -Werror -Ikernel/src/tensor \
+            kernel/arch/hosted/test_write_gguf.c -o "$RUNNER_TEMP/write_gguf"
+          "$RUNNER_TEMP/write_gguf" "$RUNNER_TEMP/tiny-test.gguf"
+          python3 kernel/arch/hosted/test_zxvd.py "$RUNNER_TEMP/zxvd/zxvd" "$RUNNER_TEMP/tiny-test.gguf"
+      - name: Two nodes, two loopback addresses (UDP discovery, PQ TCP session, paid answer)
+        run: |
+          if [ "$(uname -s)" = Darwin ]; then
+            sudo ifconfig lo0 alias 127.0.0.2 up
+            sudo ifconfig lo0 alias 127.0.0.3 up
+          fi
+          python3 tools/zxv_two_node_demo.py --zxvd "$RUNNER_TEMP/zxvd/zxvd" local --check
+      - name: Account key sealed by the Secure Enclave (or the fallback), offline outbox
+        if: runner.os == 'macOS'
+        run: |
+          sh kernel/arch/hosted/hwkey/build_test.sh "$RUNNER_TEMP/test_hwkey_host"
+          mkdir -p "$RUNNER_TEMP/hwkey"
+          "$RUNNER_TEMP/test_hwkey_host" "$RUNNER_TEMP/hwkey"
+          "$RUNNER_TEMP/test_hwkey_host" "$RUNNER_TEMP/hwkey"
+      - name: The native shell's socket client against zxvd
+        run: |
+          ${{ matrix.cc }} -std=c11 -Wall -Wextra -Werror macos/zxv_rpc_client.c macos/zxv_rpc_call.c \
+            -o "$RUNNER_TEMP/zxv-rpc-call"
+          python3 macos/test_rpc_client.py "$RUNNER_TEMP/zxvd/zxvd" "$RUNNER_TEMP/zxv-rpc-call"
+      - name: The model fetcher and the shipped model manifest
+        run: python3 macos/test_model_fetch.py
+
+  mac-app:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
+    # W2: the Mac app's engine is zxvd with libzxv.dylib in the bundle, and the
+    # shell talks to it over the socket. Build the app (ad-hoc signed), launch
+    # it, ask the engine through the socket, quit, and check nothing is left.
+    name: Mac app on zxvd
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build ZXV.app (engine = zxvd + libzxv.dylib)
+        run: build_system/build_desktop.sh --mac-only --out "$RUNNER_TEMP/dist"
+      - name: Check the bundle
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/x"
+          ditto -x -k "$RUNNER_TEMP"/dist/ZXV-*-macos.app.zip "$RUNNER_TEMP/x"
+          APP="$RUNNER_TEMP/x/ZXV.app"
+          for b in MacOS/ZXV MacOS/zxv-engine Frameworks/libzxv.dylib; do
+            archs="$(lipo -archs "$APP/Contents/$b")"; echo "$b: $archs"
+            case "$archs" in *arm64*x86_64*|*x86_64*arm64*) ;; *) exit 1 ;; esac
+          done
+          otool -L "$APP/Contents/MacOS/zxv-engine" | grep '@rpath/libzxv.dylib'
+          codesign --verify --strict --deep --verbose=2 "$APP"
+          "$APP/Contents/MacOS/zxv-engine" --version | grep '^zxvd '
+      - name: Launch, ask over the socket, quit
+        run: |
+          set -eu
+          APP="$RUNNER_TEMP/x/ZXV.app"
+          SOCK="$HOME/Library/Application Support/ZXV/run/zxvd.sock"
+          cc -std=c11 -Wall -Wextra -Werror macos/zxv_rpc_client.c macos/zxv_rpc_call.c -o "$RUNNER_TEMP/zxv-rpc-call"
+          defaults write com.36n9genetics.zxv-swarm ZXVAskedForModel -bool true
+          open -n "$APP"
+          for i in $(seq 1 60); do test -S "$SOCK" && break; sleep 1; done
+          test -S "$SOCK"
+          test "$(stat -f %Lp "$SOCK")" = 600
+          test "$(stat -f %Lp "$(dirname "$SOCK")")" = 700
+          "$RUNNER_TEMP/zxv-rpc-call" "$SOCK" '{"jsonrpc":"2.0","id":1,"method":"zxvd.version"}' | grep '"protocol":"zxvd-rpc/1"'
+          "$RUNNER_TEMP/zxv-rpc-call" "$SOCK" '{"jsonrpc":"2.0","id":2,"method":"ledger.check"}' | grep '"ok":true'
+          "$RUNNER_TEMP/zxv-rpc-call" --unread "$SOCK"
+          osascript -e 'tell application id "com.36n9genetics.zxv-swarm" to quit' ||
+            pkill -TERM -f "ZXV.app/Contents/MacOS/ZXV" || true
+          for i in $(seq 1 15); do pgrep -f "ZXV.app/Contents/MacOS/" >/dev/null || break; sleep 1; done
+          pkill -TERM -f "ZXV.app/Contents/MacOS/ZXV" || true
+          for i in $(seq 1 10); do pgrep -f "ZXV.app/Contents/MacOS/zxv-engine" >/dev/null || break; sleep 1; done
+          if pgrep -fl "ZXV.app/Contents/MacOS/"; then echo "ZXV left a process running"; exit 1; fi
+          if [ -e "$SOCK" ]; then echo "the control socket was left behind"; exit 1; fi
+          tail -n 20 "$HOME/Library/Logs/ZXV/engine.log" || true
+
+  mutation:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
+    # zxvd_rpc.c, zxvd_aipi.c and the method groups (zxvd_*.c) against their unit tests; fails below the
+    # baselines in tests/harness/mutator/targets.json (ci.yml's gate only runs
+    # on PRs to main). Four shards balanced by mutant count (mutate.py --shard):
+    # in one job the 13 targets outgrew the 150-minute limit; zxvd_rpc alone
+    # is shard 1.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [ 1, 2, 3, 4 ]
+    name: zxvd mutation scores (${{ matrix.shard }}/4)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc,zxvd_aipi,zxvd_cards,zxvd_ident,zxvd_econ,zxvd_instruments,zxvd_estate,zxvd_sandbox,zxvd_companion,zxvd_web4,zxvd_seats,zxvd_power,zxvd_pspace --ci --shard ${{ matrix.shard }}/4 --jobs 4 --out mutation-results
+
+  real-model:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
+    # Qwen2.5-1.5B-Instruct Q4_K_M (Apache-2.0), pinned by SHA-256, never in git.
+    name: zxvd with Qwen2.5-1.5B
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
+        with:
+          path: ~/zxv-models
+          key: qwen2.5-1.5b-instruct-q4_k_m-6a1a2eb6
+      - name: Fetch the model (checked against its pinned hash)
+        run: |
+          mkdir -p ~/zxv-models
+          F=~/zxv-models/qwen2.5-1.5b-instruct-q4_k_m.gguf
+          [ -f "$F" ] || curl -fsSL --retry 3 -o "$F" \
+            https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf
+          echo "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e  $F" | sha256sum -c -
+      - name: Build zxvd
+        run: sh kernel/arch/hosted/build_zxvd.sh "$RUNNER_TEMP/zxvd"
+      - name: End to end, a real model answers through the daemon
+        run: python3 kernel/arch/hosted/test_zxvd.py "$RUNNER_TEMP/zxvd/zxvd" ~/zxv-models/qwen2.5-1.5b-instruct-q4_k_m.gguf

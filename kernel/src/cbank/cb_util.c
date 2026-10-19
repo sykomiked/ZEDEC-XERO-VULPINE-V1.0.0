@@ -20,9 +20,8 @@ bool cb_u128_mul64(cb_u128 a, uint64_t b, cb_u128 *out)
     cb_u128 lo = cb_mul64(a.lo, b);
     cb_u128 hi = cb_mul64(a.hi, b);
     if (hi.hi != 0) return false;
-    uint64_t h = lo.hi + hi.lo;
-    if (h < lo.hi) return false;
-    out->hi = h;
+    if (hi.lo > UINT64_MAX - lo.hi) return false; /* checked before adding */
+    out->hi = lo.hi + hi.lo;
     out->lo = lo.lo;
     return true;
 }
@@ -48,7 +47,7 @@ uint64_t cb_pow10(uint32_t e)
 {
     uint64_t v = 1;
     if (e > 19) return 0;
-    while (e--) v *= 10u;
+    for (; e; e--) v *= 10u; /* (no wrap of the counter past 0) */
     return v;
 }
 
@@ -86,14 +85,14 @@ bool cb_sadd_ok(int64_t a, int64_t b, int64_t *out)
 void cb_memset(void *p, uint8_t v, size_t n)
 {
     volatile uint8_t *d = (volatile uint8_t *) p;
-    while (n--) *d++ = v;
+    for (; n; n--) *d++ = v;
 }
 
 void cb_memcpy(void *dst, const void *src, size_t n)
 {
     uint8_t *d = (uint8_t *) dst;
     const uint8_t *s = (const uint8_t *) src;
-    while (n--) *d++ = *s++;
+    for (; n; n--) *d++ = *s++;
 }
 
 bool cb_memeq(const void *a, const void *b, size_t n)

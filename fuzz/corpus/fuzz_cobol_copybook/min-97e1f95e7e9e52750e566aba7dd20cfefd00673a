@@ -1,0 +1,5 @@
+01
+   10 A PIC 9(3)V9.
+  5 A PIC ­9.
+   05 B PIC XRV00 S9(4) COMP.
+   10 B P PIC S1(7)V99-3 OCCURS 7   05  A

@@ -24,7 +24,7 @@
 - **The surplus gate.** It keeps a vector only if it adds enough surplus over the vectors already kept, so redundant heads or answers are skipped.
 - **The open-system ledger.** Q' = Q − δQ + ηS − C decides whether the core grows this cycle or gets more efficient instead.
 - **Holographic coding.** Each place is stored as its difference from its parent's prediction: the prediction is the negative space, the data the positive. Decoding is exact. Decoding only the inner shells gives a coarse picture of the whole.
-- **UBH-168 frames.** Words travel in 21-octet frames: one tag octet, then five 32-bit words whose byte order alternates little, big, little. That is UBH_ENDIAN_MIXED, and decoding does not depend on the host machine's byte order.
+- **UBH-168 frames.** Words travel in 21-octet frames: one tag octet, then five 32-bit words whose byte order alternates little, big, little. That is UBH_ENDIAN_MIXED, and decoding does not depend on the host machine's byte order. The tag octet holds the phase, the word count and a 4-bit check. In wire format v2 (`ZT_FRAME_VERSION`) the check covers the phase and count bits as well as the payload, so every single flipped bit is refused; in v1 a flipped phase bit silently reversed every word's byte order. v1 and v2 frames always fail each other's check.
 
 ## Running real models (T17 to T20)
 
@@ -44,6 +44,20 @@
   - A Leech lattice (Λ24) decoder built on the Golay code.
   - The E8 roots are the shared tables of `src/e8/e8_lattice.h` (see "One E8" below).
   - At 1.875 bits per weight, E8 measures 9.89 dB SNR, against 9.59 dB for a tuned 2-bit scalar quantiser.
+
+## Several models at once: one base, a LoRA adapter per agent (T23)
+
+- **Shared base.** A loaded model (`zt_model_t`) is read-only. Any number of sequences (`zt_model_state_t`, one per agent) run on it, each with its own KV cache.
+- **Adapters (`zt_lora_load`).** It reads llama.cpp's LoRA adapter GGUF, the file `convert_lora_to_gguf.py` writes, for any of the seven per-layer matrices. Adapter weights may be F32, F16, BF16 or Q8_0. The scale is alpha / rank times the caller's scale, as in llama.cpp.
+  - Weights are read exactly into 48 fraction bits, the scale is folded into B there, then each block of 32 is stored as 8-bit values with its own 25-bit scale.
+  - `zt_model_state_set_lora` gives one sequence its adapter, or none. After each base matrix product the engine adds scale · B (A x) in integers, using the same 16-bit activation blocks the base product read.
+- **Tested (`test_zt_lora.c`, 40 checks).** Three tiny models with adapters written by gguf-py (rank 8 F16, rank 32 Q8_0, rank 4 F32 + BF16) are run against a float64 forward pass of the merged weights W + scale · B A.
+  - Logits are within 0.04 to 0.15 of that reference. A numpy simulation shows the 8-bit storage of the adapter alone accounts for about 0.1.
+  - Top-1 agrees at every position whose top two logits are more than 0.05 apart.
+  - The logits are the same bits with no adapter or an all-zero adapter as for the base alone, for every batch size, for every SIMD kernel set with one or four threads, and on x86_64 and arm64 (NEON, under qemu).
+  - Three agents on one base, one with the adapter, one without and one at half scale, can decode in turns and each gets exactly the logits it gets alone.
+- **In the app (`zxv_model_host.h` M6).** There are 4 model slots and 16 agents. Each agent runs on a slot with its own adapter file or none, and agents share their slot's weights. An agent costs its KV cache, about 117 MB for Qwen2.5-1.5B at a 2048-token context, plus its adapter.
+- **Limits.** No real adapter has been run on a real model yet. Adapters on `token_embd` or `output` are refused rather than ignored. DoRA and other variants are not supported. Changing a sequence's adapter does not recompute its KV cache.
 
 ## One E8 (the tensor engine and `src/e8`)
 
@@ -80,9 +94,9 @@ The engine's lattice quantisers (`zt_lattice.c`) and the icosian E8 in `kernel/s
 ## Limits, stated plainly
 
 - **The coil is an analogy.** ABHA coils, scalar fields and alternating current here are a design language for memory layout, data flow and logic. Nothing in the code is electromagnetic, and no claim is made about physical scalar fields.
-- **Speed is not yet measured.** The tests prove correctness. Whether the golden tiling, the coil layout and the surplus gate are faster than ordinary layouts on real hardware is still to be benchmarked.
+- **Speed is measured for whole models, not for the layouts.** `bench/results/2026-10-10-qwen2.5-1.5b/REPORT.md` measures about 11 tok/s generating against llama.cpp's 15 to 18 on the same container, and the other reports under `bench/results/` cover prefill, tensor parallelism and other models. Whether the golden tiling, the coil layout and the surplus gate are faster than ordinary layouts on real hardware is still to be benchmarked.
 - **Holographic coding helps only some data.** It saves space only when data that shares a parent is alike, and placing real model data that way is still to be designed.
-- **The model runtime is in pieces.** Files, tokens, positions and quantisers are built and tested. They are not yet joined into one forward pass over a whole model.
+- **The model runtime is joined.** `kernel/src/tensor/zt_model.c` runs one forward pass over a whole model from files, tokens, positions and quantisers, and the desktop app compiles it in through `kernel/arch/hosted/zxv_zt_glue.c` ([MAC_APP.md](MAC_APP.md)).
 - **Tokenizer coverage.** Only byte-level BPE. SentencePiece models (the GGUF tokenizer model "llama") are reported as unsupported.
 - **RoPE coverage.** The YaRN and LongRoPE context extensions are not implemented.
 - **Leech decoder speed.** The Leech decoder is brute force over 8192 cosets, about 20 µs per 24 weights. It is for research and small tensors, not bulk weights.

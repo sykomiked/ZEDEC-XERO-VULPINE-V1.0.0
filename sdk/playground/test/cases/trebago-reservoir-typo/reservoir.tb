@@ -1,0 +1,22 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! reservoir.tb - a week of reservoir storage, exactly. All volumes are
+! megalitres (ML); decimals such as 22.5 are exact.
+trebago reservoir
+  in    start, capacity, inflow(n), release(n), demand(n)
+  out   storage(n), headroom(n), short(n), shortfall
+
+  storage(i) = scan(inflow(i) - release(i) - demand(i))   ! net change so far
+  storage(i) = start + storge(i)                           ! end of each day
+  headroom(i) = capacity - storage(i)                      ! room before spill
+  short(i) = max(0, -storage(i))                           ! demand not met
+  shortfall = sum(i, short(i))
+end
+!> in start = 420
+!> in capacity = 600
+!> in inflow = 35, 28, 22.5, 18, 15, 40, 52
+!> in release = 12, 12, 12, 12, 12, 12, 12
+!> in demand = 58, 61, 63.5, 66, 64, 59, 57
+!> expect storage = 385, 340, 287, 227, 166, 135, 118
+!> expect shortfall = 0

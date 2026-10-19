@@ -1,0 +1,46 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! relief.tb - share a relief fund across districts: every district gets
+! the floor, the rest is shared by population, exactly; then whole cents
+! by the largest-remainder method, so the cents add up to the fund.
+! Money is in cents; fund, floor and pop are whole numbers.
+trebago relief
+  in    fund, floor, pop(n)
+  out   rest, share(n), cents(n), total
+  var   ok(n), q(n), r(n), whole(n), frac(n), rank(n)
+  var   people, left
+
+  people = sum(i, pop(i))
+  rest = fund - n * floor                     ! the pool above the floors
+  share(i) = floor + max(0, rest) * pop(i) / people
+
+  ! Every share is a multiple of 1/people, so for any x built from them
+  ! min(1, max(0, x * people + 1)) is exactly 1 when x >= 0, else 0.
+  ! Whole cents: the integer part, 1000 at a time, for shares below
+  ! 10^9 cents. A larger share is refused here (division by zero), never
+  ! rounded.
+  ok(i) = 1 / min(1, max(0, (1000000000 - share(i)) * people))
+  q(i) = sum(k = 1:999, min(1, max(0, (share(i) - k * 1000000) * people + 1)))
+  r(i) = share(i) - 1000000 * q(i)
+  whole(i) = 1000000 * q(i)
+  q(i) = sum(k = 1:999, min(1, max(0, (r(i) - k * 1000) * people + 1)))
+  r(i) = r(i) - 1000 * q(i)
+  whole(i) = whole(i) + 1000 * q(i)
+  q(i) = sum(k = 1:999, min(1, max(0, (r(i) - k) * people + 1)))
+  whole(i) = whole(i) + q(i)
+
+  ! The cents left over go one each to the largest fractions of a cent;
+  ! a tie goes to the district listed first.
+  frac(i) = share(i) - whole(i)
+  left = fund - sum(i, whole(i))
+  rank(i) = sum(j, min(1, max(0, (frac(j) - frac(i)) * people)) &
+                 + (1 - min(1, max(0, (frac(j) - frac(i)) * people)) &
+                      - min(1, max(0, (frac(i) - frac(j)) * people))) * min(1, max(0, i - j)))
+  cents(i) = whole(i) + min(1, max(0, left - rank(i)))
+  total = sum(i, cents(i))
+end
+!> in fund = 250000000
+!> in floor = 5000000
+!> in pop = 48210, 131877, 9604, 77345, 22031
+!> expect total = 250000000

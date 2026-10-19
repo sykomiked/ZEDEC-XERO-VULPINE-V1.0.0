@@ -1,0 +1,152 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+# Reductions and scans. APL's / is a right fold over the last axis; K's /
+# is a left fold over the first axis. For + × ⌈ ⌊ ∧ ∨ the two agree and
+# have one canonical form; for - and ÷ they are different programs.
+
+=== sum-iota
+apl: +/⍳10
+k: +/!10
+py: F(45)
+
+=== sum-empty
+apl: +/⍬
+k: +/()
+py: F(0)
+
+=== product-empty
+apl: ×/⍬
+k: */()
+py: F(1)
+
+=== max-empty
+apl: ⌈/⍬
+k: |/()
+refuse: KR_E_DOMAIN
+
+=== min-empty
+apl: ⌊/⍬
+refuse: KR_E_DOMAIN
+
+=== reduce-scalar
+apl: +/5
+k: +/5
+py: F(5)
+
+=== apl-alternating-sum
+apl: -/1 2 3 4 5
+k: -/1 2 3 4 5
+differ: yes
+py: F(1 - (2 - (3 - (4 - 5))))
+pyk: F(1 - 2 - 3 - 4 - 5)
+
+=== k-left-fold-minus
+k: -/1 2 3 4 5
+py: F(((1 - 2) - 3) - 4 - 5)
+
+=== apl-divide-fold
+apl: ÷/1 2 3 4
+py: F(1) / (F(2) / (F(3) / 4))
+
+=== k-divide-fold
+k: %/1 2 3 4
+py: F(1, 2) / 3 / 4
+
+=== harmonic-10
+apl: +/÷1+⍳10
+k: +/recip 1+!10
+py: foldr("add", [F(1, n) for n in range(1, 11)])
+
+=== harmonic-46
+apl: +/÷1+⍳46
+py: foldr("add", [F(1, n) for n in range(1, 47)])
+
+=== harmonic-47-refused
+apl: +/÷1+⍳47
+refuse: ZXV_E_RANGE
+
+=== factorial-20
+apl: ×/1+⍳20
+k: */1+!20
+py: F(2432902008176640000)
+
+=== factorial-21-refused
+apl: ×/1+⍳21
+k: */1+!21
+refuse: ZXV_E_RANGE
+
+=== row-sums
+apl: +/3 4⍴⍳12
+py: vec(6, 22, 38)
+
+=== column-sums-apl
+apl: +⌿3 4⍴⍳12
+k: +/3 4#!12
+py: vec(12, 15, 18, 21)
+
+=== column-max
+apl: ⌈⌿2 3⍴3 1 4 1 5 9
+k: |/2 3#3 1 4 1 5 9
+py: vec(3, 5, 9)
+
+=== row-alternating
+apl: -/2 3⍴1 2 3 4 5 6
+py: vec(1 - (2 - 3), 4 - (5 - 6))
+
+=== k-matrix-left-fold
+k: -/3 2#1 2 3 4 5 6
+py: vec((1 - 3) - 5, (2 - 4) - 6)
+
+=== running-sum
+apl: +\1 2 3 4
+k: +\1 2 3 4
+py: vec(1, 3, 6, 10)
+
+=== running-product-of-halves
+apl: ×\4⍴1r2
+k: *\4#1r2
+py: vec(F(1, 2), F(1, 4), F(1, 8), F(1, 16))
+
+=== apl-minus-scan
+apl: -\1 2 3 4
+py: vec(1, 1 - 2, 1 - (2 - 3), 1 - (2 - (3 - 4)))
+
+=== k-minus-scan
+k: -\1 2 3 4
+py: vec(1, 1 - 2, 1 - 2 - 3, 1 - 2 - 3 - 4)
+
+=== scan-rows
+apl: +\2 3⍴⍳6
+py: mat([[0, 1, 3], [3, 7, 12]])
+
+=== scan-columns
+apl: +⍀2 3⍴⍳6
+k: +\2 3#!6
+py: mat([[0, 1, 2], [3, 5, 7]])
+
+=== scan-overflow
+apl: +\9223372036854775807 1 ¯5
+refuse: ZXV_E_RANGE
+
+=== max-scan
+apl: ⌈\3 1 4 1 5
+k: |\3 1 4 1 5
+py: vec(3, 3, 4, 4, 5)
+
+=== and-reduce
+apl: ∧/true both true
+py: foldr("and", [T, B, T])
+
+=== or-reduce-empty-truth
+apl: ∨/0⍴true
+py: Fa
+
+=== dot-product
+apl: +/1r2 1r3 1r4×2 3 4
+k: +/1r2 1r3 1r4*2 3 4
+py: F(3)
+
+=== cancellation
+apl: +/9007199254740992 1 ¯9007199254740992
+k: +/9007199254740992 1 -9007199254740992
+py: F(1)

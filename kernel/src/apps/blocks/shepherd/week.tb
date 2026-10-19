@@ -1,0 +1,9 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! An app's minutes over the days listed, in Trebago: an exact sum.
+trebago week
+  in  minutes(n)
+  out week
+  week = sum(i, minutes(i))
+end

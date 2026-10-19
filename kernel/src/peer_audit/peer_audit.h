@@ -17,7 +17,7 @@
  * LAYER 2: EXTERNAL PEER AUDIT (network level, zero trust)
  *   A. Deterministic replay. A transition record carries {kind, node, seq,
  *      prev_state_hash, inputs, claimed outputs, new_state_hash} and the
- *      node's ML-DSA-65 signature. A verifier replays it through its own
+ *      node's ML-DSA-87 signature. A verifier replays it through its own
  *      runtime (a pa_replay_fn: pa_runtime.h wires pay_ledger transfers and
  *      swarm_budget allocation, both integer and deterministic) and compares
  *      outputs and the new state hash bit for bit. Committee: k witnesses
@@ -60,9 +60,9 @@
 #include "pa_pq.h"
 
 #define PA_HASH_LEN      32u
-#define PA_PK_LEN        PQ_MLDSA65_PK_BYTES
-#define PA_SK_LEN        PQ_MLDSA65_SK_BYTES
-#define PA_SIG_LEN       PQ_MLDSA65_SIG_BYTES
+#define PA_PK_LEN        PQM_MLDSA87_PK_BYTES
+#define PA_SK_LEN        PQM_MLDSA87_SK_BYTES
+#define PA_SIG_LEN       PQM_MLDSA87_SIG_BYTES
 #define PA_MAX_IO        128u /* inputs / outputs bytes per record */
 #define PA_MAX_PEERS     32u
 #define PA_MAX_COMMITTEE 31u /* 3f+1 with f <= 10 */
@@ -70,10 +70,10 @@
 #define PA_MAX_CANARIES  32u
 #define PA_REQ_NONCE_LEN 16u
 
-/* ML-DSA-65 domain separators, one per signed object type. */
-#define PA_CTX_RECORD   "zxv/peer-audit/v1/record"
-#define PA_CTX_VOTE     "zxv/peer-audit/v1/vote"
-#define PA_CTX_EVIDENCE "zxv/peer-audit/v1/evidence"
+/* ML-DSA-87 domain separators, one per signed object type. */
+#define PA_CTX_RECORD   "zxv/peer-audit/v2/record"
+#define PA_CTX_VOTE     "zxv/peer-audit/v2/vote"
+#define PA_CTX_EVIDENCE "zxv/peer-audit/v2/evidence"
 
 typedef enum {
     PA_OK = 0,
@@ -194,7 +194,7 @@ typedef struct {
 
 typedef struct {
     uint32_t self;
-    const uint8_t *sk; /* caller-owned ML-DSA-65 secret key; never copied */
+    const uint8_t *sk; /* caller-owned ML-DSA-87 secret key; never copied */
     pa_node_state_t state;
     bool self_audit; /* false models a node that switched its self-audit off */
     uint64_t seq;    /* next record seq */

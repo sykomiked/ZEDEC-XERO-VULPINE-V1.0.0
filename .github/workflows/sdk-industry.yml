@@ -1,0 +1,160 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Industry kits (sdk/industry): the shared layer and every kit, built on the
+# public libzxv ABI. sdk/industry/Makefile loops over the kits, so this
+# workflow always has exactly three checks however many kits are added:
+#   industry ubuntu-24.04   gcc:   tests, fuzz smoke runs, examples, R11
+#   industry macos-14       clang: the same
+#   industry sanitize       gcc, ASan + UBSan: the tests and longer fuzz runs
+# Every job builds libzxv itself and tests against the real library.
+name: SDK industry
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'sdk/industry/**'
+      - 'sdk/libzxv/**'
+      - 'sdk/kits/z-wasm/tools/check_nofloat.py'
+      - '.github/workflows/sdk-industry.yml'
+      - 'build_system/sdk_kernel_deps.py'
+      # kernel inputs of libzxv: build_system/sdk_kernel_deps.py --write
+      - 'kernel/src/abacus/**'
+      - 'kernel/src/aipi/**'
+      - 'kernel/src/cardnet/**'
+      - 'kernel/src/cbank/**'
+      - 'kernel/src/e8/**'
+      - 'kernel/src/edp_risk/**'
+      - 'kernel/src/engine/**'
+      - 'kernel/src/event_space/**'
+      - 'kernel/src/finance/**'
+      - 'kernel/src/freight/**'
+      - 'kernel/src/harmonic/**'
+      - 'kernel/src/hwemu/**'
+      - 'kernel/src/ipfs_node/**'
+      - 'kernel/src/iso20022/**'
+      - 'kernel/src/lpres/**'
+      - 'kernel/src/mlkem/**'
+      - 'kernel/src/modbind/**'
+      - 'kernel/src/onepolicy/**'
+      - 'kernel/src/paradox/**'
+      - 'kernel/src/pay/**'
+      - 'kernel/src/phase_coord/**'
+      - 'kernel/src/pqsec/**'
+      - 'kernel/src/rational/**'
+      - 'kernel/src/rmag/**'
+      - 'kernel/src/robin_debanks/**'
+      - 'kernel/src/surplus/**'
+      - 'kernel/src/swarm/**'
+      - 'kernel/src/tensor/**'
+      - 'kernel/src/tls/**'
+      - 'kernel/src/treaty/**'
+      - 'kernel/src/trispace/**'
+      - 'kernel/src/ubh/**'
+      - 'kernel/src/vhub/**'
+      - 'kernel/src/vino/**'
+      - 'kernel/src/vino_stores/**'
+      - 'kernel/src/web4/**'
+      - 'kernel/src/zcapital/**'
+      - 'kernel/include/**'
+      - 'kernel/third_party/**'
+      # end of the kernel inputs of libzxv
+  pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
+    paths:
+      - 'sdk/industry/**'
+      - 'sdk/libzxv/**'
+      - 'sdk/kits/z-wasm/tools/check_nofloat.py'
+      - '.github/workflows/sdk-industry.yml'
+      - 'build_system/sdk_kernel_deps.py'
+      # kernel inputs of libzxv: build_system/sdk_kernel_deps.py --write
+      - 'kernel/src/abacus/**'
+      - 'kernel/src/aipi/**'
+      - 'kernel/src/cardnet/**'
+      - 'kernel/src/cbank/**'
+      - 'kernel/src/e8/**'
+      - 'kernel/src/edp_risk/**'
+      - 'kernel/src/engine/**'
+      - 'kernel/src/event_space/**'
+      - 'kernel/src/finance/**'
+      - 'kernel/src/freight/**'
+      - 'kernel/src/harmonic/**'
+      - 'kernel/src/hwemu/**'
+      - 'kernel/src/ipfs_node/**'
+      - 'kernel/src/iso20022/**'
+      - 'kernel/src/lpres/**'
+      - 'kernel/src/mlkem/**'
+      - 'kernel/src/modbind/**'
+      - 'kernel/src/onepolicy/**'
+      - 'kernel/src/paradox/**'
+      - 'kernel/src/pay/**'
+      - 'kernel/src/phase_coord/**'
+      - 'kernel/src/pqsec/**'
+      - 'kernel/src/rational/**'
+      - 'kernel/src/rmag/**'
+      - 'kernel/src/robin_debanks/**'
+      - 'kernel/src/surplus/**'
+      - 'kernel/src/swarm/**'
+      - 'kernel/src/tensor/**'
+      - 'kernel/src/tls/**'
+      - 'kernel/src/treaty/**'
+      - 'kernel/src/trispace/**'
+      - 'kernel/src/ubh/**'
+      - 'kernel/src/vhub/**'
+      - 'kernel/src/vino/**'
+      - 'kernel/src/vino_stores/**'
+      - 'kernel/src/web4/**'
+      - 'kernel/src/zcapital/**'
+      - 'kernel/include/**'
+      - 'kernel/third_party/**'
+      # end of the kernel inputs of libzxv
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Pushes run only on main and develop; pull requests run on every update and
+# a newer push to the same pull request cancels the older run.
+concurrency:
+  group: sdk-industry-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  industry:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
+    name: industry ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc }
+          - { os: macos-14, cc: clang }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - run: make -C sdk/libzxv all
+      - name: Every kit — unit tests, fuzz smoke runs, examples, R11 no-float check
+        run: make -C sdk/industry CC=${{ matrix.cc }} PYTHON=python3 test
+      - name: Demos
+        run: make -C sdk/industry CC=${{ matrix.cc }} PYTHON=python3 demo
+
+  sanitize:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
+    name: industry sanitize
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      ASAN_OPTIONS: detect_leaks=1
+      UBSAN_OPTIONS: print_stacktrace=1
+    steps:
+      - uses: actions/checkout@v7
+      - run: make -C sdk/libzxv all
+      - name: Every kit under ASan + UBSan
+        run: make -C sdk/industry CC=gcc SANITIZE=1 OUT=build/san PYTHON=python3 test
+      - name: Fuzz under ASan + UBSan, 2 seeds x 5k operations per target
+        run: |
+          for seed in 1 2; do
+            ZIND_FUZZ_SEED=$seed make -C sdk/industry CC=gcc SANITIZE=1 OUT=build/san PYTHON=python3 fuzz FUZZ_ITERS=5000
+          done

@@ -56,6 +56,11 @@ void pa_xfer_encode(const pa_xfer_t *x, uint8_t out[PA_XFER_IN_LEN])
     put32(out + 92, 0);
 }
 
+int32_t pa_xfer_status(const uint8_t out[PA_XFER_OUT_LEN])
+{
+    return (int32_t) get32(out);
+}
+
 bool pa_xfer_decode(const uint8_t *in, uint32_t len, pa_xfer_t *x)
 {
     if (!in || !x || len != PA_XFER_IN_LEN) return false;

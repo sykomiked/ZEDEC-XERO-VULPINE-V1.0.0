@@ -53,16 +53,16 @@
  * Each rail carries a platform jurisdiction code. These are NOT ISO 3166
  * country codes and are never written into a Ctry field; they travel only
  * as /ZXV/... remittance data:
- *   DEBIT  555  NCR  New California Republic
- *   CREDIT 777  NRE  Neo Roman Empire
+ *   DEBIT  555  NRE  Neo Roman Empire
+ *   CREDIT 777  NCR  New California Republic
  *   EQUITY 888  PNS  Principality of New Sicily */
 #include "../pay/pay_rails.h"                /* the canonical rail numerics */
-#define VINO_ISO_DEBIT  ZXV_RAIL_CODE_DEBIT  /* 555 the asset/backing rail   (NCR) */
-#define VINO_ISO_CREDIT ZXV_RAIL_CODE_CREDIT /* 777 the claim/liability rail (NRE) */
+#define VINO_ISO_DEBIT  ZXV_RAIL_CODE_DEBIT  /* 555 the asset/backing rail   (NRE) */
+#define VINO_ISO_CREDIT ZXV_RAIL_CODE_CREDIT /* 777 the claim/liability rail (NCR) */
 #define VINO_ISO_EQUITY ZXV_RAIL_CODE_EQUITY /* 888 the live equity rail     (PNS) */
 
-#define VINO_JURIS_DEBIT  ZXV_RAIL_CODE_DEBIT_JURIS  /* New California Republic    */
-#define VINO_JURIS_CREDIT ZXV_RAIL_CODE_CREDIT_JURIS /* Neo Roman Empire           */
+#define VINO_JURIS_DEBIT  ZXV_RAIL_CODE_DEBIT_JURIS  /* Neo Roman Empire    */
+#define VINO_JURIS_CREDIT ZXV_RAIL_CODE_CREDIT_JURIS /* New California Republic           */
 #define VINO_JURIS_EQUITY ZXV_RAIL_CODE_EQUITY_JURIS /* Principality of New Sicily */
 
 /* Proof-CID witness length — one SHA-256 digest, same as ipfs IPFS_CID_LEN. */
@@ -91,6 +91,7 @@
 #define VINO_ERR_CAPACITY  (-5) /* ledger/voucher table full                 */
 #define VINO_ERR_NOT_FOUND (-6) /* no such voucher                           */
 #define VINO_ERR_STATE     (-7) /* single-active-state violation             */
+#define VINO_ERR_DENOM     (-8) /* not a Fibonacci coin denomination         */
 
 /* ===== The single-active-state pair ===== */
 typedef enum {
@@ -146,6 +147,11 @@ void vino_stores_init(vino_stores_t *vs, triple_ledger_t *ledger);
 
 /* Register a Vino voucher (single-active-state, counterpart locked). The
  * proof_cid is SUPPLIED (ops boundary — pinned externally, never invented).
+ * FIBONACCI-ONLY (owner decision 2026-10-11): the denomination must be a face
+ * on the ladder (vino_ladder_denomination, rungs 1..VINO_LADDER_RUNGS), or
+ * exactly zero for the ceremonial MINT_ZERO note; anything else is refused
+ * with VINO_ERR_DENOM and nothing is registered. To mint an arbitrary amount,
+ * use vino_mint_amount, which splits it into ladder coins.
  * Returns the new voucher id (>0) via *out_id, or a VINO_ERR_* code. */
 int32_t vino_mint(vino_stores_t *vs, uint64_t *out_id, surplus_real_t denomination,
                   mint_tier_t tier, vino_state_t initial_state,
@@ -180,10 +186,35 @@ vino_voucher_t *vino_find(vino_stores_t *vs, uint64_t voucher_id);
 /* Bounded forward-equity draw: equity * (φ − 1) ≈ 0.618 * equity. Never interest. */
 surplus_real_t vino_phi_draw_max(surplus_real_t equity);
 
-/* Fibonacci denomination ladder: rung 0 → V0 ceremonial (0), rung 1..12 →
- * 1,2,3,5,8,13,21,34,55,89,144,233. Returns 0 for out-of-range rungs. */
+/* Fibonacci denomination ladder: rung 0 → V0 ceremonial (0), rung r → F(r+1):
+ * 1,2,3,5,8,13,21,34,55,89,144,233, ... up to rung 45 = F(46) = 1,836,311,903,
+ * the largest Fibonacci number whose whole part fits a Q32.32 surplus_real_t.
+ * Returns 0 for out-of-range rungs. */
 uint64_t vino_ladder_denomination(uint32_t rung);
-#define VINO_LADDER_RUNGS 12u
+#define VINO_LADDER_RUNGS 45u
+
+/* The ladder rung (1..VINO_LADDER_RUNGS) whose face equals `denomination`
+ * exactly, or 0 if it is not a coin face (zero, negative, fractional, or not
+ * a Fibonacci number). */
+uint32_t vino_denomination_rung(surplus_real_t denomination);
+
+/* Zeckendorf split of a whole amount into ladder rungs, largest first: each
+ * rung below the top appears at most once and no two adjacent rungs appear
+ * together; amounts past the top face repeat the top rung. The split is the
+ * unique fewest-coins split. Writes the count to *n always; writes rungs[]
+ * only when the count fits `cap` (else VINO_ERR_CAPACITY, rungs untouched).
+ * amount 0 gives *n = 0. */
+int32_t vino_zeckendorf(uint64_t amount, uint32_t *rungs, uint32_t cap, uint32_t *n);
+
+/* Mint a whole `amount` as Fibonacci coins (its Zeckendorf split), one voucher
+ * per coin, all with the same tier, state and proof_cid. All or nothing: if
+ * the split does not fit `cap` ids or the voucher table, nothing is minted
+ * (VINO_ERR_CAPACITY). MINT_ZERO is refused by vino_mint (VINO_ERR_DENOM) at
+ * the first coin, before anything is registered: the ceremonial note has no
+ * value to split. *n is the number of coins minted. */
+int32_t vino_mint_amount(vino_stores_t *vs, uint64_t amount, mint_tier_t tier,
+                         vino_state_t initial_state, const uint8_t proof_cid[VINO_PROOF_CID_LEN],
+                         uint64_t *ids, uint32_t cap, uint32_t *n);
 
 /* The 112% Gratuity geometry: split realized `yield` into 11/11/11/66/1 plus a
  * 12% Shiva buffer. Writes six parts to out[0..5]; they sum to 112% of yield.

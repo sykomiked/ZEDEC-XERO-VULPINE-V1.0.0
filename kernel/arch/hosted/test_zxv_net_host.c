@@ -6,16 +6,24 @@
  * other's routing table, and a FIND_NODE lookup from each reaches the other.
  * Also: OFF opens no socket and sends nothing; LAN mode refuses a public
  * address before anything is sent; ONLINE accepts it.
+ * U9-U12: the identity and peer cache persist in a state folder (and a
+ * damaged or exposed identity file stops the node), two hosts find each
+ * other by LAN multicast alone, introductions are asked for, and an AIPI
+ * call goes from one host to the other over Vinea, is verified, and its
+ * bounty settles as a compute receipt in both mesh books.
  *
  *   sh kernel/arch/hosted/test_hosted.sh runs it (POSIX hosts). */
 #define _DEFAULT_SOURCE
 #include <sys/select.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "zxv_net_host.h"
+#include "vna_space.h"
 
 static int failures = 0;
 #define CHECK(c, ...)                                                                              \
@@ -44,6 +52,111 @@ static void pump(zxv_net_t *a, zxv_net_t *b, int ms)
     zxv_net_tick(b, now);
 }
 
+/* ===== U12: a fake sandbox (isqrt, checked by squaring) ================== */
+static uint64_t rd64(const uint8_t *p)
+{
+    uint64_t v = 0;
+    for (int i = 7; i >= 0; i--) v = (v << 8) | p[i];
+    return v;
+}
+static void wr64(uint8_t *p, uint64_t v)
+{
+    for (int i = 0; i < 8; i++) p[i] = (uint8_t) (v >> (8 * i));
+}
+static int fx_run(void *ctx, const aipi_code_t *code, const uint8_t *in, uint32_t in_len,
+                  uint8_t *out, uint32_t cap, uint32_t *out_len)
+{
+    (void) ctx;
+    if (in_len != 8 || cap < 8 || strcmp(code->fn->entry, "isqrt")) return AIPI_ERR_EXEC;
+    uint64_t n = rd64(in), r = 0;
+    for (int b = 31; b >= 0; b--)
+        if ((r | (1ull << b)) * (r | (1ull << b)) <= n) r |= 1ull << b;
+    wr64(out, r);
+    *out_len = 8;
+    return AIPI_OK;
+}
+static int fx_check(void *ctx, const aipi_code_t *code, const uint8_t *in, uint32_t in_len,
+                    const uint8_t *out, uint32_t out_len, const uint8_t *cert, uint32_t cert_len)
+{
+    (void) ctx, (void) code, (void) cert, (void) cert_len;
+    if (in_len != 8 || out_len != 8) return 0;
+    uint64_t n = rd64(in), r = rd64(out);
+    return r * r <= n && (r + 1) * (r + 1) > n;
+}
+
+typedef struct {
+    ipfsn_memstore_t ms;
+    ipfsn_storage_ops_t ops;
+    ipfsn_bs_entry_t tab[32];
+    ipfsn_bs_t bs;
+    ipfsn_pin_t pins[8];
+    ipfsn_node_t in;
+    aipi_job_t jobs[4];
+    aipi_memo_t memo[4];
+    aipi_ctx_t a;
+    uint8_t *scratch, *net, *mod, *con;
+} ai_box_t;
+
+static void ai_free(ai_box_t *x)
+{
+    free(x->ms.buf);
+    free(x->scratch);
+    free(x->net);
+    free(x->mod);
+    free(x->con);
+    free(x);
+}
+
+static ai_box_t *ai_new(uint8_t tag)
+{
+    ai_box_t *x = calloc(1, sizeof *x);
+    x->ms.cap = 1u << 20;
+    x->ms.buf = malloc(x->ms.cap);
+    ipfsn_memstore_ops(&x->ms, &x->ops);
+    x->scratch = malloc(IPFSN_SCRATCH_MIN);
+    x->net = malloc(IPFSN_BLOCK_MAX + 256);
+    x->mod = malloc(AIPI_MODULE_MAX);
+    x->con = malloc(AIPI_CONTRACT_MAX);
+    if (ipfsn_bs_init(&x->bs, &x->ops, x->tab, 32, x->scratch, IPFSN_SCRATCH_MIN) != IPFSN_OK ||
+        ipfsn_node_init(&x->in, &x->bs, x->pins, 8, x->net, IPFSN_BLOCK_MAX + 256) != IPFSN_OK ||
+        aipi_init(&x->a, &x->in, x->jobs, 4, x->memo, 4, x->mod, x->con) != AIPI_OK)
+        abort();
+    uint8_t key[IPFSN_KEY_LEN];
+    memset(key, tag, sizeof key);
+    ipfsn_bs_set_key(&x->bs, key);
+    x->a.online = true;
+    x->a.exec.run = fx_run;
+    x->a.exec.check = fx_check;
+    return x;
+}
+
+static bool wait_for(zxv_net_t *a, zxv_net_t *b, bool (*done)(void *), void *ctx, int ms)
+{
+    for (int i = 0; i < ms / 20; i++) {
+        if (done(ctx)) return true;
+        pump(a, b, 20);
+    }
+    return done(ctx);
+}
+
+typedef struct {
+    zxv_net_t *x, *y;
+    uint16_t px, py;
+} pair_t;
+static bool knows_both(void *c)
+{
+    pair_t *p = (pair_t *) c;
+    return zxv_net_knows(p->x, "127.0.0.1", p->py) && zxv_net_knows(p->y, "127.0.0.1", p->px);
+}
+
+/* the introduction request has gone out and a peer has reported our address */
+static bool asked_and_voted(void *x)
+{
+    zxv_net_status_t st;
+    zxv_net_status((zxv_net_t *) x, &st);
+    return st.punch_asked == 1 && st.public_votes >= 1;
+}
+
 int main(void)
 {
     zxv_net_t *a = zxv_net_new(), *b = zxv_net_new();
@@ -61,6 +174,8 @@ int main(void)
 
     printf("[2] two hosts on 127.0.0.1\n");
     uint64_t now = zxv_net_wall_ms();
+    zxv_net_set_lan_discovery(a, false, 0); /* [4] tests discovery on its own */
+    zxv_net_set_lan_discovery(b, false, 0);
     CHECK(zxv_net_start(a, ZXV_NET_LAN, "127.0.0.1", 0, now) == 0, "A starts in LAN mode");
     CHECK(zxv_net_start(b, ZXV_NET_LAN, "127.0.0.1", 0, now) == 0, "B starts in LAN mode");
     zxv_net_status(a, &sa);
@@ -97,17 +212,96 @@ int main(void)
     }
     CHECK(ra == 1, "A's FIND_NODE for B was answered by B");
     CHECK(rb == 1, "B's FIND_NODE for A was answered by A");
+    /* U6: the economic cycle closes on a live host, with nothing traded */
+    static swarm_budget_t sbud;
+    swarm_budget_init(&sbud, 2, 5000);
+    swarm_budget_register(&sbud, 1, 0);
+    swarm_budget_begin_cycle(&sbud);
+    uint64_t imp = 99;
+    CHECK(zxv_net_econ_cycle(a, &sbud, 5000, now, &imp) == 0 && imp == 0 &&
+              sbud.tokens_per_cycle == 5000,
+          "U6: a cycle with no trades imports nothing; the rate stays at the base");
+    CHECK(zxv_net_econ_cycle(a, NULL, 5000, now, &imp) == -1, "U6: no budget, refused");
     zxv_net_status(a, &sa);
     zxv_net_status(b, &sb);
     CHECK(sa.peers >= 1 && sb.peers >= 1 && sa.refused_in == 0 && sb.refused_in == 0,
           "peers %u / %u, every datagram verified (in %u / %u, out %u / %u)", sa.peers, sb.peers,
           sa.datagrams_in, sb.datagrams_in, sa.datagrams_out, sb.datagrams_out);
+    CHECK(sa.conserved && sb.conserved && sa.trades == 0 && sa.receipts_refused == 0,
+          "U6: both mesh books conserved, nothing traded or refused");
+
+    printf("[2b] U13 listings\n");
+    {
+        static zxv_net_peer_t pl[8];
+        static zxv_net_want_info_t wl[8];
+        static zxv_net_pend_info_t ql[16];
+        char hb[65], want_addr[22];
+        static const char hx[] = "0123456789abcdef";
+        for (int i = 0; i < 32; i++) hb[2 * i] = hx[idb[i] >> 4], hb[2 * i + 1] = hx[idb[i] & 15];
+        hb[64] = 0;
+        snprintf(want_addr, sizeof want_addr, "127.0.0.1:%u", (unsigned) sb.port);
+        uint32_t np = zxv_net_peers(a, pl, 8);
+        int at = -1;
+        for (uint32_t i = 0; i < np && i < 8; i++)
+            if (!strcmp(pl[i].id, hb)) at = (int) i;
+        CHECK(np >= 1 && np == zxv_net_peers(a, NULL, 0) && at >= 0,
+              "A lists %u peer(s), B among them; the count needs no buffer", np);
+        CHECK(at >= 0 && !strcmp(pl[at].addr, want_addr) && pl[at].last_seen_ms > 0 &&
+                  !pl[at].in_book && pl[at].pending == 0 && pl[at].held == 0,
+              "B's row: address %s, seen, not yet in the mesh book", at >= 0 ? pl[at].addr : "?");
+        CHECK(zxv_net_wants(b, wl, 8) == 0 && zxv_net_pending(a, ql, 16) == 0,
+              "nothing wanted or outstanding yet");
+        CHECK(zxv_net_share(a, 50, 0) == 0, "A shares 50 compute");
+        int32_t ws = zxv_net_want(b, VNA_RES_STORAGE, 7, 3);
+        int32_t wc = zxv_net_want(b, VNA_RES_COMPUTE, 10, 100);
+        CHECK(ws >= 0 && wc >= 0 && zxv_net_wants(b, wl, 1) == 2 && wl[0].slot == (uint32_t) ws &&
+                  wl[0].resource == VNA_RES_STORAGE && wl[0].units_left == 7 &&
+                  wl[0].max_price == 3,
+              "B's wants listed in slot order; the count is all of them, even past cap");
+        CHECK(zxv_net_wants(b, wl, 8) == 2 && wl[1].slot == (uint32_t) wc &&
+                  wl[1].resource == VNA_RES_COMPUTE && wl[1].units_left == 10 &&
+                  wl[1].max_price == 100,
+              "and the compute want");
+        CHECK(zxv_net_sell(a, idb, VNA_RES_COMPUTE, 4, 9, zxv_net_wall_ms()) == 0,
+              "A offers B 4 compute");
+        uint32_t nq = zxv_net_pending(a, ql, 16);
+        CHECK(nq == 1 && ql[0].selling && !strcmp(ql[0].peer, hb) && ql[0].units == 4 &&
+                  ql[0].want == -1 && ql[0].pair_seq >= 1,
+              "A's offer is outstanding until B answers (seq %llu)",
+              (unsigned long long) ql[0].pair_seq);
+        np = zxv_net_peers(a, pl, 8);
+        at = -1;
+        for (uint32_t i = 0; i < np && i < 8; i++)
+            if (!strcmp(pl[i].id, hb)) at = (int) i;
+        CHECK(at >= 0 && pl[at].in_book && !pl[at].member && pl[at].pending == 1,
+              "B is now in A's mesh book with one receipt pending");
+        for (int i = 0; i < 200 && (zxv_net_pending(a, NULL, 0) || zxv_net_pending(b, NULL, 0));
+             i++)
+            pump(a, b, 20);
+        CHECK(zxv_net_pending(a, NULL, 0) == 0 && zxv_net_pending(b, NULL, 0) == 0,
+              "after B accepts, nothing is outstanding on either side");
+        CHECK(zxv_net_wants(b, wl, 8) == 2 && wl[1].units_left == 6, "B still wants 6 compute");
+        np = zxv_net_peers(a, pl, 8);
+        at = -1;
+        for (uint32_t i = 0; i < np && i < 8; i++)
+            if (!strcmp(pl[i].id, hb)) at = (int) i;
+        CHECK(at >= 0 && pl[at].receivable > 0 && pl[at].pending == 0,
+              "A's row for B shows the credit delivered (%llu)",
+              at >= 0 ? (unsigned long long) pl[at].receivable : 0ull);
+        CHECK(zxv_net_share(a, 0, 0) == 0, "A stops sharing");
+    }
 
     printf("[3] modes\n");
     CHECK(zxv_net_start(a, ZXV_NET_OFF, NULL, 0, now) == 0 && zxv_net_fd(a) == -1,
           "switching A off closes its socket");
     zxv_net_status(a, &sa);
     CHECK(sa.peers == 0 && sa.node_id[0] == 0, "and forgets its session");
+    CHECK(zxv_net_peers(a, NULL, 0) == 0 && zxv_net_wants(a, NULL, 0) == 0 &&
+              zxv_net_pending(a, NULL, 0) == 0 && zxv_net_peers(NULL, NULL, 0) == 0,
+          "U13: off (or no host), every listing is empty");
+    CHECK(zxv_net_econ_cycle(a, &sbud, 7000, now, &imp) == 0 && imp == 0 &&
+              sbud.tokens_per_cycle == 5000,
+          "U6: off, the economic cycle does nothing");
     CHECK(zxv_net_start(a, ZXV_NET_ONLINE, "127.0.0.1", 0, now) == 0, "A restarts ONLINE");
     CHECK(zxv_net_add_peer(a, "192.0.2.1", 8723, now) == 0,
           "ONLINE accepts a public address (TEST-NET-1, nothing answers)");
@@ -119,6 +313,284 @@ int main(void)
               zxv_net_add_peer_str(b, "localhost:80", now) == -1,
           "bad peer strings refused");
 
+    printf("[4] U10: two hosts find each other by LAN multicast alone\n");
+    uint16_t lport = (uint16_t) (20000 + getpid() % 20000); /* runs never cross */
+    zxv_net_t *c = zxv_net_new(), *d = zxv_net_new();
+    zxv_net_status_t sc, sd;
+    pair_t pr;
+    zxv_net_set_lan_discovery(c, true, lport);
+    zxv_net_set_lan_discovery(d, true, lport);
+    CHECK(zxv_net_start(c, ZXV_NET_LAN, "127.0.0.1", 0, now) == 0 &&
+              zxv_net_start(d, ZXV_NET_LAN, "127.0.0.1", 0, now) == 0,
+          "C and D start in LAN mode with discovery on");
+    zxv_net_status(c, &sc);
+    zxv_net_status(d, &sd);
+    if (!sc.lan_discovery || !sd.lan_discovery) {
+        printf("  skip this host cannot join a multicast group on the loopback\n");
+    } else {
+        CHECK(zxv_net_lan_fd(c) >= 0 && zxv_net_lan_fd(c) != zxv_net_fd(c), "a second socket");
+        pr = (pair_t){c, d, sc.port, sd.port};
+        CHECK(wait_for(c, d, knows_both, &pr, 4000),
+              "with no address typed, each has the other in its routing table");
+        for (int i = 0; i < 150; i++) { /* the announcement burst repeats at 1 s, 2 s */
+            zxv_net_status(c, &sc);
+            zxv_net_status(d, &sd);
+            if (sc.lan_accepted >= 1 && sd.lan_accepted >= 1) break;
+            pump(c, d, 20);
+        }
+        CHECK(sc.lan_accepted >= 1 && sd.lan_accepted >= 1 && sc.lan_peers >= 1 &&
+                  sd.lan_peers >= 1,
+              "signed LAN records accepted (C %u, D %u)", sc.lan_accepted, sd.lan_accepted);
+    }
+
+    printf("[5] U9: the identity and the peer cache persist\n");
+    char dir[] = "/tmp/zxv-net-state.XXXXXX";
+    CHECK(mkdtemp(dir) != NULL, "a state folder");
+    char idp[256], pcp[256];
+    snprintf(idp, sizeof idp, "%s/vinea_identity", dir);
+    snprintf(pcp, sizeof pcp, "%s/vinea_peers", dir);
+    zxv_net_set_lan_discovery(c, true, lport);
+    CHECK(zxv_net_set_state_dir(c, dir) == 0, "C keeps its state there");
+    CHECK(zxv_net_start(c, ZXV_NET_LAN, "127.0.0.1", 0, now) == 0, "C starts");
+    zxv_net_status(c, &sc);
+    char id1[65];
+    memcpy(id1, sc.node_id_full, sizeof id1);
+    struct stat st;
+    CHECK(sc.persisted && stat(idp, &st) == 0 && (st.st_mode & 0777) == 0600,
+          "the identity file was written 0600");
+    zxv_net_status(d, &sd);
+    CHECK(zxv_net_add_peer(c, "127.0.0.1", sd.port, now) == 0, "C pings D");
+    pr = (pair_t){c, d, sc.port, sd.port};
+    CHECK(wait_for(c, d, knows_both, &pr, 3000), "C and D know each other");
+    zxv_net_stop(c);
+    CHECK(stat(pcp, &st) == 0 && st.st_size == 12 + 38, "stop saved one cached peer");
+    uint32_t acc0 = 0;
+    zxv_net_status(d, &sd);
+    acc0 = sd.lan_accepted;
+    CHECK(zxv_net_start(c, ZXV_NET_LAN, "127.0.0.1", 0, now) == 0, "C restarts");
+    zxv_net_status(c, &sc);
+    CHECK(sc.persisted && !strcmp(sc.node_id_full, id1), "with the same NodeID %.16s", id1);
+    CHECK(sc.cached_peers == 1, "and pings the cached peer");
+    pr.px = sc.port;
+    CHECK(wait_for(c, d, knows_both, &pr, 3000),
+          "which answers: they meet again with no address typed");
+    {
+        zxv_net_t *e = zxv_net_new();
+        zxv_net_status_t se;
+        zxv_net_set_lan_discovery(e, false, 0);
+        zxv_net_set_state_dir(e, dir);
+        CHECK(zxv_net_start(e, ZXV_NET_LAN, "127.0.0.1", 0, now) == 0,
+              "a second process on the same folder starts");
+        zxv_net_status(e, &se);
+        CHECK(se.state_busy && !se.persisted && strcmp(se.node_id_full, id1) != 0,
+              "with a fresh NodeID: the folder is locked to C");
+        zxv_net_free(e);
+    }
+    if (sd.lan_discovery) {
+        for (int i = 0; i < 50; i++) pump(c, d, 20);
+        zxv_net_status(d, &sd);
+        CHECK(sd.lan_accepted > acc0 && sd.lan_refused == 0,
+              "D accepts the restarted identity's LAN record: its seq moved on (%u -> %u)", acc0,
+              sd.lan_accepted);
+    }
+    zxv_net_stop(c);
+    chmod(idp, 0644);
+    CHECK(zxv_net_start(c, ZXV_NET_LAN, "127.0.0.1", 0, now) == -1,
+          "an identity file others can read is refused");
+    zxv_net_status(c, &sc);
+    CHECK(strstr(sc.error, "readable by others") != NULL, "and says why: %s", sc.error);
+    chmod(idp, 0600);
+    {
+        FILE *f = fopen(idp, "r+b");
+        fseek(f, 50, SEEK_SET);
+        int ch = fgetc(f);
+        fseek(f, 50, SEEK_SET);
+        fputc(ch ^ 1, f);
+        fclose(f);
+    }
+    CHECK(zxv_net_start(c, ZXV_NET_LAN, "127.0.0.1", 0, now) == -1,
+          "a damaged identity file is refused, not replaced");
+    zxv_net_status(c, &sc);
+    CHECK(strstr(sc.error, "NodeID") != NULL, "and says why: %s", sc.error);
+    {
+        FILE *f = fopen(idp, "r+b");
+        fseek(f, 50, SEEK_SET);
+        int ch = fgetc(f);
+        fseek(f, 50, SEEK_SET);
+        fputc(ch ^ 1, f);
+        fclose(f);
+    }
+    chmod(dir, 0777);
+    CHECK(zxv_net_start(c, ZXV_NET_LAN, "127.0.0.1", 0, now) == -1,
+          "a folder others can write is refused");
+    chmod(dir, 0700);
+    CHECK(zxv_net_start(c, ZXV_NET_LAN, "127.0.0.1", 0, now) == 0, "repaired, C starts again");
+    zxv_net_status(c, &sc);
+    CHECK(!strcmp(sc.node_id_full, id1), "still the same NodeID");
+
+    printf("[6] U11: introductions\n");
+    CHECK(zxv_net_punch(a, (const uint8_t *) id1, now) == 0, "off: nobody to ask");
+    pr.px = sc.port;
+    CHECK(wait_for(c, d, knows_both, &pr, 3000), "C and D are contacts");
+    uint8_t ghost[32];
+    memset(ghost, 0x5C, 32);
+    CHECK(zxv_net_punch(c, ghost, zxv_net_wall_ms()) == 1,
+          "C asks its one contact for an introduction");
+    /* D reports C's address in its PONG, so C pings D: contacts made from
+     * LAN records alone (the usual path on macOS) never exchanged one */
+    CHECK(zxv_net_add_peer(c, "127.0.0.1", sd.port, zxv_net_wall_ms()) == 0, "C pings D");
+    (void) wait_for(c, d, asked_and_voted, c, 3000);
+    for (int i = 0; i < 5; i++) pump(c, d, 20); /* time for a wrong relay to show */
+    zxv_net_status(c, &sc);
+    zxv_net_status(d, &sd);
+    CHECK(sc.punch_asked == 1 && sd.punch_relayed == 0,
+          "D does not know the target, so relays nothing");
+    CHECK(sc.public_votes >= 1 && sc.public_addr[0] == 0,
+          "one peer's report is counted but not shown as the public address");
+
+    printf("[7] U12: an AIPI call over Vinea, verified, and its bounty settled in both books\n");
+    ai_box_t *xa = ai_new(1), *xb = ai_new(2);
+    static const uint8_t MOD[] = "fake-module: isqrt";
+    aipi_fn_t fn;
+    memset(&fn, 0, sizeof fn);
+    fn.intent = AIPI_INTENT_FN;
+    fn.verify = AIPI_VERIFY_CHECKER;
+    fn.privacy = AIPI_PRIV_PUBLIC;
+    fn.determinism = AIPI_DET_DETERMINISTIC;
+    fn.fuel_max = 1000;
+    strcpy(fn.entry, "isqrt");
+    strcpy(fn.checker, "isqrt_ok");
+    ipfsn_cid_t mod, f1, f2;
+    CHECK(aipi_put_blob(&xa->a, MOD, sizeof MOD, IPFSN_VIS_PUBLIC, &mod) == AIPI_OK &&
+              aipi_put_blob(&xb->a, MOD, sizeof MOD, IPFSN_VIS_PUBLIC, &mod) == AIPI_OK,
+          "both hold the module");
+    fn.module = mod;
+    CHECK(aipi_publish_fn(&xa->a, &fn, &f1) == AIPI_OK &&
+              aipi_publish_fn(&xb->a, &fn, &f2) == AIPI_OK && ipfsn_cid_equal(&f1, &f2),
+          "and the same function CID");
+    CHECK(zxv_net_aipi(c) == NULL, "nothing attached yet");
+    CHECK(zxv_net_attach_aipi(c, &xa->a) == 0 && zxv_net_attach_aipi(d, &xb->a) == 0 &&
+              zxv_net_aipi(c) && zxv_net_aipi(d) && xa->a.mesh.broadcast,
+          "attached: the contexts now have a mesh");
+    zxv_net_share(d, 100, 0);
+    zxv_net_aipi_serve(d, true, 1);
+    uint8_t idd[32];
+    zxv_net_node_id(d, idd);
+    vna_id_t vd;
+    memcpy(vd.b, idd, 32);
+    CHECK(aipi_vna_add_executor(zxv_net_aipi(c), &vd) == AIPI_OK, "C chooses D as its executor");
+    uint8_t in[8], out[8];
+    uint32_t job, len = 0;
+    wr64(in, 1000000);
+    CHECK(zxv_net_aipi_execute(c, &f1, in, 8, false, 25, 10000, zxv_net_wall_ms(), &job) ==
+              AIPI_ERR_FUNDS,
+          "no budget: a bounty cannot be escrowed");
+    zxv_net_aipi_budget(c, 100);
+    CHECK(zxv_net_aipi_execute(c, &f1, in, 8, false, 25, 10000, zxv_net_wall_ms(), &job) == AIPI_OK,
+          "with a budget, the call goes to the mesh");
+    zxv_net_status(c, &sc);
+    CHECK(sc.aipi && sc.aipi_escrow == 25 && sc.aipi_calls_out == 1, "25 in escrow, one call out");
+    for (int i = 0; i < 150 && aipi_job(&xa->a, job)->status == AIPI_JOB_PENDING; i++)
+        pump(c, d, 20);
+    zxv_net_status(c, &sc);
+    zxv_net_status(d, &sd);
+    CHECK(aipi_result(&xa->a, job, out, 8, &len) == AIPI_OK && rd64(out) == 1000,
+          "D answered; C checked it by squaring: isqrt(1000000) = 1000");
+    for (int i = 0; i < 100; i++) {
+        zxv_net_status(c, &sc);
+        zxv_net_status(d, &sd);
+        if (sc.trades >= 1 && sd.trades >= 1) break;
+        pump(c, d, 20);
+    }
+    CHECK(sc.aipi_escrow == 0 && sd.aipi_served == 1, "escrow released to D");
+    CHECK(sc.trades == 1 && sd.trades == 1 && sc.conserved && sd.conserved,
+          "the bounty settled as one compute receipt in both books (trades %u / %u)", sc.trades,
+          sd.trades);
+    zxv_net_stop(c);
+    CHECK(xa->a.mesh.broadcast == NULL, "stopped: the context is local-only again");
+    CHECK(zxv_net_attach_aipi(c, NULL) == 0, "detached");
+
+    printf("[8] U14: a watch hall made on one host, joined by CID from another\n");
+    {
+        zxv_net_t *e = zxv_net_new(), *f = zxv_net_new();
+        zxv_net_status_t se, sf;
+        uint8_t cid[VNA_CID_RAW_LEN];
+        CHECK(zxv_net_space_create(e, VNA_SPACE_HALL, VNA_GOV_OWNER, 0, "Movie night", "film",
+                                   zxv_net_wall_ms(), cid) < 0 &&
+                  zxv_net_spaces(e) == NULL,
+              "OFF: no spaces");
+        zxv_net_set_lan_discovery(e, false, 0);
+        zxv_net_set_lan_discovery(f, false, 0);
+        now = zxv_net_wall_ms();
+        CHECK(zxv_net_start(e, ZXV_NET_LAN, "127.0.0.1", 0, now) == 0 &&
+                  zxv_net_start(f, ZXV_NET_LAN, "127.0.0.1", 0, now) == 0,
+              "E and F start");
+        zxv_net_status(e, &se);
+        zxv_net_status(f, &sf);
+        CHECK(se.space_store == 32 && se.spaces == 0, "a node holds 32 space records for others");
+        (void) zxv_net_add_peer(f, "127.0.0.1", se.port, now);
+        for (int i = 0; i < 100 && !zxv_net_knows(e, "127.0.0.1", sf.port); i++) pump(e, f, 20);
+        CHECK(zxv_net_space_create(e, VNA_SPACE_HALL, VNA_GOV_OWNER, 0, "Movie night", "film",
+                                   zxv_net_wall_ms(), cid) == 0,
+              "E makes a watch hall");
+        for (int i = 0; i < 50; i++) pump(e, f, 20);
+        zxv_net_status(f, &sf);
+        CHECK(sf.space_records >= 1, "F holds E's host record (%u)", sf.space_records);
+        CHECK(zxv_net_space_join(f, cid, zxv_net_wall_ms()) == 0, "F joins by the CID alone");
+        const vna_space_t *fs = 0;
+        for (int i = 0; i < 300; i++) {
+            fs = vna_space_get(zxv_net_spaces(f), cid);
+            if (fs && fs->phase == VNA_SPACE_IN) break;
+            pump(e, f, 20);
+        }
+        CHECK(fs && fs->phase == VNA_SPACE_IN && fs->have_gen, "F is in, with the genesis");
+        const char *hi = "hello hall";
+        CHECK(zxv_net_space_post(f, cid, (const uint8_t *) hi, (uint32_t) strlen(hi),
+                                 zxv_net_wall_ms()) == 0,
+              "F posts");
+        uint8_t media[VNA_CID_RAW_LEN];
+        vna_cid_raw((const uint8_t *) "a film", 6, media);
+        CHECK(zxv_net_hall_set(f, cid, VNA_HALL_PLAY, media, sizeof media, 0, VNA_SPACE_Q16,
+                               zxv_net_wall_ms()) == VNA_ERR_DENIED,
+              "only the owner steers an owner hall");
+        CHECK(zxv_net_hall_set(e, cid, VNA_HALL_PLAY, media, sizeof media, 5000, VNA_SPACE_Q16,
+                               zxv_net_wall_ms()) == 0,
+              "E presses play at 5 s");
+        const vna_space_t *es = vna_space_get(zxv_net_spaces(e), cid);
+        for (int i = 0; i < 200 && !(fs->hall_set && es->log_n >= 2); i++) pump(e, f, 20);
+        const vna_space_logent_t *ev[VNA_SPACE_LOG];
+        uint32_t ne = vna_space_events(es, 0, ev, VNA_SPACE_LOG);
+        bool got = false;
+        for (uint32_t i = 0; i < ne; i++)
+            got |= ev[i]->kind == VNA_SPACE_EV_POST && ev[i]->len == strlen(hi) &&
+                   memcmp(ev[i]->data, hi, ev[i]->len) == 0;
+        CHECK(got, "E got F's post");
+        uint64_t t = zxv_net_wall_ms();
+        CHECK(fs->hall_set && fs->hall.state == VNA_HALL_PLAY &&
+                  vna_space_hall_pos(&fs->hall, t) == vna_space_hall_pos(&es->hall, t) &&
+                  vna_space_hall_pos(&fs->hall, t) >= 5000,
+              "both compute the same playhead (%llu ms)",
+              (unsigned long long) vna_space_hall_pos(&fs->hall, t));
+        zxv_net_status(e, &se);
+        zxv_net_status(f, &sf);
+        CHECK(se.spaces == 1 && sf.spaces == 1 && sf.space_events_out >= 1 &&
+                  se.space_events_in >= 1,
+              "status: in 1 space each, events %u in at E", se.space_events_in);
+        CHECK(zxv_net_space_store(e, 9999) == -1 && zxv_net_space_store(e, 0) == 0,
+              "the record allowance is bounded and can be turned off");
+        zxv_net_stop(e);
+        CHECK(zxv_net_spaces(e) == NULL, "stopped: spaces gone");
+        zxv_net_free(e);
+        zxv_net_free(f);
+    }
+
+    zxv_net_free(c);
+    zxv_net_free(d);
+    ai_free(xa);
+    ai_free(xb);
+    unlink(idp);
+    unlink(pcp);
+    rmdir(dir);
     zxv_net_free(a);
     zxv_net_free(b);
     printf(failures ? "net host test FAILED (%d)\n" : "net host test passed\n", failures);

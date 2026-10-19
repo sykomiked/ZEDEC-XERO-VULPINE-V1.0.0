@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# limits.eve - the types of limits.ads, in Eve.
+eve limits
+wide = -2**63 .. 2**63 - 1
+u8 = 0 .. 255
+s8 = -128 .. 127
+u16 = 0 .. 2**16 - 1
+s16 = -2**15 .. 2**15 - 1
+u32 = 0 .. 2**32 - 1
+s32 = -2**31 .. 2**31 - 1
+u33 = 0 .. 2**32
+single = 7 .. 7
+edges {
+  w: wide; a: u8; b: s8; c: u16; d: s16
+  e: u32; f: s32; g: u33; h: single
+}

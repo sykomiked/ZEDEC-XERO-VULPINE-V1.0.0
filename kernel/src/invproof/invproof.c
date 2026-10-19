@@ -65,6 +65,10 @@ int zxi_build(const uint8_t *before, const uint8_t *after, uint32_t len,
     wr32(out + 12, runs);
     sha256(before, len, out + 16);
     sha256(after,  len, out + 48);
+    /* bytes 80..83 sit between d_after and the seal and were never written,
+     * so the seal (and the artifact) carried whatever the caller's buffer
+     * held (MemorySanitizer, test_zmedia). They are reserved and zero. */
+    wr32(out + 80, 0);
     wr32(out + 84, 0);
     wr32(out + 84, seal_of(out, o));
     return (int)o;

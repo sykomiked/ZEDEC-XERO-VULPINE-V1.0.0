@@ -8,7 +8,10 @@ Fails unless: without --net the app holds no UDP socket and never contacts
 the update gateway by itself; two app instances started with --net lan on
 127.0.0.1 (different ports, B given A as --peer) each see the other in
 /api/state; the window's Network setting (POST /api/net) turns networking
-off and on; a user-requested update check (POST /api/update) contacts only
+off and on; the owners trade (POST /api/net share / want / sell): nothing
+is sold before A shares, B refuses what it did not want, then a sale of
+compute on credit completes on both sides and A's verified contribution
+(quest) rises while B's does not; a user-requested update check (POST /api/update) contacts only
 the configured gateway with a trustless-gateway URL for the built-in bucket,
 reports the outcome in /api/state, posts a note to /api/notes and hands it
 to the OS notifier (a stand-in notify-send on PATH records its argv)."""
@@ -169,7 +172,96 @@ def main(binary):
               'every datagram verified (in %d / %d)' % (sa['net']['in'], sb['net']['in']))
         check(sa['net']['node_id'] != sb['net']['node_id'], 'distinct node ids')
         n = udp_sockets(a.p.pid)
-        check(n in (1, None), 'A holds exactly one UDP socket (%s)' % n)
+        check(n in (2, None), 'A holds its UDP socket and the LAN discovery socket (%s)' % n)
+        idf = os.path.join(home, 'xdg', 'zxv', 'net', 'vinea_identity')
+        if sys.platform != 'darwin':
+            check(sa['net']['persisted'] and os.path.exists(idf) and
+                  (os.stat(idf).st_mode & 0o777) == 0o600,
+                  'A keeps its identity in the per-user folder, mode 600')
+        check(sb['net']['state_busy'] and not sb['net']['persisted'],
+              'B, on the same folder, runs with a fresh identity (the folder is locked to A)')
+        check(sa['net']['lan_discovery'], 'LAN discovery is on by default')
+
+        # --- the owners trade compute (zxv_net_host.h U8)
+        bid = sb['net']['id']
+        check(len(bid) == 64 and sa['net']['share_compute'] == 0, 'nothing shared by default')
+        st, body = a.req('POST', '/api/net', b'sell compute 100 50 ' + bid.encode())
+        check(st == 200 and body == b'refused', 'A sells nothing before it shares')
+        st, body = a.req('POST', '/api/net', b'share 3000000 0')
+        check(st == 200 and body == b'sharing' and a.state()['net']['share_compute'] == 3000000,
+              'A shares 3000000 compute tokens per cycle')
+        st, body = a.req('POST', '/api/net', b'sell compute 100 50 ' + b'f' * 64)
+        check(st == 200 and body == b'refused', 'A cannot sell to a peer it never heard from')
+        st, body = a.req('POST', '/api/net', b'sell compute 100 50 xyz')
+        check(st == 400, 'a malformed sell is a bad request')
+        # B did not ask: the offer is refused and nothing is applied
+        st, body = a.req('POST', '/api/net', b'sell compute 100 50 ' + bid.encode())
+        check(st == 200 and body == b'offered', 'A offers B 100 compute on credit')
+        for _ in range(20):
+            if b.state()['net']['receipts_refused'] >= 1:
+                break
+            time.sleep(0.1)
+        sb = b.state()
+        check(sb['net']['receipts_refused'] >= 1 and sb['net']['trades'] == 0,
+              'B refuses what it did not want (refused %d)' % sb['net']['receipts_refused'])
+        # the unwanted offer is still outstanding at A (L1); restart A's link
+        # by turning A's network off and on, then trade again
+        a.req('POST', '/api/net', b'off')
+        a.req('POST', '/api/net', b'lan')
+        a.udp = a.state()['net']['port']
+        check(a.state()['net']['share_compute'] == 3000000, 'sharing survives a restart')
+        st, body = b.req('POST', '/api/net', b'want compute 2000000 1000')
+        check(st == 200 and body == b'wanted' and b.state()['net']['wants'] == 1,
+              'B wants 2000000 compute at most 1000 a receipt')
+        st, body = a.req('POST', '/api/net', b'peer 127.0.0.1:%d' % b.udp)
+        check(body == b'pinged', 'A pings B again after the restart')
+        for _ in range(40):
+            if a.state()['net']['peers'] >= 1 and b.state()['net']['peers'] >= 2:
+                break
+            time.sleep(0.1)
+        bid = b.state()['net']['id']
+        body = b''
+        for _ in range(40):
+            st, body = a.req('POST', '/api/net', b'sell compute 48576 50 ' + bid.encode())
+            if body == b'offered':
+                break
+            time.sleep(0.1)
+        check(body == b'offered', 'A offers B 48576 compute again')
+        sa = sb = {}
+        for _ in range(60):
+            sa, sb = a.state(), b.state()
+            if sa['net']['trades'] >= 1 and sb['net']['trades'] >= 1:
+                break
+            time.sleep(0.1)
+        check(sa['net']['trades'] >= 1 and sb['net']['trades'] >= 1,
+              'the trade completes on both sides (%d / %d)' % (sa['net']['trades'],
+                                                               sb['net']['trades']))
+        check(sa['quest']['contributed'] == 0, 'below one quest unit (2^20): carried, not credited')
+        st, body = a.req('POST', '/api/net', b'sell compute 1000000 50 ' + bid.encode())
+        check(body == b'offered', 'A offers B 1000000 more, completing a unit')
+        for _ in range(60):
+            sa, sb = a.state(), b.state()
+            if sa['net']['trades'] >= 2 and sb['net']['trades'] >= 2:
+                break
+            time.sleep(0.1)
+        check(sa['net']['trades'] >= 2 and sb['net']['trades'] >= 2,
+              'the second trade completes too (%d / %d)' % (sa['net']['trades'],
+                                                            sb['net']['trades']))
+        check(sa['net']['conserved'] and sb['net']['conserved'], 'both books conserved')
+        check(sa['net']['send_errors'] == 0 and sb['net']['send_errors'] == 0,
+              'every signed receipt fit in one datagram (send errors %d / %d)' %
+              (sa['net']['send_errors'], sb['net']['send_errors']))
+        qa, qb = sa['quest'], sb['quest']
+        pts = lambda q: sum(k['points'] for k in q['skills'])
+        check(qa['contributed'] == 1 and pts(qa) > 0 and qa['refused'] == 0,
+              "A's sale is a verified contribution (%d units, %d points)" % (qa['contributed'],
+                                                                         pts(qa)))
+        check(qb['contributed'] == 0 and pts(qb) == 0, 'buying is not a contribution')
+        st, body = a.req('POST', '/api/net', b'share 0 0')
+        check(body == b'sharing nothing' and a.state()['net']['share_compute'] == 0,
+              'A stops sharing')
+        st, body = a.req('POST', '/api/net', b'sell compute 10 5 ' + bid.encode())
+        check(body == b'refused', 'and then sells nothing')
 
         st, body = b.req('POST', '/api/net', b'off')
         s = b.state()

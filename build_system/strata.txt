@@ -1,0 +1,324 @@
+# strata.txt: the stratum of every kernel module (gap B1, rule R2).
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One line per directory or file under kernel/src: "<path> <stratum>". The
+# longest match wins, so a file can be pinned apart from its directory; a path
+# without an extension pins its .c and .h together. Checked by
+# build_system/verify_strata.py, which build_system/verify_layers.sh runs: an
+# unmapped source or header, a line that matches nothing, an include of a
+# higher stratum, or an unprovided REQUIRES fails the check.
+#
+# Placement is by role, then by measurement: where a module's includes reach a
+# higher stratum than its role, it sits at the stratum its includes force and
+# the note says why. Nothing was moved or renamed to make the check pass.
+
+# ---- S0 base: pure building blocks every stratum may use
+axiom_matrix                     base
+crit168                          base
+dharana                          base
+dual_space                       base
+e8                               base
+edp_risk                         base       # integer risk operators; device drivers use its helpers
+event_space                      base
+fractal                          base
+invproof                         base       # a witness check over bytes; zxvfs and codec use it
+lpres                            base       # the four-valued truth type; sched, vfs, net, pqsec use it
+mixmat                           base
+mlkem/keccak                     base       # SHA-3/SHAKE permutation
+onepolicy                        base
+rational                         base
+rce                              base
+rmag                             base
+robin_debanks/crypto_verify      base       # HMAC-SHA256 and a constant-time compare
+robin_debanks/sha256             base       # hash and AEAD primitives are pure functions over bytes (architecture doc, stratum 0)
+sephirot                         base
+surplus                          base
+tls/aead                         base       # ChaCha20-Poly1305
+tls/hkdf                         base       # RFC 5869
+tls/x25519                       base       # RFC 7748
+tls/sha512                       base       # SHA-384/512 (FIPS 180-4)
+tls/digest                       base       # SHA-2 dispatch for the signature code
+tls/bn                           base       # Montgomery arithmetic (constant time)
+tls/ecdsa                        base       # P-256/P-384 ECDSA verification
+tls/ecdsa_int                    base       # the curve arithmetic ecdsa.c shares with ecdsa_sign.c
+tls/ecdsa_sign                   base       # RFC 6979 P-256 signing (the IRC gateway's certificate key)
+tls/rsa                          base       # RSA PKCS #1 v1.5 and PSS verification
+ubh                              base
+zcapital                         base       # the nine-form capital types; swarm and pay both build on them
+qr                               base       # QR Code encoder: pure bytes to modules
+
+# ---- S1 kernel and hardware abstraction
+acpi                             kernel     # tables, AML interpreter, sleep states, power button, battery, thermal
+alloc                            kernel
+ata                              kernel
+audio                            kernel
+blockdev                         kernel
+bluetooth                        kernel
+cellular_multikernel             kernel
+choice                           kernel
+clock                            kernel
+codec                            kernel
+crash                            kernel     # crash records on disk and boot modes (safe, recovery)
+deploy                           kernel
+display                          kernel
+el0_userspace                    kernel
+event_sched                      kernel
+fat32                            kernel
+fs                               kernel
+gdt                              kernel
+hardware                         kernel
+holographic                      kernel
+hwdrv                            kernel     # standard class drivers: NVMe, AHCI, xHCI + USB, e1000, HDA
+idt                              kernel
+keyboard                         kernel
+license                          kernel
+mbcomp                           kernel
+mm                               kernel
+pmm                              kernel     # four-state physical frame allocator; el0_userspace takes user pages from it
+modbind                          kernel
+mouse                            kernel
+oseq                             kernel
+pci                              kernel
+phase_coord                      kernel
+power                            kernel     # energy ledger per app and agent, battery, budgets; RAPL reader
+pic                              kernel
+qeq                              kernel # exact circuit equivalence checker over qsim
+quantum                          kernel
+qsim                             kernel     # exact float-free circuit simulator (#83 research track Q.1/Q.2), beside quantum
+recon                            kernel
+sched                            kernel
+sdk                              kernel
+smap                             kernel
+syscall                          kernel
+telemetry                        kernel
+timer                            kernel
+timesvc                          kernel     # wall-clock time (RTC, SNTP) and time zones
+trispace                         kernel
+vbe                              kernel
+vfs                              kernel
+video                            kernel
+virtio                           kernel
+wifi                             kernel
+yantra                           kernel
+zxvfs                            kernel
+
+# ---- S2 transport: frames, mesh, routing, media transport
+bridge                           transport
+bringup                          transport  # bring-up glue for non-arm64 arches; it calls net, so it sits at net's stratum
+call                             transport  # RTP, jitter, FEC, ICE, congestion control: media transport with no outside dependency
+constellation                    transport
+event_transport                  transport
+freight                          transport
+ipfs_node                        transport
+iphase                           transport
+lattice                          transport
+mesh_net                         transport
+net                              transport
+plnp                             transport
+porter_house                     transport  # per-port admission; mesh_net and robin_debanks sit on it
+stream                           transport
+swarm/swarm_hk                   transport  # the request notation agents put on the wire; depends on nothing
+bearer                           transport  # link table, framing and policy gates for BLE/LoRa/serial/modem/ham
+bearer/br_ham                    trust      # signed emergency messages verify ML-DSA (pqsec)
+bootattest                       trust      # measured-boot quote and golden manifest, ML-DSA signed
+ztp                              trust      # ZHP-1 provisioning profile and owner claim
+
+# ---- S3 trust and identity: post-quantum crypto, identity, capabilities, PQ sessions
+ascent                           trust
+bios                             trust
+bootlegger                       trust
+crypto_wallet                    trust
+curzi                            trust
+decent                           trust
+ehop                             trust      # ehop.h includes mlkem768.h: the hop session is keyed
+hwkey                            trust      # account keys sealed by the TPM / Secure Enclave; signs with pqsec
+ident                            trust
+identity                         trust
+seats                            trust      # device accounts and login; hashes passphrases with ident Argon2id
+immigration                      trust
+ipfs                             trust      # ipfs.h includes update.h (signed update buckets)
+loader                           trust
+mage                             trust
+mlkem                            trust
+pqsec                            trust
+provenance                       trust
+pungent                          trust
+reputation                       trust
+robin_debanks                    trust
+tls                              trust
+update                           trust
+vinea                            trust      # the DHT's wire carries PQ identities (vna_id.h includes vna_pq.h), so the protocol sits in trust
+aproto                           trust      # protocol twins: records over vinea sessions, audit chain (docs/P2P_PROTOCOL_TWINS.md)
+zab                              trust
+zxvfs/zxvfs_tri                  trust      # capability-gated storage: calls zab to decide who may execute a triad
+
+# ---- S4 logic and fault handling
+bombsquad                        logic
+dharma                           logic
+panopticon                       logic
+peer_audit                       logic
+predictive                       logic
+qubo                             logic # QUBO/Ising workbench with proven gap certificates
+situation                        logic
+paradox                          logic      # the paradox engine: classifier and operators over lpres hex tags
+recover                          logic      # refuse / roll back / isolate with signed RepairProofs over paradox (gap B5)
+tripartite_fs                    logic      # its CID-checked self-heal runs through recover (S4); no module includes it
+pce                              logic      # paraconsistent decision engines: probability, tactics, strategy, finance analytics
+spatial                          logic      # exact geometry, four-valued sensor fusion, advisory fleet plans (#83 S.1/S.2/S.4)
+
+# ---- S5 AI runtime and swarm
+ai_layer                         ai
+chiglet                          ai
+cotier                           ai
+epu                              ai
+harmonic                         ai         # the harmonic carrier reads tensor residuals and swarm budgets
+megarom                          ai
+speech                           ai
+swarm                            ai
+tensor                           ai
+vblock                           ai         # content-addressed blocks for model tensors (includes zt.h)
+voice                            ai
+web4                             ai
+xlate                            ai
+aipi                             ai         # AI pinning index; stores model blobs through ipfs_node (S2)
+edgeclus                         ai         # edge cluster scheduler on the swarm token budget; adverts signed through vinea (S3)
+
+# ---- S6 settlement and economy
+abacus                           settlement
+battering_ram                    settlement
+capmkt                           settlement
+gridlock                         settlement # RTGS gridlock resolution, exact
+qnet                             settlement # netting optimiser: greedy cycles, min-cost circulation, annealer (#83 Q.6)
+cardnet                          settlement
+cbank                            settlement
+concord                          settlement # the commons' matching engine; market.h settles through it
+count_house                      settlement
+devmesh                          settlement # devmesh.h includes pay_rails.h: resource pooling is paid
+engine                           settlement
+finance                          settlement
+finance_markets                  settlement
+ident/id_kyc.c                   settlement # KYC checks against payment rails and model scores
+logistics                        settlement
+market                           settlement
+mesh_token                       settlement
+outbox                           settlement # offline grants and once-only settlement on pay_ledger
+pay                              settlement
+peer_audit/pa_runtime            settlement # binds the audit to pay_ledger and swarm budgets
+provider                         settlement
+settle                           settlement
+vena                             settlement
+vhub                             settlement
+vinea/vna_econ                   settlement # agreements priced in swarm budgets
+vinea/vna_link                   settlement # includes vna_econ.h
+vino                             settlement
+vino_stores                      settlement
+allotment                        settlement # Crown Allotment: ballots and the endowment on pay_util
+jroute                           settlement # VINO redemption routing by zone capability; lpres + sha256 only
+jringress                        settlement # optional producer ingress for jroute physical lots; detachable
+estate                           settlement # estate succession, recovery and faraid shares on pay_util
+grants                           settlement
+sicily                           settlement
+svault                           settlement
+vauction                         settlement
+vbond                            settlement
+vderiv                           settlement
+vswap                            settlement
+xrisk                            settlement # exact discrete loss distributions (VaR, ES)
+zenny                            settlement
+zstats                           settlement # the stats feed reads the other finance modules
+cred                             settlement # Player Card tiers through sicily
+airc                             settlement # agent relay chat; trust tiers from cred
+dispute                          settlement
+fxepoch                          settlement
+navport                          settlement # pegs through a shared V-Bill account (pay)
+mint                             settlement
+qnote                            settlement # first loss through svault
+royalty                          settlement
+bearer/br_devmesh                settlement # wraps devmesh host send (devmesh is S6)
+
+# ---- S7 adapters: jurisdiction, formats, legacy languages, the five pillars
+acct                             adapters   # IFRS / US GAAP / AAOIFI accounting adapters
+crown                            adapters
+evolve                           adapters
+finance/assurance                adapters   # jurisdiction-bound instruments: include interspace.h
+finance/derivatives              adapters   # includes interspace.h
+finance/treaty_tokenization      adapters   # includes interspace.h
+financial_fabric                 adapters   # compound module over finance and orbital_fabric
+gematria                         adapters
+hdcm                             adapters
+interspace                       adapters
+intent                           adapters   # AI intent layer; routes through juris
+juris                            adapters   # jurisdiction plug-in ABI over acct
+juris/juris_vhub                 adapters   # the juris bridge to vhub (S6)
+iso20022                         adapters
+legacy                           adapters
+legal_engine                     adapters
+lightningrod                     adapters
+mfg                              adapters   # manufacturing checks: G-code, QC sampling, energy budget (#83 F)
+ministry                         adapters
+net/smart_adapter_integration    adapters   # integrates net's adapters with orbital_elevator
+orbital_compat                   adapters
+orbital_elevator                 adapters
+orbital_fabric                   adapters
+print                            adapters   # IPP (RFC 8010) and eSCL codecs for printers and scanners (Platen)
+privacy                          adapters   # privacy layer: consent, access and exact discrete Laplace
+rur                              adapters
+sdk_bridge                       adapters
+sovereign_node                   adapters
+sutra                            adapters
+hwemu                            adapters   # hardware-state emulation standard; dual-signed updates include pqsec (S3)
+fwadapt                          adapters   # smart firmware adapter; writes its decisions into hwemu ZHP-1 nodes
+treaty                           adapters   # COBOL/Sutra treaty pillar; runs on engine (S6)
+capctl                           adapters   # capital-control profiles (jurisdiction plug-in, off by default)
+kycwrap                          adapters   # minimal-disclosure KYC wrapper (off by default)
+taxhook                          adapters   # VAT/GST/sales-tax hooks (off by default)
+lingua                           adapters   # shared language IR + FORTRAN/BASIC/Forth front-ends and AI twins; freestanding
+policy                           adapters   # policy engine + contract DSL; lowers into treaty, uses lpres
+
+# ---- S8 above the strata: products, apps and people features
+appkit                           above
+apps                             above
+art_studio                       above
+audiogenomics_pro                above
+bootfeat                         above
+broker                           above
+browser                          above
+cards                            above
+chronicle                        above
+community_chest                  above
+denconnect                       above
+desktop                          above
+zui                              above      # native UI: renderer, widgets, input, present, app screens (#104, #110)
+dualtrack                        above
+emu                              above
+font                             above
+fusion                           above
+games                            above
+holodeck                         above
+hypercube                        above
+i18n                             above
+icon                             above
+launch                           above
+macgyver                         above
+nlb                              above
+pirate_apps                      above
+pirate_fleet                     above
+prism_break                      above
+pterm                            above
+quest                            above
+reality                          above
+refinery                         above
+shimmer                          above
+social                           above
+social_spaces                    above
+subterm                          above
+superpos                         above
+synthesis                        above
+terms                            above      # first-boot agreement gate for the login screen; uses sha256
+theme                            above
+tolvovina                        above
+wyrmgate                         above
+wyverneye                        above
+xedit                            above
+zxpkg                            above

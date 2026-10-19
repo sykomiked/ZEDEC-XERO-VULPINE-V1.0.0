@@ -1,0 +1,36 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# shifts.golden - enumeration subtypes and multi-dimensional arrays.
+layout shifts.ads
+same shifts.eve
+type plan
+# slot: 1 + 1 + 1; week: 7 x 2; rota: 5 x 10 x 2 x 1
+size 120
+get first.on mon
+get first.start 8
+get first.off sat
+check
+put first.on fri
+put last.off SUN
+put total(sun) 1440
+put "grid(wed, 17, true)" true
+put "grid(mon, 8, false)" TRUE
+get "grid(wed, 17, true)" true
+get "grid(wed, 17, false)" false
+get total(sun) 1440
+put-fail first.on sat ZE_E_FIT
+put-fail first.start 7 ZE_E_FIT
+put-fail "grid(sat, 8, true)" true ZXV_E_RANGE
+put-fail "grid(mon, 18, true)" true ZXV_E_RANGE
+put-fail "grid(mon, 8)" true ZXV_E_FORMAT
+put-fail total(sun) 1441 ZE_E_FIT
+put-fail "grid(mon, 8, maybe)" true ZXV_E_RANGE
+check
+type rota
+size 100
+type week
+size 14
+put (mon) 60
+put (SUN) 1
+bytes 003c000000000000000000000001

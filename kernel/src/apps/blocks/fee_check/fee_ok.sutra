@@ -1,0 +1,11 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether a payment and its fee are inside the limits, in Sutra. The same
+# rule is written in KRON (fee_ok.kron) and Eve (fee_ok.eve); the app asks
+# all three and acts only when they agree (zxapp.h A5).
+record fee-ok
+  amount: s9(18)
+  fee: s9(18)
+procedure
+  answer amount >= 1 and amount <= 1000000 and fee >= 0 and fee <= 2500

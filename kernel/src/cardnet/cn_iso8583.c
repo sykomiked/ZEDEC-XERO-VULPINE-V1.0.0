@@ -229,6 +229,10 @@ cn8583_rc_t cn8583_unpack(cn8583_msg_t *m, const uint8_t *in, uint32_t len)
         if (len - p < 8) return CN8583_ERR_TRUNC;
         cn_copy(m->bitmap + 8, in + p, 8);
         p += 8;
+        /* canonical: the packer omits an empty secondary bitmap */
+        uint8_t any = 0;
+        for (uint32_t i = 8; i < 16; i++) any |= m->bitmap[i];
+        if (!any) return CN8583_ERR_FORMAT;
     }
     uint8_t bm[16];
     cn_copy(bm, m->bitmap, 16);
@@ -488,6 +492,18 @@ cn8583_rc_t cn8583_to_auth_req(const cn8583_msg_t *m, uint32_t year, cn_auth_req
     cn8583_rc_t rc = cn8583_check_mandatory(m);
     if (rc != CN8583_OK) return rc;
     cn_zero(req, (uint32_t) sizeof(*req));
+    /* Field 3: refuse what is not a purchase rather than reading it as one. */
+    if ((rc = cn8583_get(m, 3, &d, &n)) != CN8583_OK) return rc;
+    {
+        uint64_t tt, ff, to;
+        if (n != 6 || !cn_dec_to_u64(d, 2, &tt) || !cn_dec_to_u64(d + 2, 2, &ff) ||
+            !cn_dec_to_u64(d + 4, 2, &to))
+            return CN8583_ERR_FORMAT;
+        if (tt != CN8583_PROC_PURCHASE ||
+            (ff != CN8583_PROC_ACCT_DEFAULT && ff != CN8583_PROC_ACCT_CREDIT) ||
+            to != CN8583_PROC_ACCT_DEFAULT)
+            return CN8583_ERR_PROC;
+    }
     if ((rc = cn8583_get(m, 2, &d, &n)) != CN8583_OK) return rc;
     if (n != CN_PAN_LEN) return CN8583_ERR_FORMAT;
     cn_copy(req->pan, d, n);

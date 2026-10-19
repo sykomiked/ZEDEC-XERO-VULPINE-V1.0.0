@@ -4,10 +4,10 @@
 #
 # build_desktop.sh — build the ZXV desktop apps, test them, and package them.
 #
-#   macOS    ZXV.app: the native shell (macos/ZXVApp.m, AppKit + WKWebView)
+#   macOS    ZXV.app: the native shell (macos/ZXVApp.m, AppKit + the zui desktop)
 #            and the engine (kernel/arch/hosted), both universal (Intel +
 #            Apple Silicon), the window, the first-run model fetcher and its
-#            manifest; in a .dmg and a .app.zip. Signed and notarised when
+#            manifest; in a .dmg and a .app.zip. Ad-hoc signed; Developer ID signing and notarisation only when
 #            the signing variables are set (see build_signed_app.sh).
 #   Windows  zxv-swarm.exe in a .zip
 #   Linux    x86_64 and aarch64 static binaries with a .desktop entry, .tar.gz
@@ -71,12 +71,25 @@ done
 
 step() { printf '\n== %s\n' "$*"; }
 
+# ASCW Golden, the window's font: every package carries the faces and their
+# SIL OFL 1.1 licence; the engine finds them beside itself (zxv_host.c,
+# pal_find_fonts).
+FONTS_SRC="$ROOT/assets/fonts/ascw-golden"
+put_fonts() { # DIR
+    mkdir -p "$1"
+    cp "$FONTS_SRC"/*.ttf "$FONTS_SRC"/*.otf "$FONTS_SRC/OFL.txt" "$FONTS_SRC/FONTLOG.md" "$1/"
+}
+
 # ---- 1. quality control on the engine itself
 if [ "$SKIP_TESTS" = 0 ]; then
     step "Swarm tests"
     make -C "$ROOT/kernel" test-swarm
     step "Hosted app tests (API guard, budget gate, net host, end-to-end API, peers, updates)"
     sh "$HOSTED/test_hosted.sh"
+    if [ "$(uname -s)" = Darwin ]; then
+        step "Metal GPU matrix products == the C reference (SKIP without a GPU)"
+        make -C "$ROOT/kernel" test-metal
+    fi
 fi
 
 # ---- 2. the sources: one list for every platform
@@ -120,6 +133,24 @@ if [ "$ON_MAC" = 1 ]; then
         "${SRCS[@]}" -o "$WORK/zxv-mac"
     strip -x "$WORK/zxv-mac"
     MAC_ARCHS="universal (Intel + Apple Silicon)"
+    # The app's engine is zxvd: the same swarm plus its JSON-RPC control
+    # socket, linked to libzxv (docs/ZXVD.md). One slice per arch, then lipo.
+    echo "  zxvd + libzxv.dylib, universal (the app's engine with its control socket)"
+    # this machine's arch last: build_zxvd.sh rebuilds the Playground's
+    # shared deps per slice, and later steps want them native
+    HOSTA="$(uname -m | sed 's/aarch64/arm64/')"
+    OTHERA=arm64
+    [ "$HOSTA" = arm64 ] && OTHERA=x86_64
+    for a in "$OTHERA" "$HOSTA"; do
+        CC="xcrun clang -arch $a -mmacosx-version-min=10.15" \
+            sh "$HOSTED/build_zxvd.sh" "$WORK/zxvd-$a" >"$WORK/zxvd-$a.log" 2>&1 ||
+            { tail -30 "$WORK/zxvd-$a.log"; echo "zxvd ($a) failed to build" >&2; exit 1; }
+    done
+    lipo -create "$WORK/zxvd-arm64/zxvd" "$WORK/zxvd-x86_64/zxvd" -output "$WORK/zxvd-mac"
+    lipo -create "$WORK/zxvd-arm64/libzxv.dylib" "$WORK/zxvd-x86_64/libzxv.dylib" \
+        -output "$WORK/libzxv.dylib"
+    strip -x "$WORK/zxvd-mac"
+    python3 "$HOSTED/test_zxvd.py" "$WORK/zxvd-$(uname -m | sed 's/aarch64/arm64/')/zxvd"
 else
     build x86_64-macos  "$WORK/zxv-mac-x86_64"
     build aarch64-macos "$WORK/zxv-mac-arm64"
@@ -178,20 +209,32 @@ tested only on tiny test models."
 step "macOS app ($MAC_ARCHS)"
 APP="$WORK/mac/ZXV.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/models"
-cp "$WORK/zxv-mac" "$APP/Contents/MacOS/zxv-engine"
+if [ -f "$WORK/zxvd-mac" ]; then
+    # zxvd finds libzxv in Contents/Frameworks (its rpath, set when
+    # build_zxvd.sh links it); the shell sees the dylib and
+    # passes --rpc (macos/ZXVApp.m, SOCKET)
+    mkdir -p "$APP/Contents/Frameworks"
+    cp "$WORK/zxvd-mac" "$APP/Contents/MacOS/zxv-engine"
+    cp "$WORK/libzxv.dylib" "$APP/Contents/Frameworks/libzxv.dylib"
+    echo "  engine: zxvd with its control socket (libzxv.dylib in Contents/Frameworks)"
+else
+    cp "$WORK/zxv-mac" "$APP/Contents/MacOS/zxv-engine"
+    echo "  engine: zxv-host (built off a Mac: no control socket)"
+fi
 chmod 755 "$APP/Contents/MacOS/zxv-engine"
 set +e
 sh "$MACOS/build_macos_shell.sh" "$APP/Contents/MacOS/ZXV"
 SHELL_RC=$?
 set -e
 case "$SHELL_RC" in
-    0) EXEC=ZXV; UIEL=false; MAC_KIND="native app (Dock, menus, WKWebView window)" ;;
+    0) EXEC=ZXV; UIEL=false; MAC_KIND="native app (Dock, menus, zui desktop window on Metal)" ;;
     3) EXEC=zxv-engine; UIEL=true; MAC_KIND="engine only (opens the default browser)" ;;
     *) echo "the native shell failed to compile" >&2; exit 1 ;;
 esac
 sed -e "s/@VERSION@/$VERSION/g" -e "s/@EXECUTABLE@/$EXEC/g" -e "s/@UIELEMENT@/$UIEL/g" \
     "$MACOS/Info.plist.in" > "$APP/Contents/Info.plist"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
+put_fonts "$APP/Contents/Resources/Fonts"
 cp "$MACOS/models.manifest" "$APP/Contents/Resources/models.manifest"
 cp "$MACOS/zxv-model-fetch.sh" "$APP/Contents/Resources/zxv-model-fetch.sh"
 chmod 755 "$APP/Contents/Resources/zxv-model-fetch.sh"
@@ -218,8 +261,11 @@ step "Signing (skipped unless the signing variables are set)"
 printf '%s\n' "$README_TEXT" > "$WORK/mac/README.txt"
 cat >> "$WORK/mac/README.txt" <<'EOF'
 
-macOS: drag ZXV to Applications and open it. If this copy is not notarised,
-the first time right-click ZXV and choose Open, then Open again.
+macOS: drag ZXV to Applications and open it. ZXV is ad-hoc signed, not
+notarised, so macOS asks once on the first open:
+  macOS 15 and later: choose Done, then System Settings > Privacy & Security >
+    Open Anyway, then open ZXV again and choose Open Anyway.
+  macOS 14 and earlier: Control-click ZXV, choose Open, then Open again.
 EOF
 ln -s /Applications "$WORK/mac/Applications" 2>/dev/null || true
 
@@ -241,8 +287,9 @@ if [ "$MAC_ONLY" = 0 ]; then
     step "Windows"
     mkdir -p "$WORK/win"
     cp "$WORK/zxv-swarm.exe" "$WORK/win/"
+    put_fonts "$WORK/win/fonts"
     printf '%s\n\nWindows: SmartScreen may warn that the app is unrecognised. Choose\nMore info, then Run anyway.\n' "$README_TEXT" | sed 's/$/\r/' > "$WORK/win/README.txt"
-    (cd "$WORK/win" && python3 "$ROOT/build_system/zip_tree.py" "$OUT/$NAME-windows-x86_64.zip" zxv-swarm.exe README.txt)
+    (cd "$WORK/win" && python3 "$ROOT/build_system/zip_tree.py" "$OUT/$NAME-windows-x86_64.zip" zxv-swarm.exe README.txt fonts)
 
     step "Linux"
     for arch in x86_64 aarch64; do
@@ -251,6 +298,7 @@ if [ "$MAC_ONLY" = 0 ]; then
         cp "$WORK/zxv-linux-$arch" "$D/zxv-swarm"
         chmod 755 "$D/zxv-swarm"
         cp "$MACOS/zxv-model-fetch.sh" "$MACOS/models.manifest" "$D/"
+        put_fonts "$D/fonts"
         printf '%s\n\nModels: put a GGUF file in ~/.local/share/zxv/models, or run\n  ./zxv-model-fetch.sh models.manifest ~/.local/share/zxv/models\n' "$README_TEXT" > "$D/README.txt"
         cat > "$D/zxv-swarm.desktop" <<'EOF'
 [Desktop Entry]
@@ -268,6 +316,8 @@ set -e
 here="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "$HOME/.local/bin" "$HOME/.local/share/applications" "$HOME/.local/share/zxv/models"
 cp "$here/zxv-swarm" "$HOME/.local/bin/zxv-swarm"
+mkdir -p "$HOME/.local/share/zxv/fonts"
+cp "$here"/fonts/* "$HOME/.local/share/zxv/fonts/"
 sed "s|^Exec=.*|Exec=$HOME/.local/bin/zxv-swarm|" "$here/zxv-swarm.desktop" \
     > "$HOME/.local/share/applications/zxv-swarm.desktop"
 echo "Installed. Start ZXV Swarm from your applications menu or run ~/.local/bin/zxv-swarm"

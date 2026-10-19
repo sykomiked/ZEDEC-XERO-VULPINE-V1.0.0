@@ -74,7 +74,7 @@ Screening is required for every role by default.
 
 **About VFV.** The Vino Floating Voucher is the platform's own unit. Its
 rails are DEBIT 555, CREDIT 777 and EQUITY 888, with the platform
-jurisdiction codes NCR (New California Republic), NRE (Neo Roman Empire) and
+jurisdiction codes NRE (Neo Roman Empire), NCR (New California Republic) and
 PNS (Principality of New Sicily); none of the three numerics is assigned in
 ISO 4217 and none of the codes is an ISO 3166 country. A central-bank profile never
 defaults to VFV. The configuration refuses "VFV" and the rail numbers as
@@ -229,7 +229,7 @@ Rules every writer enforces:
 - `Ccy` is always an ISO 4217 alphabetic code, never VFV. Amounts are
   written with the ISO minor units.
 - Country codes are validated ISO 3166-1 codes of real parties. VFV never
-  gets a country, so no "NC" or "NCR", and the rail jurisdictions "NRE" and
+  gets a country, so no "NC" or "NRE", and the rail jurisdictions "NCR" and
   "PNS" are never written as one either.
 - BICs and UETRs are checked against the ISO patterns.
 - Output never runs past the caller's buffer.

@@ -3,30 +3,30 @@
 /* vna_session.h — mutually authenticated, post-quantum secure sessions.
  *
  * HANDSHAKE (Noise-IK-like: the initiator already knows the responder's
- * NodeID; SIGMA-style authentication with ML-DSA-65 only)
+ * NodeID; SIGMA-style authentication with ML-DSA-87 only)
  *
- *   M1  I -> R : I_id, R_id, X25519 ephemeral eI, ML-KEM-768 ephemeral ek_I,
+ *   M1  I -> R : I_id, R_id, X25519 ephemeral eI, ML-KEM-1024 ephemeral ek_I,
  *                nonce_I, features
  *   M2  R -> I : R_id, I_id, eR, ct = ML-KEM.Encaps(ek_I), nonce_R, R's pk,
- *                pow, sig_R = ML-DSA-65(R, "vinea/v2/hs-responder", th2)
+ *                pow, sig_R = ML-DSA-87(R, "vinea/v3/hs-responder", th2)
  *   M3  I -> R : AEAD_{k_hs}( I's pk, pow,
- *                sig_I = ML-DSA-65(I, "vinea/v2/hs-initiator", th3) )
+ *                sig_I = ML-DSA-87(I, "vinea/v3/hs-initiator", th3) )
  *
- *   th1 = SHA3(SHA3("vinea/v2/hs1") || SHA3(M1))
+ *   th1 = SHA3(SHA3("vinea/v3/hs1") || SHA3(M1))
  *   th2 = SHA3(th1 || SHA3(M2 without sig_R))
  *   th3 = SHA3(th2 || SHA3(sig_R))
  *   th4 = SHA3(th3 || SHA3(sig_I))           (= the session id)
- *   ss_x = X25519(eI, eR) (all-zero result refused), ss_k = ML-KEM-768 secret
- *   hybrid = SHAKE256("vinea/v2/hybrid" || ss_k || ss_x || th2, 32)
+ *   ss_x = X25519(eI, eR) (all-zero result refused), ss_k = ML-KEM-1024 secret
+ *   hybrid = SHAKE256("vinea/v3/hybrid" || ss_k || ss_x || th2, 32)
  *   prk = HKDF-Extract(salt = th2, hybrid)
- *   k_hs = HKDF-Expand(prk, "vinea/v2 hs3")            (M3 only)
- *   keys = HKDF-Expand(prk, "vinea/v2 traffic" || th4, 88)
+ *   k_hs = HKDF-Expand(prk, "vinea/v3 hs3")            (M3 only)
+ *   keys = HKDF-Expand(prk, "vinea/v3 traffic" || th4, 88)
  *        = i2r key | r2i key | i2r iv | r2i iv
  *
  * WHY IT HOLDS
- *   - Authentication is ML-DSA-65 only; each side checks the peer's NodeID =
+ *   - Authentication is ML-DSA-87 only; each side checks the peer's NodeID =
  *     SHA3-256(pk) (and its PoW). There is no classical signature path.
- *   - Key secrecy needs ML-KEM-768 OR X25519 to hold: the secret is a SHAKE256
+ *   - Key secrecy needs ML-KEM-1024 OR X25519 to hold: the secret is a SHAKE256
  *     of both. A quantum attacker who breaks X25519 learns ss_x but not ss_k
  *     and so gains nothing; a lattice break alone leaves X25519.
  *   - A man in the middle that swaps eI/ek_I/eR/ct changes th2, so sig_R or
@@ -64,7 +64,7 @@ typedef struct {
     vna_id_t init_id;
     vna_id_t resp_id;
     uint8_t x[X25519_LEN];
-    uint8_t ek[MLKEM768_EK_BYTES];
+    uint8_t ek[VNA_KEM_EK_LEN];
     uint8_t nonce[32];
 } vna_hs1_t;
 
@@ -76,7 +76,7 @@ typedef struct {
     vna_id_t init_id;
     uint64_t pow;
     uint8_t x[X25519_LEN];
-    uint8_t ct[MLKEM768_CT_BYTES];
+    uint8_t ct[VNA_KEM_CT_LEN];
     uint8_t nonce[32];
     uint8_t pk[VNA_PK_LEN];
     uint8_t sig[VNA_SIG_LEN];
@@ -123,7 +123,7 @@ typedef struct {
     uint32_t pow_bits;
     vna_id_t peer;
     uint8_t x_sk[X25519_LEN];
-    uint8_t kem_dk[MLKEM768_DK_BYTES];
+    uint8_t kem_dk[VNA_KEM_DK_LEN];
     uint8_t th[32]; /* th1 then th2 */
     uint8_t th3[32];
     uint8_t prk[32];

@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0 */
 /* test_finance_core.c — triple ledger, payment rails and bridge records:
  * conservation, bounds, and the refusals that keep money from being minted. */
+#include <stdint.h>
 #include <stdio.h>
 #include "triple_ledger.h"
 #include "rails.h"
@@ -74,6 +75,26 @@ static void ledger_tests(void)
     CHECK(v != 0, "voucher issued to entity 2");
     CHECK(triple_ledger_redeem_voucher(&tl, v, a) == -1,
           "a voucher cannot be redeemed into an account its holder does not own");
+
+#ifndef TEST_HOST
+    /* Q32.32 build: a posting whose sums cannot be represented is refused
+     * before anything changes (it was signed overflow; found by
+     * fuzz/econ/fuzz_econ_triple.c) */
+    triple_ledger_t *t2 = &tl;
+    triple_ledger_init(t2);
+    uint32_t c = triple_ledger_create_account(t2, 3, CAP_FINANCIAL, "c");
+    CHECK(triple_ledger_post(t2, c, LEDGER_FINANCIAL, SR_ONE, SR_ONE, 0, INT64_MAX - 1, 0, 0,
+                             "big") == 0,
+          "a near-maximum Q32.32 debit posts");
+    surplus_real_t before = t2->accounts[c].conventional_balance;
+    CHECK(triple_ledger_post(t2, c, LEDGER_FINANCIAL, SR_ONE, SR_ONE, 0, U(10), 0, 0, "over") ==
+                  -1 &&
+              t2->accounts[c].conventional_balance == before,
+          "a debit that would overflow the balance is refused and changes nothing");
+    conventional_report_t r2;
+    triple_ledger_export_conventional(t2, &r2);
+    CHECK(r2.balance_sheet_assets == before, "the report sums without overflow");
+#endif
 }
 
 static void rail_tests(void)

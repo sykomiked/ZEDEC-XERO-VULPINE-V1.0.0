@@ -57,14 +57,14 @@ static void pa_sign(const pa_ctx_t *c, const char *ctx, const uint8_t msg[PA_HAS
                     uint8_t sig[PA_SIG_LEN])
 {
     /* Deterministic ML-DSA variant (rnd = NULL): the module has no RNG. */
-    pq_mldsa65_sign(c->sk, msg, PA_HASH_LEN, (const uint8_t *) ctx, pa_strlen(ctx), (void *) 0,
-                    sig);
+    pqm_mldsa87_sign(c->sk, msg, PA_HASH_LEN, (const uint8_t *) ctx, pa_strlen(ctx), (void *) 0,
+                     sig);
 }
 
 static bool pa_verify(const uint8_t pk[PA_PK_LEN], const char *ctx, const uint8_t msg[PA_HASH_LEN],
                       const uint8_t sig[PA_SIG_LEN])
 {
-    return pq_mldsa65_verify(pk, msg, PA_HASH_LEN, (const uint8_t *) ctx, pa_strlen(ctx), sig);
+    return pqm_mldsa87_verify(pk, msg, PA_HASH_LEN, (const uint8_t *) ctx, pa_strlen(ctx), sig);
 }
 
 /* ===== Setup ===== */

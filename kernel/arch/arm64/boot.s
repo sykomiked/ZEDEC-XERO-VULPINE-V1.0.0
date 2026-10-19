@@ -12,6 +12,11 @@
 .section .text.boot
 .global _start
 _start:
+    /* x0 at entry is the device tree QEMU -kernel passes (the firmware's own
+     * statement of RAM, used when there is no handoff v2). x19 survives the
+     * EL drop and is not touched again before kernel_main. */
+    mov x19, x0
+
     /* ---- Step 1: Drop from EL2 to EL1 ---- */
     /* Check current exception level */
     mrs x0, CurrentEL
@@ -87,9 +92,8 @@ clear_bss:
     b clear_bss
 bss_done:
 
-    /* ---- Step 5: Call kernel_main(0, 0) ---- */
-    mov x0, #0              /* magic = 0 (no multiboot on ARM) */
-    mov x1, #0              /* mbi = NULL */
+    /* ---- Step 5: Call kernel_main(dtb) ---- */
+    mov x0, x19             /* the entry x0: a device tree, or anything */
     bl kernel_main
 
     /* If kernel_main returns, halt forever */

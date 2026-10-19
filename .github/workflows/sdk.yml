@@ -1,0 +1,649 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# SDKs: libzxv (the one C ABI) and every language SDK that wraps it.
+# Each language job builds libzxv itself and runs that SDK's tests against
+# sdk/conformance/vectors.json and the generated fixtures.
+name: SDKs
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'sdk/**'
+      - '.github/workflows/sdk.yml'
+      - '.github/scripts/sdk-changes.sh'
+      - 'build_system/sdk_kernel_deps.py'
+      # kernel inputs of libzxv: build_system/sdk_kernel_deps.py --write
+      - 'kernel/src/abacus/**'
+      - 'kernel/src/aipi/**'
+      - 'kernel/src/cardnet/**'
+      - 'kernel/src/cbank/**'
+      - 'kernel/src/e8/**'
+      - 'kernel/src/edp_risk/**'
+      - 'kernel/src/engine/**'
+      - 'kernel/src/event_space/**'
+      - 'kernel/src/finance/**'
+      - 'kernel/src/freight/**'
+      - 'kernel/src/harmonic/**'
+      - 'kernel/src/hwemu/**'
+      - 'kernel/src/ipfs_node/**'
+      - 'kernel/src/iso20022/**'
+      - 'kernel/src/lpres/**'
+      - 'kernel/src/mlkem/**'
+      - 'kernel/src/modbind/**'
+      - 'kernel/src/onepolicy/**'
+      - 'kernel/src/paradox/**'
+      - 'kernel/src/pay/**'
+      - 'kernel/src/phase_coord/**'
+      - 'kernel/src/pqsec/**'
+      - 'kernel/src/rational/**'
+      - 'kernel/src/rmag/**'
+      - 'kernel/src/robin_debanks/**'
+      - 'kernel/src/surplus/**'
+      - 'kernel/src/swarm/**'
+      - 'kernel/src/tensor/**'
+      - 'kernel/src/tls/**'
+      - 'kernel/src/treaty/**'
+      - 'kernel/src/trispace/**'
+      - 'kernel/src/ubh/**'
+      - 'kernel/src/vhub/**'
+      - 'kernel/src/vino/**'
+      - 'kernel/src/vino_stores/**'
+      - 'kernel/src/web4/**'
+      - 'kernel/src/zcapital/**'
+      - 'kernel/include/**'
+      - 'kernel/third_party/**'
+      # end of the kernel inputs of libzxv
+  pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
+    paths:
+      - 'sdk/**'
+      - '.github/workflows/sdk.yml'
+      - '.github/scripts/sdk-changes.sh'
+      - 'build_system/sdk_kernel_deps.py'
+      # kernel inputs of libzxv: build_system/sdk_kernel_deps.py --write
+      - 'kernel/src/abacus/**'
+      - 'kernel/src/aipi/**'
+      - 'kernel/src/cardnet/**'
+      - 'kernel/src/cbank/**'
+      - 'kernel/src/e8/**'
+      - 'kernel/src/edp_risk/**'
+      - 'kernel/src/engine/**'
+      - 'kernel/src/event_space/**'
+      - 'kernel/src/finance/**'
+      - 'kernel/src/freight/**'
+      - 'kernel/src/harmonic/**'
+      - 'kernel/src/hwemu/**'
+      - 'kernel/src/ipfs_node/**'
+      - 'kernel/src/iso20022/**'
+      - 'kernel/src/lpres/**'
+      - 'kernel/src/mlkem/**'
+      - 'kernel/src/modbind/**'
+      - 'kernel/src/onepolicy/**'
+      - 'kernel/src/paradox/**'
+      - 'kernel/src/pay/**'
+      - 'kernel/src/phase_coord/**'
+      - 'kernel/src/pqsec/**'
+      - 'kernel/src/rational/**'
+      - 'kernel/src/rmag/**'
+      - 'kernel/src/robin_debanks/**'
+      - 'kernel/src/surplus/**'
+      - 'kernel/src/swarm/**'
+      - 'kernel/src/tensor/**'
+      - 'kernel/src/tls/**'
+      - 'kernel/src/treaty/**'
+      - 'kernel/src/trispace/**'
+      - 'kernel/src/ubh/**'
+      - 'kernel/src/vhub/**'
+      - 'kernel/src/vino/**'
+      - 'kernel/src/vino_stores/**'
+      - 'kernel/src/web4/**'
+      - 'kernel/src/zcapital/**'
+      - 'kernel/include/**'
+      - 'kernel/third_party/**'
+      # end of the kernel inputs of libzxv
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Pushes run only on main and develop; pull requests run on every update and
+# a newer push to the same pull request cancels the older run.
+concurrency:
+  group: sdk-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Which areas this run tests (.github/scripts/sdk-changes.sh): on a pull
+  # request only the SDKs it changed, or all of them when libzxv, the
+  # conformance vectors or the kernel changed. Skipped jobs use no runner.
+  changes:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
+    name: changed SDKs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      cpp: ${{ steps.areas.outputs.cpp }}
+      docs: ${{ steps.areas.outputs.docs }}
+      dotnet: ${{ steps.areas.outputs.dotnet }}
+      go: ${{ steps.areas.outputs.go }}
+      java: ${{ steps.areas.outputs.java }}
+      kits: ${{ steps.areas.outputs.kits }}
+      libzxv: ${{ steps.areas.outputs.libzxv }}
+      php: ${{ steps.areas.outputs.php }}
+      python: ${{ steps.areas.outputs.python }}
+      ruby: ${{ steps.areas.outputs.ruby }}
+      rust: ${{ steps.areas.outputs.rust }}
+      solidity: ${{ steps.areas.outputs.solidity }}
+      swift: ${{ steps.areas.outputs.swift }}
+      typescript: ${{ steps.areas.outputs.typescript }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: areas
+        run: .github/scripts/sdk-changes.sh "${{ github.event.pull_request.base.sha }}"
+
+  docs-links:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    name: docs links
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Every relative link and anchor in sdk/docs resolves
+        run: python3 sdk/docs/guides/check_links.py
+
+  libzxv:
+    needs: changes
+    if: needs.changes.outputs.libzxv == 'true'
+    name: libzxv ${{ matrix.os }} ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc }
+          - { os: ubuntu-24.04, cc: clang }
+          - { os: ubuntu-24.04-arm, cc: gcc }
+          - { os: macos-14, cc: clang }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build and run the C conformance tests
+        run: make -C sdk/libzxv CC=${{ matrix.cc }} test
+      - name: vectors.json is up to date
+        run: |
+          make -C sdk/libzxv CC=${{ matrix.cc }} vectors
+          git diff --exit-code sdk/conformance/vectors.json
+      - name: ABI unchanged against every released baseline (add-only)
+        env:
+          CC: ${{ matrix.cc }}
+        run: |
+          lib=sdk/libzxv/build/libzxv.so; [ "$RUNNER_OS" = macOS ] && lib=sdk/libzxv/build/libzxv.dylib
+          for base in sdk/libzxv/abi/libzxv-*.json; do
+            python3 sdk/libzxv/tools/abi_check.py check sdk/libzxv/include/zxv_api.h "$base" "$lib"
+          done
+      - name: Minimal build (no PQC, no engine)
+        run: |
+          make -C sdk/libzxv clean
+          make -C sdk/libzxv CC=${{ matrix.cc }} ZXV_NO_PQC=1 ZXV_NO_TENSOR=1
+      - name: Stage dist
+        run: |
+          make -C sdk/libzxv clean
+          make -C sdk/libzxv CC=${{ matrix.cc }} dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: libzxv-${{ matrix.os }}-${{ matrix.cc }}
+          path: sdk/libzxv/build/dist
+
+  libzxv-sanitize:
+    needs: changes
+    if: needs.changes.outputs.libzxv == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: ASan + UBSan
+        run: make -C sdk/libzxv CC=gcc SANITIZE=1 test
+
+  python:
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    name: python ${{ matrix.os }} ${{ matrix.py }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+        py: ['3.10', '3.13']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/python
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.py }}
+      - run: make -C ../libzxv all fixtures
+      - run: pip install -e '.[test]' mypy
+      - run: python -m pytest -q
+      - run: python -m mypy
+
+  java:
+    needs: changes
+    if: needs.changes.outputs.java == 'true'
+    name: java ${{ matrix.os }} jdk${{ matrix.jdk }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+        jdk: ['22', '25']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/java
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.jdk }}
+          cache: maven
+      - run: make -C ../libzxv all fixtures
+      # Fetch plugins and dependencies first, retrying, so a Maven Central
+      # hiccup cannot fail the build; the build itself also retries requests.
+      - name: Fetch Maven dependencies (retried)
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            mvn -B -q -Daether.connector.http.retryHandler.count=5 dependency:go-offline && break
+            [ "$i" = 3 ] && exit 1
+            sleep $((i * 20))
+          done
+      - run: mvn -B -Daether.connector.http.retryHandler.count=5 clean verify
+
+  dotnet:
+    needs: changes
+    if: needs.changes.outputs.dotnet == 'true'
+    name: dotnet ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/dotnet
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+      - run: make -C ../libzxv all fixtures
+      - name: Build (Release, warnings as errors)
+        run: dotnet build Zxv.sln -c Release -p:ZxvSkipNativeBuild=true
+      - run: dotnet test Zxv.sln -c Release --no-build
+
+  typescript:
+    needs: changes
+    if: needs.changes.outputs.typescript == 'true'
+    name: typescript ${{ matrix.os }} node${{ matrix.node }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+        node: ['20', '22']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/typescript
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: make -C ../libzxv all fixtures
+      - run: npm ci
+      - name: Wasm backend (zig cc to wasm32-wasi)
+        run: |
+          python -m pip install ziglang
+          npm run build:wasm
+      - run: npm test
+
+  solidity:
+    needs: changes
+    if: needs.changes.outputs.solidity == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/solidity
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: make -C ../libzxv all fixtures
+      - run: npm ci
+      - run: npm test
+
+  ruby:
+    needs: changes
+    if: needs.changes.outputs.ruby == 'true'
+    name: ruby ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/ruby
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: sdk/ruby
+      - run: make -C ../libzxv all fixtures
+      - run: bundle exec rake test
+
+  php:
+    needs: changes
+    if: needs.changes.outputs.php == 'true'
+    name: php ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/php
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: ffi
+          ini-values: ffi.enable=true
+      - run: make -C ../libzxv all fixtures
+      - run: php tests/run.php
+
+  rust:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    name: rust ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/rust
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - run: make -C ../libzxv all fixtures
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/libzxv/build
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/sdk/libzxv/build
+
+  go:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
+    name: go ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/go/zxv
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: sdk/go/zxv/go.mod
+      - run: make -C ../../libzxv all fixtures
+      - run: go vet ./...
+      - run: go test -race ./...
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/libzxv/build
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/sdk/libzxv/build
+
+  cpp:
+    needs: changes
+    if: needs.changes.outputs.cpp == 'true'
+    name: cpp ${{ matrix.os }} ${{ matrix.cxx }}${{ matrix.sanitize == 'ON' && ' sanitize' || '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cxx: g++, sanitize: 'OFF' }
+          - { os: ubuntu-24.04, cxx: clang++, sanitize: 'OFF' }
+          - { os: ubuntu-24.04, cxx: g++, sanitize: 'ON' }
+          - { os: macos-15, cxx: clang++, sanitize: 'OFF' } # Xcode 16.3+ libc++ has std::jthread
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - run: make -C sdk/libzxv all fixtures
+      - run: cmake -S sdk/cpp -B build-cpp -DZXV_SANITIZE=${{ matrix.sanitize }}
+        env:
+          CXX: ${{ matrix.cxx }}
+      - run: cmake --build build-cpp -j4
+      - run: ctest --test-dir build-cpp --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+
+  swift:
+    needs: changes
+    if: needs.changes.outputs.swift == 'true'
+    name: swift ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - run: make -C sdk/libzxv all fixtures
+      - run: swift --version && swift test
+        working-directory: sdk/swift
+
+  # Z-Wasm plugin kit (sdk/kits/z-wasm): validator, fuel meter, wasm3 host
+  # and the S0 proposal queue. The example plugins are compiled to wasm32
+  # with zig at test time (no .wasm is committed).
+  z-wasm:
+    needs: changes
+    if: needs.changes.outputs.kits == 'true'
+    name: z-wasm ${{ matrix.os }} ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc }
+          - { os: ubuntu-24.04, cc: clang }
+          - { os: macos-14, cc: clang }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/kits/z-wasm
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: python -m pip install ziglang==0.17.0
+      - run: make -C ../../libzxv all
+      - name: Unit, host and example-plugin tests, fuzz smoke, R11 and third-party checks
+        run: make CC=${{ matrix.cc }} PYTHON=python test
+      - name: Metered modules re-validated by V8 (node)
+        run: make CC=${{ matrix.cc }} PYTHON=python test-node
+      - name: Host demo
+        run: make CC=${{ matrix.cc }} PYTHON=python demo
+
+  z-wasm-sanitize:
+    needs: changes
+    if: needs.changes.outputs.kits == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: sdk/kits/z-wasm
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install ziglang==0.17.0
+      - run: make -C ../../libzxv all
+      - name: ASan + UBSan (kit, wasm3 and tests)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: make CC=gcc SANITIZE=1 OUT=build/san PYTHON=python test
+      - name: Mutation fuzzer under ASan + UBSan (4 x 250k mutants)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: |
+          for seed in 1 2 3 4; do
+            ZW_FUZZ_SEED=$seed make CC=gcc SANITIZE=1 OUT=build/san PYTHON=python fuzz FUZZ_ITERS=250000
+          done
+      - name: libFuzzer, 60 s (skipped if this clang has no libFuzzer runtime)
+        run: make PYTHON=python fuzz-libfuzzer
+
+  # Plugin-layer kits on top of Z-Wasm and libzxv:
+  #   z-contract      contract IDL, checker, Z-Wasm binding, evidence log
+  #   z-ffi           typed, capability-gated wrappers for C libraries
+  #   adapter-matrix  JSON / MQTT / FIX adapters with trust labels
+  # z-contract compiles the z-wasm example plugin with zig at test time.
+  kits-plugin-layer:
+    needs: changes
+    if: needs.changes.outputs.kits == 'true'
+    name: ${{ matrix.kit }} ${{ matrix.os }} ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        kit: [z-contract, z-ffi, adapter-matrix, z-audit, tri-isolate]
+        os: [ubuntu-24.04]
+        cc: [gcc, clang]
+        include:
+          - { kit: z-contract, os: macos-14, cc: clang }
+          - { kit: z-ffi, os: macos-14, cc: clang }
+          - { kit: adapter-matrix, os: macos-14, cc: clang }
+          - { kit: z-audit, os: macos-14, cc: clang }
+          - { kit: tri-isolate, os: macos-14, cc: clang }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/kits/${{ matrix.kit }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install ziglang==0.17.0
+      - run: make -C ../../libzxv all
+      - name: Tests, fuzz smoke run and R11 check
+        run: make CC=${{ matrix.cc }} PYTHON=python test
+      - name: Demo
+        run: make CC=${{ matrix.cc }} PYTHON=python demo
+
+  kits-plugin-layer-sanitize:
+    needs: changes
+    if: needs.changes.outputs.kits == 'true'
+    name: ${{ matrix.kit }} ASan + UBSan
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { kit: z-contract, seedvar: ZC_FUZZ_SEED }
+          - { kit: z-ffi, seedvar: ZF_FUZZ_SEED }
+          - { kit: adapter-matrix, seedvar: ZA_FUZZ_SEED }
+          - { kit: z-audit, seedvar: ZAU_FUZZ_SEED }
+          - { kit: tri-isolate, seedvar: TI_FUZZ_SEED }
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: sdk/kits/${{ matrix.kit }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install ziglang==0.17.0
+      - run: make -C ../../libzxv all
+      - name: ASan + UBSan (kit, the kits it builds on, and tests)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: make CC=gcc SANITIZE=1 OUT=build/san PYTHON=python test
+      - name: Mutation fuzzer under ASan + UBSan (4 x 250k mutants)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: |
+          for seed in 1 2 3 4; do
+            env ${{ matrix.seedvar }}=$seed make CC=gcc SANITIZE=1 OUT=build/san PYTHON=python fuzz FUZZ_ITERS=250000
+          done
+      - name: libFuzzer, 60 s (skipped if this clang has no libFuzzer runtime)
+        run: make PYTHON=python fuzz-libfuzzer
+
+  # AIPI kit (sdk/kits/aipi): content-addressed functions on Z-Wasm +
+  # z-contract, with the kernel's AIPI core compiled in. Test modules are
+  # assembled in C, so no Wasm toolchain is needed.
+  kit-aipi:
+    needs: changes
+    if: needs.changes.outputs.kits == 'true'
+    name: aipi ${{ matrix.os }} ${{ matrix.cc }}${{ matrix.san && ' ASan + UBSan' || '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc }
+          - { os: ubuntu-24.04, cc: clang }
+          - { os: ubuntu-24.04, cc: gcc, san: '1' }
+          - { os: macos-14, cc: clang }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/kits/aipi
+    steps:
+      - uses: actions/checkout@v7
+      - run: make -C ../../libzxv all
+      - name: Tests and the no-float check
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: make CC=${{ matrix.cc }} SANITIZE=${{ matrix.san }} OUT=build/ci test
+      - name: Demo
+        if: ${{ !matrix.san }}
+        run: make CC=${{ matrix.cc }} OUT=build/ci demo

@@ -49,6 +49,7 @@ dist/
 
 # EFI application build artifacts
 BOOTAA64.EFI
+BOOTX64.EFI
 *.efi
 kernel/arch/arm64/efi_stub.elf
 
@@ -58,6 +59,8 @@ __pycache__/
 
 # CI boot-check serial logs (build_system/ci_boot_check.sh)
 boot_*.log
+uefi_boot_*.log
+hw_drivers_*.log
 
 # Build outputs and binaries (never tracked)
 a.out
@@ -67,3 +70,7 @@ __pycache__/
 *.exe
 *.o
 *.elf
+
+# Model weights live outside the repository (~/.cache/zxv/models)
+*.gguf
+*.gguf.part

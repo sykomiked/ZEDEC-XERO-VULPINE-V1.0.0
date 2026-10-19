@@ -1,0 +1,117 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+# Programs that must be refused, and why.
+
+=== unknown-glyph
+apl: ⍺+1
+refuse: KR_E_SYNTAX
+
+=== apl-exponential
+apl: *1
+refuse: KR_E_SYNTAX
+
+=== k-first
+k: *1 2 3
+refuse: KR_E_SYNTAX
+
+=== k-sqrt
+k: %4
+refuse: KR_E_SYNTAX
+
+=== k-where
+k: &1 0 1
+refuse: KR_E_SYNTAX
+
+=== k-each
+k: +'1 2
+refuse: KR_E_SYNTAX
+
+=== k-each-right
+k: 1 2+/:3 4
+refuse: KR_E_SYNTAX
+
+=== k-lambda
+k: {x+1}2
+refuse: KR_E_SYNTAX
+
+=== k-juxtaposition
+k: x:1 2; x -1
+refuse: KR_E_SYNTAX
+
+=== compress
+apl: 1 0 1/1 2 3
+refuse: KR_E_SYNTAX
+
+=== n-wise
+apl: 2+/1 2 3
+refuse: KR_E_SYNTAX
+
+=== two-operators
+apl: +/\1 2
+refuse: KR_E_SYNTAX
+
+=== non-scalar-operand
+apl: ⍴/1 2
+refuse: KR_E_SYNTAX
+
+=== unbalanced
+apl: (1+2
+refuse: KR_E_SYNTAX
+
+=== unmatched-close
+apl: 1+2)
+refuse: KR_E_SYNTAX
+
+=== no-right-argument
+apl: 1+
+refuse: KR_E_SYNTAX
+
+=== two-values
+apl: x←1 ⋄ x 2
+refuse: KR_E_SYNTAX
+
+=== unbound
+apl: y+1
+refuse: KR_E_NAME
+
+=== reserved-word
+apl: vec←1
+refuse: KR_E_SYNTAX
+
+=== long-name
+apl: abcdefghijklmnopqrstuvwxyzabcdefg←1
+refuse: KR_E_NAME
+
+=== number-suffix
+k: 0N
+refuse: KR_E_SYNTAX
+
+=== semicolon-in-apl
+apl: 1;2
+refuse: KR_E_SYNTAX
+
+=== work-limit
+apl: +/⍳4000000
+work: 1000000
+refuse: KR_E_LIMIT
+
+=== work-limit-enough
+apl: +/⍳400000
+work: 1000000
+py: F(400000 * 399999 // 2)
+
+=== element-limit
+apl: ⍳9999999
+refuse: KR_E_LIMIT
+
+=== reshape-limit
+apl: 4096 4096⍴1
+refuse: KR_E_LIMIT
+
+=== canon-bad-head
+canon: (frobnicate 1)
+refuse: KR_E_SYNTAX
+
+=== canon-mat-count
+canon: (mat 2 2 1 2 3)
+refuse: KR_E_LENGTH

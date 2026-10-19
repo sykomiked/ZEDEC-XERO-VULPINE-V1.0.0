@@ -1,0 +1,251 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+"""ZXV for Python: exact money, four-valued logic, budgets, post-quantum
+crypto and a deterministic integer inference engine, over ``libzxv``.
+
+ABI 1.5 groups live in their own modules: :mod:`zxv.treaty`, :mod:`zxv.cid`,
+:mod:`zxv.aipi`, :mod:`zxv.coin`, :mod:`zxv.fee`, :mod:`zxv.vhub`,
+:mod:`zxv.freight`, :mod:`zxv.web4` and :mod:`zxv.paradox`. ABI 1.6 adds
+Vino Embed in :mod:`zxv.vino` (play-lane vouchers, payment requests,
+receipts and the daily spend meter).
+
+Quick start::
+
+    import zxv
+
+    with zxv.Context() as ctx:
+        cap = ctx.root_capability()
+        ctx.currencies.enable("NGN")
+        ledger = zxv.Ledger(cap)
+        bank = ledger.open_account("bank", "NGN", zxv.AccountKind.ISSUER)
+        alice = ledger.open_account("alice", "NGN")
+        ledger.post(bank, alice, 50_000, "NGN", "E2E-1")
+        print(ledger.balance(alice).equity)            # 50000 (kobo)
+
+See the README for the concepts and an API overview.
+"""
+
+from __future__ import annotations
+
+import enum
+from typing import Optional, Tuple
+
+from . import _native
+from . import aipi, cid, coin, fee, freight, paradox, treaty, vhub, vino, web4
+from .aipi import AipiCall, AipiClaim, AipiFunction, AipiNode, AipiRoute
+from .cid import Cid, CidBase, CidCodec
+from .coin import Octane, TokenHolding, TokenWallet
+from .fee import FeeAccount, FeeBucket
+from .freight import FreightHeader, FreightJoin, OpsWriter
+from .paradox import (Classification, ParadoxBook, ParadoxGraph, ParadoxHold, ParadoxKind, ParadoxOutcome,
+                      ParadoxPolicy, RepairProof)
+from .treaty import Treaty, TreatyFault, TreatyOp, TreatyResult
+from .vhub import VHub
+from .vino import (PaymentRequest, PlayAccount, Receipt, RequestFlag, SpendMeter, VinoLane, VinoPlay,
+                   VinoRail, Voucher, VoucherState)
+from .web4 import W4Agent, W4ConsentLog, W4Directory, W4Manifest
+from ._native import load_library, library_path, set_default_fatal_policy, default_fatal_policy
+from .attest import Attestation, Attestations, Subject
+from .budget import Budget, BudgetEvent, Budgets, BudgetStatus, Resource
+from .context import IDENTITY_BYTES, Cap, Capability, CapabilityInfo, Context
+from .crypto import (Ed25519, Encapsulation, Hashes, KeyPair, MlDsa87, MlKem1024, SecretKey,
+                     random_bytes)
+from .engine import (AsyncTokenStream, GenerateOptions, GenerationResult, KvType, Model, ModelArch,
+                     Session, StopReason, Token, TokenStream)
+from .errors import (BudgetExhaustedError, CapabilityDeniedError, ChanceOutcomeError, CidMismatchError,
+                     ConsentRequiredError, CoverageError, DenominationError, ErasureError, FatalPolicy,
+                     FloatRejectedError, InsufficientFundsError, LaneError, LimitRefusedError,
+                     OwnerApprovalRequiredError, ParadoxStepLimitError, PegError, RailError, RequestExpiredError,
+                     StatusClass, TreatyError, VerificationFailedError, ZxvError, ZxvFatal, ZxvLibraryError,
+                     ZxvNotImplementedError, ZxvRefusedError, ZxvSystemError, ZxvUsageError)
+from .evm import EvmState, StateChannel
+from .hardware import (HW_CLASS_PRIVATE, HW_EXT_MAX, HW_HEADER_BYTES, HW_MLDSA_SK_BYTES, HW_PK_BYTES,
+                       HW_RES_HOST, HW_ROOT, HW_SIG_BYTES, HW_SLHDSA_SK_BYTES, FunctionInfo, HwCapKey,
+                       HwClass, HwDevice, HwEvent, HwFn, HwImageKind, HwIsa, HwKind, HwLogEntry, HwMatrix,
+                       HwPairing, HwPolicy, HwPower, HwProfile, HwProviderFlag, HwRegion, HwRegionState,
+                       HwReleaseKey, HwResourceState, ProfileNode, ProfilePairing, ProviderInfo,
+                       RegionEvent, RegionInfo, encode_vectors)
+from .hexagram import (QUARANTINE_MAX_RECORDS, HexAction, HexBase, Hexagram, HexPhase, HexPolarity,
+                       QuarantineLog, QuarantineRecord)
+from .ledger import (AMOUNT_MAX, AccountKind, Balance, Currencies, CurrencyFlag, EnabledCurrency,
+                     Iso4217Currency, JournalEntry, Ledger, Rail, iso4217)
+from .messages import (CardAuthorization, CardNetwork, Cards, CdtDbt, EntryStatus, MxAmount, MxField,
+                       MxKind, MxMessage, NetPosition, NettingCycle, Vss, VssCheck, VssLevel)
+from .phase import (PHASE_CYCLE, Admission, Decision, DeferredEvent, EventState, Health, PhaseClock,
+                    RealtimeDriver, StepFlag)
+from .rational import Rational, RationalLike
+from .swarm import Allotment, EmotionProfile, Grant, Swarm
+from .truth import Truth, UncertainTruthError
+from .wire import FRAME_BYTES, Ubh168Frame, WireTruth, tag_of
+
+__version__ = "1.6.0"
+"""Version of this Python SDK (tracks the C ABI it wraps)."""
+
+
+class Feature(enum.IntFlag):
+    """Feature groups a ``libzxv`` build may provide (``ZXV_FEAT_*``)."""
+
+    NONE = 0
+    LEDGER = 0x00000001
+    MX_PACS008 = 0x00000002
+    MX_CAMT053 = 0x00000004
+    ISO4217 = 0x00000008
+    MX_PACS002 = 0x00000010
+    MX_PACS004 = 0x00000020
+    MX_PACS009 = 0x00000040
+    MX_CAMT056 = 0x00000080
+    MX_CAMT029 = 0x00000100
+    NETTING = 0x00000200
+    CARDS = 0x00000400
+    CARD_CHECK = 0x00000800
+    VSS = 0x00001000
+    RATIONAL = 0x00002000
+    LPRES = 0x00004000
+    CAPS = 0x00008000
+    RMAG = 0x00010000
+    PHASE = 0x00020000
+    WIRE = 0x00040000
+    SWARM = 0x00080000
+    HASH = 0x00100000
+    MLKEM1024 = 0x00200000
+    MLDSA87 = 0x00400000
+    ED25519 = 0x00800000
+    TENSOR = 0x01000000
+    LORA = 0x02000000
+    """LoRA adapters: not built yet in any ABI 1.1 library."""
+    EVM = 0x04000000
+    HEX = 0x08000000
+    """The 64-state hexagram tag and quarantine log (ABI 1.3)."""
+    HW = 0x10000000
+    """Hardware emulation matrix, ZHP-1 profiles and hardware updates (ABI 1.4)."""
+
+
+class Feature2(enum.IntFlag):
+    """ABI 1.5 and later groups a ``libzxv`` build may provide (``ZXV_FEAT2_*``, from
+    :func:`features2`). A group that is not built raises
+    :class:`ZxvNotImplementedError` from every call (rule R9)."""
+
+    NONE = 0
+    TREATY = 0x00000001
+    """Treaties: copybook records and Sutra text (:mod:`zxv.treaty`)."""
+    AIPI = 0x00000002
+    """Content-addressed functions and CIDs (:mod:`zxv.cid`, :mod:`zxv.aipi`)."""
+    COIN = 0x00000004
+    """Fibonacci coins and token octane (:mod:`zxv.coin`)."""
+    FEE = 0x00000008
+    """The assurance fee and its split (:mod:`zxv.fee`)."""
+    VHUB = 0x00000010
+    """V-Bill hub pegs, quotes and swaps (:mod:`zxv.vhub`)."""
+    FREIGHT = 0x00000020
+    """Erasure-coded freight packets (:mod:`zxv.freight`)."""
+    WEB4 = 0x00000040
+    """Agent manifests, directory, consent (:mod:`zxv.web4`)."""
+    PARADOX = 0x00000080
+    """The paradox engine (:mod:`zxv.paradox`)."""
+    VINO = 0x00000100
+    """Vino Embed (ABI 1.6): play lane, payment requests, receipts and the
+    spend meter (:mod:`zxv.vino`)."""
+
+
+def features2() -> Feature2:
+    """The :class:`Feature2` (ABI 1.5 and later) groups live in the loaded library."""
+    out = _native.ffi.new("uint32_t *")
+    _native.check(_native.lib().zxv_features2(out))
+    return Feature2(out[0])
+
+
+def has_feature2(feature: Feature2) -> bool:
+    """True if every bit of ``feature`` is live in this build."""
+    return (features2() & feature) == feature
+
+
+def abi_version() -> Tuple[int, int, int]:
+    """(major, minor, patch) ABI version of the loaded library."""
+    v = _native.ffi.new("uint32_t[3]")
+    _native.check(_native.lib().zxv_version(v, v + 1, v + 2))
+    return int(v[0]), int(v[1]), int(v[2])
+
+
+def features() -> Feature:
+    """The :class:`Feature` groups live in the loaded library."""
+    out = _native.ffi.new("uint32_t *")
+    _native.check(_native.lib().zxv_features(out))
+    return Feature(out[0])
+
+
+def has_feature(feature: Feature) -> bool:
+    """True if every bit of ``feature`` is live in this build."""
+    return (features() & feature) == feature
+
+
+def status_name(status: int) -> str:
+    """Symbolic name of a status code (``"ZXV_E_FUNDS"``)."""
+    return _native.status_name(status)
+
+
+def status_class(status: int) -> StatusClass:
+    """The :class:`StatusClass` of a status code."""
+    return _native.status_class(status)
+
+
+def last_error() -> Optional[str]:
+    """This thread's last C error detail (diagnostic only), or ``None`` if empty."""
+    return _native.last_error() or None
+
+
+__all__ = [
+    # library
+    "__version__", "load_library", "library_path", "abi_version", "features", "has_feature", "Feature",
+    "features2", "has_feature2", "Feature2",
+    "status_name", "status_class", "last_error", "set_default_fatal_policy", "default_fatal_policy",
+    # errors
+    "StatusClass", "FatalPolicy", "ZxvError", "ZxvUsageError", "FloatRejectedError", "ZxvRefusedError",
+    "CapabilityDeniedError", "BudgetExhaustedError", "InsufficientFundsError", "VerificationFailedError",
+    "ZxvNotImplementedError", "ZxvSystemError", "ZxvLibraryError", "ZxvFatal", "DenominationError",
+    "TreatyError", "CidMismatchError", "ConsentRequiredError", "ErasureError", "PegError", "LimitRefusedError",
+    "ParadoxStepLimitError", "OwnerApprovalRequiredError", "RailError", "CoverageError", "LaneError",
+    "RequestExpiredError", "ChanceOutcomeError",
+    # ABI 1.5 group modules and their main types
+    "treaty", "cid", "aipi", "coin", "fee", "vhub", "freight", "web4", "paradox",
+    "Treaty", "TreatyResult", "TreatyOp", "TreatyFault", "Cid", "CidBase", "CidCodec", "AipiNode",
+    "AipiFunction", "AipiCall", "AipiClaim", "AipiRoute", "TokenHolding", "TokenWallet", "Octane",
+    "FeeAccount", "FeeBucket", "VHub", "FreightHeader", "FreightJoin", "OpsWriter", "W4Agent", "W4Directory",
+    "W4Manifest", "W4ConsentLog", "ParadoxBook", "ParadoxPolicy", "ParadoxHold", "ParadoxGraph",
+    "Classification", "ParadoxKind", "ParadoxOutcome", "RepairProof",
+    # ABI 1.6 Vino Embed
+    "vino", "VinoPlay", "VinoRail", "VinoLane", "Voucher", "VoucherState", "PlayAccount", "PaymentRequest",
+    "RequestFlag", "Receipt", "SpendMeter",
+    # values
+    "Rational", "RationalLike", "Truth", "UncertainTruthError",
+    # hexagram tags
+    "Hexagram", "HexBase", "HexPolarity", "HexPhase", "HexAction", "QuarantineLog", "QuarantineRecord",
+    "QUARANTINE_MAX_RECORDS",
+    # hardware emulation and updates
+    "HwProfile", "ProfileNode", "ProfilePairing", "HwMatrix", "FunctionInfo", "ProviderInfo", "HwLogEntry",
+    "HwReleaseKey", "HwDevice", "HwRegion", "RegionInfo", "RegionEvent", "encode_vectors", "HwKind",
+    "HwClass", "HwCapKey", "HwIsa", "HwPairing", "HwResourceState", "HwFn", "HwPolicy", "HwProviderFlag",
+    "HwPower", "HwImageKind", "HwRegionState", "HwEvent", "HW_RES_HOST", "HW_ROOT", "HW_EXT_MAX",
+    "HW_CLASS_PRIVATE", "HW_PK_BYTES", "HW_MLDSA_SK_BYTES", "HW_SLHDSA_SK_BYTES", "HW_SIG_BYTES",
+    "HW_HEADER_BYTES",
+    # context
+    "Context", "Capability", "CapabilityInfo", "Cap", "IDENTITY_BYTES",
+    # ledger
+    "Ledger", "AccountKind", "Balance", "JournalEntry", "Rail", "Currencies", "CurrencyFlag",
+    "EnabledCurrency", "Iso4217Currency", "iso4217", "AMOUNT_MAX",
+    # payments
+    "MxMessage", "MxKind", "MxField", "MxAmount", "CdtDbt", "EntryStatus", "NettingCycle",
+    "NetPosition", "Cards", "CardNetwork", "CardAuthorization", "Vss", "VssCheck", "VssLevel",
+    # attestations, budgets, phase
+    "Attestations", "Attestation", "Subject", "Budgets", "Budget", "BudgetStatus", "BudgetEvent",
+    "Resource", "PhaseClock", "DeferredEvent", "RealtimeDriver", "Admission", "Decision", "StepFlag",
+    "Health", "EventState", "PHASE_CYCLE",
+    # wire, swarm
+    "Ubh168Frame", "WireTruth", "tag_of", "FRAME_BYTES", "Swarm", "Allotment", "Grant", "EmotionProfile",
+    # crypto
+    "Hashes", "random_bytes", "SecretKey", "KeyPair", "Ed25519", "MlDsa87", "MlKem1024", "Encapsulation",
+    # engine
+    "Model", "Session", "GenerateOptions", "GenerationResult", "Token", "TokenStream", "AsyncTokenStream",
+    "KvType", "StopReason", "ModelArch",
+    # evm
+    "StateChannel", "EvmState",
+]

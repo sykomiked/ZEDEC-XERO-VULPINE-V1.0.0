@@ -29,7 +29,8 @@ static bool str_eq(const char *a, const char *b) {
 }
 
 /* ===== Paraconsistent Logic Operations ===== */
-/* Four-valued logic (Belnap's 4-valued logic):
+/* Four-valued logic (after Belnap's 4-valued logic, with one deliberate
+ * deviation, noted below):
  *   NEITHER (⊥) — no information
  *   TRUE (T)    — only positive evidence
  *   FALSE (F)   — only negative evidence
@@ -75,6 +76,12 @@ lpres_state_t lpres_conjoin(lpres_state_t a, lpres_state_t b) {
     if ((a == LPRES_STATE_BOTH && b == LPRES_STATE_NEITHER) ||
         (b == LPRES_STATE_BOTH && a == LPRES_STATE_NEITHER))
         return LPRES_STATE_FALSE;
+    /* NEITHER dominates BOTH in meet (bottom absorbs). Deliberate deviation
+     * from Belnap's FOUR, where B AND N = F and B OR N = T: here the tables
+     * are min/max on the chain F < N < B < T, so no mix of BOTH and NEITHER
+     * inputs can ever yield TRUE, the only value that authorises an action.
+     * A contradiction plus a gap must never grant authority. Owner decision
+     * 2026-10-12; De Morgan therefore fails for the pair {BOTH, NEITHER}. */
     if (a == LPRES_STATE_NEITHER || b == LPRES_STATE_NEITHER)
         return LPRES_STATE_NEITHER;
     /* Both BOTH */
@@ -99,6 +106,11 @@ lpres_state_t lpres_disjoin(lpres_state_t a, lpres_state_t b) {
         return LPRES_STATE_BOTH;
     /* Both NEITHER */
     return LPRES_STATE_NEITHER;
+}
+
+lpres_state_t lpres_kjoin(lpres_state_t a, lpres_state_t b)
+{
+    return (lpres_state_t) (((unsigned) a | (unsigned) b) & 3u);
 }
 
 bool lpres_is_certain(lpres_state_t s) {

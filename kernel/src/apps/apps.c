@@ -13,7 +13,18 @@ void app_put_char(char*s,uint32_t r,uint32_t c,uint32_t mr,uint32_t mc,char ch){
 void app_put_str(char*s,uint32_t r,uint32_t c,uint32_t mr,uint32_t mc,const char*str){while(*str&&c<mc)app_put_char(s,r,c,mr,mc,*str),str++,c++;}
 void app_scroll_up(char*s,uint32_t mr,uint32_t mc){for(uint32_t r=0;r<mr-1;r++)for(uint32_t c=0;c<=mc;c++)s[r*(mc+1)+c]=s[(r+1)*(mc+1)+c];for(uint32_t c=0;c<mc;c++)s[(mr-1)*(mc+1)+c]=' ';s[(mr-1)*(mc+1)+mc]=0;}
 
-static void num_str(uint32_t v,char*buf){char tmp[12];int n=0;if(v==0)buf[n++]='0';while(v>0){tmp[n++]='0'+(v%10);v/=10;}for(int j=n-1;j>=0;j--)buf[n-1-j]=tmp[j];buf[n]=0;}
+static void num_str(uint32_t v, char *buf)
+{
+    char tmp[12];
+    int n = 0;
+    if (v == 0) tmp[n++] = '0';
+    while (v > 0) {
+        tmp[n++] = '0' + (v % 10);
+        v /= 10;
+    }
+    for (int j = n - 1; j >= 0; j--) buf[n - 1 - j] = tmp[j];
+    buf[n] = 0;
+}
 
 /* ---- Shell ---- */
 static void shell_print(shell_app_t*a,const char*s){
@@ -280,26 +291,78 @@ for(int j=ni-1;j>=0&&pos<120;j--)w->text[pos++]=num[j];w->text[pos]=0;w->visible
 void app_launcher_init(app_launcher_t*al,gui_desktop_t*gui,vfs_state_t*vfs,net_state_t*net,m5_router_t*router,vino_ledger_t*vino,vena_runtime_t*vena,scheduler_t*sched){
 mem_set(al,0,sizeof(*al));al->gui=gui;al->vfs=vfs;al->net=net;al->router=router;al->vino=vino;al->vena=vena;al->sched=sched;al->num_windows=0;al->active_app=0xFFFFFFFF;}
 
-int32_t app_launcher_open(app_launcher_t*al,app_type_t type){
-uint32_t gw=al->num_windows;
-if(gw>=GUI_MAX_WINDOWS)return -1;
-/* Create GUI window */
-int32_t x=50+(gw%4)*30,y=50+(gw%4)*20,w=400,h=350;
-uint32_t colors[6]={0x001100,0x000011,0x110000,0x001111,0x111100,0x000022};
-gui_create_window(al->gui,al->gui->windows[gw].title,x,y,w,h,colors[gw%6]);
+static const char *app_title(app_type_t type)
+{
+    switch (type) {
+    case APP_SHELL:
+        return "Shell";
+    case APP_EDITOR:
+        return "Editor";
+    case APP_FILE_MANAGER:
+        return "Files";
+    case APP_SYSMON:
+        return "SysMon";
+    case APP_NET_CONFIG:
+        return "NetConfig";
+    case APP_WALLET:
+        return "Wallet";
+    case APP_EXCHANGE:
+        return "Derivatives";
+    case APP_BANK:
+        return "Assurance";
+    case APP_CUSTOM:
+        return "Treaty";
+    default:
+        return "App";
+    }
+}
 
-switch(type){
-case APP_SHELL:shell_init(&al->shell,gw,al->vfs,al->net,al->router,al->vino,al->vena,al->sched);break;
-case APP_EDITOR:editor_init(&al->editor,gw,al->vfs);break;
-case APP_FILE_MANAGER:fman_init(&al->fman,gw,al->vfs);break;
-case APP_SYSMON:sysmon_init(&al->sysmon,gw,al->sched,al->net,al->router,al->vino,al->vena);break;
-case APP_NET_CONFIG:netcfg_init(&al->netcfg,gw,al->net,al->router);break;
-case APP_WALLET:wallet_init(&al->wallet,gw,al->vino);break;
-case APP_EXCHANGE:derivatives_init(&al->derivatives,gw,al->vino,al->vena);break;
-case APP_BANK:assurance_init(&al->assurance,gw,al->vino,al->vena);break;
-case APP_CUSTOM:treaty_init(&al->treaty,gw,al->vino,al->vena);break;
-default:return -1;}
-al->num_windows++;al->active_app=type;return 0;}
+int32_t app_launcher_open(app_launcher_t *al, app_type_t type)
+{
+    uint32_t n = al->num_windows;
+    if (!al->gui || n >= APP_MAX_WINDOWS) return -1;
+    /* Create GUI window; the app is bound to the index the desktop returns, which
+     * differs from the launcher's own count whenever other windows exist. */
+    int32_t x = 50 + (int32_t) (n % 4) * 30, y = 50 + (int32_t) (n % 4) * 20, w = 400, h = 350;
+    uint32_t colors[6] = {0x001100, 0x000011, 0x110000, 0x001111, 0x111100, 0x000022};
+    uint32_t gw = gui_create_window(al->gui, app_title(type), x, y, w, h, colors[n % 6]);
+    if (gw == UINT32_MAX) return -1;
+
+    switch (type) {
+    case APP_SHELL:
+        shell_init(&al->shell, gw, al->vfs, al->net, al->router, al->vino, al->vena, al->sched);
+        break;
+    case APP_EDITOR:
+        editor_init(&al->editor, gw, al->vfs);
+        break;
+    case APP_FILE_MANAGER:
+        fman_init(&al->fman, gw, al->vfs);
+        break;
+    case APP_SYSMON:
+        sysmon_init(&al->sysmon, gw, al->sched, al->net, al->router, al->vino, al->vena);
+        break;
+    case APP_NET_CONFIG:
+        netcfg_init(&al->netcfg, gw, al->net, al->router);
+        break;
+    case APP_WALLET:
+        wallet_init(&al->wallet, gw, al->vino);
+        break;
+    case APP_EXCHANGE:
+        derivatives_init(&al->derivatives, gw, al->vino, al->vena);
+        break;
+    case APP_BANK:
+        assurance_init(&al->assurance, gw, al->vino, al->vena);
+        break;
+    case APP_CUSTOM:
+        treaty_init(&al->treaty, gw, al->vino, al->vena);
+        break;
+    default:
+        return -1;
+    }
+    al->num_windows++;
+    al->active_app = type;
+    return 0;
+}
 
 int32_t app_launcher_close(app_launcher_t*al,app_type_t type){
 switch(type){

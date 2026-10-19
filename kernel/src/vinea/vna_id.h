@@ -4,13 +4,13 @@
  * the replay window.
  *
  * IDENTITY
- *   I1  A node's long-term key is an ML-DSA-65 key pair (FIPS 204). There is
+ *   I1  A node's long-term key is an ML-DSA-87 key pair (FIPS 204). There is
  *       no classical-only identity or signature path anywhere in Vinea.
- *   I2  NodeID = SHA3-256(ML-DSA-65 public key), 256 bits, never truncated.
+ *   I2  NodeID = SHA3-256(ML-DSA-87 public key), 256 bits, never truncated.
  *       Every message carries the sender's public key, so any receiver can
  *       check the binding itself (self-certifying identifiers).
  *   I3  Proof of work (S/Kademlia "static puzzle", nonce form): a NodeID is
- *       admitted only if SHA3-256("vinea/v2/pow" || NodeID || nonce_le64)
+ *       admitted only if SHA3-256("vinea/v3/pow" || NodeID || nonce_le64)
  *       has at least `bits` leading zero bits. Each identity therefore costs
  *       ~2^bits hashes on top of a key generation, which prices Sybil floods.
  *       The difficulty is configuration (0 disables it).
@@ -18,7 +18,7 @@
  * KEY CACHE (exact efficiency)
  *   A verified (NodeID -> public key, pow nonce) binding is remembered. A later
  *   message with byte-identical key and nonce skips re-hashing: comparing the
- *   1952 bytes against the bytes that were already hashed to that NodeID is an
+ *   2592 bytes against the bytes that were already hashed to that NodeID is an
  *   exact test, so no security is traded.
  *
  * REPLAY WINDOW

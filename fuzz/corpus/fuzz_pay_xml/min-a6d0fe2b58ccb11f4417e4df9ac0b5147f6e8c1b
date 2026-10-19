@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+<FIToFICstmrCdtTrf>
+<GrpHdr><MsgId>MSG-1</MsgId><CreDtTm>2026-10-09T12:00:00Z</CreDtTm><NbOfTxs>2</NbOfTxs><SttlmInf><SttlmMtd>INDA</SttlmMtd></SttlmInf></GrpHdr>
+<CdtTrfTxInf>
+<PmtId><InstrId>I1</InstrId><EndToEndId>E2E-1</EndToEndId><TxId>TX-1</TxId><UETR>8a562c67-ca16-48ba-b074-65581be6f001</UETR></PmtId>
+<IntrBkSttlmAmt Ccy="USD">1234.56</IntrBkSttlmAmt><IntrBkSttlmDt>2026-10-09</IntrBkSttlmDt><InstdAmt Ccy="USD">1234.56</InstdAmt><ChrgBr>SHAR</ChrgBr>
+<InstgAgt><FinInstnId><BICFI>DEUTDEFF</BICFI></FinInstnId></InstgAgt>
+<InstdAgt><FinInstnId><BICFI>CHASUS33</BICFI></FinInstnIdInf><Ustrd>Invoice 42</Ustrd><Strd><Addtl2cMsg67-Id>M

@@ -88,7 +88,7 @@ static bool rej(cb_pay_result r, const char *code)
 static uint32_t rng = 12345u;
 static uint32_t next(void)
 {
-    rng = rng * 1103515245u + 12345u;
+    rng = (uint32_t) ((uint64_t) rng * 1103515245u + 12345u); /* LCG mod 2^32 */
     return rng >> 8;
 }
 

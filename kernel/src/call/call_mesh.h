@@ -40,6 +40,20 @@
  *  then 64 octets of signature over everything before it.
  * Signatures are checked by a caller callback (ML-DSA, Ed25519, ...).
  *
+ * IDENTITY. A member id is not chosen: it is call_mesh_id_of(public key),
+ * the first four octets (big-endian) of SHA-256("ZX-CALL-MESH-ID" || key),
+ * or 1 if those are zero. A message whose id does not match its key is
+ * refused, so nobody can join, update or leave under someone else's id.
+ * A LEAVE for an id not yet seen (it may arrive before the JOIN) leaves a
+ * tombstone, which is safe because only the id's own key can sign it.
+ * EQUIVOCATION. One member version names one message. Two validly signed
+ * messages from the same member with the same version and different
+ * content (two MEMBERs that differ, or a MEMBER and a LEAVE) are proof the
+ * member equivocated: the second is refused with CALL_ERR_CONFLICT and the
+ * member is marked equivocated and dead for good; every later message from
+ * it is refused the same way. A LEAVE therefore carries a version greater
+ * than the member's last MEMBER.
+ *
  * RULES. Freestanding C11: no libc, no malloc, no floating point, no 64-bit
  * division, no __int128. Tables, plans and scratch come from the caller.
  *
@@ -50,7 +64,12 @@
  * Members that are pure relays (forwarding a stream they do not watch) are
  * not used. Determinism holds only when all members hold the same table; in
  * the seconds after a join, leave or failure, views differ and two members
- * may briefly disagree on who feeds whom. A failure detected locally (no
+ * may briefly disagree on who feeds whom. Equivocation is seen only by
+ * members that receive both messages; until the second one reaches
+ * everyone, views differ (forwarding both is the proof). The id is 32 bits,
+ * so it binds the key only against an attacker who cannot afford about
+ * 2^32 key generations to hit a chosen id; a group that needs more checks
+ * keys against its invite list as well. A failure detected locally (no
  * heartbeat) is not signed by anyone, so members must use the same timeout.
  * There are no codecs and no camera or microphone capture here; streams are
  * opaque bitrates. Media comes from the host OS (AVFoundation on macOS) or
@@ -103,7 +122,9 @@ typedef struct call_mesh_member {
     uint8_t fanout; /* max children per (stream, layer) tree */
     uint8_t nstreams;
     uint16_t nsubs;
-    uint8_t alive; /* 0 = left or failed (kept as a tombstone) */
+    uint8_t alive;       /* 0 = left or failed (kept as a tombstone) */
+    uint8_t left;        /* 1 if 'version' is a signed LEAVE */
+    uint8_t equivocated; /* 1 once caught signing one version twice */
     call_mesh_stream_t streams[CALL_MESH_MAX_STREAMS];
     call_mesh_sub_t subs[CALL_MESH_MAX_SUBS];
 } call_mesh_member_t;
@@ -154,6 +175,9 @@ typedef struct call_mesh_plan {
     uint32_t hash; /* FNV-1a over the edges: equal plans hash equal */
 } call_mesh_plan_t;
 
+/* The member id bound to a public key (never 0). */
+uint32_t call_mesh_id_of(const uint8_t pubkey[CALL_MESH_KEY_LEN]);
+
 void call_mesh_init(call_mesh_t *m, uint32_t group_id, call_mesh_member_t *table, uint32_t cap,
                     call_mesh_verify_fn verify, void *vctx);
 
@@ -169,8 +193,11 @@ int call_mesh_parse(const uint8_t *msg, uint32_t len, uint32_t *group_id, uint8_
                     call_mesh_member_t *out);
 
 /* Verify and apply a message. Returns 1 if the table changed (rebuild),
- * 0 if it was stale or a duplicate, or a CALL_ERR_*. A known member's
- * public key may not change. */
+ * 0 if it was stale or a duplicate, or a CALL_ERR_*: CALL_ERR_AUTH for a bad
+ * signature or an id that is not call_mesh_id_of(key) (the table is not
+ * touched), CALL_ERR_CONFLICT for an equivocating member (the member is
+ * marked equivocated and dead; 'changes' counts it if it was alive, so
+ * rebuild). A known member's public key may not change. */
 int call_mesh_on_message(call_mesh_t *m, const uint8_t *msg, uint32_t len);
 
 /* Local failure detection: mark a member dead until it sends a newer

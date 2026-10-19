@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTFm8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+<FIToFICstmrCdtTrf>
+<GrpHdr><MsgId>MSG-1</MsgId><Tm><NbOfTxs>1</NbOfTxs><SttlmInf><SttlmMtd>INDA</SttlmMtd></SttlmInf> x

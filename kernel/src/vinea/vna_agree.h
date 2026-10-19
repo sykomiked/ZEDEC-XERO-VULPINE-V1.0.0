@@ -24,8 +24,8 @@
  *     owner's agent will not negotiate below).
  *   - TERMS: free text, at most 512 bytes, printable.
  * The agreement is content-addressed: its CID is SHA3-256 of its canonical
- * bytes; it is published in the DHT as a record signed (ML-DSA-65) by its
- * owner under key SHA3("vinea/v2/agreement-of" ...owner).
+ * bytes; it is published in the DHT as a record signed (ML-DSA-87) by its
+ * owner under key SHA3("vinea/v3/agreement-of" ...owner).
  *
  * The check fails closed: no agreement, an expired agreement, an unknown
  * resource, a blocklisted peer, a degree too low, an audience miss, a file not

@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# market.zc — record shapes for the adapter-matrix examples. Dotted names
+# address nested JSON fields ("order.price").
+
+# A FIX new-order-single, by FIX field names.
+fn new_order(Symbol: bytes[1..12], Side: bytes[1..1], OrderQty: int[1..10^9],
+             Price: rat[0..10^7] den|10000);
+
+# A JSON payment instruction.
+fn payment(amount.value: rat[0..10^12] den|100, amount.currency: bytes[3..3],
+           reference: bytes[1..35], urgent: truth{true, false});
+
+# An MQTT sensor reading: a decimal value in a physical range.
+fn reading(value: rat[-50..150] den<=1000, unit: bytes[1..8]);
+
+# A tagged evidence row: only untrusted-but-plausible states are accepted.
+fn evidence(state: tag{neither/neutral/emerging, neither/*/potential}, score: rat[0..1]);

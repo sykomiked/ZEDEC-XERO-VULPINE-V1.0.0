@@ -1,0 +1,77 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# ZXV Studio, the native SwiftUI app (macos/studio). Its socket client is
+# tested against a real zxvd on Linux and macOS; on macOS the app itself is
+# built universal, bundled with zxvd, ad-hoc signed, and launched once in
+# --smoke mode, which starts the bundled zxvd and reads every view's calls.
+name: ZXV Studio
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ['macos/studio/**', 'kernel/arch/hosted/**', 'sdk/libzxv/**', 'api/zxvd.openrpc.json',
+            '.github/workflows/macos-studio.yml']
+  pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
+    paths: ['macos/studio/**', 'kernel/arch/hosted/**', 'sdk/libzxv/**', 'api/zxvd.openrpc.json',
+            '.github/workflows/macos-studio.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Pushes run only on main and develop; pull requests run on every update and
+# a newer push to the same pull request cancels the older run.
+concurrency:
+  group: macos-studio-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  rpc-linux:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
+    name: Socket client against zxvd (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build zxvd
+        run: sh kernel/arch/hosted/build_zxvd.sh "$RUNNER_TEMP/zxvd"
+      - name: swift test (unit + live daemon)
+        working-directory: macos/studio
+        env:
+          ZXVD_BIN: ${{ runner.temp }}/zxvd/zxvd
+        run: |
+          swift --version
+          swift test
+
+  app-macos:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
+    name: Build, bundle and launch ZXV Studio (macOS)
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build zxvd
+        run: sh kernel/arch/hosted/build_zxvd.sh "$RUNNER_TEMP/zxvd"
+      - name: swift test (unit + live daemon)
+        working-directory: macos/studio
+        env:
+          ZXVD_BIN: ${{ runner.temp }}/zxvd/zxvd
+        run: |
+          swift --version
+          swift test
+      - name: Pillow for the app icon
+        run: python3 -m pip install --break-system-packages pillow || python3 -m pip install pillow || true
+      - name: Build ZXV Studio.app (universal, zxvd inside, ad-hoc signed)
+        run: sh macos/studio/build_studio_app.sh dist
+      - name: Launch the app once in smoke mode (starts its own zxvd)
+        run: |
+          mkdir -p /tmp/zxs
+          "dist/ZXV Studio.app/Contents/MacOS/ZXVStudio" --smoke /tmp/zxs/run/zxvd.sock
+          test ! -S /tmp/zxs/run/zxvd.sock
+      - name: Upload the app
+        uses: actions/upload-artifact@v7
+        with:
+          name: zxv-studio-macos
+          path: dist/ZXV-Studio-*-macos.zip

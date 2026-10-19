@@ -1,15 +1,23 @@
 name: CodeQL
 
+# Documentation-only changes have no code to scan (same list as
+# build_system/ci_changes.sh). The weekly run scans everything.
 on:
   push:
     branches: [ main, develop ]
+    paths-ignore: [ 'docs/**', '**/*.md', 'LICENSE', 'NOTICE', 'FUNDING.yml', 'CITATION.cff' ]
   pull_request:
     branches: [ main, develop ]
+    paths-ignore: [ 'docs/**', '**/*.md', 'LICENSE', 'NOTICE', 'FUNDING.yml', 'CITATION.cff' ]
   schedule:
     - cron: '17 4 * * 1'
 
 permissions:
   contents: read
+
+concurrency:
+  group: codeql-${{ github.event.pull_request.number || (github.ref == 'refs/heads/main' && github.sha) || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   analyze:
@@ -30,7 +38,7 @@ jobs:
           - language: python
             build-mode: none
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}

@@ -1,0 +1,106 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+# Whole programs: statements, assignment, comments, bound names, and the
+# canonical spelling as input.
+
+=== mean
+apl: x←3 1 4 1 5 9 2 6
+apl: (+/x)÷≢x
+k: x:3 1 4 1 5 9 2 6
+k: (+/x)%#x
+py: F(31, 8)
+
+=== mean-diamond-semicolon
+apl: x←3 1 4 1 5 9 2 6 ⋄ (+/x)÷≢x
+k: x:3 1 4 1 5 9 2 6; (+/x)%#x
+py: F(31, 8)
+
+=== variance
+apl: x←2 4 4 4 5 5 7 9 ⋄ m←(+/x)÷≢x ⋄ (+/(x-m)×x-m)÷≢x
+k: x:2 4 4 4 5 5 7 9; m:(+/x)%#x; (+/(x-m)*x-m)%#x
+py: F(4)
+
+=== comments
+apl: x←1 2 3 ⍝ the data
+apl: ⍝ a whole-line comment
+apl: +/x ⍝ the sum
+k: x:1 2 3 / the data
+k: / a whole-line comment
+k: +/x / the sum
+py: F(6)
+
+=== assign-inside
+apl: y+y←3
+py: F(6)
+
+=== assign-chain
+apl: a←b←2 ⋄ a+b
+k: a:b:2; a+b
+py: F(4)
+
+=== reassign
+apl: x←1 ⋄ x←x+1 ⋄ x←x×10 ⋄ x
+k: x:1; x:x+1; x:x*10; x
+py: F(20)
+
+=== bound-vector
+bind: x = vec(1, 2, 3, 4)
+apl: +⌿x
+k: +/x
+py: F(10)
+
+=== bound-matrix
+bind: x = mat([[1, 2], [3, 4]])
+apl: +⌿x
+k: +/x
+py: vec(4, 6)
+
+=== bound-apl-last-axis
+bind: x = mat([[1, 2], [3, 4]])
+apl: +/x
+py: vec(3, 7)
+
+=== bound-rational
+bind: r = F(1, 3)
+apl: r×3 6
+py: vec(1, 2)
+
+=== canonical-input
+canon: (let x (vec 1 2 3))
+canon: (reduce add (mul x x))
+apl: x←1 2 3 ⋄ +/x×x
+k: x:1 2 3; +/x*x
+py: F(14)
+
+=== canonical-matrix-literal
+canon: (inner add mul (mat 2 2 1 0 0 1) (mat 2 2 1r2 1r3 1r4 1r5))
+py: mat([[F(1, 2), F(1, 3)], [F(1, 4), F(1, 5)]])
+
+=== canonical-truth-matrix
+canon: (tmat 1 2 true both)
+py: mat([[T, B]])
+
+=== words-in-k
+k: 2 rotate 1 2 3 4
+canon: (rotate 2 (vec 1 2 3 4))
+apl: 2⌽1 2 3 4
+py: vec(3, 4, 1, 2)
+
+=== compound-interest
+apl: ×/12⍴1+1r100
+k: */12#1+1r100
+py: F(101, 100) ** 12
+
+=== prefix-average
+apl: x←1 2 3 4 ⋄ (+\x)÷1+⍳≢x
+k: x:1 2 3 4; (+\x)%1+!#x
+py: vec(1, F(3, 2), 2, F(5, 2))
+
+=== pascal-row
+apl: n←6 ⋄ ×/(n-⍳3)÷1+⍳3
+py: F(20)
+
+=== empty-statements
+apl: ⋄ ⋄ 1+1 ⋄
+k: ;;1+1;
+py: F(2)

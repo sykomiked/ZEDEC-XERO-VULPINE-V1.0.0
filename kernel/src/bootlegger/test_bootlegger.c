@@ -1,11 +1,11 @@
-/* test_bootlegger.c — Bootlegger v2: a handshake that binds identities,
+/* test_bootlegger.c — Bootlegger v3: a handshake that binds identities,
  * ephemeral keys and fresh nonces, and sessions that are real AEAD.
  *
  * Regression for the audit's HIGH item: the v1 handshake signed only static
  * fields (replayable) and the ML-KEM key was not bound to the identity (man in
  * the middle). Every attack below succeeds against a protocol that omits a
  * nonce, an ephemeral key or the version from the signed transcript.
- * Identities are ML-DSA-65 keys derived at run time from fixed public test
+ * Identities are ML-DSA-87 keys derived at run time from fixed public test
  * seeds: no private key is stored in the tree.
  *
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
@@ -73,7 +73,7 @@ static int run_honest(void)
 
 int main(void)
 {
-    printf("=== bootlegger v2: signed transcript handshake and AEAD sessions ===\n");
+    printf("=== bootlegger v3: signed transcript handshake and AEAD sessions ===\n");
     uint8_t seed[32];
     memset(seed, 0xA1, 32);
     bootlegger_identity_init(&IA, seed);
@@ -183,7 +183,7 @@ int main(void)
         CK(bootlegger_hs_initiate(&HA, &IA, &RA, fresh(), &hello) == 0, "MITM setup: HELLO");
         CK(bootlegger_hs_initiate(&hm, &IM, &RM, fresh(), &hello2) == 0, "Mallory's own key");
         bootlegger_hello_t forged = hello;
-        memcpy(forged.ek, hello2.ek, MLKEM768_EK_BYTES);
+        memcpy(forged.ek, hello2.ek, BOOTLEGGER_EK_BYTES);
         CK(bootlegger_hs_respond(&HB, &CB, &IB, &RB, &forged, fresh(), &reply) == 0,
            "Bob answers the forged HELLO (it is unsigned at this point)");
         CK(bootlegger_hs_finish(&HA, &CA, &IA, &RA, &reply, fresh(), &fin) == BOOTLEGGER_EAUTH &&
@@ -196,7 +196,7 @@ int main(void)
                bootlegger_hs_respond(&HB, &CB, &IB, &RB, &hello, fresh(), &reply) == 0,
            "MITM setup 2");
         reply2 = reply;
-        memcpy(reply2.hello.ek, hello2.ek, MLKEM768_EK_BYTES);
+        memcpy(reply2.hello.ek, hello2.ek, BOOTLEGGER_EK_BYTES);
         CK(bootlegger_hs_finish(&HA, &CA, &IA, &RA, &reply2, fresh(), &fin) == BOOTLEGGER_EAUTH &&
                !CA.authenticated,
            "a REPLY with a substituted ephemeral key is REJECTED");
@@ -232,6 +232,23 @@ int main(void)
         CK(bootlegger_hs_accept(&HB, &CB, &fin2) == BOOTLEGGER_EAUTH && !CB.authenticated,
            "a FINISH with a swapped ciphertext fails key confirmation");
 
+        /* an ephemeral key with a coefficient >= q fails the FIPS 203 check */
+        reset_all();
+        CK(bootlegger_hs_initiate(&HA, &IA, &RA, fresh(), &hello) == 0, "modulus setup");
+        forged = hello;
+        memset(forged.ek, 0xFF, 384);
+        CK(bootlegger_hs_respond(&HB, &CB, &IB, &RB, &forged, fresh(), &reply) ==
+                   BOOTLEGGER_EAUTH &&
+               !CB.authenticated,
+           "a HELLO whose ML-KEM-1024 key is not reduced mod q is REJECTED");
+        CK(bootlegger_hs_respond(&HB, &CB, &IB, &RB, &hello, fresh(), &reply) == 0,
+           "the same HELLO with its genuine key is answered");
+        reply2 = reply;
+        memset(reply2.hello.ek + 384, 0xFF, 384);
+        CK(bootlegger_hs_finish(&HA, &CA, &IA, &RA, &reply2, fresh(), &fin) == BOOTLEGGER_EAUTH &&
+               !CA.authenticated,
+           "a REPLY whose ML-KEM-1024 key is not reduced mod q is REJECTED");
+
         /* reflection: Bob receives his own identity */
         reset_all();
         CK(bootlegger_hs_initiate(&HA, &IB, &RA, fresh(), &hello) == 0 &&
@@ -249,12 +266,16 @@ int main(void)
         CK(bootlegger_hs_respond(&HB, &CB, &IB, &RB, &hello2, fresh(), &reply) ==
                BOOTLEGGER_EVERSION,
            "a HELLO offering version 1 is REJECTED (no downgrade)");
-        hello2.version = 3;
+        hello2.version = 2;
+        CK(bootlegger_hs_respond(&HB, &CB, &IB, &RB, &hello2, fresh(), &reply) ==
+               BOOTLEGGER_EVERSION,
+           "a HELLO offering version 2 (ML-KEM-768 / ML-DSA-65) is REJECTED");
+        hello2.version = 4;
         CK(bootlegger_hs_respond(&HB, &CB, &IB, &RB, &hello2, fresh(), &reply) ==
                BOOTLEGGER_EVERSION,
            "an unknown version is REJECTED");
         CK(bootlegger_hs_respond(&HB, &CB, &IB, &RB, &hello, fresh(), &reply) == 0,
-           "the genuine v2 HELLO is answered");
+           "the genuine v3 HELLO is answered");
         reply2 = reply;
         reply2.hello.version = 1;
         CK(bootlegger_hs_finish(&HA, &CA, &IA, &RA, &reply2, fresh(), &fin) == BOOTLEGGER_EVERSION,

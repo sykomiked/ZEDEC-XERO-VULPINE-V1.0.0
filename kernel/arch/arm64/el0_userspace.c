@@ -27,6 +27,7 @@ typedef char zxv_cap_agree[
      CAP_FS    == ZSC_CAP_FS) ? 1 : -1];
 #include "arm64_arch.h"
 #include "../src/loader/elf.h"
+#include "../../src/pmm/pmm.h"
 
 /* Syscall numbers are defined in el0_userspace.h */
 
@@ -40,6 +41,8 @@ extern void uart_put_dec(uint64_t val);
  * include the kernel mapping while still overlaying 4KB user pages. */
 extern void arm64_copy_pt_template(uint64_t *l2_dst, uint64_t *l1_block_1gb);
 extern uint64_t arm64_mmu_kernel_l1(int idx);  /* kernel L1 entry, to keep the kernel mapped in user tables */
+/* the kernel's own L0, for when no process table is live */
+extern uint64_t arm64_mmu_kernel_ttbr0(void);
 
 /* Static page table storage for user processes.
  * Each process gets one L0 table (512 entries × 8 bytes = 4KB).
@@ -60,20 +63,54 @@ static uint64_t pt_storage[MAX_USER_PROCS][5][TABLE_ENTRIES]
 /* Track which process uses which pt_storage slot */
 static int pt_slot_used[MAX_USER_PROCS];
 
-/* Simple bitmap allocator for 4KB pages from a static pool.
- * We carve out a 2MB region from BSS for user code/stack pages. */
+/* User pages come from a 2MB static pool managed by the four-state frame
+ * allocator (src/pmm): every page a process maps is freed when its slot is
+ * released, so the pool no longer runs dry after about 15 launches. A page
+ * freed twice or claimed twice is fenced for good (pmm BOTH) and counted
+ * in g_user_pages_fenced instead of being handed to a second process. */
 #define USER_PAGE_POOL_SIZE  (2 * 1024 * 1024)  /* 2MB */
+#define USER_PAGE_POOL_FRAMES (USER_PAGE_POOL_SIZE / PAGE_SIZE_4K)
 static uint8_t user_page_pool[USER_PAGE_POOL_SIZE]
     __attribute__((aligned(4096)));
-static uint32_t user_page_pool_used;  /* bytes used */
+static uint8_t user_page_bits[PMM_BITS_BYTES(USER_PAGE_POOL_FRAMES)];
+static pmm_t g_user_pmm;
+static uint32_t g_user_pages_fenced;
 
-/* Allocate a 4KB page from the static pool */
+/* Allocate a zeroed 4KB page from the pool; 0 when none is free. Zeroing
+ * here matters now that pages are reused: a new process must never see
+ * the bytes an earlier one left behind. */
 static uint64_t alloc_user_page_phys(void) {
-    if (user_page_pool_used + PAGE_SIZE_4K > USER_PAGE_POOL_SIZE)
-        return 0;  /* out of memory */
-    uint64_t addr = (uint64_t)&user_page_pool[user_page_pool_used];
-    user_page_pool_used += PAGE_SIZE_4K;
-    return addr;
+    uint64_t pa = 0;
+    lpres_state_t v = pmm_alloc(&g_user_pmm, &pa);
+    if (v != LPRES_STATE_TRUE) {
+        if (v == LPRES_STATE_BOTH)
+            uart_puts("[EL0] user page pool counters disagree with its bitmap\n");
+        return 0;
+    }
+    uint8_t *p = (uint8_t *) pa; /* identity mapping: VA == PA */
+    for (uint32_t i = 0; i < PAGE_SIZE_4K; i++) p[i] = 0;
+    return pa;
+}
+
+/* Return every pool page mapped in a slot's L3 table, and clear it. */
+static void free_slot_pages(uint32_t slot)
+{
+    uint64_t *l3 = pt_storage[slot][3];
+    for (uint32_t k = 0; k < TABLE_ENTRIES; k++) {
+        uint64_t pte = l3[k];
+        if (!(pte & PTE_VALID)) continue;
+        uint64_t pa = pte & 0x0000FFFFFFFFF000ULL;
+        if (pmm_owns_range(&g_user_pmm, pa) && pmm_free(&g_user_pmm, pa) == LPRES_STATE_BOTH) {
+            g_user_pages_fenced++;
+            uart_puts("[EL0] user page freed twice: fenced\n");
+        }
+        l3[k] = 0;
+    }
+}
+
+uint32_t proc_user_pages_free(void)
+{
+    return g_user_pmm.n_free;
 }
 
 /* Allocate a page table from per-process storage */
@@ -99,7 +136,56 @@ void proc_pt_init(void) {
     for (int i = 0; i < MAX_USER_PROCS; i++)
         pt_slot_used[i] = 0;
 
-    user_page_pool_used = 0;
+    pmm_init(&g_user_pmm, (uint64_t) user_page_pool, USER_PAGE_POOL_FRAMES, user_page_bits);
+    g_user_pages_fenced = 0;
+}
+
+/* Release a slot whose process is gone (or never finished being built):
+ * its pages go back to the pool and its tables become free. If TTBR0 still
+ * points at this table (the exiting process's own syscall or fault), move
+ * the kernel onto its own table first, so nothing runs on freed tables. */
+static void release_slot(uint32_t slot)
+{
+    if (slot >= MAX_USER_PROCS) return;
+    uint64_t live;
+    __asm__ __volatile__("mrs %0, ttbr0_el1" : "=r"(live));
+    if ((live & 0x0000FFFFFFFFF000ULL) == (uint64_t) pt_storage[slot][0]) {
+        __asm__ __volatile__("msr ttbr0_el1, %0" ::"r"(arm64_mmu_kernel_ttbr0()));
+        __asm__ __volatile__("isb");
+    }
+    free_slot_pages(slot);
+    pt_slot_used[slot] = 0;
+    __asm__ __volatile__("tlbi vmalle1is");
+    __asm__ __volatile__("dsb ish");
+    __asm__ __volatile__("isb");
+}
+
+/* Pick a process slot: an UNUSED one first, else reap the first TERMINATED
+ * one (its exit code has had its chance to be read; there is no wait call
+ * yet). Returns MAX_USER_PROCS when every slot holds a live process. Before
+ * this, a TERMINATED slot was never reused, and proc_create fell back to
+ * slot 0 (the shell) once no UNUSED slot was left. */
+static uint32_t proc_take_slot(proc_scheduler_t *ps)
+{
+    for (uint32_t i = 0; i < MAX_USER_PROCS; i++)
+        if (ps->procs[i].state == PROC_UNUSED) return i;
+    for (uint32_t i = 0; i < MAX_USER_PROCS; i++) {
+        if (ps->procs[i].state == PROC_TERMINATED) {
+            ps->procs[i].state = PROC_UNUSED;
+            ps->procs[i].pid = 0;
+            ps->procs[i].l0_table = 0;
+            return i;
+        }
+    }
+    return MAX_USER_PROCS;
+}
+
+/* Undo a half-built process: free what it took and mark the slot unused. */
+static void proc_abandon(user_proc_t *proc, uint32_t slot)
+{
+    release_slot(slot);
+    proc->l0_table = 0;
+    proc->state = PROC_UNUSED;
 }
 
 /* Configure TCR_EL1 for split EL1/EL0 translation:
@@ -397,14 +483,8 @@ int32_t proc_create(proc_scheduler_t *ps, const char *name,
                      void (*entry_point)(void), uint32_t priority) {
     if (!ps || ps->num_procs >= MAX_USER_PROCS) return -1;
 
-    /* Find a free slot */
-    uint32_t slot = 0;
-    for (uint32_t i = 0; i < MAX_USER_PROCS; i++) {
-        if (ps->procs[i].state == PROC_UNUSED) {
-            slot = i;
-            break;
-        }
-    }
+    uint32_t slot = proc_take_slot(ps);
+    if (slot >= MAX_USER_PROCS) return -1;
 
     user_proc_t *proc = &ps->procs[slot];
 
@@ -433,8 +513,11 @@ int32_t proc_create(proc_scheduler_t *ps, const char *name,
     for (uint32_t i = 0; i < USER_CODE_SIZE / PAGE_SIZE_4K; i++) {
         uint64_t va = USER_CODE_BASE + i * PAGE_SIZE_4K;
         uint64_t pa = alloc_user_page_phys();
-        if (!pa) return -1;
-        if (!proc_map_page(proc, va, pa, false, true)) return -1;
+        if (!pa || !proc_map_page(proc, va, pa, false, true)) {
+            if (pa) pmm_free(&g_user_pmm, pa);
+            proc_abandon(proc, slot);
+            return -1;
+        }
         if (i == 0) first_code_pa = pa;
     }
 
@@ -442,8 +525,11 @@ int32_t proc_create(proc_scheduler_t *ps, const char *name,
     for (uint32_t i = 0; i < USER_STACK_SIZE / PAGE_SIZE_4K; i++) {
         uint64_t va = USER_STACK_BASE + i * PAGE_SIZE_4K;
         uint64_t pa = alloc_user_page_phys();
-        if (!pa) return -1;
-        if (!proc_map_page(proc, va, pa, true, false)) return -1;
+        if (!pa || !proc_map_page(proc, va, pa, true, false)) {
+            if (pa) pmm_free(&g_user_pmm, pa);
+            proc_abandon(proc, slot);
+            return -1;
+        }
     }
 
     /* Copy entry point code to user space */
@@ -459,7 +545,10 @@ int32_t proc_create(proc_scheduler_t *ps, const char *name,
      * independent SVC loops; the user page will be mapped at EL0
      * with execute permission.  We copy only the first 4KB to avoid
      * over-reading past the end of the function. */
-    if (first_code_pa == 0) return -1;
+    if (first_code_pa == 0) {
+        proc_abandon(proc, slot);
+        return -1;
+    }
     uint8_t *code_ptr = (uint8_t *)first_code_pa;
     uint8_t *src = (uint8_t *)entry_point;
     for (uint32_t i = 0; i < PAGE_SIZE_4K; i++)
@@ -616,15 +705,34 @@ static int elf_seg_map(void *vctx, const elf_segment_t *seg) {
     uint64_t start = seg->vaddr & ~(PAGE_SIZE_4K - 1);
     uint64_t end   = seg->vaddr + seg->mem_size;
 
-    for (uint64_t page = start; page < end; page += PAGE_SIZE_4K) {
-        uint64_t pa = alloc_user_page_phys();
-        if (!pa) return 1;
-        /* code = RO+X, data = RW+NX. proc_map_page already forces PXN. */
-        if (!proc_map_page(proc, page, pa, seg->writable, seg->executable))
-            return 1;
+    /* A segment may not cover the stack: the loader would silently replace
+     * stack pages (the ELF window 0x1000-0x200000 contains the stack). */
+    if (start < USER_STACK_TOP && end > USER_STACK_BASE) return 1;
 
-        uint8_t *dstp = (uint8_t *)pa;   /* kernel identity view of the page */
-        for (uint32_t i = 0; i < PAGE_SIZE_4K; i++) dstp[i] = 0;  /* BSS/zero */
+    uint64_t *l3 = get_l3_code(proc->l0_table);
+    for (uint64_t page = start; page < end; page += PAGE_SIZE_4K) {
+        uint64_t old = l3[(page >> 12) & 0x1FF];
+        uint64_t pa;
+        if (old & PTE_VALID) {
+            /* Two PT_LOADs share this page. Same permissions: reuse it
+             * (allocating a second page dropped the first segment's bytes
+             * and leaked the page). Different permissions: the segments
+             * claim both W and X for one page, which W^X refuses. */
+            bool was_w = (old & PTE_AP_RO_EL0) == PTE_AP_RW_EL0;
+            bool was_x = !(old & PTE_UXN);
+            if (was_w != seg->writable || was_x != seg->executable) return 1;
+            pa = old & 0x0000FFFFFFFFF000ULL;
+        } else {
+            pa = alloc_user_page_phys(); /* already zeroed: BSS tail */
+            if (!pa) return 1;
+            /* code = RO+X, data = RW+NX. proc_map_page already forces PXN. */
+            if (!proc_map_page(proc, page, pa, seg->writable, seg->executable)) {
+                pmm_free(&g_user_pmm, pa);
+                return 1;
+            }
+        }
+
+        uint8_t *dstp = (uint8_t *) pa; /* kernel identity view of the page */
 
         /* copy the overlap of this page with the file-backed region */
         uint64_t file_end = seg->vaddr + seg->file_size;
@@ -657,14 +765,17 @@ static int elf_seg_map(void *vctx, const elf_segment_t *seg) {
  * Returns PID on success, or a negative elf_result_t / -100 on error. */
 int32_t proc_create_from_elf(proc_scheduler_t *ps, const char *name,
                              const uint8_t *image, uint32_t len) {
+    return proc_create_from_elf_caps(ps, name, image, len, CAP_APP_DEFAULT);
+}
+
+int32_t proc_create_from_elf_caps(proc_scheduler_t *ps, const char *name, const uint8_t *image,
+                                  uint32_t len, uint32_t caps)
+{
+    if ((caps & ~CAP_TRUSTED_ALL) != 0) return -100; /* a bit the kernel does not know */
     if (!ps || ps->num_procs >= MAX_USER_PROCS) return -100;
 
-    uint32_t slot = 0;
-    bool found = false;
-    for (uint32_t i = 0; i < MAX_USER_PROCS; i++) {
-        if (ps->procs[i].state == PROC_UNUSED) { slot = i; found = true; break; }
-    }
-    if (!found) return -100;
+    uint32_t slot = proc_take_slot(ps);
+    if (slot >= MAX_USER_PROCS) return -100;
 
     user_proc_t *proc = &ps->procs[slot];
     proc->l0_table = alloc_pt_for_proc(slot);
@@ -681,8 +792,11 @@ int32_t proc_create_from_elf(proc_scheduler_t *ps, const char *name,
     for (uint32_t i = 0; i < USER_STACK_SIZE / PAGE_SIZE_4K; i++) {
         uint64_t va = USER_STACK_BASE + i * PAGE_SIZE_4K;
         uint64_t pa = alloc_user_page_phys();
-        if (!pa) return -100;
-        if (!proc_map_page(proc, va, pa, true, false)) return -100;
+        if (!pa || !proc_map_page(proc, va, pa, true, false)) {
+            if (pa) pmm_free(&g_user_pmm, pa);
+            proc_abandon(proc, slot);
+            return -100;
+        }
     }
 
     /* Load the ELF segments. */
@@ -693,7 +807,7 @@ int32_t proc_create_from_elf(proc_scheduler_t *ps, const char *name,
         uart_puts("[EL0] ELF load rejected: ");
         uart_puts(elf_strerror(r));
         uart_puts("\n");
-        proc->state = PROC_UNUSED;
+        proc_abandon(proc, slot);
         return (int32_t)r;   /* negative */
     }
 
@@ -702,10 +816,10 @@ int32_t proc_create_from_elf(proc_scheduler_t *ps, const char *name,
     for (int i = 0; i < 31 && name[i]; i++) proc->name[i] = name[i];
     proc->name[31] = 0;
     proc->state = PROC_READY;
-    /* Loaded applications run at LEAST PRIVILEGE: console + self-control
-     * only. They cannot run shell commands (CAP_EXEC), do IPC (CAP_IPC),
-     * or touch the filesystem (CAP_FS) unless explicitly granted. */
-    proc->capabilities = CAP_APP_DEFAULT;
+    /* Loaded applications run with what the loader decided: by default
+     * LEAST PRIVILEGE, console + self-control only (CAP_APP_DEFAULT); more
+     * only when a signed ZSP2 header grants it (the `run` command). */
+    proc->capabilities = caps;
     proc->priority = 1;
     proc->cpu_time_ticks = 0;
     proc->quantum_ticks = 10;
@@ -877,6 +991,44 @@ int32_t ipc_recv(proc_scheduler_t *ps, uint32_t sender_pid,
     return 0;
 }
 
+/* Leave the current (exited or faulted) process behind and run the next
+ * READY one. A process may be SLEEPING or BLOCKED rather than READY right
+ * now, so idle at EL1 until one wakes (the timer IRQ advances ps->ticks and
+ * runs proc_wake_eligible while we WFI) instead of halting the machine.
+ *
+ * CRITICAL: synchronous-exception entry masked IRQs (PSTATE.I=1). With IRQs
+ * masked, WFI wakes on a PENDING interrupt but never TAKES it, so no
+ * sleeper could ever wake. Unmask IRQs here; the caller has already
+ * abandoned the old context, and proc_restore_el0 rebuilds state. Does not
+ * return. */
+void proc_run_next_or_idle(proc_scheduler_t *ps)
+{
+    __asm__ __volatile__("msr daifclr, #2");
+    for (;;) {
+        bool any_live = false;
+        for (uint32_t i = 1; i <= MAX_USER_PROCS; i++) {
+            uint32_t idx = (ps->current_pid + i) % MAX_USER_PROCS;
+            proc_state_t st = ps->procs[idx].state;
+            if (st == PROC_READY) {
+                ps->current_pid = idx;
+                ps->procs[idx].state = PROC_RUNNING;
+                ps->procs[idx].quantum_ticks = ps->procs[idx].quantum_default;
+                proc_switch_address_space(&ps->procs[idx]);
+                proc_restore_el0(&ps->procs[idx].ctx);
+                return; /* not reached: proc_restore_el0 ERETs */
+            }
+            if (st == PROC_SLEEPING || st == PROC_BLOCKED || st == PROC_RUNNING) any_live = true;
+        }
+        if (!any_live) break;
+        __asm__ __volatile__("wfi");
+    }
+    /* No live processes remain: all user processes exited. */
+    uart_puts("[EL0] all user processes exited — EL1 idle\n");
+    while (1) {
+        __asm__ __volatile__("wfi");
+    }
+}
+
 /* Wake processes whose sleep has expired or whose blocked condition is met */
 void proc_wake_eligible(proc_scheduler_t *ps) {
     if (!ps) return;
@@ -926,47 +1078,10 @@ void proc_handle_svc(proc_scheduler_t *ps, uint64_t syscall_num,
     switch (syscall_num) {
         case SYS_EXIT:
             proc_terminate(ps, curr->pid, (int32_t)(args[0]));
-            /* Won't return — pick next process.  A process may be
-             * SLEEPING rather than READY right now, so idle at EL1
-             * until one wakes (irq_handler_c advances ps->ticks and
-             * runs proc_wake_eligible while we WFI here) instead of
-             * halting forever the moment no process is READY.
-             *
-             * CRITICAL: synchronous-exception entry masked IRQs
-             * (PSTATE.I=1).  With IRQs masked, WFI wakes on a PENDING
-             * interrupt but never TAKES it — irq_handler_c would never
-             * run, ticks would never advance, and no sleeper could
-             * ever wake.  Unmask IRQs here; we have already abandoned
-             * the exited process's context, and the dispatch below
-             * rebuilds state via proc_restore_el0. */
-            __asm__ __volatile__("msr daifclr, #2");
-            for (;;) {
-                bool any_live = false;
-                for (uint32_t i = 1; i <= MAX_USER_PROCS; i++) {
-                    uint32_t idx = (ps->current_pid + i) % MAX_USER_PROCS;
-                    proc_state_t st = ps->procs[idx].state;
-                    if (st == PROC_READY) {
-                        ps->current_pid = idx;
-                        ps->procs[idx].state = PROC_RUNNING;
-                        ps->procs[idx].quantum_ticks =
-                            ps->procs[idx].quantum_default;
-                        proc_switch_address_space(&ps->procs[idx]);
-                        proc_restore_el0(&ps->procs[idx].ctx);
-                        return; /* not reached — proc_restore_el0 ERETs */
-                    }
-                    if (st == PROC_SLEEPING || st == PROC_BLOCKED ||
-                        st == PROC_RUNNING) {
-                        any_live = true;
-                    }
-                }
-                if (!any_live)
-                    break;
-                __asm__ __volatile__("wfi");
-            }
-            /* No live processes remain — all user processes exited. */
-            uart_puts("[EL0] all user processes exited — EL1 idle\n");
-            while (1) { __asm__ __volatile__("wfi"); }
-            return;
+            /* Won't return: run the next process, or idle until one
+             * wakes (see proc_run_next_or_idle). */
+            proc_run_next_or_idle(ps);
+            return; /* not reached */
 
         case SYS_GETPID:
             ctx->x[0] = curr->pid;
@@ -1031,13 +1146,13 @@ void proc_handle_svc(proc_scheduler_t *ps, uint64_t syscall_num,
                 uint64_t uva = args[0];
                 uint64_t len = args[1];
                 if (uva == 0 || len >= sizeof(kbuf)) {
-                    ctx->x[0] = (uint64_t)-1;
+                    ctx->x[0] = (uint64_t) (int64_t) ZXV_EINVAL;
                     return;
                 }
                 /* P0-1: validate + copy the user pointer instead of
                  * dereferencing it raw. A bad/kernel address fails here. */
                 if (copy_from_user(curr, kbuf, uva, len) != 0) {
-                    ctx->x[0] = (uint64_t)-2;   /* EFAULT */
+                    ctx->x[0] = (uint64_t) (int64_t) ZXV_EFAULT;
                     return;
                 }
                 kbuf[len] = '\0';
@@ -1092,12 +1207,12 @@ void proc_handle_svc(proc_scheduler_t *ps, uint64_t syscall_num,
                  * depends on user memory staying mapped and there is no TOCTOU
                  * between the check and the read. */
                 if (args[2] > IPC_MAX_PAYLOAD) {
-                    ctx->x[0] = (uint64_t)-2;   /* too big */
+                    ctx->x[0] = (uint64_t) (int64_t) ZXV_EINVAL; /* too big */
                     return;
                 }
                 uint8_t kbuf[IPC_MAX_PAYLOAD];
                 if (copy_from_user(curr, kbuf, args[1], args[2]) != 0) {
-                    ctx->x[0] = (uint64_t)-2;   /* EFAULT */
+                    ctx->x[0] = (uint64_t) (int64_t) ZXV_EFAULT;
                     return;
                 }
                 int32_t ret = ipc_send(ps, (uint32_t)args[0],
@@ -1111,9 +1226,12 @@ void proc_handle_svc(proc_scheduler_t *ps, uint64_t syscall_num,
             {
                 /* P0-1: the receive buffer is a user pointer EL1 will WRITE —
                  * validate the range is mapped, EL0-accessible, AND WRITABLE. */
-                if (args[2] > IPC_MAX_PAYLOAD ||
-                    !proc_user_range_check(curr, args[1], args[2], true)) {
-                    ctx->x[0] = (uint64_t)-2;   /* EFAULT / too big / read-only */
+                if (args[2] > IPC_MAX_PAYLOAD) {
+                    ctx->x[0] = (uint64_t) (int64_t) ZXV_EINVAL; /* too big */
+                    return;
+                }
+                if (!proc_user_range_check(curr, args[1], args[2], true)) {
+                    ctx->x[0] = (uint64_t) (int64_t) ZXV_EFAULT; /* unmapped or read-only */
                     return;
                 }
                 int32_t ret = ipc_recv(ps, (uint32_t)args[0],
@@ -1144,14 +1262,14 @@ void proc_handle_svc(proc_scheduler_t *ps, uint64_t syscall_num,
         case SYS_CLOSE:
             /* P0-4: recognised syscalls, deliberately not implemented in this MVP
              * (file access is via the P-TERM shell + ZXVFS, not a raw EL0 fd API).
-             * Return a distinct ENOSYS (-38) so callers see "not implemented",
-             * NOT the -1 "unknown syscall" — and never fall through to a raw
-             * user-pointer dereference. The CAP_FS gate still applies above. */
-            ctx->x[0] = (uint64_t)-38;   /* ENOSYS */
+             * Return ZXV_ENOSYS: -38 (Linux's ENOSYS) is not a value of this
+             * ABI, so a user program could not name it. Never fall through to
+             * a raw user-pointer dereference. The CAP_FS gate still applies. */
+            ctx->x[0] = (uint64_t) (int64_t) ZXV_ENOSYS;
             return;
 
         default:
-            ctx->x[0] = (uint64_t)-1;  /* unknown syscall */
+            ctx->x[0] = (uint64_t) (int64_t) ZXV_ENOSYS; /* unknown syscall */
             return;
     }
 }
@@ -1161,7 +1279,7 @@ void proc_handle_svc(proc_scheduler_t *ps, uint64_t syscall_num,
 void proc_pt_free(uint64_t *l0_table) {
     for (int j = 0; j < MAX_USER_PROCS; j++) {
         if (pt_slot_used[j] && pt_storage[j][0] == l0_table) {
-            pt_slot_used[j] = 0;
+            release_slot((uint32_t) j);
             break;
         }
     }

@@ -1,0 +1,20 @@
+  TXN-BECORD.
+   5    TXN-CO9( T A PIC S9(4) COMP.
+   02 B PIC 9(3)V9.
+05 A PIC S9(4) COMP.
+   05 B  PIC 9(3)V9.
+   05 
+   05 A PIC S9(4) COMP.
+ MP.
+   05 5 9(  PIC S9() COMP.
+   02 B PIC 9(3)V9. 
+10 A PIC S9(4) COMP.
+   05 B  PIC 0(3)V9.
+   05 
+   05 A PIC S9(4) COMP.
+   02 J PIC 9(3)V9.ß¬Æ×ËÖ CWM3P
+)V9.
+   05 A PIC S9(4) COMP.
+ 3)V9.
+   05 A PIC S9(4) COMP.
+   IPIC    05  0B 2
