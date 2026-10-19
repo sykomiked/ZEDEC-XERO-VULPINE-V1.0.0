@@ -3,9 +3,13 @@
 /* cpu_lr35902.c — Sharp LR35902 (Game Boy / GBC CPU). See cpu_lr35902.h.
  * The regular blocks $40-$7F (LD r,r') and $80-$BF (ALU A,r) are decoded
  * algorithmically; the rest are explicit. Undefined opcodes are counted. */
+#include "m5_genie.h"
 #include "cpu_lr35902.h"
 
-static inline uint8_t  rb(cpu_lr35902_t *c, uint16_t a){ return c->read(c, a); }
+static inline uint8_t  rb(cpu_lr35902_t *c, uint16_t a){
+    uint8_t v = c->read(c, a);
+    return (uint8_t) genie_eval_read(a, v, 1u); /* the Game Genie bus hook */
+}
 static inline void     wb(cpu_lr35902_t *c, uint16_t a, uint8_t v){ c->write(c, a, v); }
 static inline uint16_t rw(cpu_lr35902_t *c, uint16_t a){ return (uint16_t)(rb(c,a) | (rb(c,a+1)<<8)); }
 static inline uint8_t  fetch(cpu_lr35902_t *c){ return rb(c, c->pc++); }

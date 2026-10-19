@@ -5,9 +5,13 @@
  * all else, because the flags are exactly what makes the Z80 non-compatible
  * with the 6502 — and the relationship between the two flag worlds is what the
  * M5 event space measures. */
+#include "m5_genie.h"
 #include "cpu_z80.h"
 
-static inline uint8_t  rd(cpu_z80_t *c, uint16_t a)            { return c->read(c, a); }
+static inline uint8_t  rd(cpu_z80_t *c, uint16_t a)            {
+    uint8_t v = c->read(c, a);
+    return (uint8_t) genie_eval_read(a, v, 1u); /* the Game Genie bus hook */
+}
 static inline void     wr(cpu_z80_t *c, uint16_t a, uint8_t v) { c->write(c, a, v); }
 static inline uint8_t  fetch(cpu_z80_t *c)                     { return rd(c, c->pc++); }
 static inline uint16_t fetch16(cpu_z80_t *c) { uint8_t lo = fetch(c); uint8_t hi = fetch(c); return (uint16_t)(lo | (hi << 8)); }

@@ -269,6 +269,7 @@ int pterm_execute_command(pterm_t *t, const char *cmdline) {
     extern void pterm_cmd_net(pterm_t *t);
     extern void pterm_cmd_route(pterm_t *t);
     extern void pterm_cmd_date(pterm_t *t);
+    extern void pterm_cmd_genie(pterm_t *t, const char *sub, const char *arg);
 
     switch (cmd_def->id) {
         case PTERM_CMD_HELP: {
@@ -347,6 +348,9 @@ int pterm_execute_command(pterm_t *t, const char *cmdline) {
         case PTERM_CMD_DATE:
             pterm_cmd_date(t);
             break;
+        case PTERM_CMD_GENIE:
+            pterm_cmd_genie(t, num_args > 0 ? args[0] : 0, num_args > 1 ? args[1] : 0);
+            break;
         default:
             pterm_write_attr(t, "Command not implemented\n", PTERM_ATTR_RED);
             return -1;
@@ -377,6 +381,7 @@ void pterm_register_commands(pterm_t *t) {
         {PTERM_CMD_ROUTE,  "route",   "Show M5 routing table"},
         {PTERM_CMD_TUNNEL, "tunnel",  "PungentClove tunnel status"},
         {PTERM_CMD_SEED,   "seed",    "LATTICE-P2P seeding status"},
+        {PTERM_CMD_GENIE,  "genie",   "Live interception: list | enter <code> | clear"},
     };
 
     uint32_t i;

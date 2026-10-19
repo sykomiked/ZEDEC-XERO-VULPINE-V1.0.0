@@ -210,6 +210,7 @@ KERNEL_SRCS = \
     kernel/src/dualtrack/dualtrack.c \
     kernel/src/edp_risk/edp_risk.c \
     kernel/src/emu/break_potency.c \
+    kernel/src/emu/m5_genie.c \
     kernel/src/emu/cinder.c \
     kernel/src/emu/congruence.c \
     kernel/src/emu/console_trajectory.c \

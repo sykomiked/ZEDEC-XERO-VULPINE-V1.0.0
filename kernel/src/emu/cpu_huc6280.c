@@ -3,11 +3,15 @@
 /* cpu_huc6280.c — Hudson HuC6280 (PC Engine CPU): 65C02 + MPR banking + ST0-2 +
  * block transfers. See cpu_huc6280.h. Every logical access goes through the
  * MPRs. Decimal mode and a few rare encodings are approximated/counted. */
+#include "m5_genie.h"
 #include "cpu_huc6280.h"
 
 #define VDC_PHYS 0x1FE000u   /* hardware page $FF: VDC address/data ports */
 
-static inline uint8_t rd(cpu_huc6280_t *c, uint16_t a){ return c->read(c, huc_phys(c,a)); }
+static inline uint8_t rd(cpu_huc6280_t *c, uint16_t a){
+    uint8_t v = c->read(c, huc_phys(c,a));
+    return (uint8_t) genie_eval_read(a, v, 1u); /* the Game Genie bus hook */
+}
 static inline void    wr(cpu_huc6280_t *c, uint16_t a, uint8_t v){ c->write(c, huc_phys(c,a), v); }
 static inline uint8_t fetch(cpu_huc6280_t *c){ return rd(c, c->pc++); }
 static inline uint16_t fetch16(cpu_huc6280_t *c){ uint16_t lo=fetch(c); uint16_t hi=fetch(c); return lo|(hi<<8); }

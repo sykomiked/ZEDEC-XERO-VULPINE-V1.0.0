@@ -5,6 +5,7 @@
  * PC never desyncs; the operations real boot/init code uses are executed, and
  * the few left as stubs are counted in `illegal`. Binary arithmetic only
  * (decimal ADC/SBC is approximated as binary — init code rarely uses it). */
+#include "m5_genie.h"
 #include "cpu65816.h"
 
 /* ---- addressing modes ------------------------------------------------------ */
@@ -64,7 +65,10 @@ static const uint8_t OP[256] = {
 };
 
 /* ---- bus helpers ----------------------------------------------------------- */
-static inline uint8_t  rd8 (cpu65816_t *c, uint32_t a){ return c->read(c, a & 0xFFFFFF); }
+static inline uint8_t  rd8 (cpu65816_t *c, uint32_t a){
+    uint8_t v = c->read(c, a & 0xFFFFFF);
+    return (uint8_t) genie_eval_read(a, v, 1u); /* the Game Genie bus hook */
+}
 static inline void     wr8 (cpu65816_t *c, uint32_t a, uint8_t v){ c->write(c, a & 0xFFFFFF, v); }
 static inline uint16_t rd16(cpu65816_t *c, uint32_t a){ return (uint16_t)(rd8(c,a) | (rd8(c,a+1)<<8)); }
 /* direct-page / bank-0 pointer fetches wrap within bank 0 */

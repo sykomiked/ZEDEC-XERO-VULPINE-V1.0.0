@@ -58,3 +58,25 @@ machine, so the checks run the first time instead of the third.
   `armada_mesh_daemon.py` are the fleet tools. The Contabo API needs a UUID4
   `x-request-id`; reinstall is `PUT /compute/instances/{id}` with
   `{"imageId": ...}`.
+## The six-platform build and the ELF
+
+- The SCP-144 144-dimensional lattice ROM (`zxv_scp144_blob.h`) and the
+  fractal seed (`zxv_seed_blob.h`) are generated at parse time into every
+  kernel ELF (build_system/gen_scp144_blob.py, gen_seed_blob.py) and
+  verified by `scp144_boot_selfcheck` (kernel/src/scp144/scp144_embed.c)
+  before [BOOT_OK] on x86_64, arm64, riscv and arm32. The generator must
+  keep matching scp144.c's zeckendorf/energy tables: the boot POST fails
+  closed if they drift.
+- Six platforms: `sh build_system/build_six.sh` (per-arch Makefiles for
+  x86_64/arm64/riscv64/riscv32/arm32 + tools/web/build_boot_wasm.sh for
+  the wasm engine). `sudo sh build_system/six_toolchains.sh` installs the
+  cross toolchains on a fresh Ubuntu 24.04 server. The universal Makefile's
+  single source list still includes x86-only drivers (ata.c is now gated),
+  so the per-arch Makefiles are the real builders.
+- The Game Genie interception layer (kernel/src/emu/m5_genie.c) hooks the
+  emulated cores' bus reads (6502, Z80, 65816, LR35902, HuC6280, m68k) and
+  the `genie list|enter <code>|clear` P-TERM commands; test_genie.c proves
+  it. The symbolic decode is an FNV fold today (ref_forge/Gematria is the
+  future hook).
+- Entropy: kernel/src/entropy/entropy_jitter.c is the honest jitter
+  harvester used as the arm64 vault fallback when FEAT_RNG is absent.

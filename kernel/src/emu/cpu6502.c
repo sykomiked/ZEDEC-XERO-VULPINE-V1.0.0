@@ -1,6 +1,7 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 /* cpu6502.c — MOS 6502 core. All official opcodes + addressing modes. See .h. */
+#include "m5_genie.h"
 #include "cpu6502.h"
 
 #define C CPU6502_C
@@ -12,7 +13,10 @@
 #define V CPU6502_V
 #define N CPU6502_N
 
-static inline uint8_t  rd(cpu6502_t *c, uint16_t a)              { return c->read(c, a); }
+static inline uint8_t  rd(cpu6502_t *c, uint16_t a)              {
+    uint8_t v = c->read(c, a);
+    return (uint8_t) genie_eval_read(a, v, 1u); /* the Game Genie bus hook */
+}
 static inline void     wr(cpu6502_t *c, uint16_t a, uint8_t v)   { c->write(c, a, v); }
 static inline uint16_t rd16(cpu6502_t *c, uint16_t a)           { return (uint16_t)(rd(c, a) | (rd(c, (uint16_t)(a + 1)) << 8)); }
 /* zero-page 16-bit read with page wrap (low/high both in $00xx) */

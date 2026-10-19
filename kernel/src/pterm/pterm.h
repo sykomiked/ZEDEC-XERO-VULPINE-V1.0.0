@@ -67,7 +67,8 @@ typedef enum {
     PTERM_CMD_ROUTE   = 11,
     PTERM_CMD_TUNNEL  = 12,
     PTERM_CMD_SEED    = 13,
-    PTERM_CMD_MAX     = 14,
+    PTERM_CMD_GENIE   = 14,
+    PTERM_CMD_MAX     = 15,
 } pterm_cmd_id_t;
 
 typedef struct {

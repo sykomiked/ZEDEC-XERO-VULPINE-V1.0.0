@@ -210,3 +210,89 @@ void pterm_cmd_date(pterm_t *t) {
 #endif
     pterm_newline(t);
 }
+
+/* The Game Genie live-interception suite (m5_genie.c): `genie list`,
+ * `genie enter <code>` and `genie clear`. A code is the canonical symbolic
+ * spelling "AAAA-BBBB-CCCC"; genie_decode_code folds it to the
+ * {address, compare, replace} tuple and it is armed in the ISVT, so every
+ * emulated core's next matching bus read returns the replacement. */
+#include "../emu/m5_genie.h"
+
+static void pterm_genie_u32(char *buf, uint32_t v)
+{
+    char d[10];
+    uint32_t n = 0;
+    do {
+        d[n++] = (char) ('0' + v % 10u);
+        v /= 10u;
+    } while (v && n < 10u);
+    while (n) *buf++ = d[--n];
+    *buf = 0;
+}
+
+void pterm_cmd_genie(pterm_t *t, const char *sub, const char *arg)
+{
+    char num[16];
+    if (!sub) {
+        pterm_write_attr(t, "usage: genie list | genie enter <code> | genie clear\n", PTERM_ATTR_YELLOW);
+        return;
+    }
+    if (pterm_strcmp(sub, "clear") == 0) {
+        genie_clear();
+        pterm_write_attr(t, "genie: interception table cleared\n", PTERM_ATTR_GREEN);
+        return;
+    }
+    if (pterm_strcmp(sub, "list") == 0) {
+        uint32_t n = genie_count();
+        pterm_write_attr(t, "genie: active interception vectors\n", PTERM_ATTR_BRIGHT);
+        for (uint32_t i = 0; i < n; i++) {
+            const zxv_genie_patch_t *p = genie_get(i);
+            if (!(p->flags & ZXV_GENIE_FLAG_ENABLED)) continue;
+            pterm_write_attr(t, "  ", PTERM_ATTR_NORMAL);
+            if (p->code_str[0]) {
+                pterm_write(t, p->code_str);
+                pterm_write(t, "  ");
+            }
+            pterm_genie_u32(num, (uint32_t) p->target_addr);
+            pterm_write(t, "addr=");
+            pterm_write(t, num);
+            pterm_genie_u32(num, (uint32_t) p->compare_val);
+            pterm_write(t, " cmp=");
+            pterm_write(t, num);
+            pterm_genie_u32(num, (uint32_t) p->replace_val);
+            pterm_write(t, " rep=");
+            pterm_write(t, num);
+            pterm_genie_u32(num, p->width_bytes);
+            pterm_write(t, " w=");
+            pterm_write(t, num);
+            pterm_genie_u32(num, p->hits);
+            pterm_write(t, " hits=");
+            pterm_write(t, num);
+            pterm_newline(t);
+        }
+        if (n == 0) pterm_write(t, "  (empty)\n");
+        return;
+    }
+    if (pterm_strcmp(sub, "enter") == 0 && arg) {
+        zxv_genie_patch_t p;
+        if (genie_decode_code(arg, &p) != 0) {
+            pterm_write_attr(t, "genie: a code is three dash-separated words, e.g. ZXV-LATT-144X\n",
+                             PTERM_ATTR_RED);
+            return;
+        }
+        int idx = genie_apply_intercept(arg, p.target_addr, p.compare_val,
+                                        p.replace_val, p.width_bytes);
+        if (idx < 0) {
+            pterm_write_attr(t, "genie: interception table full\n", PTERM_ATTR_RED);
+            return;
+        }
+        pterm_write_attr(t, "genie: armed ", PTERM_ATTR_GREEN);
+        pterm_write(t, arg);
+        pterm_write_attr(t, " (ISVT slot ", PTERM_ATTR_GREEN);
+        pterm_genie_u32(num, (uint32_t) idx);
+        pterm_write(t, num);
+        pterm_write_attr(t, ")\n", PTERM_ATTR_GREEN);
+        return;
+    }
+    pterm_write_attr(t, "usage: genie list | genie enter <code> | genie clear\n", PTERM_ATTR_YELLOW);
+}

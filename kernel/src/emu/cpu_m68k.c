@@ -3,6 +3,7 @@
 /* cpu_m68k.c — Motorola 68000 interpreter (big-endian). See cpu_m68k.h. Covers
  * the instruction groups Genesis game code uses; rare encodings are counted in
  * `illegal`. Operation sizes are byte(1)/word(2)/long(4). */
+#include "m5_genie.h"
 #include "cpu_m68k.h"
 
 static inline uint32_t msk(int sz){ return sz==1?0xFFu : sz==2?0xFFFFu : 0xFFFFFFFFu; }
@@ -23,7 +24,8 @@ static void set_sr(cpu_m68k_t *c, uint16_t ns){ set_sr_s(c, (ns & M68_S) ? 1 : 0
 
 static uint32_t read_mem(cpu_m68k_t *c, uint32_t a, int sz){
     a &= 0xFFFFFF;
-    return sz==1 ? c->read8(c,a) : sz==2 ? c->read16(c,a) : c->read32(c,a);
+    uint32_t v = sz==1 ? c->read8(c,a) : sz==2 ? c->read16(c,a) : c->read32(c,a);
+    return genie_eval_read(a, v, (uint32_t) sz); /* the Game Genie bus hook (8/16/32) */
 }
 static void write_mem(cpu_m68k_t *c, uint32_t a, int sz, uint32_t v){
     a &= 0xFFFFFF;
