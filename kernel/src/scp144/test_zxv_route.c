@@ -64,6 +64,14 @@ int main(void)
     cpy[rec0 + 4] = 0xFE; /* stratum out of range */
     sha256(cpy, len - 32, cpy + len - 32);
     CHECK(zxv_route_verify(cpy, len, &bad) == ZXV_ROUTE_E_STRATUM && bad == rec0);
+    memcpy(cpy, img, len);
+    cpy[rec0 + 9] = 0xFE; /* plane outside the stratum's 16-axis band */
+    sha256(cpy, len - 32, cpy + len - 32);
+    CHECK(zxv_route_verify(cpy, len, &bad) == ZXV_ROUTE_E_PLANE && bad == rec0);
+    memcpy(cpy, img, len);
+    cpy[len - 32 - (4 + 2 + 288)] = 'z'; /* the container's magic */
+    sha256(cpy, len - 32, cpy + len - 32);
+    CHECK(zxv_route_verify(cpy, len, &bad) == ZXV_ROUTE_E_CONTAINER);
     /* truncated and extended images fail */
     CHECK(zxv_route_verify(img, len - 8, &bad) == ZXV_ROUTE_E_LENGTH);
     CHECK(zxv_route_verify(img, len + 8, &bad) != ZXV_ROUTE_OK);

@@ -15,6 +15,11 @@
  * the runner additionally proves every module's committed ring equals the
  * ring the GPU computed for its cell — the schedule the parallel build
  * executes is the schedule the ELF carries.
+ *
+ * D=144 switches to the full-manifold sweep: the same 20,736 threads, but
+ * each cell's vector carries a non-zero coordinate on EVERY axis (a
+ * diagonal lift, coord[a] = (cell + a*377) mod 144) — all 144 tensor
+ * planes lit in one launch, verified bit-identical against the CPU.
  */
 #include <dlfcn.h>
 #include <stdint.h>
@@ -166,6 +171,8 @@ int main(int argc, char **argv)
     for (zu i = 0; i < CELLS; i++) {
         co[i * 144 + 0] = i % SIDE; /* axis 0 = column */
         co[i * 144 + 1] = i / SIDE; /* axis 1 = row    */
+        if (D > 2)
+            for (zu a = 2; a < D; a++) co[i * 144 + a] = (i + a * 377u) % SIDE; /* diagonal lift */
     }
 
     /* CPU reference */

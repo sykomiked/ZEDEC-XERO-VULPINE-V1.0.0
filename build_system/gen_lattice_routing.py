@@ -139,9 +139,18 @@ def build(mods):
     def nh(p):
         return int.from_bytes(hashlib.sha256(p.encode()).digest()[:4], "big")
 
-    # the dependency projection: each module's deps are the modules at
-    # strictly lower rings it could read — for the table we commit the
-    # ring-adjacency, which the kernel re-verifies as acyclic.
+    # THE 144 PLANES + THE 145TH CONTAINER. Each of the 144 lattice axes is
+    # a tensor plane; the nine strata partition them into bands of 16 axes
+    # (9*16 = 144). A module's plane is its stratum's band plus a hash
+    # offset — so which plane carries a module is a function of its role
+    # AND its identity. The 145th layer is the container: the trailer that
+    # counts every plane's occupancy, sealed inside the digest — nothing
+    # escapes the manifold without passing the membrane.
+    def plane(path, st):
+        band = STRATA_ORDER.index(st) * 16 if st in STRATA_ORDER else 0
+        return band + nh(path) % 16
+
+    planes = [0] * 144
     out = bytearray()
     out += MAGIC
     out += bytes([VERSION, 0, 0, 0])       # version + flags[3]
@@ -154,13 +163,24 @@ def build(mods):
     for path in sorted(assign_):
         (i, j), ring = assign_[path]
         st = next(s for p, s in mods if p == path)
+        pl = plane(path, st)
+        planes[pl] += 1
         out += nh(path).to_bytes(4, "big")
         out += bytes([STRATA_ORDER.index(st) if st in STRATA_ORDER else 0,
                       ring, i & 0xFF, j & 0xFF])
         # dep count: for the committed table we record the cell's geometric
         # predecessors (the scaffold's lower-ring deps), 0 for ring 1.
         ndep = 0 if ring <= 1 else (2 if (i >= FIB[ring-1] and j >= FIB[ring-1]) else 1)
-        out += bytes([ndep, 0])
+        out += bytes([ndep, pl & 0xFF])
+
+    # the 145th layer: the container trailer, inside the seal. "ZLRX",
+    # the plane count, and one u16 occupancy per axis — the membrane's
+    # census of every plane it encloses.
+    out += b"ZLRX"
+    out += (144).to_bytes(2, "big")
+    for c in planes:
+        out += c.to_bytes(2, "big")
+
     digest = hashlib.sha256(bytes(out)).digest()
     out += digest                        # appended for the self-check
     return bytes(out), digest

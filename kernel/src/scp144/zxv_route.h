@@ -48,17 +48,19 @@
 
 typedef enum {
     ZXV_ROUTE_OK = 0,
-    ZXV_ROUTE_E_LENGTH,  /* truncated or trailing bytes                  */
-    ZXV_ROUTE_E_MAGIC,   /* not a ZLR0 image                             */
-    ZXV_ROUTE_E_VERSION, /* unsupported table version                    */
-    ZXV_ROUTE_E_COUNT,   /* stratum/module counts impossible             */
-    ZXV_ROUTE_E_DIGEST,  /* sha256 over image != appended digest         */
-    ZXV_ROUTE_E_CELL,    /* coordinate outside the lattice               */
-    ZXV_ROUTE_E_RING,    /* record ring != the cell's actual ring        */
-    ZXV_ROUTE_E_DUP,     /* two modules on one cell                      */
-    ZXV_ROUTE_E_DEP,     /* a dependency sits at or above the cell's ring */
-    ZXV_ROUTE_E_STRATUM, /* stratum index out of range                   */
-    ZXV_ROUTE_E_WORLD,   /* a world mask lights a stratum that is absent */
+    ZXV_ROUTE_E_LENGTH,    /* truncated or trailing bytes                  */
+    ZXV_ROUTE_E_MAGIC,     /* not a ZLR0 image                             */
+    ZXV_ROUTE_E_VERSION,   /* unsupported table version                    */
+    ZXV_ROUTE_E_COUNT,     /* stratum/module counts impossible             */
+    ZXV_ROUTE_E_DIGEST,    /* sha256 over image != appended digest         */
+    ZXV_ROUTE_E_CELL,      /* coordinate outside the lattice               */
+    ZXV_ROUTE_E_RING,      /* record ring != the cell's actual ring        */
+    ZXV_ROUTE_E_DUP,       /* two modules on one cell                      */
+    ZXV_ROUTE_E_DEP,       /* a dependency sits at or above the cell's ring */
+    ZXV_ROUTE_E_STRATUM,   /* stratum index out of range                   */
+    ZXV_ROUTE_E_WORLD,     /* a world mask lights a stratum that is absent */
+    ZXV_ROUTE_E_PLANE,     /* record plane outside its stratum's axis band */
+    ZXV_ROUTE_E_CONTAINER, /* the 145th-layer trailer is malformed       */
 } zxv_route_err_t;
 
 /* Verify a committed routing-table image. Returns ZXV_ROUTE_OK only when

@@ -11,13 +11,17 @@
  *  12  u32 modules     module record count
  *  16  u32 worlds[3]  the server/user/foundry stratum masks
  *  28  rec[modules]   u32 name_hash | u8 stratum | u8 ring | u8 i | u8 j |
- *                      u8 ndep | u8 pad
- *  --  sha256         digest of every byte before it
+ *                      u8 ndep | u8 plane
+ *  --  "ZLRX"          the 145th layer: the container trailer
+ *  --  u16 nplanes     144 — one tensor plane per lattice axis
+ *  --  u16 planes[144] occupancy census per axis
+ *  --  sha256          digest of every byte before it (seals the container)
  *
  * The verifier walks the image once: header fields, sha256, then each
  * record — cell in-bounds, ring consistent with the cell, cell unique, no
- * dependency at or above the record's ring, stratum in range, world masks
- * only lighting strata that carry modules. Fail-closed on the first fault.
+ * dependency at or above the record's ring, stratum in range, plane inside
+ * its stratum's 16-axis band — then the container: census matches the
+ * records, every lit plane accounted. Fail-closed on the first fault.
  */
 #include "zxv_route.h"
 
@@ -46,11 +50,14 @@ static uint32_t rd32(const uint8_t *p)
 zxv_route_err_t zxv_route_verify(const uint8_t *img, size_t len, size_t *bad_off)
 {
     static const size_t HDR = 4 + 1 + 3 + 4 + 4 + ZXV_ROUTE_WORLDS * 4;
+    static const size_t CTR = 4 + 2 + 144 * 2; /* ZLRX + nplanes + census */
     uint32_t nstrata, nmods, w;
     size_t want, off;
     uint8_t digest[SHA256_DIGEST_LEN];
     uint16_t occ[144 * 144 / 16 + 1]; /* occupancy bitmap, 16 cells/word */
     uint32_t strata_seen = 0;
+    uint16_t planes[144];
+    uint32_t n;
 
     if (bad_off) *bad_off = ~0u;
 
@@ -64,23 +71,37 @@ zxv_route_err_t zxv_route_verify(const uint8_t *img, size_t len, size_t *bad_off
     nmods = rd32(img + 12);
     if (nstrata != ZXV_ROUTE_STRATA || nmods < 1 || nmods > 144u * 144u) return ZXV_ROUTE_E_COUNT;
 
-    want = HDR + (size_t) nmods * ZXV_ROUTE_REC + SHA256_DIGEST_LEN;
+    want = HDR + (size_t) nmods * ZXV_ROUTE_REC + CTR + SHA256_DIGEST_LEN;
     if (len != want) return ZXV_ROUTE_E_LENGTH;
 
     sha256(img, len - SHA256_DIGEST_LEN, digest);
     if (memcmp(digest, img + len - SHA256_DIGEST_LEN, SHA256_DIGEST_LEN)) return ZXV_ROUTE_E_DIGEST;
 
+    /* the 145th layer: the container trailer, inside the seal */
+    {
+        const uint8_t *ctr = img + HDR + (size_t) nmods * ZXV_ROUTE_REC;
+        if (ctr[0] != 'Z' || ctr[1] != 'L' || ctr[2] != 'R' || ctr[3] != 'X')
+            return ZXV_ROUTE_E_CONTAINER;
+        if (((uint32_t) ctr[4] << 8 | ctr[5]) != 144u) return ZXV_ROUTE_E_CONTAINER;
+    }
+
     memset(occ, 0, sizeof(occ));
+    memset(planes, 0, sizeof(planes));
     off = HDR;
-    for (uint32_t n = 0; n < nmods; n++, off += ZXV_ROUTE_REC) {
+    for (n = 0; n < nmods; n++, off += ZXV_ROUTE_REC) {
         uint8_t st = img[off + 4], ring = img[off + 5];
         uint8_t i = img[off + 6], j = img[off + 7], ndep = img[off + 8];
+        uint8_t pl = img[off + 9];
         uint16_t cell = (uint16_t) i * 144u + j;
         uint8_t want_ring;
 
         if (st >= nstrata)
             return bad_off ? (*bad_off = off, ZXV_ROUTE_E_STRATUM) : ZXV_ROUTE_E_STRATUM;
         strata_seen |= 1u << st;
+        /* the plane must live in its stratum's 16-axis band */
+        if (pl >= 144 || (pl >> 4) != st)
+            return bad_off ? (*bad_off = off, ZXV_ROUTE_E_PLANE) : ZXV_ROUTE_E_PLANE;
+        planes[pl]++;
         if (i >= 144 || j >= 144)
             return bad_off ? (*bad_off = off, ZXV_ROUTE_E_CELL) : ZXV_ROUTE_E_CELL;
         want_ring = zxv_route_ring(i, j);
@@ -99,6 +120,14 @@ zxv_route_err_t zxv_route_verify(const uint8_t *img, size_t len, size_t *bad_off
             if (j >= FIB[ring - 1]) cap++;
             if (ndep > cap) return bad_off ? (*bad_off = off, ZXV_ROUTE_E_DEP) : ZXV_ROUTE_E_DEP;
         }
+    }
+
+    /* the container's census must equal the records exactly */
+    {
+        const uint8_t *ctr = img + HDR + (size_t) nmods * ZXV_ROUTE_REC;
+        for (n = 0; n < 144; n++)
+            if (((uint32_t) ctr[6 + n * 2] << 8 | ctr[6 + n * 2 + 1]) != planes[n])
+                return ZXV_ROUTE_E_CONTAINER;
     }
 
     /* a world may only light strata that carry modules */
