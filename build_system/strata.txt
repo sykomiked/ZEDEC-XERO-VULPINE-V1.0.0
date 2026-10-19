@@ -350,3 +350,4 @@ wyrmgate                         above
 wyverneye                        above
 xedit                            above
 zxpkg                            above
+entropy                          base       # jitter harvester: cycle-counter sampling diffused through SHAKE256

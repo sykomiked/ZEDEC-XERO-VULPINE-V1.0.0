@@ -109,6 +109,7 @@ void riscv_trap_handler(unsigned long scause) {
 
 /* M5 subsystems */
 #include "../src/oseq/oseq_core.h"
+#include "../src/scp144/scp144_embed.h" /* the 144D lattice ROM + fractal seed, verified before BOOT_OK */
 #include "../src/rmag/rmag_core.h"
 #include "../src/lpres/lpres_core.h"
 #include "../src/iphase/iphase_core.h"
@@ -392,6 +393,14 @@ void kernel_main_riscv(void) {
     boot_msg("[BOOT] Entering event cycle...\n");
 
     enable_irq();
+
+    /* The SCP-144 144-dimensional lattice ROM, the improved standard and the
+     * fractal seed, embedded in this ELF (scp144_embed.c): recomputed and
+     * verified before [BOOT_OK], the same fail-closed gate as the other arches. */
+    if (!scp144_boot_selfcheck(boot_msg)) {
+        boot_msg("[FAULT] SCP-144 embed selfcheck failed; halting before BOOT_OK\n");
+        for (;;) halt();
+    }
 
     /* The milestone every other arch already emits. Its ABSENCE here is why the
      * matrix has read "riscv runs but never prints BOOT_OK" — that was a missing

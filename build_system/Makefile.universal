@@ -48,7 +48,7 @@ ifeq ($(ARCH),x86_64)
   ARCHFLAGS := -m64 -mno-red-zone
   ARCHINC   := -Ikernel/arch/x86_64
   LINKSCRIPT := kernel/arch/x86_64/linker64.ld
-  LINKFLAGS += -Wl,-z,noexecstack
+  LINKFLAGS += -Wl,-z,noexecstack -Wl,-z,relro,-z,now
   ARCH_EXTRA_OBJS = $(OBJDIR)/kernel/arch/x86_64/boot.o
   ENTRY     := 0x100000
   IMGFMT    := elf64
@@ -133,7 +133,7 @@ CFLAGS += -I$(ZXV_GENDIR)
 # sources. boot.json and boot.pack are seal-time artifacts and stay on the
 # gateways — the browser fetches them cross-origin over https.
 ZXV_DOORWAY_HDR := $(ZXV_GENDIR)/zxv_doorway_blobs.h
-$(shell python3 $(CURDIR)/tools/web/gen_doorway_blobs.py $(CURDIR) $(CURDIR)/$(ZXV_DOORWAY_HDR))
+$(shell python3 $(CURDIR)/tools/web/gen_doorway_blobs.py $(CURDIR) $(CURDIR)/$(ZXV_DOORWAY_HDR) >/dev/null)
 
 # The curriculum CAR (build_system/mk_curriculum_car.py over docs/curriculum):
 # rebuilt deterministically every parse and embedded so each fleet node can
@@ -141,12 +141,19 @@ $(shell python3 $(CURDIR)/tools/web/gen_doorway_blobs.py $(CURDIR) $(CURDIR)/$(Z
 ZXV_CUR_CAR := $(ZXV_GENDIR)/zxv-curriculum.car
 ZXV_CURRICULUM_HDR := $(ZXV_GENDIR)/zxv_curriculum_blob.h
 $(shell python3 $(CURDIR)/build_system/mk_curriculum_car.py $(CURDIR)/$(ZXV_CUR_CAR) >/dev/null)
-$(shell python3 $(CURDIR)/tools/vps/gen_curriculum_blob.py $(CURDIR)/$(ZXV_CUR_CAR) $(CURDIR)/$(ZXV_CURRICULUM_HDR))
+$(shell python3 $(CURDIR)/tools/vps/gen_curriculum_blob.py $(CURDIR)/$(ZXV_CUR_CAR) $(CURDIR)/$(ZXV_CURRICULUM_HDR) >/dev/null)
+
+# The SCP-144 144-dimensional lattice ROM and the fractal seed, generated
+# like the other blobs: every ELF carries and verifies them before BOOT_OK.
+ZXV_SCP144_HDR := $(ZXV_GENDIR)/zxv_scp144_blob.h
+$(shell python3 $(CURDIR)/build_system/gen_scp144_blob.py $(CURDIR)/$(ZXV_SCP144_HDR))
+ZXV_SEED_HDR := $(ZXV_GENDIR)/zxv_seed_blob.h
+$(shell python3 $(CURDIR)/build_system/gen_seed_blob.py $(CURDIR)/build_system/zxv_upstream.cid $(CURDIR)/$(ZXV_CUR_CAR) $(CURDIR)/$(ZXV_SEED_HDR))
 
 # The compiled-in seed bank (tools/seedbank/mk_blob.py over the bank the
 # release builds): the icons+fonts bank's bytes, resolvable at boot.
 ZXV_SEEDBANK_BLOB := $(ZXV_GENDIR)/zxv_seedbank_blob.h
-$(shell python3 $(CURDIR)/tools/seedbank/mk_blob.py $(CURDIR)/build/seedbank/icons-fonts.bank $(CURDIR)/$(ZXV_SEEDBANK_BLOB))
+$(shell python3 $(CURDIR)/tools/seedbank/mk_blob.py $(CURDIR)/build/seedbank/icons-fonts.bank $(CURDIR)/$(ZXV_SEEDBANK_BLOB) >/dev/null)
 
 # The seed static-lease map (tools/vps/gen_seedmap.py over
 # THE GATE: the armada's peer list baked in, so the link comes up even when
@@ -154,12 +161,12 @@ $(shell python3 $(CURDIR)/tools/seedbank/mk_blob.py $(CURDIR)/build/seedbank/ico
 # models.npeer is non-zero). tools/vps/gen_peerlist.py, same shape as the
 # seed map above.
 ZXV_PEERLIST_HDR := $(ZXV_GENDIR)/zxv_peerlist.h
-$(shell python3 $(CURDIR)/tools/vps/gen_peerlist.py $(CURDIR)/build_system/vps_seeds.conf $(CURDIR)/$(ZXV_PEERLIST_HDR))
+$(shell python3 $(CURDIR)/tools/vps/gen_peerlist.py $(CURDIR)/build_system/vps_seeds.conf $(CURDIR)/$(ZXV_PEERLIST_HDR) >/dev/null)
 
 # build_system/vps_seeds.conf): providers that assign fixed addresses
 # answer no DHCP, so a seed recognises its own NIC MAC in this baked table.
 ZXV_SEEDMAP_HDR := $(ZXV_GENDIR)/zxv_seedmap.h
-$(shell python3 $(CURDIR)/tools/vps/gen_seedmap.py $(CURDIR)/build_system/vps_seeds.conf $(CURDIR)/$(ZXV_SEEDMAP_HDR))
+$(shell python3 $(CURDIR)/tools/vps/gen_seedmap.py $(CURDIR)/build_system/vps_seeds.conf $(CURDIR)/$(ZXV_SEEDMAP_HDR) >/dev/null)
 
 # FAIL-CLOSED BOOT TEST HOOK. Keep the architecture's generated header
 # available to kernel_main_riscv.c and kernel_main_arm32.c, as in their

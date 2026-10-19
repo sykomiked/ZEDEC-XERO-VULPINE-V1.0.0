@@ -94,6 +94,7 @@ static int card_seat(void *ctx, const uint8_t *id, uint32_t id_len, const uint8_
 }
 #include "vna_host.h"           /* the Vinea (Web4) node, over the same link */
 #include "layers/layers_boot.h" /* the release lineage L0 -> L1 -> L2, before BOOT_OK */
+#include "scp144/scp144_embed.h" /* the 144D lattice ROM + fractal seed, verified before BOOT_OK */
 #include "manifest_hashes.h"    /* L0 and the swarm discs this kernel was built after */
 #include "x86_irq.h"            /* IDT, LAPIC, timer (gap 6) */
 #include "x86_userspace.h"      /* ring-3 processes and the scheduler (gap 6) */
@@ -669,6 +670,15 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
      * mismatch prints [FAULT] and halts here, before [BOOT_OK]. */
     if (!ai_boot_selfcheck(uart_puts)) {
         uart_puts("[FAULT] AI selfcheck failed; halting before BOOT_OK\n");
+        cli();
+        for (;;) hlt();
+    }
+
+    /* The SCP-144 144-dimensional lattice ROM, the improved standard and the
+     * fractal seed, embedded in this ELF (scp144_embed.c): recomputed and
+     * verified before [BOOT_OK], the same fail-closed gate as the AI check. */
+    if (!scp144_boot_selfcheck(uart_puts)) {
+        uart_puts("[FAULT] SCP-144 embed selfcheck failed; halting before BOOT_OK\n");
         cli();
         for (;;) hlt();
     }

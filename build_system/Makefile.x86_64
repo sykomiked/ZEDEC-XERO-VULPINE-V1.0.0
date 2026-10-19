@@ -120,7 +120,7 @@ CFLAGS  := -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib -
 # -z noexecstack: no object here needs an executable stack, and the NASM and
 # .S objects carry no .note.GNU-stack to say so.
 LDFLAGS := -T kernel/arch/x86_64/linker64.ld -nostdlib -static \
-           -Wl,--gc-sections -Wl,--build-id=none -Wl,-z,noexecstack
+           -Wl,--gc-sections -Wl,--build-id=none -Wl,-z,noexecstack -Wl,-z,relro,-z,now
 LIBGCC  := $(shell $(CC) -print-libgcc-file-name)
 
 SRCS := \
@@ -342,6 +342,8 @@ SRCS := \
     kernel/src/swarmnet/sn_seal.c \
     kernel/arch/x86_64/vna_host.c \
     kernel/src/scp144/scp144.c \
+    kernel/src/scp144/scp144_embed.c \
+    kernel/src/entropy/entropy_jitter.c \
     kernel/src/vinea/vna_agree.c \
     kernel/src/vinea/vna_cid.c \
     kernel/src/vinea/vna_cmd.c \
@@ -556,7 +558,7 @@ $(X86_USER_ELF): kernel/userapp/x86_selftest.c kernel/userapp/x86_user.ld kernel
 	$(CC) -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-stack-protector -fpie -mgeneral-regs-only \
 	      -fcf-protection=none -fno-asynchronous-unwind-tables -Ikernel/include \
 	      -nostdlib -static -no-pie -Wl,-T,kernel/userapp/x86_user.ld -Wl,--build-id=none \
-	      -Wl,-z,max-page-size=4096 -Wl,-z,noexecstack -o $@ $<
+	      -Wl,-z,max-page-size=4096 -Wl,-z,noexecstack -Wl,-z,relro,-z,now -o $@ $<
 
 $(OBJDIR)/kernel/arch/x86_64/x86_userbin.o: kernel/arch/x86_64/x86_userbin.S $(X86_USER_ELF)
 	@mkdir -p $(dir $@)
@@ -681,7 +683,7 @@ CFLAGS += -I$(ZXV_GENDIR)
 # sources. boot.json and boot.pack are seal-time artifacts and stay on the
 # gateways — the browser fetches them cross-origin over https.
 ZXV_DOORWAY_HDR := $(ZXV_GENDIR)/zxv_doorway_blobs.h
-$(shell python3 $(CURDIR)/tools/web/gen_doorway_blobs.py $(CURDIR) $(CURDIR)/$(ZXV_DOORWAY_HDR))
+$(shell python3 $(CURDIR)/tools/web/gen_doorway_blobs.py $(CURDIR) $(CURDIR)/$(ZXV_DOORWAY_HDR) >/dev/null)
 
 # The curriculum CAR (build_system/mk_curriculum_car.py over docs/curriculum):
 # rebuilt deterministically every parse and embedded so each fleet node can
@@ -689,12 +691,19 @@ $(shell python3 $(CURDIR)/tools/web/gen_doorway_blobs.py $(CURDIR) $(CURDIR)/$(Z
 ZXV_CUR_CAR := $(ZXV_GENDIR)/zxv-curriculum.car
 ZXV_CURRICULUM_HDR := $(ZXV_GENDIR)/zxv_curriculum_blob.h
 $(shell python3 $(CURDIR)/build_system/mk_curriculum_car.py $(CURDIR)/$(ZXV_CUR_CAR) >/dev/null)
-$(shell python3 $(CURDIR)/tools/vps/gen_curriculum_blob.py $(CURDIR)/$(ZXV_CUR_CAR) $(CURDIR)/$(ZXV_CURRICULUM_HDR))
+$(shell python3 $(CURDIR)/tools/vps/gen_curriculum_blob.py $(CURDIR)/$(ZXV_CUR_CAR) $(CURDIR)/$(ZXV_CURRICULUM_HDR) >/dev/null)
+
+# The SCP-144 144-dimensional lattice ROM and the fractal seed, generated
+# like the other blobs: every ELF carries and verifies them before BOOT_OK.
+ZXV_SCP144_HDR := $(ZXV_GENDIR)/zxv_scp144_blob.h
+$(shell python3 $(CURDIR)/build_system/gen_scp144_blob.py $(CURDIR)/$(ZXV_SCP144_HDR))
+ZXV_SEED_HDR := $(ZXV_GENDIR)/zxv_seed_blob.h
+$(shell python3 $(CURDIR)/build_system/gen_seed_blob.py $(CURDIR)/build_system/zxv_upstream.cid $(CURDIR)/$(ZXV_CUR_CAR) $(CURDIR)/$(ZXV_SEED_HDR))
 
 # The compiled-in seed bank (tools/seedbank/mk_blob.py over the bank the
 # release builds): the icons+fonts bank's bytes, resolvable at boot.
 ZXV_SEEDBANK_BLOB := $(ZXV_GENDIR)/zxv_seedbank_blob.h
-$(shell python3 $(CURDIR)/tools/seedbank/mk_blob.py $(CURDIR)/build/seedbank/icons-fonts.bank $(CURDIR)/$(ZXV_SEEDBANK_BLOB))
+$(shell python3 $(CURDIR)/tools/seedbank/mk_blob.py $(CURDIR)/build/seedbank/icons-fonts.bank $(CURDIR)/$(ZXV_SEEDBANK_BLOB) >/dev/null)
 CFLAGS += -DZXV_HAVE_SEEDBANK_BLOB
 
 # The seed static-lease map (tools/vps/gen_seedmap.py over
@@ -703,12 +712,12 @@ CFLAGS += -DZXV_HAVE_SEEDBANK_BLOB
 # models.npeer is non-zero). tools/vps/gen_peerlist.py, same shape as the
 # seed map above.
 ZXV_PEERLIST_HDR := $(ZXV_GENDIR)/zxv_peerlist.h
-$(shell python3 $(CURDIR)/tools/vps/gen_peerlist.py $(CURDIR)/build_system/vps_seeds.conf $(CURDIR)/$(ZXV_PEERLIST_HDR))
+$(shell python3 $(CURDIR)/tools/vps/gen_peerlist.py $(CURDIR)/build_system/vps_seeds.conf $(CURDIR)/$(ZXV_PEERLIST_HDR) >/dev/null)
 
 # build_system/vps_seeds.conf): providers that assign fixed addresses
 # answer no DHCP, so a seed recognises its own NIC MAC in this baked table.
 ZXV_SEEDMAP_HDR := $(ZXV_GENDIR)/zxv_seedmap.h
-$(shell python3 $(CURDIR)/tools/vps/gen_seedmap.py $(CURDIR)/build_system/vps_seeds.conf $(CURDIR)/$(ZXV_SEEDMAP_HDR))
+$(shell python3 $(CURDIR)/tools/vps/gen_seedmap.py $(CURDIR)/build_system/vps_seeds.conf $(CURDIR)/$(ZXV_SEEDMAP_HDR) >/dev/null)
 
 # The table this kernel bakes into .rodata (build_system/mk_table.py,
 # docs/BUCKET.md): L0's CID, and the CID, size and SHA-256 of every swarm disc

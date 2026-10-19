@@ -90,6 +90,15 @@ void scp144_lattice_bind(const uint8_t init_id[32],
                          const uint8_t resp_id[32],
                          uint8_t out[32]);
 
+/* The canonical Fibonacci ladder F1..F12 (1, 1, 2, 3, 5, 8, 13, 21, 34, 55,
+ * 89, 144): the 12 macro-plate gaps of the cavity array. */
+const uint16_t *scp144_fib_ladder(void);
+
+/* The unique non-consecutive Zeckendorf support mask (bits 0..11) and the
+ * discrete Casimir mode energy of a coordinate value v in 0..144. The same
+ * function the lattice binding and the embedded 144D matrix are built from. */
+uint16_t scp144_zeckendorf_mode(uint32_t v, uint32_t *casimir_energy);
+
 /* Initialize and energize a recursive 12x12 Casimir Cavity hardware device. */
 void scp144_cavity_init(scp144_cavity_t *dev, uint32_t device_id,
                         const uint8_t init_id[32], const uint8_t resp_id[32]);

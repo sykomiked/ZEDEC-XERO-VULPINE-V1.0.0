@@ -11,6 +11,8 @@ ZXV_COMMON_SRCS := \
     kernel/compat/compat_layer.c \
     kernel/compat/softfloat_stubs.c \
     kernel/src/scp144/scp144.c \
+    kernel/src/scp144/scp144_embed.c \
+    kernel/src/entropy/entropy_jitter.c \
     kernel/src/pmm/pmm.c \
     kernel/src/lpres/lpres.c \
     kernel/src/lpres/lpres_hex.c \

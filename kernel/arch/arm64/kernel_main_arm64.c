@@ -46,6 +46,7 @@ extern int arm64_mmu_map_window(uint64_t base, uint64_t len); /* mmu_window.h */
 
 /* M5 subsystems (shared with x86) */
 #include "../src/oseq/oseq_core.h"
+#include "../src/scp144/scp144_embed.h" /* the 144D lattice ROM + fractal seed, verified before BOOT_OK */
 #include "../src/rmag/rmag_core.h"
 #include "../src/lpres/lpres_core.h"
 #include "../src/iphase/iphase_core.h"
@@ -539,6 +540,7 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 #include "../src/mlkem/mlkem768.h"   /* post-quantum KEM (NIST ML-KEM-768) */
 #include "../src/trispace/trispace.h" /* Tri-Space artifact triad binding */
 #include "entropy.h"
+#include "entropy/entropy_jitter.h"
 #include "../src/zxvfs/zxvfs.h"
 #include "x25519.h"
 #include "oseq.h"
@@ -1231,17 +1233,12 @@ void kernel_main_arm64(void) {
     if (arm64_rng_available() && arm64_rng_fill(vault_key, ROBIN_KEY_LEN)) {
         boot_msg("  [ENTROPY] Vault key from FEAT_RNG (RNDR) hardware RNG + health test");
     } else {
-        /* Honest fallback: mixed timer/address material is NOT cryptographic. */
-        uint64_t e1, e3;
-        __asm__ volatile("mrs %0, CNTVCT_EL0" : "=r"(e1));
-        __asm__ volatile("mov %0, sp"         : "=r"(e3));
-        uint64_t e4 = (uint64_t)&robin_vault;
-        for (int i = 0; i < ROBIN_KEY_LEN; i++) {
-            uint64_t e = e1 ^ (e3 << (i & 7)) ^ e4;
-            vault_key[i] = (uint8_t)(e >> ((i % 8) * 8));
-        }
-        boot_msg("  [ENTROPY][WARN] No FEAT_RNG on this CPU — vault key is NON-cryptographic");
-        boot_msg("                   dev material (predictable). Not for production secrets.");
+        /* Honest fallback: the architectural jitter harvester samples the
+         * cycle counter and RAM and diffuses through SHAKE256. Still NOT a
+         * certified TRNG — labelled as best-effort, not trusted as strong. */
+        entropy_jitter_fill(vault_key, ROBIN_KEY_LEN);
+        boot_msg("  [ENTROPY] No FEAT_RNG — vault key from the jitter harvester");
+        boot_msg("                   (best-effort, NOT a certified TRNG; not for production secrets)");
     }
     robin_init(&robin_vault, 1, vault_key, &porter_house);
     /* CLAIM REMOVED. aes256_gcm.c has ZERO text symbols in kernel_arm64.elf --
@@ -3130,6 +3127,16 @@ void kernel_main_arm64(void) {
         boot_msg("  [SKIP] AI self-check (safe mode)");
     } else if (!ai_boot_selfcheck(uart_puts)) {
         uart_puts("[FAULT] AI selfcheck failed; halting before BOOT_OK\n");
+        for (;;) halt();
+    }
+
+    /* The SCP-144 144-dimensional lattice ROM, the improved standard and the
+     * fractal seed, embedded in this ELF (scp144_embed.c): recomputed and
+     * verified before [BOOT_OK], the same fail-closed gate as the AI check. */
+    if (g_boot_mode != BOOT_MODE_NORMAL) {
+        boot_msg("  [SKIP] SCP-144 embed self-check (safe mode)");
+    } else if (!scp144_boot_selfcheck(uart_puts)) {
+        uart_puts("[FAULT] SCP-144 embed selfcheck failed; halting before BOOT_OK\n");
         for (;;) halt();
     }
 

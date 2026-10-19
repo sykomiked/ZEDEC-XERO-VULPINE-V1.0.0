@@ -20,6 +20,7 @@ extern void license_print_all(void);
 
 /* Current M5 + platform subsystem APIs (same set kernel_main_riscv.c links). */
 #include "../src/oseq/oseq_core.h"
+#include "../src/scp144/scp144_embed.h" /* the 144D lattice ROM + fractal seed, verified before BOOT_OK */
 #include "../src/rmag/rmag_core.h"
 #include "../src/lpres/lpres_core.h"
 #include "../src/iphase/iphase_core.h"
@@ -242,6 +243,14 @@ void kernel_main_arm32(void) {
     }
 
     boot_msg("\n[BOOT_OK] ZEDEC pqOS [ARM32] — core online. Entering event cycle.\n");
+
+    /* The SCP-144 144-dimensional lattice ROM, the improved standard and the
+     * fractal seed, embedded in this ELF (scp144_embed.c): recomputed and
+     * verified before [BOOT_OK], the same fail-closed gate as the other arches. */
+    if (!scp144_boot_selfcheck(boot_msg)) {
+        boot_msg("[FAULT] SCP-144 embed selfcheck failed; halting before BOOT_OK\n");
+        for (;;) __asm__ volatile("wfi");
+    }
 
     /* Core bring-up event loop. We pace off the generic-timer virtual counter
      * (readable at PL1) rather than a timer IRQ — the GIC is not wired up in this

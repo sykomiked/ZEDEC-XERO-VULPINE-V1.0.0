@@ -17,12 +17,17 @@ static const uint16_t scp_fib_ext[SCP144_RUNGS + 2u] = {
     0u, 1u, 1u, 2u, 3u, 5u, 8u, 13u, 21u, 34u, 55u, 89u, 144u, 233u
 };
 
+const uint16_t *scp144_fib_ladder(void)
+{
+    return scp_fib;
+}
+
 /* Coprime residue moduli for the Casimir boundary fold. */
 static const uint8_t scp_mods[4] = { 7u, 13u, 31u, 89u };
 
 /* Compute the unique non-consecutive Zeckendorf support bitmask (bits 0..11)
  * and discrete Casimir mode energy for a coordinate value v in 0..144. */
-static uint16_t zeckendorf_mode(uint32_t v, uint32_t *casimir_energy)
+uint16_t scp144_zeckendorf_mode(uint32_t v, uint32_t *casimir_energy)
 {
     uint16_t mask = 0;
     uint32_t energy = 0;
@@ -75,7 +80,7 @@ void scp144_lattice_bind(const uint8_t init_id[32],
 
     for (i = 0; i < SCP144_DIM; i++) {
         uint32_t e = 0;
-        uint16_t zm = zeckendorf_mode(lattice[i], &e);
+        uint16_t zm = scp144_zeckendorf_mode(lattice[i], &e);
         transcript[64 + i * 2]     = (uint8_t) (zm >> 8);
         transcript[64 + i * 2 + 1] = (uint8_t) zm;
         total_energy += e;
@@ -126,7 +131,7 @@ static void step_plate_recursive(scp144_plate_t *p, uint32_t k, int8_t ac_pol,
         else
             p->micro_modes[m] = (uint8_t) (prev - next - s);
 
-        zm = zeckendorf_mode(p->micro_modes[m], &me);
+        zm = scp144_zeckendorf_mode(p->micro_modes[m], &me);
         if (m == 0) p->zeck_mask = zm;
         else        p->zeck_mask ^= zm;
 
@@ -499,7 +504,7 @@ int scp144_identify_hash(const uint8_t *in, uint32_t len, scp144_id_vec_t *out)
 
     for (i = 0; i < SCP144_RUNGS; i++) {
         uint32_t e = 0;
-        out->zeck_path[i] = zeckendorf_mode(out->unfolded_144[i * 12u], &e);
+        out->zeck_path[i] = scp144_zeckendorf_mode(out->unfolded_144[i * 12u], &e);
     }
     out->cassini_parity = (out->zeck_path[11] & 1u) ? 1u : 255u;
     return SCP144_OK;

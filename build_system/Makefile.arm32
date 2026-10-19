@@ -96,6 +96,8 @@ LIBGCC = $(shell $(CC) -print-libgcc-file-name)
 
 KERNEL_SRC = \
     kernel/src/scp144/scp144.c \
+    kernel/src/scp144/scp144_embed.c \
+    kernel/src/entropy/entropy_jitter.c \
     kernel/arch/arm32/uart_pl011.c \
     kernel/arch/arm32/kernel_main_arm32.c \
     kernel/arch/arm32/arm32_mmu.c \
@@ -436,6 +438,15 @@ clean:
 ZXV_GENDIR    := $(OBJDIR)/gen
 ZXV_PHASE_HDR := $(ZXV_GENDIR)/zxv_phase_table.h
 $(shell mkdir -p $(ZXV_GENDIR) && sh $(CURDIR)/build_system/gen_phase_table.sh $(CURDIR)/$(ZXV_PHASE_HDR) 2> $(CURDIR)/$(ZXV_GENDIR)/phase_census.txt)
+
+# The SCP-144 144-dimensional lattice ROM and the fractal seed, generated
+# like the other blobs: every ELF carries and verifies them before BOOT_OK.
+ZXV_CUR_CAR := $(ZXV_GENDIR)/zxv-curriculum.car
+$(shell python3 $(CURDIR)/build_system/mk_curriculum_car.py $(CURDIR)/$(ZXV_CUR_CAR) >/dev/null 2>&1 || true)
+ZXV_SCP144_HDR := $(ZXV_GENDIR)/zxv_scp144_blob.h
+$(shell python3 $(CURDIR)/build_system/gen_scp144_blob.py $(CURDIR)/$(ZXV_SCP144_HDR))
+ZXV_SEED_HDR := $(ZXV_GENDIR)/zxv_seed_blob.h
+$(shell python3 $(CURDIR)/build_system/gen_seed_blob.py $(CURDIR)/build_system/zxv_upstream.cid $(CURDIR)/$(ZXV_CUR_CAR) $(CURDIR)/$(ZXV_SEED_HDR))
 CFLAGS += -I$(ZXV_GENDIR)
 
 # FAIL-CLOSED BOOT TEST HOOK (roadmap 2.14). `make ZXV_BOOT_INJECT=n` forces one
