@@ -190,6 +190,11 @@ spatial                          logic      # exact geometry, four-valued sensor
 # ---- S5 AI runtime and swarm
 ai_layer                         ai
 chiglet                          ai
+chiglet/chg_humour               ai      # deterministic outcome-mapped quips: integer-seeded, bounded, never jokes about money/identity/safety
+chiglet/sym_interpret            ai      # the symbolic interpreter: base-9 archetypes, master numbers 11/22/33, vowel/consonant intent-boundary into lpres, bounded cycle + awareness stack
+chiglet/chg_meta                 ai      # metacognition: the swarm reflects its OWN live state into a four-level awareness stack (env/self/awareness/awareness^2)
+ai/fractal_seed                  ai      # the holographic seed: weights unfolded from IFS recurrence, exact Q32.32, Solfeggio/SCP-144 phase-locked
+ai/test_fractal_seed             ai      # host test of the holographic seed (embeds a compiler-emitted seed)
 chiglet/chg_tick                 ai      # the Fibonacci tick: the rung ladder that drives the handshakes, the telemetry, CISEX and SMIC
 chiglet/chg_mesh                 ai      # the mesh coordinator: the Chiglet ranks what to serve, the Vinea sessions (SCP-144) carry the state
 climate/climate_ct               ai         # the climate controller's caps and headroom as ct_budget metrics (includes ct_budget.h)

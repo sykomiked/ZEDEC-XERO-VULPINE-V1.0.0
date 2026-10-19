@@ -204,10 +204,14 @@ SRCS := \
     kernel/src/cards/zca.c \
     kernel/src/cellular_multikernel/cellular_multikernel.c \
     kernel/src/chiglet/chiglet.c \
+    kernel/src/chiglet/chg_humour.c \
     kernel/src/chiglet/chg_tick.c \
     kernel/src/chiglet/chg_mesh.c \
     kernel/src/chiglet/chg_kin.c \
     kernel/src/chiglet/chg_bond.c \
+    kernel/src/chiglet/sym_interpret.c \
+    kernel/src/chiglet/chg_meta.c \
+    kernel/src/ai/fractal_seed.c \
     kernel/src/choice/choice_core.c \
     kernel/src/chronicle/chronicle.c \
     kernel/src/chronicle/chronicle_persist.c \

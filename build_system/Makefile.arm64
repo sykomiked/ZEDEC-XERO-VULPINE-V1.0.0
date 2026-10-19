@@ -346,7 +346,11 @@ KERNEL_SRCS = \
     kernel/src/abacus/abacus.c \
     kernel/src/lightningrod/lightningrod.c \
     kernel/src/bios/zbios.c \
+    kernel/src/ai/fractal_seed.c \
     kernel/src/chiglet/chiglet.c \
+    kernel/src/chiglet/chg_humour.c \
+    kernel/src/chiglet/sym_interpret.c \
+    kernel/src/chiglet/chg_meta.c \
     kernel/src/chiglet/chg_tick.c \
     kernel/src/chiglet/chg_mesh.c \
     kernel/src/cards/cards.c \
