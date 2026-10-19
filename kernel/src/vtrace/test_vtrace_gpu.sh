@@ -108,6 +108,56 @@ if command -v clang++ >/dev/null 2>&1; then
     done
     test "$seed_ok" -gt 0 || { echo "[FAIL] zvt_seed: no PTX arch compiled"; exit 1; }
     echo "[PASS] seed geometry to PTX ($seed_ok arches, $seed_skip skipped: the 144-lattice kernel)"
+
+    # 8 — THE SCAFFOLD: the 144-dimensional lattice as the parallel build's
+    # scheduler. Cells are build units, the Fibonacci rings are the build
+    # stages, the lattice's partial order is the dependency rule: every
+    # stage-k cell depends only on cells in lower rings, so the
+    # stage-by-stage GPU build is ACYCLIC and race-free by construction.
+    # The emulator proves the kernel bit-identical AND the scaffold holds:
+    # 20736 cells partitioned, 0 cross-ring deps, 0 duplicate tasks.
+    g++ -std=c++14 -O1 -Wall -Wextra -Werror -Wno-unused-function -Isrc/vtrace \
+        src/vtrace/test_zvt_seed_build_emu.cpp -o "$T/test_zvt_seed_build" ||
+        { echo "[FAIL] test_zvt_seed_build build"; exit 1; }
+    "$T/test_zvt_seed_build" > "$T/seed_build.log" 2>&1 ||
+        { cat "$T/seed_build.log"; echo "[FAIL] test_zvt_seed_build"; exit 1; }
+    echo "[PASS] seed scaffold: $(tail -1 "$T/seed_build.log" | sed 's/^\[PASS\] //')"
+    scaffold_ok=0
+    for a in sm_75 sm_86 sm_90; do
+        if clang++ -x cuda --cuda-device-only --cuda-gpu-arch=$a -nocudainc -nocudalib \
+            -std=c++14 -O2 -Wall -Werror -Wno-unused-function -S \
+            -Isrc/vtrace src/vtrace/test_zvt_seed_build_ptx.cu -o "$T/zvt_seed_build_$a.ptx" 2>/dev/null; then
+            test "$(grep -c '.visible .entry' "$T/zvt_seed_build_$a.ptx")" = 1 ||
+                { echo "[FAIL] zvt_seed_build: 1 kernel expected ($a)"; exit 1; }
+            scaffold_ok=$((scaffold_ok+1))
+        fi
+    done
+    test "$scaffold_ok" -gt 0 || { echo "[FAIL] zvt_seed_build: no PTX arch compiled"; exit 1; }
+    echo "[PASS] seed scaffold to PTX ($scaffold_ok arches: the build scheduler kernel)"
+
+    # 9 — THE D-DIMENSIONAL SCAFFOLD: the same kernel wired across all 144
+    # dimensions of the lattice simultaneously. One thread per cell; the
+    # cell's D coordinates are its identity. Stage from the max coordinate,
+    # per-axis dependency predecessors clamped into the ring below (acyclic
+    # by construction), and the paraconsistent four-valued join (NEITHER /
+    # TRUE / FALSE / BOTH) of the dependencies' build states — the kernel's
+    # own told-true/told-false encoding, a contradiction preserved, never
+    # collapsed. The emulator proves it bit-identical from D=2 to D=144.
+    g++ -std=c++14 -O1 -Wall -Wextra -Werror -Wno-unused-function -Isrc/vtrace \
+        src/vtrace/test_zvt_seed_d_emu.cpp -o "$T/test_zvt_seed_d" ||
+        { echo "[FAIL] test_zvt_seed_d build"; exit 1; }
+    "$T/test_zvt_seed_d" > "$T/seed_d.log" 2>&1 ||
+        { cat "$T/seed_d.log"; echo "[FAIL] test_zvt_seed_d"; exit 1; }
+    echo "[PASS] D-dim scaffold: $(tail -1 "$T/seed_d.log" | sed 's/^\[PASS\] //')"
+    if clang++ -x cuda --cuda-device-only --cuda-gpu-arch=sm_86 -nocudainc -nocudalib \
+        -std=c++14 -O2 -Wall -Werror -Wno-unused-function -S \
+        -Isrc/vtrace src/vtrace/test_zvt_seed_d_ptx.cu -o "$T/zvt_seed_d_sm86.ptx" 2>/dev/null; then
+        test "$(grep -c '.visible .entry' "$T/zvt_seed_d_sm86.ptx")" = 1 ||
+            { echo "[FAIL] zvt_seed_d: 1 kernel expected"; exit 1; }
+        echo "[PASS] D-dim scaffold to PTX (sm_86: the 144D build cell kernel)"
+    else
+        echo "[SKIP] D-dim scaffold PTX (clang cannot emit sm_86)"
+    fi
 else
     echo "[SKIP] seed geometry GPU proof (needs g++ and clang++)"
 fi

@@ -18,19 +18,17 @@ typedef unsigned char zb;
 #include "zvt_seed_dkern.h"
 #undef ZVT_KSRC
 
-extern "C" __global__ void zvk_d_cell(const zu *co, zu n, zu D,
-                                      zu *stage, zu *ndep,
-                                      zu *dia, zu *djc,
-                                      zu *cellstate)
+extern "C" __global__ void zvk_d_cell(const zu *co, zu n, zu D, zu *stage, zu *ndep, zu *dia,
+                                      zu *djc, zu *cellstate)
 {
     zu i = blockIdx.x * 256u + threadIdx.x;
     if (i < n) {
         zu c[144];
         zu dep[144];
         zu a;
-        for (a = 0u; a < D; a++) c[a] = co[i * 144u + a];   /* stride 144  */
+        for (a = 0u; a < D; a++) c[a] = co[i * 144u + a]; /* stride 144  */
         stage[i] = zk_d_stage(D, c);
-        ndep[i]  = zk_d_deps(D, c, stage[i], &dia[i * 144u], &djc[i * 144u]);
+        ndep[i] = zk_d_deps(D, c, stage[i], &dia[i * 144u], &djc[i * 144u]);
         /* dependencies' build states: for this proof every predecessor is
          * given a deterministic state from its coordinates — the cell's
          * paraconsistent state is then the join. A real build feeds the
@@ -38,7 +36,7 @@ extern "C" __global__ void zvk_d_cell(const zu *co, zu n, zu D,
          * way. */
         for (a = 0u; a < ndep[i]; a++) {
             zu x = dia[i * 144u + a], v = djc[i * 144u + a];
-            dep[a] = (v + x) % 4u;   /* NEITHER 0, TRUE 1, FALSE 2, BOTH 3 */
+            dep[a] = (v + x) % 4u; /* NEITHER 0, TRUE 1, FALSE 2, BOTH 3 */
         }
         cellstate[i] = zk_d_lpres(ndep[i], dep);
     }
