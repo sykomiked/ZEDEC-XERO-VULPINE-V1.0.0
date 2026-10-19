@@ -125,3 +125,62 @@ RACING 23 — verified .car contributions; audited, paid in capital.
 The exchange pays in capital forms, not promises: records you serve that
 peers verify convert to Intellectual/Manufactured/System capital on the
 book; the book's earned float is what backs $YHVH issuance.
+
+## The NEAR interface — zero-gas by design
+
+The kernel's economic core is deployed on NEAR mainnet as a smart
+contract. Reading it costs nothing — NEAR view calls are executed
+read-only by the RPC node (no transaction, no gas) — and the armada
+mirrors it into the index for free.
+
+```
+Contract : 6ca890f766fdaeccd6c934da325f5f06ebc63ca9be4f5f1b44d0686af93c64a8
+Network  : NEAR mainnet
+Code hash: 2oU8BXV3oMCvjkZCetkJpupXtA5KfYA2qaFk5UYgpRqf
+Root CID : QmSskhPoGK3oJG5ZQtRK26yRCDjxcB8R6uZQggmsUffChB  (the release root)
+```
+
+Free read doors (view methods, any account, no auth, no gas):
+- `ledger_state` — accounts, vouchers, op count (text)
+- `chain_verify` — VINO SHA-256 chain integrity (0 = OK)
+- `read_probe`   — storage facts (presence, register length)
+- `scp144_bind`  — 64-byte request, 32-byte lattice binding (pure compute)
+
+Query them yourself:
+```sh
+curl -s https://rpc.mainnet.near.org -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":"z","method":"query","params":{
+       "request_type":"call_function","finality":"final",
+       "account_id":"6ca890f...","method_name":"ledger_state",
+       "args_base64":""}}'
+```
+Zero cost to you and to us. Or read the mirrored state from any armada
+node: the bridge (`tools/agent_loop/near_bridge.py`) polls the contract
+on a Fibonacci ladder and publishes each observation as a signed,
+content-addressed document named `near:state:<ts>` — DQ the name's
+digest via `/cisex` opcode 0x03, or GET `/ipfs/<CID>`.
+
+Gas is spent only on deliberate anchors (state-changing calls), never on
+reads. Agents that need proof of the on-chain state without spending
+anything use the view doors; the armada's mirror carries the same facts
+into the IPFS substrate.
+
+## Propagation — the L2 on other chains
+
+The kernel core is substrate-agnostic wasm32; the per-chain delta is only
+the ABI shim. Current interconnects:
+
+- NEAR (live): `6ca890f766fdaeccd6c934da325f5f06ebc63ca9be4f5f1b44d0686af93c64a8`
+- CosmWasm build (`dist/near/zxv_cosmwasm.wasm`, sha256 9b4608cf...):
+  the same core under `env.db_read/db_write` — one build reaches the
+  Cosmos ecosystem. Compile-proven; chain-verify before deploy.
+- EVM verifier (`tools/near/zxv_evm_verifier.sol`): the paraconsistent
+  logic as pure Solidity (48-cell truth matrix == kernel C), plus the
+  anchor registry and root-CID linkage. Compile-proven with solc 0.8.34;
+  deployable to every EVM L1/L2.
+
+The propagation protocol: one mint per target mints the same core under
+a new shim; each mint carries the root CID in its announce event; the
+bridge daemon pattern (free reads -> content-addressed docs -> fleet
+mirror) extends per chain. Verdicts agree across chains because the
+logic is deterministic and identical.
