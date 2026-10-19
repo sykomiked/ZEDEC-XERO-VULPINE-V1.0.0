@@ -64,7 +64,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Resolve the version
@@ -123,10 +123,10 @@ jobs:
     runs-on: macos-14
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Tools
@@ -148,7 +148,7 @@ jobs:
           done
           codesign --verify --strict --deep --verbose=2 "$APP"
           "$APP/Contents/MacOS/zxv-engine" --version | grep -E '^(zxvd|zxv-host) '
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-macos
           path: |
@@ -162,10 +162,10 @@ jobs:
     runs-on: macos-14
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Pillow for the app icon
@@ -185,7 +185,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/zxs"
           "$APP/Contents/MacOS/ZXVStudio" --smoke "$RUNNER_TEMP/zxs/run/zxvd.sock"
           test ! -S "$RUNNER_TEMP/zxs/run/zxvd.sock"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-macos-studio
           path: ${{ runner.temp }}/dist/ZXV-Studio-*-macos.zip
@@ -203,7 +203,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Tools
@@ -235,7 +235,7 @@ jobs:
         run: |
           APPIMAGE_EXTRACT_AND_RUN=1 "$RUNNER_TEMP"/dist/ZXV-*-linux-${{ matrix.arch }}.AppImage --version |
             grep '^zxvd '
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-linux-${{ matrix.arch }}
           path: |
@@ -250,7 +250,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Tools
@@ -259,7 +259,7 @@ jobs:
           sudo apt-get install -y gcc-mingw-w64-x86-64 binutils-mingw-w64-x86-64 python3-pil
       - name: Package
         run: build_system/package_desktop.sh windows "$RUNNER_TEMP/dist"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-windows-x86_64
           path: ${{ runner.temp }}/dist/ZXV-*-windows-x86_64.zip
@@ -272,13 +272,13 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release-windows-x86_64
           path: ${{ runner.temp }}/pkg
@@ -304,7 +304,7 @@ jobs:
     env:
       V: ${{ needs.preflight.outputs.version }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Build toolchain image
@@ -319,7 +319,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/dist"
           gzip -9 -n -c "dist/discs/zxv-${{ matrix.arch }}-uefi.img" > "$RUNNER_TEMP/dist/ZXV-$V-uefi-${{ matrix.arch }}.img.gz"
           ls -l "$RUNNER_TEMP/dist"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-uefi-${{ matrix.arch }}
           path: ${{ runner.temp }}/dist/ZXV-*-uefi-${{ matrix.arch }}.img.gz
@@ -341,7 +341,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: release-*
           path: parts

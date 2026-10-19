@@ -134,19 +134,19 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: JDK ${{ matrix.jdk }} (runs the tests)
         id: testjdk
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: ${{ matrix.jdk }}
       - name: JDK 21 (runs Gradle)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
       - name: Build libzxv and the test fixtures
@@ -155,7 +155,7 @@ jobs:
         run: gradle -p sdk/mobile/kotlin --no-daemon :zxv:test "-Pzxv.testJavaHome=${{ steps.testjdk.outputs.path }}"
       - name: Test report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: kotlin-tests-${{ matrix.os }}-jdk${{ matrix.jdk }}
           path: sdk/mobile/kotlin/zxv/build/reports/tests/
@@ -166,19 +166,19 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
         with:
           # the default also asks for the retired 'tools' package, which the
           # current sdkmanager no longer has
           packages: platform-tools
       - name: Android SDK packages and NDK
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;${NDK_VERSION}" "cmake;3.22.1"
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
       - name: libzxv.so for each ABI (NDK)
@@ -196,7 +196,7 @@ jobs:
           done
           mkdir -p /tmp/aar && unzip -oq "$aar" -d /tmp/aar
           readelf -d /tmp/aar/jni/arm64-v8a/libzxvjni.so | grep -q 'NEEDED.*libzxv.so'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: zxv-android-aar
           path: sdk/mobile/kotlin/android/build/outputs/aar/zxv-android-release.aar
@@ -214,7 +214,7 @@ jobs:
       run:
         working-directory: sdk/mobile/dart
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
@@ -236,7 +236,7 @@ jobs:
     runs-on: macos-14
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Build Zxv.xcframework (device + simulator)
         run: sdk/mobile/dart/scripts/build-libzxv-xcframework.sh
       - name: Check the slices
@@ -246,7 +246,7 @@ jobs:
           xcrun lipo -info "$fw"/ios-arm64/libzxv.a
           xcrun lipo -info "$fw"/ios-arm64_x86_64-simulator/libzxv.a
           nm -gU "$fw"/ios-arm64/libzxv.a | grep -q '_zxv_hex_pack'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Zxv.xcframework
           path: sdk/mobile/dart/build/Zxv.xcframework
@@ -257,7 +257,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: '22'

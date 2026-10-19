@@ -142,7 +142,7 @@ jobs:
       run:
         working-directory: sdk/engines/emu-state
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: make -C ../../libzxv all
       - name: Unit tests, fuzz smoke run, demo and R11 no-float check
         run: make CC=${{ matrix.cc }} PYTHON=python3 test
@@ -169,7 +169,7 @@ jobs:
       run:
         working-directory: sdk/engines/emu-state
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: make -C ../../libzxv all
       - name: Tests under ASan + UBSan
         env:
@@ -200,7 +200,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: make -C sdk/libzxv all
       - name: Configure (the C++ layer and its tests; no Godot, no download)
         env:
@@ -216,7 +216,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: make -C sdk/libzxv all
       - name: Build the extension (fetches godot-cpp godot-4.3-stable, commit-checked)
         run: |
@@ -267,7 +267,7 @@ jobs:
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: make -C sdk/libzxv all
       - name: Configure (the C++ layer and its tests; no Unreal)
         run: cmake -S sdk/engines/unreal-zxv -B build-unreal-core
@@ -298,8 +298,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
       - run: make -C sdk/libzxv all
@@ -317,7 +317,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: '3.10'

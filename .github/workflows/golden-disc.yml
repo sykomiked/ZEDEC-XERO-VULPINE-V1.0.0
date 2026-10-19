@@ -33,7 +33,7 @@ jobs:
       matrix:
         arch: [arm64, x86_64]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Build toolchain image
@@ -49,7 +49,7 @@ jobs:
           gzip -9 -n -c dist/discs/zxv-${{ matrix.arch }}-uefi-golden.img > dist/discs/zxv-${{ matrix.arch }}-uefi-golden.img.gz
           ( cd dist/discs && sha256sum zxv-${{ matrix.arch }}-uefi-golden.img.gz > zxv-${{ matrix.arch }}-uefi-golden.img.gz.sha256 )
           { echo '```'; cat dist/discs/zxv-${{ matrix.arch }}-uefi-golden.sizes; ls -l dist/discs/*.gz; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: golden-disc-${{ matrix.arch }}
           retention-days: 7

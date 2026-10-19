@@ -133,7 +133,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: make -C sdk/libzxv all
       - name: Every kit — unit tests, fuzz smoke runs, examples, R11 no-float check
         run: make -C sdk/industry CC=${{ matrix.cc }} PYTHON=python3 test
@@ -149,7 +149,7 @@ jobs:
       ASAN_OPTIONS: detect_leaks=1
       UBSAN_OPTIONS: print_stacktrace=1
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: make -C sdk/libzxv all
       - name: Every kit under ASan + UBSan
         run: make -C sdk/industry CC=gcc SANITIZE=1 OUT=build/san PYTHON=python3 test
