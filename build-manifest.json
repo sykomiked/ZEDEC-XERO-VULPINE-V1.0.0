@@ -1,0 +1,78 @@
+{
+  "kind": "development checkpoint, not latest Devin/server deployment",
+  "source_commit": "4e61d6c513afa5c1835efb2d1df7064f8a8fb1a5",
+  "source_base": "b567ac1ea0b89ff78645f3dc37d519a8024119fd",
+  "branch": "checkpoint/cloud-qa-2026-10-19",
+  "publication_date": "2026-10-19",
+  "build": "incremental make -f build_system/Makefile.<target> all JOBS=2; five targets",
+  "validation": {
+    "focused_qa": "passed on 2026-10-19",
+    "qemu_boot": "all five passed ten-second ci_boot_check.sh; AI_OK present on ARM64 and x86_64",
+    "full_verify_all": "passed in prior October 10 session; not rerun for this publication"
+  },
+  "limitations": [
+    "Not reconciled with 966 newer main commits",
+    "Mac-local Devin workspace and nine-server deployment not accessible",
+    "IPFS archive not retrieved: both documented gateways returned HTTP 403",
+    "No production certification or release signature; test-code target not met"
+  ],
+  "tool_versions": {
+    "aarch64-linux-gnu-gcc": "aarch64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0",
+    "arm-linux-gnueabihf-gcc": "arm-linux-gnueabihf-gcc (Debian 14.2.0-19) 14.2.0",
+    "riscv64-linux-gnu-gcc": "riscv64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0",
+    "gcc": "gcc (Debian 14.2.0-19) 14.2.0",
+    "clang": "Debian clang version 19.1.7 (3+b1)",
+    "qemu-system-aarch64": "QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)",
+    "qemu-system-arm": "QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)",
+    "qemu-system-x86_64": "QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)",
+    "qemu-system-riscv64": "QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)",
+    "qemu-system-riscv32": "QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)",
+    "cobc": "cobc (GnuCOBOL) 3.2.0"
+  },
+  "files": {
+    "kernel_arm64.bin": {
+      "bytes": 655496,
+      "sha256": "f32a37847b46bb2a94cbe0906948210b9be3bef1e766b8a1539a8765754873a7"
+    },
+    "kernel_arm64.elf": {
+      "bytes": 867632,
+      "sha256": "7113ed5602146a67e11d06c76a3b4a234b730583ab1729263a686d54dabd0721"
+    },
+    "kernel_riscv.bin": {
+      "bytes": 180356,
+      "sha256": "e0e1e643f115c2fef1fdff2ccca26ae479449c053b2e94c979ac576ce42c72f5"
+    },
+    "kernel_riscv.elf": {
+      "bytes": 218728,
+      "sha256": "c42bcf2b792ee352417de36f5f3b4c88e8a9098a60130cc8467118be0d4ff48a"
+    },
+    "kernel_riscv32.bin": {
+      "bytes": 208580,
+      "sha256": "7aa9f56bba905334d5dbd9e34531a5657ce64e9f324cbf19a8cea42810f2b259"
+    },
+    "kernel_riscv32.elf": {
+      "bytes": 238828,
+      "sha256": "d80fdf5d1795b232eaf93204b6d5b26ac0614ebed491eeb94cf7a83bc0e0bb71"
+    },
+    "kernel_x86_64.bin": {
+      "bytes": 168044,
+      "sha256": "07aa3b16ccc57d0e6e4ceaea4201cff9d831ea81db2d3649f2f8109cabb7be22"
+    },
+    "kernel_x86_64.elf": {
+      "bytes": 200024,
+      "sha256": "81b250da009b831791fdbac317045b390f2ff77c5954c9a1cb2cd52de7e93889"
+    },
+    "validation-logs.tar.gz": {
+      "bytes": 63233,
+      "sha256": "91512804d5ceec7ddc2f23fa43a0621dd290d66129c513786dad666121f0df47"
+    },
+    "zedec_xero_arm32.elf": {
+      "bytes": 285964,
+      "sha256": "c53f8740949fef7c7fd1e5b9da95be6aafc33bdd3335da314a4c85a2d5bbda5e"
+    },
+    "zxv-source.tar.gz": {
+      "bytes": 10091827,
+      "sha256": "d676782420115ff455ff43168c30490ae9b10dcda06711fbfeaa7dbffa4b0db4"
+    }
+  }
+}
