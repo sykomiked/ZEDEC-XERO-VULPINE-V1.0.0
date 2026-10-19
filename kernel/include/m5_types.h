@@ -113,7 +113,8 @@ static inline trit_t trit_canon(trit_t t) {
 
 /* Is this value already canonical (i.e. safe to emit)? */
 static inline bool trit_is_canonical(trit_t t) {
-    return t != TRIT_GLUT;
+    return t == TRIT_FALSE || t == TRIT_TRUE || t == TRIT_GLUT_PLUS || t == TRIT_GLUT_MINUS ||
+           t == TRIT_GLUT_NEUTRAL;
 }
 
 /* The canonicaliser is sound iff it is idempotent, collapses the alias, and its

@@ -447,7 +447,7 @@ evo_status_t evo_adopt_decode(const uint8_t *in, uint32_t len, evo_adopt_t *a);
 
 /* ===== Safety-core conformance ===== */
 #define EVO_CHK_HASH    0x01u /* SHA3-256 (FIPS 202) */
-#define EVO_CHK_FEE     0x02u /* floor(a * 8889 / 10^7), exact (0.08889%) */
+#define EVO_CHK_FEE     0x02u /* floor(a * 8 / 9000), exact (0.08889%) */
 #define EVO_CHK_LEDGER  0x04u /* sum d_debit == sum d_credit, d_eq = d_dr - d_cr */
 #define EVO_CHK_USURY   0x08u /* repayment due == principal, at any age */
 #define EVO_CHK_CONSENT 0x10u /* granted && amount <= max && now < expiry */

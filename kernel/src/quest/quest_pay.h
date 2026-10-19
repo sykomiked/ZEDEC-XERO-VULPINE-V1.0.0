@@ -12,7 +12,7 @@
  *       max(cap of the pool, an equal share). The same contributions always
  *       give the same split. What nobody may take stays in the pool.
  *   P2  THE ASSURANCE FEE. Each share pays fee = pay_assure_fee(gross),
- *       exactly floor(gross * 8889 / 10^7) (0.08889%, pay_assure.h F1), split
+ *       exactly floor(gross * 8 / 9000) (0.08889%, pay_assure.h F1), split
  *       exactly into the four fee-bucket accounts (pay_assure_split: 50%
  *       reserve floor + remainder, 25% V-Bill patronage disbursement pool, 15%
  *       infrastructure/node bounties, 10% regenerative capital); the member

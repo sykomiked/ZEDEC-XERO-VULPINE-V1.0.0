@@ -81,8 +81,8 @@ TEST(conjoin_test) {
     ASSERT(lpres_conjoin(LPRES_STATE_FALSE, LPRES_STATE_NEITHER) == LPRES_STATE_FALSE, "F∧⊥=F");
     /* B ∧ B = B */
     ASSERT(lpres_conjoin(LPRES_STATE_BOTH, LPRES_STATE_BOTH) == LPRES_STATE_BOTH, "B∧B=B");
-    /* B ∧ ⊥ = ⊥ */
-    ASSERT(lpres_conjoin(LPRES_STATE_BOTH, LPRES_STATE_NEITHER) == LPRES_STATE_NEITHER, "B∧⊥=⊥");
+    /* B ∧ ⊥ = F (Belnap truth-order meet) */
+    ASSERT(lpres_conjoin(LPRES_STATE_BOTH, LPRES_STATE_NEITHER) == LPRES_STATE_FALSE, "B∧⊥=F");
     /* ⊥ ∧ ⊥ = ⊥ */
     ASSERT(lpres_conjoin(LPRES_STATE_NEITHER, LPRES_STATE_NEITHER) == LPRES_STATE_NEITHER, "⊥∧⊥=⊥");
     PASS();
@@ -103,8 +103,8 @@ TEST(disjoin_test) {
     ASSERT(lpres_disjoin(LPRES_STATE_TRUE, LPRES_STATE_NEITHER) == LPRES_STATE_TRUE, "T∨⊥=T");
     /* B ∨ B = B */
     ASSERT(lpres_disjoin(LPRES_STATE_BOTH, LPRES_STATE_BOTH) == LPRES_STATE_BOTH, "B∨B=B");
-    /* B ∨ ⊥ = B */
-    ASSERT(lpres_disjoin(LPRES_STATE_BOTH, LPRES_STATE_NEITHER) == LPRES_STATE_BOTH, "B∨⊥=B");
+    /* B ∨ ⊥ = T (Belnap truth-order join) */
+    ASSERT(lpres_disjoin(LPRES_STATE_BOTH, LPRES_STATE_NEITHER) == LPRES_STATE_TRUE, "B∨⊥=T");
     /* ⊥ ∨ ⊥ = ⊥ */
     ASSERT(lpres_disjoin(LPRES_STATE_NEITHER, LPRES_STATE_NEITHER) == LPRES_STATE_NEITHER, "⊥∨⊥=⊥");
     PASS();

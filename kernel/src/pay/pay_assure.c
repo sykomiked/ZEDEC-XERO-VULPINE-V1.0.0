@@ -1,7 +1,7 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* pay_assure.c — the 0.08889% assurance fee, its exact four-bucket partition,
- * contributions and the commons. See pay_assure.h. */
+/* pay_assure.c — the 8/9000 (approximately 0.0888889%) assurance fee, its exact four-bucket
+ * partition, contributions and the commons. See pay_assure.h. */
 #include "pay_assure.h"
 #include "swarm_market.h"
 
@@ -13,7 +13,7 @@ bool pay_assure_fee_carry(uint64_t rem_in, uint64_t gross, uint64_t *fee, uint64
 {
     uint64_t r;
     if (rem_in >= PAY_ASSURE_DEN) return false;
-    /* g * 8889 < 2^78 and r < 2^24: the 128-bit sum never wraps. */
+    /* g * 8 < 2^67 and r < 2^14: the 128-bit sum never wraps. */
     pay_u128 x = pay_u128_add64(pay_mul64(gross, PAY_ASSURE_NUM), rem_in);
     pay_u128 q = pay_udiv128_64(x, PAY_ASSURE_DEN, &r);
     if (q.hi) return false; /* unreachable: q <= g */

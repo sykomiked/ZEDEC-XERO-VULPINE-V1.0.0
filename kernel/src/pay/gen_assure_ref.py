@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 # SPDX-License-Identifier: Apache-2.0
-"""gen_assure_ref.py — reference values for the 0.08889% assurance fee.
+"""gen_assure_ref.py — reference values for the 8/9000 (approximately 0.0888889%) assurance fee.
 
-Writes "<a> <fee>" lines for test_pay.c, where fee = floor(a * 8889 / 10^7)
+Writes "<a> <fee>" lines for test_pay.c, where fee = floor(a * 8 / 9000)
 (pay_assure.h F1). Every value is computed TWO independent ways and the
 script aborts unless both agree and the result is proven to be the floor:
 
-  1. integer:  (a * 8889) // 10**7  (Python big integers).
-  2. fraction: math.floor(Fraction(a) * Fraction(8889, 10**7)).
-  3. check:    fee * 10^7 <= a * 8889 < (fee + 1) * 10^7.
+  1. integer:  (a * 8) // 9000  (Python big integers).
+  2. fraction: math.floor(Fraction(a) * Fraction(8, 9000)).
+  3. check:    fee * 9000 <= a * 8 < (fee + 1) * 9000.
 
 Usage: gen_assure_ref.py OUT [COUNT] [SEED]   (defaults 120000, 20261010)
 The amounts include 0..4096, values next to every multiple of the 1125-unit
@@ -21,7 +21,7 @@ import random
 import sys
 from fractions import Fraction
 
-NUM, DEN = 8889, 10**7
+NUM, DEN = 8, 9000
 
 
 def by_int(a):
@@ -40,7 +40,7 @@ def amounts(count, seed):
     rng = random.Random(seed)
     s = set(range(0, 4097))
     for k in range(1, 4000):
-        # the smallest gross paying k units is ceil(k * 10^7 / 8889)
+        # the smallest gross paying k units is ceil(k * 9000 / 8)
         edge = -(-k * DEN // NUM)
         for d in (-2, -1, 0, 1, 2):
             s.add(edge + d)

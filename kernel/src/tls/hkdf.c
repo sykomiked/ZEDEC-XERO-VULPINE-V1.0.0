@@ -8,6 +8,7 @@ static void cpy(uint8_t *d, const uint8_t *s, uint32_t n) {
 static void zero(uint8_t *d, uint32_t n) { for (uint32_t i = 0; i < n; i++) d[i] = 0; }
 static uint32_t slen(const char *s) { uint32_t n = 0; while (s[n]) n++; return n; }
 
+/* Stream the whole message; HMAC has no fixed scratch-buffer limit. */
 /* HKDF-Expand still builds T(i) in a bounded scratch block (info is a
  * short label, checked below). HMAC itself streams, so any message length
  * gives the real MAC (an earlier version returned all zeros past 512 bytes). */
@@ -31,6 +32,16 @@ void hmac_sha256(const uint8_t *key, uint32_t key_len,
         opad[i] = (uint8_t)(k[i] ^ 0x5C);
     }
 
+    uint8_t inner[HASH_LEN];
+    sha256_ctx_t ctx;
+    sha256_init(&ctx);
+    sha256_update(&ctx, ipad, HMAC_BLOCK_LEN);
+    if (msg && msg_len) sha256_update(&ctx, msg, msg_len);
+    sha256_final(&ctx, inner);
+    sha256_init(&ctx);
+    sha256_update(&ctx, opad, HMAC_BLOCK_LEN);
+    sha256_update(&ctx, inner, HASH_LEN);
+    sha256_final(&ctx, out);
     sha256_ctx_t c;
     uint8_t inner[HASH_LEN];
     sha256_init(&c);
@@ -62,15 +73,17 @@ void hkdf_extract(const uint8_t *salt, uint32_t salt_len,
     hmac_sha256(salt, salt_len, ikm, ikm_len, prk);
 }
 
+/* Bound the HKDF info staging buffer independently of streaming HMAC. */
+#define HKDF_SCRATCH 512u
 bool hkdf_expand(const uint8_t prk[HASH_LEN],
                  const uint8_t *info, uint32_t info_len,
                  uint8_t *out, uint32_t out_len) {
     if (!prk || !out) return false;
     if (out_len > HKDF_MAX_OKM * HASH_LEN) return false;
-    if (info_len > HMAC_SCRATCH - HASH_LEN - 1u) return false;
+    if (info_len > HKDF_SCRATCH - HASH_LEN - 1u) return false;
 
     uint8_t t[HASH_LEN];
-    uint8_t block[HASH_LEN + HMAC_SCRATCH];
+    uint8_t block[HASH_LEN + HKDF_SCRATCH];
     uint32_t t_len = 0;
     uint32_t done = 0;
     uint8_t counter = 1;

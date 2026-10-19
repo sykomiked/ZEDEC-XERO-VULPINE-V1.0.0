@@ -222,7 +222,7 @@ typedef struct {
     uint64_t debit;
     uint64_t credit;
     int64_t equity;
-    uint64_t fee_carry; /* pay_assure.h F2: sub-unit fee remainder, < 10^7 */
+    uint64_t fee_carry; /* pay_assure.h F2: sub-unit fee remainder, < 9000 */
     bool active;
 } pay_account_t;
 
@@ -355,7 +355,7 @@ pay_status_t pay_ledger_redeem(pay_ledger_t *L, pay_posting_req_t *req, uint32_t
 pay_status_t pay_ledger_reverse(pay_ledger_t *L, pay_posting_req_t *req, const char *orig_uetr,
                                 pay_receipt_t *rc);
 
-/* A payment carrying the 0.08889% assurance fee (pay_assure.h), in ONE
+/* A payment carrying the 8/9000 (approximately 0.0888889%) assurance fee (pay_assure.h), in ONE
  * atomic posting: `from` pays `amount` to `to`, plus the fee on `amount`
  * computed with `from`'s sub-unit carry (F2), partitioned exactly into the
  * four bucket accounts bucket[PAY_ASSURE_*] (B1, remainder to the reserve
