@@ -329,6 +329,24 @@ static void m_bond_status(zxvd_call_t *c)
     ZXVD_RAW(o, ",\"sandbox\":true}");
 }
 
+/* zxvd_groups.h: the desk's live bonds for the Player Card. Every bond here
+ * locks sandbox V-Bills (zxvd_sandbox.h C1), so the figure is practice
+ * units by construction; the card shows it and never counts it. The qty is
+ * the lock account's balance, which vbond_check holds equal to the live
+ * bonds' summed qty. */
+bool zxvd_bonds_practice(uint32_t *live, uint64_t *qty)
+{
+    uint32_t n = 0;
+    uint64_t q = 0;
+    if (BB.open) {
+        for (uint32_t i = 0; i < VBOND_MAX_BONDS; i++) n += BS.bond[i].used ? 1u : 0u;
+        q = pay_ledger_account(&BB.L, BS.cfg.lock)->debit;
+    }
+    if (live) *live = n;
+    if (qty) *qty = q;
+    return BB.open;
+}
+
 static void bond_close(void)
 {
     BB.open = false;

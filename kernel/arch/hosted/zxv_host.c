@@ -2225,13 +2225,19 @@ static void rpc_net_offers(zxvd_buf_t *o)
 
 /* zxvd_rpc.h V3: the owner's Player Card (sicily.h S2/S3). Only credibility
  * has a source on this node today; the other inputs are reported as 0 with
- * the reason, so the tier is what the measured inputs earn, never more. */
+ * the reason, so the tier is what the measured inputs earn, never more.
+ * Bond and giving have no real ledger here: the V-Bonds desk (bonds.*) and
+ * the grants desk (grants.*) keep sandbox books of practice units
+ * (zxvd_sandbox.h C1), never money, so they are not tier inputs. The
+ * desk's live practice bonds are shown apart, under "practice", which
+ * nothing evaluates. */
 static void rpc_player_card(zxvd_buf_t *o)
 {
     static qst_view_t qv;
     qst_view(&S.quest, QUEST_OWNER, (uint32_t) (zxv_net_wall_ms() / 86400000u), &qv);
-    uint64_t cred = qv.contributed_units, bond = 0, giving = 0;
-    uint32_t up = 0;
+    uint64_t cred = qv.contributed_units, bond = 0, giving = 0, practice_qty = 0;
+    uint32_t up = 0, practice_live = 0;
+    bool practice_open = zxvd_bonds_practice(&practice_live, &practice_qty);
     sic_tier_table_t tab;
     sic_tier_table_default(&tab);
     sic_tier_t t = sic_tier_eval(&tab, cred, bond, up, giving);
@@ -2239,11 +2245,13 @@ static void rpc_player_card(zxvd_buf_t *o)
                     "{\"tier\":%d,\"metal\":\"%s\",\"stone\":\"%s\",\"inputs\":{"
                     "\"credibility\":{\"value\":\"%llu\",\"source\":\"verified contributions "
                     "from mesh trades\"},"
-                    "\"bond\":{\"value\":\"0\",\"source\":\"not built yet: no bond can be "
-                    "posted\"},"
+                    "\"bond\":{\"value\":\"%llu\",\"source\":\"no real bond ledger on this "
+                    "node: the V-Bonds desk runs on practice units; not counted\"},"
                     "\"uptime_bps\":{\"value\":\"0\",\"source\":\"not measured yet\"},"
-                    "\"giving\":{\"value\":\"0\",\"source\":\"not tracked yet\"}},\"next\":",
-                    (int) t, sic_tier_name(t, 0), sic_tier_name(t, 1), (unsigned long long) cred);
+                    "\"giving\":{\"value\":\"%llu\",\"source\":\"no real giving ledger on this "
+                    "node: the grants desk runs on practice units; not counted\"}},\"next\":",
+                    (int) t, sic_tier_name(t, 0), sic_tier_name(t, 1), (unsigned long long) cred,
+                    (unsigned long long) bond, (unsigned long long) giving);
     if (t >= SIC_TIER_PLATINUM) {
         LIT_RAW(o, "null");
     } else {
@@ -2274,7 +2282,12 @@ static void rpc_player_card(zxvd_buf_t *o)
     const char *sep = "";
     for (size_t i = 0; i < sizeof PERK / sizeof PERK[0]; i++)
         if (perks & PERK[i].bit) zxvd_buf_printf(o, "%s\"%s\"", sep, PERK[i].name), sep = ",";
-    LIT_RAW(o, "]}");
+    zxvd_buf_printf(o,
+                    "],\"practice\":{\"bonds\":{\"value\":\"%llu\",\"live\":%u,\"set_up\":%s,"
+                    "\"source\":\"V-Bonds desk (bonds.*): practice units, not money; never a "
+                    "tier input\"}}}",
+                    (unsigned long long) practice_qty, (unsigned) practice_live,
+                    practice_open ? "true" : "false");
 }
 
 static const zxvd_view_ops_t VIEW_OPS = {rpc_net_peers, rpc_net_offers, rpc_player_card};

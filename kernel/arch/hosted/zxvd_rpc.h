@@ -123,7 +123,7 @@
  *       the seller refused (zxv_peer_host.h) is not a settled request and
  *       is not posted. mesh.books reports the three accounts and counts.
  *
- * THE JURISDICTION BRIDGE (jurisdiction.get / jurisdiction.set)
+ * THE JURISDICTION BRIDGE (jurisdiction.get, .set, .install, .check, .tax_rate)
  *   J1  country: an ISO 3166-1 alpha-2 code (two capital letters) or "".
  *   J2  market: "closed" (closed clearing, the default) or "open" (the open
  *       batch-auction market, a per-deployment switch).
@@ -135,12 +135,47 @@
  *       it survives a restart; an unchanged setting writes nothing.
  *   J5  in_effect is true: the jurisdiction host (kernel/src/juris) gets
  *       the settings at start and at every change. plugins counts the
- *       plug-ins it has loaded: none until the deployment configures a
- *       jurisdiction gateway key, so until then its answers fail closed
- *       (wait). report_standard is the framework reports follow: the chosen
- *       standard when an adapter is built for it (IFRS, US_GAAP, AAOIFI)
- *       and a country is set, else "". No payment path asks the host yet,
- *       and an adapter does not replace an accountant or a Shariah board.
+ *       plug-ins it has loaded: none until a gateway key is set and a
+ *       signed manifest installed (J6, J7), so until then its answers fail
+ *       closed (wait). report_standard is the framework reports follow: the
+ *       chosen standard when an adapter is built for it (IFRS, US_GAAP,
+ *       AAOIFI) and a country is set, else "". No payment path asks the
+ *       host yet, and an adapter does not replace an accountant or a
+ *       Shariah board.
+ *   J6  The gateway key: jurisdiction.set gateway_key takes an ML-DSA-87
+ *       public key in hex ("" clears it), saved as one "juris_gw" record
+ *       before it applies. It is the host's verify hook (juris_cp.h JC1,
+ *       context "ZXV-JURIS-GATEWAY") and the one key trusted to sign
+ *       compliance manifests (cpk.h, context "ZXV-COMPLIANCE"). get reports
+ *       gateway_key as the key id (SHA-256 of the key, hex) or null, never
+ *       the key. A new key, or none, drops every installed plug-in and
+ *       their tables. Any settings change rebuilds the host from the
+ *       settings and the installed plug-ins: those for another country stay
+ *       installed but are not loaded; the quarantine log and a halt carry
+ *       over.
+ *   J7  jurisdiction.install {manifest, sig, gateway_sig} (base64) installs
+ *       a capital-control profile (capctl.h) or a tax table (taxhook.h) as a
+ *       plug-in for the settings' country. sig is the manifest's own
+ *       signature (cp_common.h M2), gateway_sig the J3 plug-in manifest
+ *       (juris.h) signed by the gateway key: id "capctl/CC" or
+ *       "taxhook/CC/REGION/KIND", the plug-in's hook mask, version = the
+ *       manifest header's version, image = the manifest bytes. Refused, with
+ *       nothing changed, while no key or no country is set, for another
+ *       country, another kind, any signature that does not verify, a
+ *       manifest outside its validity window now, or no room. A done install
+ *       is one "juris_install" record with its time; a restart replays it
+ *       judged at that time, so a table that has since expired still loads
+ *       and then refuses (C4, X3). Base64, not hex: two ML-DSA-87 signatures
+ *       in hex do not fit one request (T3).
+ *   J8  A plug-in id's version must be above every version installed under
+ *       it before, across restarts and key changes; a newer one replaces it
+ *       in place.
+ *   J9  jurisdiction.check {from, to, ccy, amount, sender?, receiver?}
+ *       answers the host's tag for a transfer (base, action, proceed, and
+ *       the capital-control reports it would file) and commits nothing;
+ *       jurisdiction.tax_rate {kind: income | vat | withholding} answers the
+ *       rate the plug-ins agree on (num/den) or -32097. Plug-ins judge with
+ *       the wall clock.
  */
 #ifndef ZXVD_RPC_H
 #define ZXVD_RPC_H
@@ -209,7 +244,10 @@ void zxvd_rpc_set_peer_ops(const zxvd_peer_ops_t *ops);
  *                  has not accepted, or a buy the seller has not committed).
  *   V3 player.card the owner's earned tier (sicily.h S2) from the inputs this
  *                  node can measure, each with its source, the next tier's
- *                  thresholds and what is missing, and the perks. */
+ *                  thresholds and what is missing, and the perks; plus
+ *                  "practice":{"bonds":{"value","live","set_up","source"}},
+ *                  the V-Bonds desk's practice units (zxvd_sandbox.h C1),
+ *                  shown and never a tier input. */
 typedef struct {
     void (*peers)(zxvd_buf_t *out);
     void (*offers)(zxvd_buf_t *out);
@@ -300,6 +338,7 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
  *        -32060 bonds, derivatives, grants, estates (zxvd_sandbox.h)
  *        -32070 companion   -32080 seats   -32090 Web4 feed
  *        -32095 power (zxvd_power.h)   -32096 IRC gateway (zxvd_irc.h)
+ *        -32097 jurisdiction install, tax rate (J7, J9)
  *        -32032 public spaces and the watch hall (zxvd_pspace.h)
  *        -32018 backups   -32019 screen time   -32021 places
  *        -32022 printers and scanners (zxv_print_host.h)

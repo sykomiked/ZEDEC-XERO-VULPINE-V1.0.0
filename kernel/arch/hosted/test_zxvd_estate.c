@@ -2,14 +2,126 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* test_zxvd_estate.c — grants.*, estate.* and recovery.* (zxvd_estate.c)
  * behind zxvd_rpc.c, on the real grants, estate, faraid and recovery engines
- * with TEST-ONLY Ed25519 keys: exact replies, refusals, the switches, a grant
+ * with TEST-ONLY ML-DSA-87 keys (zxvd_sandbox.h C2b; seeds are public test
+ * values): exact replies, refusals, the switches, the key tables and their
+ * fingerprints, signatures of the wrong size, key or context, a grant
  * within the pool and one refused beyond it, faraid shares that sum exactly,
  * an estate through its phases, and a recovery with guardian approvals and
  * an old-device veto. The mutation harness's test command for zxvd_estate.c
  * (tests/harness/mutator/targets.json). */
+#define TEST_ZXVD_MLDSA
 #include "test_zxvd_sandbox.h"
+#include "zxvd_sandbox.h"
+#include "../../src/pqsec/pq_matrix_algs.h"
+#include "sha256.h"
 
-static test_signer_t FU, UW, OW, G0, G1, G2, AT, CT, GW, RT, Q[5], D1, NK, D2;
+/* a TEST-ONLY ML-DSA-87 signer: the key pair from a public seed, and the
+ * fingerprint computed here from its definition (C2b), not by zxvd */
+typedef struct {
+    uint8_t pk[PQM_MLDSA87_PK_BYTES], sk[PQM_MLDSA87_SK_BYTES], fp[32];
+} pq_signer_t;
+
+static pq_signer_t FU, UW, OW, G0, G1, G2, AT, CT, GW, RT, Q[5], D1, NK, D2;
+
+static void pq_init(pq_signer_t *s, uint8_t seed_byte)
+{
+    static const char dom[] = "zxvd.mldsa87.key.v1";
+    static uint8_t buf[sizeof dom - 1 + PQM_MLDSA87_PK_BYTES];
+    uint8_t seed[32];
+    memset(seed, seed_byte, sizeof seed);
+    pqm_mldsa87_keygen(seed, s->pk, s->sk);
+    memcpy(buf, dom, sizeof dom - 1);
+    memcpy(buf + sizeof dom - 1, s->pk, PQM_MLDSA87_PK_BYTES);
+    sha256(buf, sizeof buf, s->fp);
+}
+
+/* the whole public key (5184 hex chars, rotating) */
+static char *pk_hex(const pq_signer_t *s)
+{
+    static char b[4][2 * PQM_MLDSA87_PK_BYTES + 1];
+    static int k;
+    char *o = b[k++ & 3];
+    hex_of(s->pk, PQM_MLDSA87_PK_BYTES, o);
+    return o;
+}
+
+/* the 32-byte fingerprint: the signer key the estate and recovery engines hold */
+static char *fp_hex(const pq_signer_t *s)
+{
+    static char b[8][65];
+    static int k;
+    char *o = b[k++ & 7];
+    hex_of(s->fp, 32, o);
+    return o;
+}
+
+/* sign the "message" of the last reply under context ctx (9254 hex chars, rotating) */
+static char *sign_ctx(const pq_signer_t *s, const char *ctx)
+{
+    static char b[4][2 * PQM_MLDSA87_SIG_BYTES + 1];
+    static int k;
+    char *o = b[k++ & 3];
+    uint8_t m[256];
+    size_t n = 0;
+    const char *p = OUT.p ? strstr(OUT.p, "\"message\":\"") : NULL;
+    if (p)
+        for (p += 11; *p != '"' && n < sizeof m; p += 2) {
+            unsigned v;
+            sscanf(p, "%2x", &v);
+            m[n++] = (uint8_t) v;
+        }
+    static uint8_t sig[PQM_MLDSA87_SIG_BYTES];
+    pqm_mldsa87_sign(s->sk, m, n, (const uint8_t *) ctx, strlen(ctx), NULL, sig);
+    hex_of(sig, sizeof sig, o);
+    return o;
+}
+
+/* the context each group signs under (zxvd_estate.c S4), by method prefix */
+static const char *group_ctx(const char *method)
+{
+    if (!strncmp(method, "grants.", 7)) return "zxvd.grants.v1";
+    if (!strncmp(method, "estate.", 7)) return "zxvd.estate.v1";
+    return "zxvd.recovery.v1";
+}
+
+/* a signature over the bytes `method` returns for params `fmt`, under the
+ * group's context, which the reply must name */
+static char *sign_msg(const pq_signer_t *s, const char *method, const char *fmt, ...)
+{
+    static char params[4096], want[64];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(params, sizeof params, fmt, ap);
+    va_end(ap);
+    rpc(method, "%s", params);
+    snprintf(want, sizeof want, "\"scheme\":\"ml-dsa-87\",\"context\":\"%s\"}", group_ctx(method));
+    CHECK(has(OUT.p ? OUT.p : "", "\"message\":") && has(OUT.p, want), "%s %s: %s", method, params,
+          OUT.p);
+    return sign_ctx(s, group_ctx(method));
+}
+
+/* n bytes of hex, all zero: a signature of that size that verifies for nobody */
+static const char *zeros(uint32_t n)
+{
+    static char z[2][2 * (PQM_MLDSA87_SIG_BYTES + 1) + 1];
+    static int k;
+    char *o = z[k++ & 1];
+    memset(o, '0', 2 * n);
+    o[2 * n] = 0;
+    return o;
+}
+
+static const char *zero_sig(void)
+{
+    return zeros(PQM_MLDSA87_SIG_BYTES);
+}
+
+/* register signers in a fingerprint table (estate.key / recovery.key) */
+static void reg(const char *method, pq_signer_t *const *s, uint32_t n)
+{
+    for (uint32_t i = 0; i < n; i++)
+        HAS(rpc(method, "\"public_key\":\"%s\"", pk_hex(s[i])), fp_hex(s[i]));
+}
 
 static void add_groups(void)
 {
@@ -58,9 +170,34 @@ static void test_grants(void)
                "\"cap_num\":\"1\",\"cap_den\":\"1\",\"minted\":false}"));
     EXPECT(rpc("grants.setup", "\"funnel\":50"),
            ERRR("-32060", "SET_UP: grants are set up already (this run)"));
+    char want[512];
     rpc("grants.key", "\"key\":50,\"public_key\":\"%s\"", pk_hex(&FU));
-    EXPECT(rpc("grants.key", "\"key\":60,\"public_key\":\"%s\"", pk_hex(&UW)),
-           OKR("{\"key\":60,\"added\":true,\"keys\":2}"));
+    snprintf(want, sizeof want,
+             OKR("{\"key\":60,\"fingerprint\":\"%s\",\"added\":true,\"keys\":2}"), fp_hex(&UW));
+    EXPECT(rpc("grants.key", "\"key\":60,\"public_key\":\"%s\"", pk_hex(&UW)), want);
+    /* C2b: an Ed25519-sized key, another key for a taken id, a fingerprint
+     * that is not the key's (nor its bare SHA-256): refused, nothing added */
+    EXPECT(rpc("grants.key", "\"key\":61,\"public_key\":\"%s\"", zeros(32)),
+           ERRR("-32602", "\\\"public_key\\\" must be 2592 bytes of hex"));
+    EXPECT(rpc("grants.key", "\"key\":60,\"public_key\":\"%s\"", pk_hex(&FU)),
+           ERRR("-32060", "KEY_TAKEN: this key id has another public key"));
+    EXPECT(rpc("grants.key", "\"key\":61,\"public_key\":\"%s\",\"fingerprint\":\"%s\"", pk_hex(&UW),
+               fp_hex(&FU)),
+           ERRR("-32060", "KEY_MISMATCH: the fingerprint is not this public key's: nothing "
+                          "registered"));
+    uint8_t bare[32];
+    char bare_hex[65];
+    sha256(UW.pk, sizeof UW.pk, bare);
+    hex_of(bare, 32, bare_hex);
+    EXPECT(rpc("grants.key", "\"key\":61,\"public_key\":\"%s\",\"fingerprint\":\"%s\"", pk_hex(&UW),
+               bare_hex),
+           ERRR("-32060", "KEY_MISMATCH: the fingerprint is not this public key's: nothing "
+                          "registered"));
+    snprintf(want, sizeof want,
+             OKR("{\"key\":60,\"fingerprint\":\"%s\",\"added\":false,\"keys\":2}"), fp_hex(&UW));
+    EXPECT(rpc("grants.key", "\"key\":60,\"public_key\":\"%s\",\"fingerprint\":\"%s\"", pk_hex(&UW),
+               fp_hex(&UW)),
+           want);
     EXPECT(rpc("grants.account_open", "\"owner\":7,\"asset\":\"vino\""),
            OKR("{\"account\":4,\"owner\":7,\"asset\":\"vino\"}"));
     EXPECT(rpc("grants.account_open", "\"owner\":21,\"asset\":\"barrel\""),
@@ -155,9 +292,36 @@ static void test_grants(void)
         rpc("grants.appeal", "\"subject\":23,\"epoch\":2,\"mask\":17,\"sig\":\"%s\"", zero_sig()),
         ERRR("-32060", "GRANT_ERR_SIG: the signature does not verify, or the underwriter is not "
                        "listed"));
+    const char *ap = "\"subject\":23,\"epoch\":2,\"mask\":17";
+    /* an Ed25519-shaped 64-byte signature is the wrong size now */
+    EXPECT(rpc("grants.appeal", "%s,\"sig\":\"%s\"", ap, zeros(64)),
+           ERRR("-32602", "\\\"sig\\\" must be 4627 bytes of hex"));
+    /* the funnel's message under another group's context, or by another key */
+    rpc("grants.message", "\"kind\":\"appeal\",%s", ap);
+    EXPECT(rpc("grants.appeal", "%s,\"sig\":\"%s\"", ap, sign_ctx(&FU, "zxvd.estate.v1")),
+           ERRR("-32060", "GRANT_ERR_SIG: the signature does not verify, or the underwriter is not "
+                          "listed"));
+    EXPECT(rpc("grants.appeal", "%s,\"sig\":\"%s\"", ap,
+               sign_msg(&UW, "grants.message", "\"kind\":\"appeal\",%s", ap)),
+           ERRR("-32060", "GRANT_ERR_SIG: the signature does not verify, or the underwriter is not "
+                          "listed"));
     char *s = sign_msg(&FU, "grants.message",
                        "\"kind\":\"appeal\",\"subject\":23,\"epoch\":2,"
                        "\"mask\":17");
+    /* truncated by a byte, one byte too many, one bit flipped */
+    static char bent[2 * PQM_MLDSA87_SIG_BYTES + 3];
+    snprintf(bent, sizeof bent, "%.*s", 2 * PQM_MLDSA87_SIG_BYTES - 2, s);
+    EXPECT(rpc("grants.appeal", "%s,\"sig\":\"%s\"", ap, bent),
+           ERRR("-32602", "\\\"sig\\\" must be 4627 bytes of hex"));
+    snprintf(bent, sizeof bent, "%s00", s);
+    EXPECT(rpc("grants.appeal", "%s,\"sig\":\"%s\"", ap, bent),
+           ERRR("-32602", "\\\"sig\\\" must be a hex string of at most 4627 bytes"));
+    snprintf(bent, sizeof bent, "%s", s);
+    bent[100] = bent[100] == '0' ? '1' : '0';
+    EXPECT(rpc("grants.appeal", "%s,\"sig\":\"%s\"", ap, bent),
+           ERRR("-32060", "GRANT_ERR_SIG: the signature does not verify, or the underwriter is not "
+                          "listed"));
+    HAS(rpc("grants.status", "\"now\":6"), "\"keys\":2,");
     EXPECT(rpc("grants.appeal", "\"subject\":23,\"epoch\":2,\"mask\":17,\"sig\":\"%s\"", s),
            OKR("{\"subject\":23,\"mask\":17,\"epoch\":\"2\"}"));
     EXPECT(rpc("grants.appeal", "\"subject\":23,\"epoch\":1,\"mask\":17,\"sig\":\"%s\"", s),
@@ -252,6 +416,26 @@ static void test_grants_limits(void)
            ERRR("-32060", "grants is not set up: call grants.setup first"));
     HAS(rpc("grants.setup", "\"funnel\":50,\"underwriters\":[0,1,2,3,4,5,6,4294967295]"),
         "\"underwriters\":8,");
+    /* the restart emptied the key table: the funnel's key is gone */
+    EXPECT(rpc("grants.appeal", "\"subject\":23,\"epoch\":0,\"mask\":17,\"sig\":\"%s\"",
+               sign_msg(&FU, "grants.message",
+                        "\"kind\":\"appeal\",\"subject\":23,\"epoch\":0,\"mask\":17")),
+           ERRR("-32060", "GRANT_ERR_SIG: the signature does not verify, or the underwriter is not "
+                          "listed"));
+    rpc("grants.key", "\"key\":50,\"public_key\":\"%s\"", pk_hex(&FU));
+    HAS(rpc("grants.appeal", "\"subject\":23,\"epoch\":0,\"mask\":17,\"sig\":\"%s\"",
+            sign_msg(&FU, "grants.message",
+                     "\"kind\":\"appeal\",\"subject\":23,\"epoch\":0,\"mask\":17")),
+        "{\"subject\":23,\"mask\":17,\"epoch\":\"0\"}");
+    /* 32 ids at most (one public key may serve several), then KEYS_FULL */
+    for (uint32_t i = 0; i < 30; i++)
+        rpc("grants.key", "\"key\":%u,\"public_key\":\"%s\"", 100 + i, pk_hex(&FU));
+    HAS(rpc("grants.key", "\"key\":131,\"public_key\":\"%s\"", pk_hex(&FU)),
+        "\"added\":true,\"keys\":32}");
+    EXPECT(rpc("grants.key", "\"key\":132,\"public_key\":\"%s\"", pk_hex(&FU)),
+           ERRR("-32060", "KEYS_FULL: the key table is full"));
+    HAS(rpc("grants.key", "\"key\":100,\"public_key\":\"%s\"", pk_hex(&FU)),
+        "\"added\":false,\"keys\":32}");
     rpc("grants.lot_open", "\"lot\":1");
     rpc("grants.lot_open", "\"lot\":2");
     HAS(rpc("grants.status", "\"now\":1"), "},{\"lot\":2,\"count\":");
@@ -311,11 +495,11 @@ static char keys3[200], keys5[330];
 
 static void estate_setup(void)
 {
-    snprintf(keys3, sizeof keys3, "%s%s%s", pk_hex(&G0), pk_hex(&G1), pk_hex(&G2));
+    snprintf(keys3, sizeof keys3, "%s%s%s", fp_hex(&G0), fp_hex(&G1), fp_hex(&G2));
     rpc("estate.setup",
         "\"owner\":\"%s\",\"guardians\":\"%s\",\"k\":2,\"attestors\":\"%s\",\"court\":\"%s\","
         "\"gateway\":\"%s\",\"wait\":100,\"release\":50",
-        pk_hex(&OW), keys3, pk_hex(&AT), pk_hex(&CT), pk_hex(&GW));
+        fp_hex(&OW), keys3, fp_hex(&AT), fp_hex(&CT), fp_hex(&GW));
 }
 
 static void test_estate(void)
@@ -323,25 +507,39 @@ static void test_estate(void)
     EXPECT(rpc("estate.report", ""),
            ERRR("-32060", "the estate is not set up: call estate.setup first"));
     EXPECT(rpc("estate.status", "\"now\":1"), OKR("{\"set_up\":false,\"moves_money\":false}"));
+    /* S4: the signers' public keys, named by fingerprint from here on */
+    pq_signer_t *const ek[] = {&OW, &G0, &G1, &G2, &AT, &CT, &GW};
+    reg("estate.key", ek, 7);
+    char want[512];
+    snprintf(want, sizeof want, OKR("{\"fingerprint\":\"%s\",\"added\":false,\"keys\":7}"),
+             fp_hex(&OW));
+    EXPECT(rpc("estate.key", "\"public_key\":\"%s\"", pk_hex(&OW)), want);
+    EXPECT(
+        rpc("estate.key", "\"public_key\":\"%s\",\"fingerprint\":\"%s\"", pk_hex(&NK), fp_hex(&OW)),
+        ERRR("-32060", "KEY_MISMATCH: the fingerprint is not this public key's: nothing "
+                       "registered"));
+    EXPECT(rpc("estate.key", "\"public_key\":\"%s\"", fp_hex(&OW)),
+           ERRR("-32602", "\\\"public_key\\\" must be 2592 bytes of hex"));
+    HAS(rpc("estate.key", "\"public_key\":\"%s\"", pk_hex(&OW)), "\"keys\":7}");
     EXPECT(rpc("estate.setup",
                "\"owner\":\"%s\",\"guardians\":\"00\",\"k\":1,\"attestors\":\"%s\","
                "\"court\":\"%s\",\"gateway\":\"%s\"",
-               pk_hex(&OW), pk_hex(&AT), pk_hex(&CT), pk_hex(&GW)),
+               fp_hex(&OW), fp_hex(&AT), fp_hex(&CT), fp_hex(&GW)),
            ERRR("-32602", "\\\"guardians\\\" must be 1..5 keys of 32 bytes, back to back"));
-    snprintf(keys3, sizeof keys3, "%s%s%s", pk_hex(&G0), pk_hex(&G1), pk_hex(&G2));
+    snprintf(keys3, sizeof keys3, "%s%s%s", fp_hex(&G0), fp_hex(&G1), fp_hex(&G2));
     EXPECT(rpc("estate.setup",
                "\"owner\":\"%s\",\"guardians\":\"%s\",\"k\":4,\"attestors\":\"%s\","
                "\"court\":\"%s\",\"gateway\":\"%s\"",
-               pk_hex(&OW), keys3, pk_hex(&AT), pk_hex(&CT), pk_hex(&GW)),
+               fp_hex(&OW), keys3, fp_hex(&AT), fp_hex(&CT), fp_hex(&GW)),
            ERRR("-32060", "EST_ERR_ARG: a bad argument"));
-    snprintf(keys3, sizeof keys3, "%s%s%s", pk_hex(&G0), pk_hex(&G1), pk_hex(&G2));
+    snprintf(keys3, sizeof keys3, "%s%s%s", fp_hex(&G0), fp_hex(&G1), fp_hex(&G2));
     EXPECT(rpc("estate.setup",
                "\"owner\":\"%s\",\"guardians\":\"%s\",\"k\":2,\"attestors\":\"%s\",\"court\":"
                "\"%s\",\"gateway\":\"%s\",\"wait\":100,\"release\":50",
-               pk_hex(&OW), keys3, pk_hex(&AT), pk_hex(&CT), pk_hex(&GW)),
+               fp_hex(&OW), keys3, fp_hex(&AT), fp_hex(&CT), fp_hex(&GW)),
            OKR("{\"guardians\":3,\"k\":2,\"attestors\":1,\"wait\":\"100\",\"release\":\"50\","
                "\"phase\":\"alive\"}"));
-    EXPECT(rpc("estate.setup", "\"owner\":\"%s\"", pk_hex(&OW)),
+    EXPECT(rpc("estate.setup", "\"owner\":\"%s\"", fp_hex(&OW)),
            ERRR("-32060", "SET_UP: the estate is set up already (this run)"));
 
     /* E4: the will, while alive */
@@ -368,8 +566,19 @@ static void test_estate(void)
     char *s = sign_msg(&AT, "estate.message", "\"kind\":\"report\",\"bond_minor\":500");
     EXPECT(rpc("estate.report", "\"attestor\":0,\"bond_minor\":501,\"sig\":\"%s\"", s),
            ERRR("-32060", "EST_ERR_SIG: the signature does not verify"));
+    EXPECT(rpc("estate.report", "\"attestor\":0,\"bond_minor\":500,\"sig\":\"%s\"", zeros(64)),
+           ERRR("-32602", "\\\"sig\\\" must be 4627 bytes of hex"));
+    EXPECT(rpc("estate.report", "\"attestor\":0,\"bond_minor\":500,\"sig\":\"%s\"",
+               sign_msg(&CT, "estate.message", "\"kind\":\"report\",\"bond_minor\":500")),
+           ERRR("-32060", "EST_ERR_SIG: the signature does not verify"));
+    rpc("estate.message", "\"kind\":\"report\",\"bond_minor\":500");
+    EXPECT(rpc("estate.report", "\"attestor\":0,\"bond_minor\":500,\"sig\":\"%s\"",
+               sign_ctx(&AT, "zxvd.recovery.v1")),
+           ERRR("-32060", "EST_ERR_SIG: the signature does not verify"));
     EXPECT(rpc("estate.report", "\"attestor\":0,\"bond_minor\":500,\"now\":1000,\"sig\":\"%s\"", s),
            OKR("{\"phase\":\"reported\",\"epoch\":\"0\"}"));
+    static char rep0[2 * PQM_MLDSA87_SIG_BYTES + 1];
+    snprintf(rep0, sizeof rep0, "%s", s);
     EXPECT(rpc("estate.report", "\"attestor\":0,\"bond_minor\":500,\"sig\":\"%s\"", s),
            ERRR("-32060", "EST_ERR_STATE: not allowed in this phase (or bond or contest state)"));
     s = sign_msg(&G0, "estate.message", "\"kind\":\"approve\"");
@@ -396,6 +605,9 @@ static void test_estate(void)
            ERRR("-32060", "EST_ERR_STATE: not allowed in this phase (or bond or contest state)"));
 
     /* again, through to distribution (the old signatures no longer work) */
+    EXPECT(
+        rpc("estate.report", "\"attestor\":0,\"bond_minor\":500,\"now\":3000,\"sig\":\"%s\"", rep0),
+        ERRR("-32060", "EST_ERR_SIG: the signature does not verify"));
     char *old = sign_msg(&AT, "estate.message", "\"kind\":\"report\",\"bond_minor\":500");
     rpc("estate.report", "\"attestor\":0,\"bond_minor\":500,\"now\":3000,\"sig\":\"%s\"", old);
     rpc("estate.approve", "\"guardian\":0,\"sig\":\"%s\"",
@@ -465,6 +677,13 @@ static void test_estate_ruled(void)
     add_groups();
     zxvd_rpc_enable("estate");
     estate_setup();
+    /* the restart emptied the key table: a fingerprint whose public key is
+     * not registered signs nothing, until it is registered again */
+    EXPECT(rpc("estate.report", "\"attestor\":0,\"bond_minor\":9,\"now\":0,\"sig\":\"%s\"",
+               sign_msg(&AT, "estate.message", "\"kind\":\"report\",\"bond_minor\":9")),
+           ERRR("-32060", "EST_ERR_SIG: the signature does not verify"));
+    pq_signer_t *const ek[] = {&G0, &G1, &G2, &AT, &GW};
+    reg("estate.key", ek, 5);
     EXPECT(rpc("estate.manifest", "\"enclave\":\"faraid\",\"husband\":true,\"sons\":1,\"ids\":[7]"),
            ERRR("-32602", "\\\"ids\\\" must hold 2 ids"));
     EXPECT(rpc("estate.manifest", "\"enclave\":\"faraid\",\"husband\":true,\"sons\":1,\"ids\":"
@@ -529,7 +748,8 @@ static void test_estate_ruled(void)
     EXPECT(rpc("estate.manifest", "\"enclave\":\"common\",\"heirs\":[{\"id\":1,\"num\":1,\"den\":"
                                   "1}]"),
            ERRR("-32060", "EST_ERR_STATE: not allowed in this phase (or bond or contest state)"));
-    HAS(rpc("estate.message", "\"kind\":\"ruling\""), "\"bytes\":95,\"scheme\":\"ed25519\"}");
+    HAS(rpc("estate.message", "\"kind\":\"ruling\""),
+        "\"bytes\":95,\"scheme\":\"ml-dsa-87\",\"context\":\"zxvd.estate.v1\"}");
 }
 
 static void test_recovery(void)
@@ -538,56 +758,66 @@ static void test_recovery(void)
            ERRR("-32060", "recovery is not set up: call recovery.setup first"));
     EXPECT(rpc("recovery.status", "\"now\":1"),
            OKR("{\"set_up\":false,\"notices_delivered\":false}"));
+    pq_signer_t *const rk[] = {&RT, &Q[0], &Q[1], &Q[2], &Q[3], &Q[4], &NK};
+    reg("recovery.key", rk, 7);
     keys5[0] = 0;
-    for (int i = 0; i < 4; i++) strcat(keys5, pk_hex(&Q[i]));
+    for (int i = 0; i < 4; i++) strcat(keys5, fp_hex(&Q[i]));
     EXPECT(rpc("recovery.setup",
                "\"root\":\"%s\",\"guardians\":\"%s\",\"gateway\":\"%s\","
                "\"first_device\":\"%s\"",
-               pk_hex(&RT), keys5, pk_hex(&GW), pk_hex(&D1)),
+               fp_hex(&RT), keys5, fp_hex(&GW), fp_hex(&D1)),
            ERRR("-32602", "\\\"guardians\\\" must be exactly 5 keys"));
-    strcat(keys5, pk_hex(&Q[4]));
+    strcat(keys5, fp_hex(&Q[4]));
     EXPECT(rpc("recovery.setup",
                "\"root\":\"%s\",\"guardians\":\"%s\",\"gateway\":\"%s\","
                "\"first_device\":\"%s\",\"timelock\":0",
-               pk_hex(&RT), keys5, pk_hex(&GW), pk_hex(&D1)),
+               fp_hex(&RT), keys5, fp_hex(&GW), fp_hex(&D1)),
            ERRR("-32060", "REC_ERR_ARG: a bad argument"));
     EXPECT(rpc("recovery.setup",
                "\"root\":\"%s\",\"guardians\":\"%s\",\"gateway\":\"%s\","
                "\"first_device\":\"%s\"",
-               pk_hex(&RT), keys5, pk_hex(&GW), pk_hex(&D1)),
+               fp_hex(&RT), keys5, fp_hex(&GW), fp_hex(&D1)),
            OKR("{\"timelock\":\"259200\",\"rate_window\":\"2592000\",\"rate_max\":3,\"state\":"
                "\"idle\"}"));
-    EXPECT(rpc("recovery.setup", "\"root\":\"%s\"", pk_hex(&RT)),
+    EXPECT(rpc("recovery.setup", "\"root\":\"%s\"", fp_hex(&RT)),
            ERRR("-32060", "SET_UP: recovery is set up already (this run)"));
     /* a second device, signed by the root anchor */
     char *s =
-        sign_msg(&RT, "recovery.message", "\"kind\":\"device_add\",\"key\":\"%s\"", pk_hex(&D2));
-    EXPECT(rpc("recovery.device_add", "\"key\":\"%s\",\"sig\":\"%s\"", pk_hex(&D2), zero_sig()),
+        sign_msg(&RT, "recovery.message", "\"kind\":\"device_add\",\"key\":\"%s\"", fp_hex(&D2));
+    EXPECT(rpc("recovery.device_add", "\"key\":\"%s\",\"sig\":\"%s\"", fp_hex(&D2), zero_sig()),
            ERRR("-32060", "REC_ERR_SIG: the signature does not verify"));
-    EXPECT(rpc("recovery.device_add", "\"key\":\"%s\",\"sig\":\"%s\"", pk_hex(&D2), s),
+    EXPECT(rpc("recovery.device_add", "\"key\":\"%s\",\"sig\":\"%s\"", fp_hex(&D2), s),
            OKR("{\"active\":true}"));
-    EXPECT(rpc("recovery.device_add", "\"key\":\"%s\",\"sig\":\"%s\"", pk_hex(&D2), s),
+    EXPECT(rpc("recovery.device_add", "\"key\":\"%s\",\"sig\":\"%s\"", fp_hex(&D2), s),
            ERRR("-32060", "REC_DUP: already recorded: nothing changed"));
-    s = sign_msg(&RT, "recovery.message", "\"kind\":\"device_revoke\",\"key\":\"%s\"", pk_hex(&D2));
-    EXPECT(rpc("recovery.device_revoke", "\"key\":\"%s\",\"sig\":\"%s\"", pk_hex(&D2), s),
+    s = sign_msg(&RT, "recovery.message", "\"kind\":\"device_revoke\",\"key\":\"%s\"", fp_hex(&D2));
+    EXPECT(rpc("recovery.device_revoke", "\"key\":\"%s\",\"sig\":\"%s\"", fp_hex(&D2), s),
            OKR("{\"active\":false}"));
-    EXPECT(rpc("recovery.device_revoke", "\"key\":\"%s\",\"sig\":\"%s\"", pk_hex(&D2), s),
+    EXPECT(rpc("recovery.device_revoke", "\"key\":\"%s\",\"sig\":\"%s\"", fp_hex(&D2), s),
            ERRR("-32060", "REC_ERR_DEVICE: not an active device key"));
 
     /* R1-R4: a claim, three approvals, the old device vetoes, a fourth approval and 14 days */
     EXPECT(rpc("recovery.finalize", "\"now\":1"),
            ERRR("-32060", "REC_ERR_STATE: no pending claim, or not thawing"));
-    EXPECT(rpc("recovery.claim", "\"new_key\":\"%s\",\"now\":1000", pk_hex(&D1)),
+    EXPECT(rpc("recovery.claim", "\"new_key\":\"%s\",\"now\":1000", fp_hex(&D1)),
            ERRR("-32060", "REC_ERR_ARG: a bad argument"));
-    EXPECT(rpc("recovery.claim", "\"new_key\":\"%s\",\"now\":1000", pk_hex(&NK)),
+    EXPECT(rpc("recovery.claim", "\"new_key\":\"%s\",\"now\":1000", fp_hex(&NK)),
            OKR("{\"state\":\"pending\",\"claim\":\"1\",\"approvals\":0,\"vetoed\":false}"));
-    EXPECT(rpc("recovery.claim", "\"new_key\":\"%s\",\"now\":1000", pk_hex(&NK)),
+    EXPECT(rpc("recovery.claim", "\"new_key\":\"%s\",\"now\":1000", fp_hex(&NK)),
            ERRR("-32060", "REC_ERR_BUSY: a claim is already open"));
     HAS(rpc("recovery.status", "\"now\":1000,\"liquid_minor\":100"),
         "\"state\":\"pending\",\"claim\":\"1\",\"approvals\":0,\"needed\":3,\"vetoed\":false,"
         "\"devices\":1,\"can_view\":true,\"can_spend\":false,\"gateway_verified\":false,"
         "\"opened\":\"1000\",\"vbill_spendable_minor\":\"0\",\"liquid_allowance_minor\":\"0\","
         "\"notices\":\"5\"");
+    /* a guardian's signature under the estate's context, and an Ed25519-sized one */
+    rpc("recovery.message", "\"kind\":\"approve\"");
+    EXPECT(
+        rpc("recovery.approve", "\"guardian\":0,\"sig\":\"%s\"", sign_ctx(&Q[0], "zxvd.estate.v1")),
+        ERRR("-32060", "REC_ERR_SIG: the signature does not verify"));
+    EXPECT(rpc("recovery.approve", "\"guardian\":0,\"sig\":\"%s\"", zeros(64)),
+           ERRR("-32602", "\\\"sig\\\" must be 4627 bytes of hex"));
+    HAS(rpc("recovery.status", "\"now\":1000"), "\"approvals\":0,");
     for (uint32_t g = 0; g < 3; g++) {
         s = sign_msg(&Q[g], "recovery.message", "\"kind\":\"approve\"");
         HAS(rpc("recovery.approve", "\"guardian\":%u,\"sig\":\"%s\"", g, s), "\"approvals\"");
@@ -599,9 +829,15 @@ static void test_recovery(void)
     EXPECT(rpc("recovery.approve", "\"guardian\":3,\"sig\":\"%s\"", s),
            ERRR("-32060", "REC_ERR_SIG: the signature does not verify"));
     s = sign_msg(&D1, "recovery.message", "\"kind\":\"veto\"");
-    EXPECT(rpc("recovery.veto", "\"device\":\"%s\",\"sig\":\"%s\"", pk_hex(&NK), s),
+    EXPECT(rpc("recovery.veto", "\"device\":\"%s\",\"sig\":\"%s\"", fp_hex(&NK), s),
            ERRR("-32060", "REC_ERR_DEVICE: not an active device key"));
-    EXPECT(rpc("recovery.veto", "\"device\":\"%s\",\"sig\":\"%s\"", pk_hex(&D1), s),
+    /* D1 is an active device, named by fingerprint, but its public key is
+     * not registered yet: its signature counts for nothing */
+    EXPECT(rpc("recovery.veto", "\"device\":\"%s\",\"sig\":\"%s\"", fp_hex(&D1), s),
+           ERRR("-32060", "REC_ERR_SIG: the signature does not verify"));
+    pq_signer_t *const d1[] = {&D1};
+    reg("recovery.key", d1, 1);
+    EXPECT(rpc("recovery.veto", "\"device\":\"%s\",\"sig\":\"%s\"", fp_hex(&D1), s),
            OKR("{\"state\":\"pending\",\"claim\":\"1\",\"approvals\":3,\"vetoed\":true}"));
     EXPECT(rpc("recovery.finalize", "\"now\":1000000"),
            ERRR("-32060", "REC_ERR_QUORUM: not enough guardian approvals (3, or 4 after a veto)"));
@@ -622,26 +858,31 @@ static void test_recovery(void)
         "\"opened\":\"1000\",\"vbill_spendable_minor\":\"0\",\"liquid_allowance_minor\":\"1000\"");
     HAS(rpc("recovery.status", "\"now\":1815400,\"liquid_minor\":10000,\"vbill_minor\":50"),
         "\"vbill_spendable_minor\":\"50\",\"liquid_allowance_minor\":\"10000\"");
+    /* the gateway's key is in the estate's table, not recovery's: refused until registered */
     s = sign_msg(&GW, "recovery.message", "\"kind\":\"gateway\"");
+    EXPECT(rpc("recovery.gateway", "\"sig\":\"%s\"", s),
+           ERRR("-32060", "REC_ERR_SIG: the signature does not verify"));
+    pq_signer_t *const gw[] = {&GW};
+    reg("recovery.key", gw, 1);
     EXPECT(rpc("recovery.gateway", "\"sig\":\"%s\"", s), OKR("{\"gateway_verified\":true}"));
     HAS(rpc("recovery.status", "\"now\":1210600,\"liquid_minor\":10000"),
         "\"gateway_verified\":true,\"opened\":\"1000\",\"vbill_spendable_minor\":\"0\","
         "\"liquid_allowance_minor\":\"10000\"");
     /* the new device cancels a later claim outright */
-    EXPECT(rpc("recovery.claim", "\"new_key\":\"%s\",\"now\":1210601", pk_hex(&D2)),
+    EXPECT(rpc("recovery.claim", "\"new_key\":\"%s\",\"now\":1210601", fp_hex(&D2)),
            OKR("{\"state\":\"pending\",\"claim\":\"2\",\"approvals\":0,\"vetoed\":false}"));
     s = sign_msg(&NK, "recovery.message", "\"kind\":\"cancel\"");
-    EXPECT(rpc("recovery.cancel", "\"device\":\"%s\",\"sig\":\"%s\"", pk_hex(&D1), s),
+    EXPECT(rpc("recovery.cancel", "\"device\":\"%s\",\"sig\":\"%s\"", fp_hex(&D1), s),
            ERRR("-32060", "REC_ERR_DEVICE: not an active device key"));
-    EXPECT(rpc("recovery.cancel", "\"device\":\"%s\",\"sig\":\"%s\"", pk_hex(&NK), s),
+    EXPECT(rpc("recovery.cancel", "\"device\":\"%s\",\"sig\":\"%s\"", fp_hex(&NK), s),
            OKR("{\"state\":\"thawing\",\"claim\":\"2\",\"approvals\":0,\"vetoed\":false}"));
-    EXPECT(rpc("recovery.cancel", "\"device\":\"%s\",\"sig\":\"%s\"", pk_hex(&NK), s),
+    EXPECT(rpc("recovery.cancel", "\"device\":\"%s\",\"sig\":\"%s\"", fp_hex(&NK), s),
            ERRR("-32060", "REC_ERR_STATE: no pending claim, or not thawing"));
     /* R1: three claims in 30 days at most (the cancelled ones count) */
-    rpc("recovery.claim", "\"new_key\":\"%s\",\"now\":1210602", pk_hex(&D2));
-    rpc("recovery.cancel", "\"device\":\"%s\",\"sig\":\"%s\"", pk_hex(&NK),
+    rpc("recovery.claim", "\"new_key\":\"%s\",\"now\":1210602", fp_hex(&D2));
+    rpc("recovery.cancel", "\"device\":\"%s\",\"sig\":\"%s\"", fp_hex(&NK),
         sign_msg(&NK, "recovery.message", "\"kind\":\"cancel\""));
-    EXPECT(rpc("recovery.claim", "\"new_key\":\"%s\",\"now\":1210603", pk_hex(&D2)),
+    EXPECT(rpc("recovery.claim", "\"new_key\":\"%s\",\"now\":1210603", fp_hex(&D2)),
            ERRR("-32060", "REC_ERR_RATE: too many claims in the window"));
     EXPECT(rpc("recovery.message", "\"kind\":\"steal\""),
            ERRR("-32602", "\\\"kind\\\" must be approve, veto, cancel, gateway, device_add or "
@@ -660,20 +901,20 @@ static void test_recovery(void)
 
 int main(void)
 {
-    test_signer_init(&FU, 50);
-    test_signer_init(&UW, 60);
-    test_signer_init(&OW, 70);
-    test_signer_init(&G0, 71);
-    test_signer_init(&G1, 72);
-    test_signer_init(&G2, 73);
-    test_signer_init(&AT, 74);
-    test_signer_init(&CT, 75);
-    test_signer_init(&GW, 76);
-    test_signer_init(&RT, 77);
-    for (int i = 0; i < 5; i++) test_signer_init(&Q[i], (uint8_t) (80 + i));
-    test_signer_init(&D1, 90);
-    test_signer_init(&NK, 91);
-    test_signer_init(&D2, 92);
+    pq_init(&FU, 50);
+    pq_init(&UW, 60);
+    pq_init(&OW, 70);
+    pq_init(&G0, 71);
+    pq_init(&G1, 72);
+    pq_init(&G2, 73);
+    pq_init(&AT, 74);
+    pq_init(&CT, 75);
+    pq_init(&GW, 76);
+    pq_init(&RT, 77);
+    for (int i = 0; i < 5; i++) pq_init(&Q[i], (uint8_t) (80 + i));
+    pq_init(&D1, 90);
+    pq_init(&NK, 91);
+    pq_init(&D2, 92);
     add_groups();
     test_grants();
     test_faraid();

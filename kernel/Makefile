@@ -2163,7 +2163,8 @@ test-cred:
 # Three-level dispute funnel (src/dispute): deterministic proofs, VRF-drawn staked commit-reveal jury, 1x/4x/16x appeals, jurisdiction gateway; slashed bonds to the reserve floor.
 .PHONY: test-dispute
 test-dispute:
-	gcc $(ECON_FLAGS) $(ECON_INC) src/dispute/test_dispute.c src/dispute/dispute.c src/cred/cred.c src/sicily/sicily.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_dispute -lm && $(ZXV_TMP)/test_dispute > $(ZXV_TMP)/test_dispute.log 2>&1 && echo "[PASS] test_dispute" || { tail -40 $(ZXV_TMP)/test_dispute.log; echo "[FAIL] test_dispute"; exit 1; }
+	gcc $(ECON_FLAGS) $(VRF_UB) $(ECON_INC) -c src/vrf/vrf.c -o $(ZXV_TMP)/vrf_dispute.o
+	gcc $(ECON_FLAGS) $(ECON_INC) src/dispute/test_dispute.c src/dispute/dispute.c src/cred/cred.c src/sicily/sicily.c $(ZXV_TMP)/vrf_dispute.o $(ECON_LEDGER) -o $(ZXV_TMP)/test_dispute -lm && $(ZXV_TMP)/test_dispute > $(ZXV_TMP)/test_dispute.log 2>&1 && echo "[PASS] test_dispute" || { tail -40 $(ZXV_TMP)/test_dispute.log; echo "[FAIL] test_dispute"; exit 1; }
 
 # IP royalties (src/royalty): signed work registry, realised-sale-only royalties, derivative upstream chain, largest-remainder owner split, opt-in giving/investing, quote digest shown before paying.
 .PHONY: test-royalty
@@ -2192,9 +2193,21 @@ test-navport:
 	gcc $(ECON_FLAGS) $(ECON_INC) src/navport/test_navport.c src/navport/navport.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_navport -lm && $(ZXV_TMP)/test_navport > $(ZXV_TMP)/test_navport.log 2>&1 && echo "[PASS] test_navport ($$(tail -1 $(ZXV_TMP)/test_navport.log))" || { tail -40 $(ZXV_TMP)/test_navport.log; echo "[FAIL] test_navport"; exit 1; }
 	gcc $(ECON_FLAGS) $(ECON_INC) src/navport/navport_sim.c src/navport/navport.c $(ECON_LEDGER) -o $(ZXV_TMP)/navport_sim -lm && $(ZXV_TMP)/navport_sim > $(ZXV_TMP)/navport_sim.md 2>&1 && echo "[PASS] navport_sim ($$(tail -1 $(ZXV_TMP)/navport_sim.md))" || { tail -40 $(ZXV_TMP)/navport_sim.md; echo "[FAIL] navport_sim"; exit 1; }
 
+# ECVRF-EDWARDS25519-SHA512-TAI (src/vrf, RFC 9381 suite 0x03): B.3 vectors byte for byte, canonical decoding,
+# validate_key against forged small-order proofs, dispute / allotment adapters; linked next to ed25519_verify.c
+# (vrf_ namespace). VRF_UB: the vendored ref10 field code left-shifts negative limbs (arithmetic in GCC and
+# Clang), so UBSan's shift-base check is off for the objects that contain it; every other check stays on.
+# Then a freestanding build (aarch64 -mgeneral-regs-only and i386) with no external symbol at all.
+VRF_UB = -fno-sanitize=shift-base
+.PHONY: test-vrf
+test-vrf:
+	gcc $(ECON_FLAGS) $(VRF_UB) $(ECON_INC) src/vrf/test_vrf.c src/vrf/vrf.c src/robin_debanks/ed25519_verify.c -o $(ZXV_TMP)/test_vrf && $(ZXV_TMP)/test_vrf > $(ZXV_TMP)/test_vrf.log 2>&1 && echo "[PASS] test_vrf ($$(tail -1 $(ZXV_TMP)/test_vrf.log))" || { tail -40 $(ZXV_TMP)/test_vrf.log; echo "[FAIL] test_vrf"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding -fno-builtin $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -c src/vrf/vrf.c -o $(ZXV_TMP)/vrf_free.o || { echo "[FAIL] vrf freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/vrf_free.o | grep -q .; then nm -u $(ZXV_TMP)/vrf_free.o; echo "[FAIL] vrf freestanding: external symbol ($$t)"; exit 1; fi; done; echo "[PASS] vrf freestanding (aarch64 -mgeneral-regs-only, i386; no external symbol)"
+
 .PHONY: test-econ
 test-econ:
 	$(MAKE) --no-print-directory test-svault
+	$(MAKE) --no-print-directory test-vrf
 	$(MAKE) --no-print-directory test-jroute
 	$(MAKE) --no-print-directory test-jringress
 	$(MAKE) --no-print-directory test-vswap
@@ -2376,6 +2389,12 @@ test-acct:
 test-juris:
 	gcc $(ECON_FLAGS) $(ECON_INC) src/juris/test_juris.c $(ADAPT_JURIS) -o $(ZXV_TMP)/test_juris -lm && $(ZXV_TMP)/test_juris > $(ZXV_TMP)/test_juris.log 2>&1 && echo "[PASS] test_juris ($$(tail -1 $(ZXV_TMP)/test_juris.log))" || { tail -40 $(ZXV_TMP)/test_juris.log; echo "[FAIL] test_juris"; exit 1; }
 
+# Jurisdiction gateway key and compliance plug-ins (src/juris/juris_cp): ML-DSA-87 gateway verify, capctl/taxhook/KYC gate as juris plug-ins.
+ADAPT_JURIS_CP = src/juris/juris_cp.c src/juris/juris.c src/acct/acct.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c src/capctl/capctl.c src/capctl/cp_common.c src/capctl/cpk.c src/taxhook/taxhook.c src/taxhook/taxhook_sample.c src/kycwrap/kycwrap.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c src/cbank/cb_ccy.c src/cbank/cb_ccy_tbl.c src/cbank/cb_util.c src/tensor/zt.c
+.PHONY: test-juris-cp
+test-juris-cp:
+	gcc $(ECON_FLAGS) $(ECON_INC) -Isrc/pqsec -Isrc/cbank src/juris/test_juris_cp.c $(ADAPT_JURIS_CP) -o $(ZXV_TMP)/test_juris_cp -lm && $(ZXV_TMP)/test_juris_cp > $(ZXV_TMP)/test_juris_cp.log 2>&1 && echo "[PASS] test_juris_cp ($$(tail -1 $(ZXV_TMP)/test_juris_cp.log))" || { tail -40 $(ZXV_TMP)/test_juris_cp.log; echo "[FAIL] test_juris_cp"; exit 1; }
+
 # AI intent layer (src/intent): strict grammar, guard, owner approval bound to the draft digest; never writes balances.
 .PHONY: test-intent
 test-intent:
@@ -2390,6 +2409,7 @@ test-privacy:
 test-adapters:
 	$(MAKE) --no-print-directory test-acct
 	$(MAKE) --no-print-directory test-juris
+	$(MAKE) --no-print-directory test-juris-cp
 	$(MAKE) --no-print-directory test-intent
 	$(MAKE) --no-print-directory test-privacy
 # ==== end adapters ====

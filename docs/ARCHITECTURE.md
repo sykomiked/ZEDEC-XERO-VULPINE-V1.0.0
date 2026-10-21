@@ -232,7 +232,8 @@ and install detail.
 | Pillars | ✅ | `sdk/pillars`: COBOL/Sutra, Fortran/Trebago, Ada/Eve, APL-K/KRON, MUMPS/MYRA (section 14) |
 
 Gaps: zxvd's economy groups keep their books in memory, use stand-in signatures and touch no
-real payment rail; estate and grants checks use Ed25519 where the modules specify ML-DSA; the
+real payment rail; estate, recovery and grants checks now use ML-DSA-87 as the modules specify
+(bonds and derivatives are still Ed25519); the
 jurisdiction host starts with no verify hook, so no plug-in can register; the AIPI mesh binding
 is linked but never switched on; IRC and AIPI are missing on Windows ([ZXVD.md](ZXVD.md) "Honest
 limits"). The cb_mx and cb_vss bindings, card issue calls and the acct, juris, intent and privacy
