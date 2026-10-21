@@ -13,64 +13,10 @@
 'use strict';
 
 const {chromium} = require('playwright');
-const {spawn} = require('child_process');
 const fs = require('fs');
-const net = require('net');
-const os = require('os');
 const path = require('path');
-
-// web/session/test_passport_wasm.c: what the passport gives natively
-const SEED_TEXT = '000G4-0R40M-30E20-9185G-R38E1-W8124-GK2GA-HC5RR-34D1P-70X3R-FHHQ0';
-const DID_SEED = 'did:zxv:2xin6nai2r2rmwk5wqv25nwmatah75fp2uukhsftpniqksm5zxcq';
-const PASS = 'correct horse battery staple', HANDLE = 'ana';
-const DID_PASS = 'did:zxv:yxprmmrkcsabstevsnynhlmlutiqa7cceizvg2vrjgwgrudnd74q';
-
-let checks = 0, fails = 0;
-function check(ok, what)
-{
-    checks++;
-    if (!ok) fails++;
-    console.log(`${ok ? '  ok  ' : '  FAIL'} ${what}`);
-}
-
-function rpcSocket(sock, method, params)
-{
-    return new Promise((resolve, reject) => {
-        const c = net.connect({path : sock});
-        let buf = '';
-        c.on('data', (d) => {
-            buf += d.toString('utf8');
-            const i = buf.indexOf('\n');
-            if (i >= 0) {
-                c.end();
-                try {
-                    resolve(JSON.parse(buf.slice(0, i)));
-                } catch (e) {
-                    reject(e);
-                }
-            }
-        });
-        c.on('error', reject);
-        c.write(JSON.stringify({jsonrpc : '2.0', id : 1, method, params : params || {}}) + '\n');
-    });
-}
-
-function waitLine(proc, prefix, ms)
-{
-    return new Promise((resolve, reject) => {
-        let buf = '';
-        const t = setTimeout(() => reject(new Error(`no ${prefix} line in ${ms} ms:\n${buf}`)), ms);
-        proc.stdout.on('data', (d) => {
-            buf += d.toString('utf8');
-            for (const line of buf.split('\n'))
-                if (line.startsWith(prefix)) {
-                    clearTimeout(t);
-                    resolve(line.slice(prefix.length).trim());
-                }
-        });
-        proc.on('exit', (code) => reject(new Error(`zxvd exited (${code}) before ${prefix}:\n${buf}`)));
-    });
-}
+const {SEED_TEXT, DID_SEED, PASS, HANDLE, DID_PASS, SEED_RX, tally, check, rpcSocket, startZxvd, watchPage, askOnPage} =
+    require('./lib.cjs');
 
 async function main()
 {
@@ -84,26 +30,17 @@ async function main()
         if (shots) await page.screenshot({path : path.join(shots, name), animations : 'disabled'});
     };
 
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'zxvb-'));
-    const sock = path.join(home, 'run', 'zxvd.sock');
-    const env = Object.assign({}, process.env, {HOME : home, XDG_DATA_HOME : path.join(home, 'xdg')});
-    const proc = spawn(zxvd, [ '--rpc', sock, '--models-dir', models, '--web-root', root, '--exit-with-parent' ],
-                       {env, stdio : [ 'pipe', 'pipe', 'inherit' ]});
+    const z = await startZxvd(zxvd, models, root);
+    const {url, sock} = z;
     let browser = null;
     try {
-        const url = await waitLine(proc, 'ZXV-WEB: ', 30000);
         check(/^http:\/\/127\.0\.0\.1:\d+\/web\/#token=[0-9a-f]{64}$/.test(url), `zxvd prints the browser link (${url.replace(/token=.*/, 'token=...')})`);
         const info = (await rpcSocket(sock, 'model.info')).result;
         check(info.can_generate, `zxvd has a model that can answer: ${info.status}`);
 
         browser = await chromium.launch();
         const page = await browser.newPage({viewport : {width : 1280, height : 800}});
-        const problems = [];
-        page.on('pageerror', (e) => problems.push(`page error: ${e.message}`));
-        page.on('console', (m) => {
-            if (m.type() === 'error') problems.push(`console: ${m.text()}`);
-        });
-        page.on('requestfailed', (r) => problems.push(`request failed: ${r.url()}`));
+        const watch = watchPage(page);
 
         // 1. boot: the screen runs while the files stream, then hands over
         const t0 = Date.now();
@@ -125,7 +62,7 @@ async function main()
         await page.click('#make');
         await page.waitForSelector('#new-show:not([hidden])');
         const fresh = await page.locator('#seed-new-text').textContent();
-        check(/^([0-9A-HJKMNP-TV-Z]{5}-){10}[0-9A-HJKMNP-TV-Z]{5}$/.test(fresh) && fresh !== SEED_TEXT,
+        check(SEED_RX.test(fresh) && fresh !== SEED_TEXT,
               'a new seed is made in the page and shown to write down');
         check(await page.locator('#written').isDisabled(), 'Continue waits until it is written down');
         await shot(page, '2-create.png');
@@ -202,16 +139,15 @@ async function main()
         await page.click('#apps .tile[data-id="app-companion"]');
         await page.waitForSelector('#v-ask.on');
         const asks0 = (await rpcSocket(sock, 'swarm.state')).result.companion.asks;
-        await page.fill('#prompt', 'Hello there, what can you do?');
-        await page.click('#ask');
-        await page.waitForSelector('#answer.on', {timeout : 120000});
+        const asked = await askOnPage(page, 'Hello there, what can you do?');
         await shot(page, '5-answer.png');
         const text = await page.locator('#answer-text').textContent();
         const byModel = await page.getAttribute('#answer', 'data-model');
         const tokens = Number(await page.getAttribute('#answer', 'data-tokens'));
         const prov = await page.locator('#answer-prov').textContent();
         const c = (await rpcSocket(sock, 'swarm.state')).result.companion;
-        check(c.asks === asks0 + 1, 'the page asked zxvd once');
+        check(c.asks === asks0 + asked.tries,
+              `the page asked zxvd once per try (${asked.tries}; a spent market cycle's budget is waited out)`);
         check(byModel === 'yes' && c.answered_by_model === true,
               'the page and zxvd agree the model wrote the answer');
         const tag = c.last_tag || {};
@@ -220,14 +156,15 @@ async function main()
         check(text.length > 0 && !/did not run|cannot write|cannot run/.test(text),
               `the answer is the model's own text (${JSON.stringify(text.slice(0, 60))})`);
         check(prov.startsWith(`Written by ${info.name} `), `the page says who wrote it: "${prov}"`);
-        check(problems.length === 0, `no page errors${problems.length ? ': ' + problems.join('; ') : ''}`);
+        await page.waitForTimeout(100); // a failed request's verdict is settled asynchronously
+        check(watch.problems.length === 0, `no page errors${watch.problems.length ? ': ' + watch.problems.join('; ') : ''}`);
+        for (const n of watch.notes) console.log(`  note ${n}`);
     } finally {
         if (browser) await browser.close();
-        proc.stdin.end();
-        proc.kill('SIGTERM');
+        await z.stop();
     }
-    console.log(`test_browser: ${checks} checks, ${fails} failed`);
-    process.exit(fails ? 1 : 0);
+    console.log(`test_browser: ${tally.checks} checks, ${tally.fails} failed`);
+    process.exit(tally.fails ? 1 : 0);
 }
 
 main().catch((err) => {
