@@ -25,7 +25,7 @@ static int fails, checks;
 static uint32_t PX[W * H], PX2[W * H];
 static zui_swim_t A, B;
 static const zui_rect_t WORK = {0, 0, W, H};
-static const zui_chiglet_t LOOK = {{2, 5, 3, 1, 6, 2, 3, 1}, 0, ZUI_CHG_DECIDED};
+static const zui_chiglet_t LOOK = {{2, 5, 3, 1, 6, 2, 3, 1}, 0, ZUI_CHG_DECIDED, 0};
 static uint8_t DIG[CMP_HASH];
 
 static cmp_decision_t dec(cmp_verdict_t v)

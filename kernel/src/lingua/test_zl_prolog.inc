@@ -263,25 +263,56 @@ static void test_prolog(void)
     {
         static char big[1 << 15];
         size_t n = (size_t) snprintf(big, sizeof big, ":- initialization(main).\nmain :- X = ");
-        for (int i = 0; i < 300; i++) n += (size_t) snprintf(big + n, sizeof big - n, "f(");
-        n += (size_t) snprintf(big + n, sizeof big - n, "a");
-        for (int i = 0; i < 300; i++) n += (size_t) snprintf(big + n, sizeof big - n, ")");
+        for (int i = 0; i < 300; i++) {
+            int w_ = snprintf(big + n, sizeof big - n, "f(");
+            if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof big - n)) abort();
+            n += (size_t) w_;
+        }
+        {
+            int w_ = snprintf(big + n, sizeof big - n, "a");
+            if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof big - n)) abort();
+            n += (size_t) w_;
+        }
+        for (int i = 0; i < 300; i++) {
+            int w_ = snprintf(big + n, sizeof big - n, ")");
+            if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof big - n)) abort();
+            n += (size_t) w_;
+        }
         snprintf(big + n, sizeof big - n, ", write(X).\n");
         expect_refused(G, big, ZL_E_LIMIT, 0, "terms nested too deeply");
         n = (size_t) snprintf(big, sizeof big, ":- initialization(main).\nmain :- X = ");
-        for (int i = 0; i < 40; i++) n += (size_t) snprintf(big + n, sizeof big - n, "f(");
-        n += (size_t) snprintf(big + n, sizeof big - n, "a");
-        for (int i = 0; i < 40; i++) n += (size_t) snprintf(big + n, sizeof big - n, ")");
+        for (int i = 0; i < 40; i++) {
+            int w_ = snprintf(big + n, sizeof big - n, "f(");
+            if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof big - n)) abort();
+            n += (size_t) w_;
+        }
+        {
+            int w_ = snprintf(big + n, sizeof big - n, "a");
+            if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof big - n)) abort();
+            n += (size_t) w_;
+        }
+        for (int i = 0; i < 40; i++) {
+            int w_ = snprintf(big + n, sizeof big - n, ")");
+            if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof big - n)) abort();
+            n += (size_t) w_;
+        }
         snprintf(big + n, sizeof big - n, ", X = Y, write(Y), nl.\n");
         CHECK(run_src(G, big, 0, 0, 0) == ZL_OK && strlen(out) == 40 * 3 + 2,
               "a term 40 deep is built and written");
         n = (size_t) snprintf(big, sizeof big, ":- initialization(main).\nmain :- X = [");
-        for (int i = 0; i < 300; i++) n += (size_t) snprintf(big + n, sizeof big - n, "%s%d", i ? "," : "", i);
+        for (int i = 0; i < 300; i++) {
+            int w_ = snprintf(big + n, sizeof big - n, "%s%d", i ? "," : "", i);
+            if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof big - n)) abort();
+            n += (size_t) w_;
+        }
         snprintf(big + n, sizeof big - n, "], write(X).\n");
         expect_refused(G, big, ZL_E_LIMIT, 2, "a list literal longer than 256 elements");
         n = 0;
-        for (int i = 0; i < 500 && n < sizeof big - 32; i++)
-            n += (size_t) snprintf(big + n, sizeof big - n, "p%d.\n", i);
+        for (int i = 0; i < 500 && n < sizeof big - 32; i++) {
+            int w_ = snprintf(big + n, sizeof big - n, "p%d.\n", i);
+            if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof big - n)) abort();
+            n += (size_t) w_;
+        }
         expect_refused(G, big, ZL_E_LIMIT, 0, "too many predicates");
     }
 }

@@ -2408,7 +2408,7 @@ test-treaty-cobol:
 # compares golden and randomly generated programs with gfortran and gforth.
 LINGUA_SRC := $(sort $(wildcard src/lingua/zl_*.c))
 # an nm that reads wasm32 objects (GNU nm does not; the Mac's nm does)
-WASM_NM ?= $(shell command -v llvm-nm 2>/dev/null || echo nm)
+WASM_NM ?= $(firstword $(foreach v,-20 -19 -18 -17 -16 -15 -14,$(shell command -v llvm-nm$(v) 2>/dev/null)) $(shell command -v llvm-nm 2>/dev/null) nm)
 LINGUA_FUZZ ?= 20000
 
 .PHONY: test-lingua test-lingua-ref test-lingua-mut

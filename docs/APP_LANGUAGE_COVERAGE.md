@@ -55,7 +55,7 @@ spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.
 | Forth | Cairndrake | forth | tiny stack programs for devices and boot-time checks | stack, control | block number_classics (gcd) |
 | Pascal | Tutordrake | pascal | structured, strongly typed teaching-grade procedures | stepwise, structure | - |
 | C | - | c | the screen, the model and the zxvd link | view, model, machine | 001 The Banker (view/model); 002 Hollow (view/model); 003 Threshold (view/model); 005 Scent (view/model); 008 Gatehouse (view/model); 010 Keepsake (view/model); 013 Flint (view/model); 014 Wake (view/model); 015 Tidewatch (view/model); 016 Sounding (view/model); 017 Almanac (view/model); 018 Witness (view/model); 020 Warren (view/model); 021 Brazier (view/model); 022 Spindle (view/model); 024 Treadle (view/model); 034 Signpost (view/model); 037 Quillon (view/model); 049 Glint (view/model); 055 Birdsong (view/model); 061 Murmuration (view/model); 071 Gleaner (view/model); 073 Coffer (view/model); 076 Talisman (view/model); 085 Waymark (view/model); 089 Wellspring (view/model); 115 Platen (view/model); 142 Shepherd (view/model); 144 Stillwater (view/model); block pce_fin (npv, npv_sign); block pce_prob (bayes, join, verdict); block pce_strat (decide, leader, zopa) |
-| Prolog | - | waiting | logic rules and searching for every answer that fits | rules, search | - |
+| Prolog | Riddlewyrm | waiting | logic rules and searching for every answer that fits | rules, search | - |
 | Smalltalk | - | waiting | live objects and message passing | objects, view | - |
 | ML | Proofdrake | waiting | typed functional transforms with inference | types, proof | - |
 | SQL | - | waiting | querying tables by what you want, not how | query | - |
@@ -65,7 +65,7 @@ spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.
 | Icon | - | waiting | goal-directed string scanning | text, pattern | - |
 | AWK | - | waiting | line-and-field text reports | text, report | - |
 | Bourne shell | - | waiting | wiring programs together | jobs | - |
-| Modula-2 | - | waiting | modular systems code with clear interfaces | structure, machine | - |
+| Modula-2 | Moduledrake | waiting | modular systems code with clear interfaces | structure, machine | - |
 | TeX | - | waiting | exact typesetting of text and maths | typesetting | - |
 | REXX | - | waiting | readable glue scripts | scripting | - |
 | dBase | - | waiting | small desktop databases | records, query | - |
@@ -76,7 +76,7 @@ spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.
 | Objective-C | - | waiting | message-based objects | objects, view | - |
 | Occam | - | waiting | channels and parallel processes | concurrency | - |
 | ABAP | - | waiting | enterprise business tables | business | - |
-| Common Lisp | - | waiting | large symbolic programs | symbolic | - |
+| Common Lisp | Braidwyrm | waiting | large symbolic programs | symbolic | - |
 | MATLAB | - | waiting | matrix numerics | matrix | - |
 | Verilog | - | waiting | describing and checking digital circuits | circuit | - |
 | Eiffel | - | waiting | design by contract | contracts | - |
@@ -86,10 +86,10 @@ spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.
 | VHDL | - | waiting | strongly typed hardware description | circuit | - |
 | HyperTalk | - | waiting | card-based scripting for people | scripting, view | - |
 | Tcl | - | waiting | embeddable command scripts | scripting | - |
-| Oberon | - | waiting | small, whole systems | structure | - |
+| Oberon | Faydrake | waiting | small, whole systems | structure | - |
 | Mathematica | - | waiting | symbolic maths | symbolic, formula | - |
 | Bash | - | waiting | shell jobs and pipelines | jobs | - |
-| Haskell | - | waiting | pure functions and types that rule out bugs | types, proof | - |
+| Haskell | Purewyrm | waiting | pure functions and types that rule out bugs | types, proof | - |
 | J | - | kron | array tacit programming (runs through KRON) | arrays | - |
 | Python | - | python (SDK) | readable glue and model pipelines (through libzxv) | scripting, ai | - |
 | Visual Basic | - | dotnet (SDK) | forms and simple automation (through .NET) | view, scripting | - |
@@ -102,14 +102,14 @@ spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.
 | JavaScript | - | typescript (SDK) | interactive pages and scripting | view, scripting | - |
 | Ruby | - | ruby (SDK) | expressive glue | scripting | - |
 | PHP | - | php (SDK) | templated pages and reports | report | - |
-| Delphi | - | waiting | forms over strong types | view, structure | - |
-| Racket | - | waiting | making small languages | symbolic, parse | - |
+| Delphi | Formwyrm | waiting | forms over strong types | view, structure | - |
+| Racket | Dialectwyrm | waiting | making small languages | symbolic, parse | - |
 | OCaml | Variantwyrm | waiting | compilers and typed transforms | types, parse | - |
 | C# | - | dotnet (SDK) | typed applications (through .NET) | objects, view | - |
 | Scala | - | waiting | typed data pipelines | types, dataflow | - |
 | Groovy | - | waiting | build and glue scripts | scripting | - |
 | F# | - | dotnet (SDK) | typed numeric and data code (through .NET) | types, numeric | - |
-| Clojure | - | waiting | immutable data transforms | symbolic, dataflow | - |
+| Clojure | Stonewyrm | waiting | immutable data transforms | symbolic, dataflow | - |
 | Nim | - | waiting | compact fast native code | machine | - |
 | Go | - | go (SDK) | networked services with simple concurrency | concurrency, messaging | - |
 | Rust | - | rust (SDK) | memory-safe parsing and systems code (or as wasm) | machine, safety | 016 Sounding (rate); 034 Signpost (addr_class, name_fault); 089 Wellspring (band) |
