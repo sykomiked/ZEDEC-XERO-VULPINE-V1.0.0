@@ -290,6 +290,7 @@ verify-all: test
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_cycles.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_harmonic.c src/swarm/swarm_overlap.c src/swarm/swarm_quality.c -o /tmp/test_swarm_cycles && /tmp/test_swarm_cycles && echo "[PASS] test_swarm_cycles" || { echo "[FAIL] test_swarm_cycles"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_hk.c src/swarm/swarm_hk.c -o /tmp/test_swarm_hk && /tmp/test_swarm_hk && echo "[PASS] test_swarm_hk" || { echo "[FAIL] test_swarm_hk"; exit 1; }
 	@$(MAKE) --no-print-directory test-denom
+	@$(MAKE) --no-print-directory test-yield
 	@$(MAKE) --no-print-directory test-crash
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_life.c src/swarm/swarm_governor.c src/swarm/swarm_dna.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o /tmp/test_swarm_life && /tmp/test_swarm_life && echo "[PASS] test_swarm_life" || { echo "[FAIL] test_swarm_life"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_mind.c src/swarm/swarm_enochian.c src/swarm/swarm_logic.c src/swarm/swarm_self.c src/swarm/swarm_evolve.c src/swarm/swarm_enterprise.c src/swarm/swarm_phase.c src/swarm/swarm_dna.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_hk.c -o /tmp/test_swarm_mind && /tmp/test_swarm_mind && echo "[PASS] test_swarm_mind" || { echo "[FAIL] test_swarm_mind"; exit 1; }
@@ -299,40 +300,52 @@ verify-all: test
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_lattice.c src/tensor/zt_lattice.c src/tensor/zt.c -lm -o /tmp/test_zt_lattice && /tmp/test_zt_lattice && echo "[PASS] test_zt_lattice" || { echo "[FAIL] test_zt_lattice"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_rope.c src/tensor/zt_rope.c src/tensor/zt.c -lm -o /tmp/test_zt_rope && /tmp/test_zt_rope && echo "[PASS] test_zt_rope" || { echo "[FAIL] test_zt_rope"; exit 1; }
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_model.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c src/tensor/zt_gram.c src/tensor/zt_gram_lib.c src/tensor/zt_evh.c -lm -o /tmp/test_zt_model && /tmp/test_zt_model > /tmp/test_zt_model.log 2>&1 && echo "[PASS] test_zt_model" || { tail -40 /tmp/test_zt_model.log; echo "[FAIL] test_zt_model"; exit 1; }
-	@echo "=== tensor: SIMD kernels (AVX2/AVX-512/NEON) and threads == the C reference, bit for bit ==="
-	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_simd.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -o /tmp/test_zt_simd && /tmp/test_zt_simd > /tmp/test_zt_simd.log 2>&1 && echo "[PASS] test_zt_simd ($$(tail -1 /tmp/test_zt_simd.log))" || { cat /tmp/test_zt_simd.log; echo "[FAIL] test_zt_simd"; exit 1; }
-	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/tensor src/tensor/test_zt_simd.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -o /tmp/test_zt_simd_asan && /tmp/test_zt_simd_asan > /tmp/test_zt_simd_asan.log 2>&1 && echo "[PASS] test_zt_simd ASan/UBSan ($$(tail -1 /tmp/test_zt_simd_asan.log))" || { cat /tmp/test_zt_simd_asan.log; echo "[FAIL] test_zt_simd ASan/UBSan"; exit 1; }
-	@if command -v aarch64-linux-gnu-gcc >/dev/null && command -v qemu-aarch64 >/dev/null; then aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Werror -Wextra -static -DTEST_HOST -Isrc/tensor src/tensor/test_zt_simd.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -o /tmp/test_zt_simd_a64 && qemu-aarch64 /tmp/test_zt_simd_a64 > /tmp/test_zt_simd_a64.log 2>&1 && grep -q "^\[PASS\] neon:" /tmp/test_zt_simd_a64.log && echo "[PASS] test_zt_simd aarch64 NEON under qemu ($$(tail -1 /tmp/test_zt_simd_a64.log))" || { cat /tmp/test_zt_simd_a64.log; echo "[FAIL] test_zt_simd aarch64 NEON"; exit 1; }; else echo "[SKIP] test_zt_simd aarch64 NEON (needs aarch64-linux-gnu-gcc and qemu-aarch64)"; fi
+	@echo "=== tensor: SIMD kernels (AVX2/AVX-512/SVE/NEON/RVV) and threads == the C reference, bit for bit ==="
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_simd.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -o /tmp/test_zt_simd && /tmp/test_zt_simd > /tmp/test_zt_simd.log 2>&1 && echo "[PASS] test_zt_simd ($$(tail -1 /tmp/test_zt_simd.log))" || { cat /tmp/test_zt_simd.log; echo "[FAIL] test_zt_simd"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/tensor src/tensor/test_zt_simd.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -o /tmp/test_zt_simd_asan && /tmp/test_zt_simd_asan > /tmp/test_zt_simd_asan.log 2>&1 && echo "[PASS] test_zt_simd ASan/UBSan ($$(tail -1 /tmp/test_zt_simd_asan.log))" || { cat /tmp/test_zt_simd_asan.log; echo "[FAIL] test_zt_simd ASan/UBSan"; exit 1; }
+	@if command -v aarch64-linux-gnu-gcc >/dev/null && command -v qemu-aarch64 >/dev/null; then aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Werror -Wextra -static -DTEST_HOST -Isrc/tensor src/tensor/test_zt_simd.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -o /tmp/test_zt_simd_a64 && qemu-aarch64 /tmp/test_zt_simd_a64 > /tmp/test_zt_simd_a64.log 2>&1 && grep -q "^\[PASS\] neon:" /tmp/test_zt_simd_a64.log && echo "[PASS] test_zt_simd aarch64 NEON under qemu ($$(tail -1 /tmp/test_zt_simd_a64.log))" || { cat /tmp/test_zt_simd_a64.log; echo "[FAIL] test_zt_simd aarch64 NEON"; exit 1; }; else echo "[SKIP] test_zt_simd aarch64 NEON (needs aarch64-linux-gnu-gcc and qemu-aarch64)"; fi
+	@if command -v aarch64-linux-gnu-gcc >/dev/null && command -v qemu-aarch64 >/dev/null && [ "$$(aarch64-linux-gnu-gcc -dumpversion | cut -d. -f1)" -lt 13 ]; then echo "[SKIP] test_zt_simd aarch64 SVE (aarch64-linux-gnu-gcc $$(aarch64-linux-gnu-gcc -dumpversion) builds zt_simd_sve.c without SVE; needs GCC 13+)"; elif command -v aarch64-linux-gnu-gcc >/dev/null && command -v qemu-aarch64 >/dev/null; then for vl in 16 256; do qemu-aarch64 -cpu max,sve-default-vector-length=$$vl /tmp/test_zt_simd_a64 > /tmp/test_zt_simd_sve$$vl.log 2>&1 && grep -q "^\[PASS\] sve:" /tmp/test_zt_simd_sve$$vl.log && echo "[PASS] test_zt_simd aarch64 SVE, $$((vl * 8))-bit vectors under qemu ($$(tail -1 /tmp/test_zt_simd_sve$$vl.log))" || { cat /tmp/test_zt_simd_sve$$vl.log; echo "[FAIL] test_zt_simd aarch64 SVE, $$((vl * 8))-bit vectors"; exit 1; }; done; else echo "[SKIP] test_zt_simd aarch64 SVE (needs aarch64-linux-gnu-gcc and qemu-aarch64)"; fi
+	@if command -v riscv64-linux-gnu-gcc >/dev/null && command -v qemu-riscv64 >/dev/null; then riscv64-linux-gnu-gcc -std=c11 -O2 -Wall -Werror -Wextra -march=rv64gcv -DTEST_HOST -Isrc/tensor -c src/tensor/zt_simd_rvv.c -o /tmp/zt_simd_rvv_v.o && riscv64-linux-gnu-gcc -std=c11 -O2 -Wall -Werror -Wextra -static -DTEST_HOST -Isrc/tensor src/tensor/test_zt_simd.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c /tmp/zt_simd_rvv_v.o src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -o /tmp/test_zt_simd_rv64 || { echo "[FAIL] test_zt_simd riscv64 build (zt_simd_rvv.c with -march=rv64gcv, the rest rv64gc)"; exit 1; }; for vlen in 128 1024; do qemu-riscv64 -cpu rv64,v=true,vext_spec=v1.0,vlen=$$vlen,elen=64 /tmp/test_zt_simd_rv64 > /tmp/test_zt_simd_rvv$$vlen.log 2>&1 && grep -q "^\[PASS\] rvv:" /tmp/test_zt_simd_rvv$$vlen.log && echo "[PASS] test_zt_simd riscv64 RVV, VLEN $$vlen under qemu ($$(tail -1 /tmp/test_zt_simd_rvv$$vlen.log))" || { cat /tmp/test_zt_simd_rvv$$vlen.log; echo "[FAIL] test_zt_simd riscv64 RVV, VLEN $$vlen"; exit 1; }; done; qemu-riscv64 -cpu rv64,v=false /tmp/test_zt_simd_rv64 > /tmp/test_zt_simd_rv64c.log 2>&1 && grep -q "^\[SKIP\] rvv:" /tmp/test_zt_simd_rv64c.log && echo "[PASS] test_zt_simd riscv64 without V: rvv not offered, C reference used ($$(tail -1 /tmp/test_zt_simd_rv64c.log))" || { cat /tmp/test_zt_simd_rv64c.log; echo "[FAIL] test_zt_simd riscv64 without V"; exit 1; }; else echo "[SKIP] test_zt_simd riscv64 RVV (needs riscv64-linux-gnu-gcc and qemu-riscv64)"; fi
 	for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Isrc/tensor -c src/tensor/zt_model.c -o /tmp/zt_model_free_simd.o || { echo "[FAIL] zt_model freestanding $$t"; exit 1; }; if nm -u /tmp/zt_model_free_simd.o | grep -vE " zt_" | grep -q .; then nm -u /tmp/zt_model_free_simd.o; echo "[FAIL] zt_model freestanding: libc or helper ($$t)"; exit 1; fi; done; if grep -l "zt_simd" ../build_system/Makefile.* ../packages/Makefile 2>/dev/null | grep -q .; then echo "[FAIL] a kernel image or package lists zt_simd*.c (hosted only)"; exit 1; fi; echo "[PASS] zt_model freestanding with the kernel hook (aarch64 -mgeneral-regs-only, i386; no libc); no kernel image links zt_simd*.c"
 	@echo "=== tensor: LoRA adapters on a shared base (T23), the same bits on x86_64 and aarch64 ==="
-	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_lora.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -lm -o /tmp/test_zt_lora && /tmp/test_zt_lora > /tmp/test_zt_lora.log 2>&1 && echo "[PASS] test_zt_lora ($$(tail -1 /tmp/test_zt_lora.log))" || { cat /tmp/test_zt_lora.log; echo "[FAIL] test_zt_lora"; exit 1; }
-	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/tensor src/tensor/test_zt_lora.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -lm -o /tmp/test_zt_lora_asan && /tmp/test_zt_lora_asan > /tmp/test_zt_lora_asan.log 2>&1 && echo "[PASS] test_zt_lora ASan/UBSan" || { cat /tmp/test_zt_lora_asan.log; echo "[FAIL] test_zt_lora ASan/UBSan"; exit 1; }
-	@if command -v aarch64-linux-gnu-gcc >/dev/null && command -v qemu-aarch64 >/dev/null; then aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Werror -Wextra -static -DTEST_HOST -Isrc/tensor src/tensor/test_zt_lora.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -lm -o /tmp/test_zt_lora_a64 && qemu-aarch64 /tmp/test_zt_lora_a64 > /tmp/test_zt_lora_a64.log 2>&1 && d1=$$(grep "^lora logits digest" /tmp/test_zt_lora.log) && d2=$$(grep "^lora logits digest" /tmp/test_zt_lora_a64.log) && [ -n "$$d1" ] && [ "$$d1" = "$$d2" ] && echo "[PASS] test_zt_lora aarch64 NEON under qemu: LoRA logits identical to x86_64 ($$d1)" || { cat /tmp/test_zt_lora_a64.log; echo "[FAIL] test_zt_lora aarch64 (x86_64 $$d1, aarch64 $$d2)"; exit 1; }; else echo "[SKIP] test_zt_lora aarch64 (needs aarch64-linux-gnu-gcc and qemu-aarch64)"; fi
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_lora.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -lm -o /tmp/test_zt_lora && /tmp/test_zt_lora > /tmp/test_zt_lora.log 2>&1 && echo "[PASS] test_zt_lora ($$(tail -1 /tmp/test_zt_lora.log))" || { cat /tmp/test_zt_lora.log; echo "[FAIL] test_zt_lora"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/tensor src/tensor/test_zt_lora.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -lm -o /tmp/test_zt_lora_asan && /tmp/test_zt_lora_asan > /tmp/test_zt_lora_asan.log 2>&1 && echo "[PASS] test_zt_lora ASan/UBSan" || { cat /tmp/test_zt_lora_asan.log; echo "[FAIL] test_zt_lora ASan/UBSan"; exit 1; }
+	@if command -v aarch64-linux-gnu-gcc >/dev/null && command -v qemu-aarch64 >/dev/null; then aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Werror -Wextra -static -DTEST_HOST -Isrc/tensor src/tensor/test_zt_lora.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -lm -o /tmp/test_zt_lora_a64 && qemu-aarch64 /tmp/test_zt_lora_a64 > /tmp/test_zt_lora_a64.log 2>&1 && d1=$$(grep "^lora logits digest" /tmp/test_zt_lora.log) && d2=$$(grep "^lora logits digest" /tmp/test_zt_lora_a64.log) && [ -n "$$d1" ] && [ "$$d1" = "$$d2" ] && echo "[PASS] test_zt_lora aarch64 NEON under qemu: LoRA logits identical to x86_64 ($$d1)" || { cat /tmp/test_zt_lora_a64.log; echo "[FAIL] test_zt_lora aarch64 (x86_64 $$d1, aarch64 $$d2)"; exit 1; }; else echo "[SKIP] test_zt_lora aarch64 (needs aarch64-linux-gnu-gcc and qemu-aarch64)"; fi
 	@echo "=== tensor: tensor-parallel ranks (T23) == one process, bit for bit ==="
-	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -Isrc/tensor/dist src/tensor/dist/test_zt_dist.c src/tensor/dist/zt_dist.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -o /tmp/test_zt_dist && /tmp/test_zt_dist > /tmp/test_zt_dist.log 2>&1 && echo "[PASS] test_zt_dist ($$(tail -1 /tmp/test_zt_dist.log))" || { cat /tmp/test_zt_dist.log; echo "[FAIL] test_zt_dist"; exit 1; }
-	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/tensor -Isrc/tensor/dist src/tensor/dist/test_zt_dist.c src/tensor/dist/zt_dist.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -o /tmp/test_zt_dist_asan && /tmp/test_zt_dist_asan > /tmp/test_zt_dist_asan.log 2>&1 && echo "[PASS] test_zt_dist ASan/UBSan ($$(tail -1 /tmp/test_zt_dist_asan.log))" || { cat /tmp/test_zt_dist_asan.log; echo "[FAIL] test_zt_dist ASan/UBSan"; exit 1; }
-	@if command -v mpicc >/dev/null && mpirun --version 2>&1 | grep -q "Open MPI"; then mpicc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -DZT_TEST_MPI -Isrc/tensor -Isrc/tensor/dist src/tensor/dist/test_zt_dist.c src/tensor/dist/zt_dist_mpi.c src/tensor/dist/zt_dist.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -o /tmp/test_zt_dist_mpi && OMPI_ALLOW_RUN_AS_ROOT=1 OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 mpirun --oversubscribe -np 3 /tmp/test_zt_dist_mpi > /tmp/test_zt_dist_mpi.log 2>&1 && echo "[PASS] test_zt_dist MPI ($$(tail -1 /tmp/test_zt_dist_mpi.log))" || { cat /tmp/test_zt_dist_mpi.log; echo "[FAIL] test_zt_dist MPI"; exit 1; }; else echo "[SKIP] test_zt_dist MPI (needs Open MPI: mpicc and mpirun)"; fi
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -Isrc/tensor/dist src/tensor/dist/test_zt_dist.c src/tensor/dist/zt_dist.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -o /tmp/test_zt_dist && /tmp/test_zt_dist > /tmp/test_zt_dist.log 2>&1 && echo "[PASS] test_zt_dist ($$(tail -1 /tmp/test_zt_dist.log))" || { cat /tmp/test_zt_dist.log; echo "[FAIL] test_zt_dist"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/tensor -Isrc/tensor/dist src/tensor/dist/test_zt_dist.c src/tensor/dist/zt_dist.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -o /tmp/test_zt_dist_asan && /tmp/test_zt_dist_asan > /tmp/test_zt_dist_asan.log 2>&1 && echo "[PASS] test_zt_dist ASan/UBSan ($$(tail -1 /tmp/test_zt_dist_asan.log))" || { cat /tmp/test_zt_dist_asan.log; echo "[FAIL] test_zt_dist ASan/UBSan"; exit 1; }
+	@if command -v mpicc >/dev/null && mpirun --version 2>&1 | grep -q "Open MPI"; then mpicc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -DZT_TEST_MPI -Isrc/tensor -Isrc/tensor/dist src/tensor/dist/test_zt_dist.c src/tensor/dist/zt_dist_mpi.c src/tensor/dist/zt_dist.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -o /tmp/test_zt_dist_mpi && OMPI_ALLOW_RUN_AS_ROOT=1 OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 mpirun --oversubscribe -np 3 /tmp/test_zt_dist_mpi > /tmp/test_zt_dist_mpi.log 2>&1 && echo "[PASS] test_zt_dist MPI ($$(tail -1 /tmp/test_zt_dist_mpi.log))" || { cat /tmp/test_zt_dist_mpi.log; echo "[FAIL] test_zt_dist MPI"; exit 1; }; else echo "[SKIP] test_zt_dist MPI (needs Open MPI: mpicc and mpirun)"; fi
 	@if grep -l "zt_dist" ../build_system/Makefile.* ../packages/Makefile 2>/dev/null | grep -q .; then echo "[FAIL] a kernel image or package lists zt_dist*.c (hosted only)"; exit 1; fi
 	@echo "=== tensor: the Metal kernels' integer arithmetic (zt_metal_math.h) as C, and the whole-matrix hook == the C reference ==="
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_metal_math.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -o /tmp/test_zt_metal_math && /tmp/test_zt_metal_math > /tmp/test_zt_metal_math.log 2>&1 && echo "[PASS] test_zt_metal_math ($$(tail -1 /tmp/test_zt_metal_math.log))" || { cat /tmp/test_zt_metal_math.log; echo "[FAIL] test_zt_metal_math"; exit 1; }
+	@echo "=== tensor: the CUDA backend (zt_cuda.c) offline: kernels compile to PTX, warp products == the C reference ==="
+	@$(MAKE) --no-print-directory test-cuda-offline
+	@echo "=== tensor: the HIP backend (zt_hip.c) offline: kernels compile for AMD GPUs, wavefront products == the C reference ==="
+	@$(MAKE) --no-print-directory test-hip-offline
+	@echo "=== tensor: the Vulkan backend (zt_vk.c): builds, SPIR-V valid, and bit for bit on any Vulkan device present ==="
+	@$(MAKE) --no-print-directory test-vk
+	@echo "=== tensor: the WebGPU backend (zt_wgpu.c): builds, WGSL integer-only and valid, and bit for bit on any WebGPU adapter present ==="
+	@$(MAKE) --no-print-directory test-wgpu
+	@echo "=== the model in a browser tab (web/ai): the engine in wasm, on the CPU and WebGPU == native, token for token ==="
+	@$(MAKE) --no-print-directory test-ai-web
 	@echo "=== tensor: the whole forward pass as GPU kernels (zt_gpu.h), run by its C backend == zt_model.c ==="
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_gpu.c src/tensor/zt_gpu.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -o /tmp/test_zt_gpu && /tmp/test_zt_gpu > /tmp/test_zt_gpu.log 2>&1 && echo "[PASS] test_zt_gpu ($$(tail -1 /tmp/test_zt_gpu.log))" || { cat /tmp/test_zt_gpu.log; echo "[FAIL] test_zt_gpu"; exit 1; }
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/tensor src/tensor/test_zt_gpu.c src/tensor/zt_gpu.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -o /tmp/test_zt_gpu_asan && /tmp/test_zt_gpu_asan > /tmp/test_zt_gpu_asan.log 2>&1 && echo "[PASS] test_zt_gpu ASan/UBSan" || { cat /tmp/test_zt_gpu_asan.log; echo "[FAIL] test_zt_gpu ASan/UBSan"; exit 1; }
 	@if grep -l "zt_gpu" ../build_system/Makefile.* ../packages/Makefile 2>/dev/null | grep -q .; then echo "[FAIL] a kernel image or package lists zt_gpu.c (hosted only)"; exit 1; fi
 	@echo "=== tensor: image encoder (T23 zt_nn, T24 zt_vision) vs float64, every kernel set, arm64, freestanding ==="
-	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_vision.c src/tensor/zt_vision.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_zt_vision && /tmp/test_zt_vision > /tmp/test_zt_vision.log 2>&1 && echo "[PASS] test_zt_vision ($$(tail -1 /tmp/test_zt_vision.log))" || { cat /tmp/test_zt_vision.log; echo "[FAIL] test_zt_vision"; exit 1; }
-	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_vision.c src/tensor/zt_vision.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_zt_vision_asan && /tmp/test_zt_vision_asan > /tmp/test_zt_vision_asan.log 2>&1 && echo "[PASS] test_zt_vision ASan/UBSan" || { cat /tmp/test_zt_vision_asan.log; echo "[FAIL] test_zt_vision ASan/UBSan"; exit 1; }
-	@if command -v aarch64-linux-gnu-gcc >/dev/null && command -v qemu-aarch64 >/dev/null; then aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Werror -Wextra -static -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_vision.c src/tensor/zt_vision.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_zt_vision_a64 && qemu-aarch64 /tmp/test_zt_vision_a64 > /tmp/test_zt_vision_a64.log 2>&1 && echo "[PASS] test_zt_vision arm64 NEON ($$(tail -1 /tmp/test_zt_vision_a64.log))" || { cat /tmp/test_zt_vision_a64.log; echo "[FAIL] test_zt_vision arm64"; exit 1; }; else echo "[SKIP] test_zt_vision arm64 (needs aarch64-linux-gnu-gcc and qemu-aarch64)"; fi
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_vision.c src/tensor/zt_vision.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_zt_vision && /tmp/test_zt_vision > /tmp/test_zt_vision.log 2>&1 && echo "[PASS] test_zt_vision ($$(tail -1 /tmp/test_zt_vision.log))" || { cat /tmp/test_zt_vision.log; echo "[FAIL] test_zt_vision"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_vision.c src/tensor/zt_vision.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_zt_vision_asan && /tmp/test_zt_vision_asan > /tmp/test_zt_vision_asan.log 2>&1 && echo "[PASS] test_zt_vision ASan/UBSan" || { cat /tmp/test_zt_vision_asan.log; echo "[FAIL] test_zt_vision ASan/UBSan"; exit 1; }
+	@if command -v aarch64-linux-gnu-gcc >/dev/null && command -v qemu-aarch64 >/dev/null; then aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Werror -Wextra -static -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_vision.c src/tensor/zt_vision.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_zt_vision_a64 && qemu-aarch64 /tmp/test_zt_vision_a64 > /tmp/test_zt_vision_a64.log 2>&1 && echo "[PASS] test_zt_vision arm64 NEON ($$(tail -1 /tmp/test_zt_vision_a64.log))" || { cat /tmp/test_zt_vision_a64.log; echo "[FAIL] test_zt_vision arm64"; exit 1; }; else echo "[SKIP] test_zt_vision arm64 (needs aarch64-linux-gnu-gcc and qemu-aarch64)"; fi
 	for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; for f in src/tensor/zt_nn.c src/tensor/zt_vision.c; do clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Isrc/tensor -c $$f -o /tmp/zt_nn_free.o || { echo "[FAIL] encoder freestanding $$t $$f"; exit 1; }; if nm -u /tmp/zt_nn_free.o | grep -vE " zt_" | grep -q .; then nm -u /tmp/zt_nn_free.o; echo "[FAIL] encoder freestanding: libc or 64-bit division helper in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] zt_nn and zt_vision freestanding (aarch64 -mgeneral-regs-only, i386; only zt_ external)"
 	@echo "=== tensor: speech in (T25 zt_whisper) vs float64, every kernel set, arm64, freestanding ==="
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_whisper.c src/tensor/zt_whisper.c src/tensor/zt_nn.c src/tensor/zt_tok.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -o /tmp/test_zt_whisper && /tmp/test_zt_whisper > /tmp/test_zt_whisper.log 2>&1 && echo "[PASS] test_zt_whisper ($$(tail -1 /tmp/test_zt_whisper.log))" || { cat /tmp/test_zt_whisper.log; echo "[FAIL] test_zt_whisper"; exit 1; }
-	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_whisper.c src/tensor/zt_whisper.c src/tensor/zt_nn.c src/tensor/zt_tok.c src/tensor/zt_gguf.c src/tensor/zt.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c -lm -lpthread -o /tmp/test_zt_whisper_asan && /tmp/test_zt_whisper_asan > /tmp/test_zt_whisper_asan.log 2>&1 && echo "[PASS] test_zt_whisper SIMD sets, ASan/UBSan ($$(tail -1 /tmp/test_zt_whisper_asan.log))" || { cat /tmp/test_zt_whisper_asan.log; echo "[FAIL] test_zt_whisper ASan/UBSan"; exit 1; }
-	@if command -v aarch64-linux-gnu-gcc >/dev/null && command -v qemu-aarch64 >/dev/null; then aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Werror -Wextra -static -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_whisper.c src/tensor/zt_whisper.c src/tensor/zt_nn.c src/tensor/zt_tok.c src/tensor/zt_gguf.c src/tensor/zt.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c -lm -lpthread -o /tmp/test_zt_whisper_a64 && qemu-aarch64 /tmp/test_zt_whisper_a64 > /tmp/test_zt_whisper_a64.log 2>&1 && echo "[PASS] test_zt_whisper arm64 NEON ($$(tail -1 /tmp/test_zt_whisper_a64.log))" || { cat /tmp/test_zt_whisper_a64.log; echo "[FAIL] test_zt_whisper arm64"; exit 1; }; else echo "[SKIP] test_zt_whisper arm64 (needs aarch64-linux-gnu-gcc and qemu-aarch64)"; fi
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_whisper.c src/tensor/zt_whisper.c src/tensor/zt_nn.c src/tensor/zt_tok.c src/tensor/zt_gguf.c src/tensor/zt.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c -lm -lpthread -o /tmp/test_zt_whisper_asan && /tmp/test_zt_whisper_asan > /tmp/test_zt_whisper_asan.log 2>&1 && echo "[PASS] test_zt_whisper SIMD sets, ASan/UBSan ($$(tail -1 /tmp/test_zt_whisper_asan.log))" || { cat /tmp/test_zt_whisper_asan.log; echo "[FAIL] test_zt_whisper ASan/UBSan"; exit 1; }
+	@if command -v aarch64-linux-gnu-gcc >/dev/null && command -v qemu-aarch64 >/dev/null; then aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Werror -Wextra -static -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_whisper.c src/tensor/zt_whisper.c src/tensor/zt_nn.c src/tensor/zt_tok.c src/tensor/zt_gguf.c src/tensor/zt.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c -lm -lpthread -o /tmp/test_zt_whisper_a64 && qemu-aarch64 /tmp/test_zt_whisper_a64 > /tmp/test_zt_whisper_a64.log 2>&1 && echo "[PASS] test_zt_whisper arm64 NEON ($$(tail -1 /tmp/test_zt_whisper_a64.log))" || { cat /tmp/test_zt_whisper_a64.log; echo "[FAIL] test_zt_whisper arm64"; exit 1; }; else echo "[SKIP] test_zt_whisper arm64 (needs aarch64-linux-gnu-gcc and qemu-aarch64)"; fi
 	for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Isrc/tensor -c src/tensor/zt_whisper.c -o /tmp/zt_whisper_free.o || { echo "[FAIL] zt_whisper freestanding $$t"; exit 1; }; if nm -u /tmp/zt_whisper_free.o | grep -vE " zt_" | grep -q .; then nm -u /tmp/zt_whisper_free.o; echo "[FAIL] zt_whisper freestanding: libc or 64-bit division helper ($$t)"; exit 1; fi; done; echo "[PASS] zt_whisper freestanding (aarch64 -mgeneral-regs-only, i386; only zt_ external)"
 	@echo "=== tensor: speech out (T26 zt_tts) vs float64, every kernel set, arm64, freestanding ==="
-	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_tts.c src/tensor/zt_tts.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_zt_tts && /tmp/test_zt_tts > /tmp/test_zt_tts.log 2>&1 && echo "[PASS] test_zt_tts ($$(tail -1 /tmp/test_zt_tts.log))" || { cat /tmp/test_zt_tts.log; echo "[FAIL] test_zt_tts"; exit 1; }
-	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_tts.c src/tensor/zt_tts.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_zt_tts_asan && /tmp/test_zt_tts_asan > /tmp/test_zt_tts_asan.log 2>&1 && echo "[PASS] test_zt_tts ASan/UBSan" || { cat /tmp/test_zt_tts_asan.log; echo "[FAIL] test_zt_tts ASan/UBSan"; exit 1; }
-	@if command -v aarch64-linux-gnu-gcc >/dev/null && command -v qemu-aarch64 >/dev/null; then aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Werror -Wextra -static -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_tts.c src/tensor/zt_tts.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_zt_tts_a64 && qemu-aarch64 /tmp/test_zt_tts_a64 > /tmp/test_zt_tts_a64.log 2>&1 && echo "[PASS] test_zt_tts arm64 NEON ($$(tail -1 /tmp/test_zt_tts_a64.log))" || { cat /tmp/test_zt_tts_a64.log; echo "[FAIL] test_zt_tts arm64"; exit 1; }; else echo "[SKIP] test_zt_tts arm64 (needs aarch64-linux-gnu-gcc and qemu-aarch64)"; fi
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_tts.c src/tensor/zt_tts.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_zt_tts && /tmp/test_zt_tts > /tmp/test_zt_tts.log 2>&1 && echo "[PASS] test_zt_tts ($$(tail -1 /tmp/test_zt_tts.log))" || { cat /tmp/test_zt_tts.log; echo "[FAIL] test_zt_tts"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_tts.c src/tensor/zt_tts.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_zt_tts_asan && /tmp/test_zt_tts_asan > /tmp/test_zt_tts_asan.log 2>&1 && echo "[PASS] test_zt_tts ASan/UBSan" || { cat /tmp/test_zt_tts_asan.log; echo "[FAIL] test_zt_tts ASan/UBSan"; exit 1; }
+	@if command -v aarch64-linux-gnu-gcc >/dev/null && command -v qemu-aarch64 >/dev/null; then aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Werror -Wextra -static -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_tts.c src/tensor/zt_tts.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_zt_tts_a64 && qemu-aarch64 /tmp/test_zt_tts_a64 > /tmp/test_zt_tts_a64.log 2>&1 && echo "[PASS] test_zt_tts arm64 NEON ($$(tail -1 /tmp/test_zt_tts_a64.log))" || { cat /tmp/test_zt_tts_a64.log; echo "[FAIL] test_zt_tts arm64"; exit 1; }; else echo "[SKIP] test_zt_tts arm64 (needs aarch64-linux-gnu-gcc and qemu-aarch64)"; fi
 	for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Isrc/tensor -c src/tensor/zt_tts.c -o /tmp/zt_tts_free.o || { echo "[FAIL] zt_tts freestanding $$t"; exit 1; }; if nm -u /tmp/zt_tts_free.o | grep -vE " zt_" | grep -q .; then nm -u /tmp/zt_tts_free.o; echo "[FAIL] zt_tts freestanding: libc or 64-bit division helper ($$t)"; exit 1; fi; done; echo "[PASS] zt_tts freestanding (aarch64 -mgeneral-regs-only, i386; only zt_ external)"
 	@echo "=== tensor: holographic coding stays on the device (bench/results/2026-10-10-qwen2.5-1.5b/REPORT.md) ==="
 	@bad=$$(grep -rlE "zt_holo_(e8_)?(encode|decode)" src/net src/mesh_net src/freight src/ubh src/web4 src/vinea src/ipfs_node src/event_transport src/tls src/stream 2>/dev/null); \
@@ -1580,6 +1593,7 @@ test-swarm:
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_cycles.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_harmonic.c src/swarm/swarm_overlap.c src/swarm/swarm_quality.c -o /tmp/test_swarm_cycles && /tmp/test_swarm_cycles && echo "[PASS] test_swarm_cycles" || { echo "[FAIL] test_swarm_cycles"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_hk.c src/swarm/swarm_hk.c -o /tmp/test_swarm_hk && /tmp/test_swarm_hk && echo "[PASS] test_swarm_hk" || { echo "[FAIL] test_swarm_hk"; exit 1; }
 	@$(MAKE) --no-print-directory test-denom
+	@$(MAKE) --no-print-directory test-yield
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_life.c src/swarm/swarm_governor.c src/swarm/swarm_dna.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o /tmp/test_swarm_life && /tmp/test_swarm_life && echo "[PASS] test_swarm_life" || { echo "[FAIL] test_swarm_life"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_mind.c src/swarm/swarm_enochian.c src/swarm/swarm_logic.c src/swarm/swarm_self.c src/swarm/swarm_evolve.c src/swarm/swarm_enterprise.c src/swarm/swarm_phase.c src/swarm/swarm_dna.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_hk.c -o /tmp/test_swarm_mind && /tmp/test_swarm_mind && echo "[PASS] test_swarm_mind" || { echo "[FAIL] test_swarm_mind"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -Isrc/swarm src/tensor/test_zt.c src/tensor/zt.c src/tensor/zt_coil.c src/tensor/zt_isf.c src/tensor/zt_holo.c -lm -o /tmp/test_zt && /tmp/test_zt && echo "[PASS] test_zt" || { echo "[FAIL] test_zt"; exit 1; }
@@ -1753,8 +1767,221 @@ test-hwemu:
 .PHONY: test-metal
 test-metal:
 	@if [ "$$(uname -s)" != Darwin ]; then echo "[SKIP] test_zt_metal (macOS only)"; exit 0; fi; \
-	clang -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -fno-objc-arc -Isrc/tensor src/tensor/test_zt_metal.c src/tensor/zt_metal.m src/tensor/zt_gpu.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -framework Metal -framework Foundation -lpthread -o $(ZXV_TMP)/test_zt_metal && \
+	clang -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -fno-objc-arc -Isrc/tensor src/tensor/test_zt_metal.c src/tensor/zt_metal.m src/tensor/zt_gpu.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -framework Metal -framework Foundation -lpthread -o $(ZXV_TMP)/test_zt_metal && \
 	$(ZXV_TMP)/test_zt_metal > $(ZXV_TMP)/test_zt_metal.log 2>&1 && { grep -E "^\[(SKIP|INFO)\]" $(ZXV_TMP)/test_zt_metal.log || true; echo "[PASS] test_zt_metal ($$(tail -1 $(ZXV_TMP)/test_zt_metal.log))"; } || { cat $(ZXV_TMP)/test_zt_metal.log; echo "[FAIL] test_zt_metal"; exit 1; }
+
+# The NVIDIA backend (zt_cuda.c). test-cuda-offline needs no GPU and runs in
+# verify-all: the host code builds with -Werror, the kernel source compiles to
+# PTX for Turing, Ampere and Hopper (clang, stub built-ins, no CUDA toolkit),
+# and the warp product kernels run on the CPU (32 threads a warp) bit for bit
+# against the C reference. test-cuda runs everything on a real GPU (driver and
+# NVRTC needed, nothing at build time); SKIP with none, unless ZT_CUDA_REQUIRE=1.
+ZT_CUDA_SRCS = src/tensor/zt_cuda.c src/tensor/zt_gpu.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c
+.PHONY: test-cuda test-cuda-offline
+test-cuda-offline:
+	@mkdir -p $(ZXV_TMP)
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_cuda.c $(ZT_CUDA_SRCS) -ldl -lpthread -o $(ZXV_TMP)/test_zt_cuda && \
+	$(ZXV_TMP)/test_zt_cuda --source > $(ZXV_TMP)/zt_cuda_gen.cu && echo "[PASS] zt_cuda builds with no CUDA toolkit" || { echo "[FAIL] zt_cuda build"; exit 1; }
+	@if echo 'int main(){}' | clang++ -x cuda --cuda-device-only --cuda-gpu-arch=sm_86 -nocudainc -nocudalib -S - -o /dev/null 2>/dev/null; then \
+	  cat src/tensor/test_zt_cuda_ptx.h $(ZXV_TMP)/zt_cuda_gen.cu > $(ZXV_TMP)/zt_cuda_ptx.cu && \
+	  for a in sm_75 sm_86 sm_90; do clang++ -x cuda --cuda-device-only --cuda-gpu-arch=$$a -nocudainc -nocudalib -std=c++14 -O2 -Wall -Werror -Wno-unused-function -S $(ZXV_TMP)/zt_cuda_ptx.cu -o $(ZXV_TMP)/zt_cuda_$$a.ptx || { echo "[FAIL] zt_cuda kernels to PTX ($$a)"; exit 1; }; \
+	    test "$$(grep -c '^.visible .entry' $(ZXV_TMP)/zt_cuda_$$a.ptx)" = 21 || { echo "[FAIL] zt_cuda: 21 kernels expected in $$a PTX"; exit 1; }; done && \
+	  echo "[PASS] zt_cuda kernels compile to PTX (sm_75, sm_86, sm_90: 21 kernels each)"; \
+	else echo "[SKIP] zt_cuda PTX (clang without the NVPTX target)"; fi
+	@g++ -std=c++20 -O1 -Wall -Werror -Wextra -Wno-unused-function -Wno-misleading-indentation -I$(ZXV_TMP) src/tensor/test_zt_cuda_emu.cpp -lpthread -o $(ZXV_TMP)/test_zt_cuda_emu && \
+	$(ZXV_TMP)/test_zt_cuda_emu > $(ZXV_TMP)/test_zt_cuda_emu.log 2>&1 && echo "[PASS] test_zt_cuda_emu ($$(tail -1 $(ZXV_TMP)/test_zt_cuda_emu.log))" || { cat $(ZXV_TMP)/test_zt_cuda_emu.log; echo "[FAIL] test_zt_cuda_emu"; exit 1; }
+
+test-cuda: test-cuda-offline
+	@$(ZXV_TMP)/test_zt_cuda > $(ZXV_TMP)/test_zt_cuda.log 2>&1 && { grep -E "^\[(SKIP|INFO)\]" $(ZXV_TMP)/test_zt_cuda.log || true; echo "[PASS] test_zt_cuda ($$(tail -1 $(ZXV_TMP)/test_zt_cuda.log))"; } || { cat $(ZXV_TMP)/test_zt_cuda.log; echo "[FAIL] test_zt_cuda"; exit 1; }
+
+# The AMD backend (zt_hip.c, ROCm / HIP). test-hip-offline needs no GPU and
+# runs in verify-all: the host code builds with -Werror (gcc and clang), the
+# kernel source compiles for GCN, CDNA and RDNA (gfx906, gfx90a, gfx1030,
+# gfx1100: clang's HIP device mode, ROCm's built-ins in
+# test_zt_hip_amdgpu.h, no ROCm installed), and the product kernels run on the
+# CPU, 64-lane and 32-lane wavefronts both, bit for bit against the C
+# reference. test-hip runs everything on a real GPU (the HIP runtime and
+# hiprtc needed, nothing at build time); SKIP with none, unless
+# ZT_HIP_REQUIRE=1.
+ZT_HIP_SRCS = src/tensor/zt_hip.c src/tensor/zt_gpu.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c
+ZT_HIP_ARCHS = gfx906 gfx90a gfx1030 gfx1100
+.PHONY: test-hip test-hip-offline
+test-hip-offline:
+	@mkdir -p $(ZXV_TMP)
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_hip.c $(ZT_HIP_SRCS) -ldl -lpthread -o $(ZXV_TMP)/test_zt_hip && \
+	$(ZXV_TMP)/test_zt_hip --source > $(ZXV_TMP)/zt_hip_gen.hip && echo "[PASS] zt_hip builds with no ROCm (gcc)" || { echo "[FAIL] zt_hip build (gcc)"; exit 1; }
+	@if command -v clang >/dev/null; then clang -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_hip.c $(ZT_HIP_SRCS) -ldl -lpthread -o $(ZXV_TMP)/test_zt_hip_clang && echo "[PASS] zt_hip builds with no ROCm (clang)" || { echo "[FAIL] zt_hip build (clang)"; exit 1; }; else echo "[SKIP] zt_hip clang build (no clang)"; fi
+	@if echo 'int main(){}' | clang++ -x hip --cuda-device-only --offload-arch=gfx90a -nogpuinc -nogpulib -S - -o /dev/null 2>/dev/null; then \
+	  cat src/tensor/test_zt_hip_amdgpu.h $(ZXV_TMP)/zt_hip_gen.hip > $(ZXV_TMP)/zt_hip_amdgpu.hip && \
+	  for a in $(ZT_HIP_ARCHS); do clang++ -x hip --cuda-device-only --offload-arch=$$a -nogpuinc -nogpulib -std=c++14 -O2 -Wall -Werror -Wno-unused-function -S $(ZXV_TMP)/zt_hip_amdgpu.hip -o $(ZXV_TMP)/zt_hip_$$a.s || { echo "[FAIL] zt_hip kernels for $$a"; exit 1; }; \
+	    test "$$(grep -c '^[[:space:]]*\.amdhsa_kernel ' $(ZXV_TMP)/zt_hip_$$a.s)" = 21 || { echo "[FAIL] zt_hip: 21 kernels expected for $$a"; exit 1; }; done && \
+	  clang++ -x hip --cuda-device-only --offload-arch=gfx1100 -mwavefrontsize64 -nogpuinc -nogpulib -std=c++14 -O2 -Wall -Werror -Wno-unused-function -S $(ZXV_TMP)/zt_hip_amdgpu.hip -o $(ZXV_TMP)/zt_hip_gfx1100_w64.s && \
+	  test "$$(grep -c '^[[:space:]]*\.amdhsa_kernel ' $(ZXV_TMP)/zt_hip_gfx1100_w64.s)" = 21 && \
+	  test "$$(grep -c 'amdhsa_wavefront_size32 1' $(ZXV_TMP)/zt_hip_gfx1030.s)" = 21 && \
+	  test "$$(grep -c 'amdhsa_wavefront_size32 0' $(ZXV_TMP)/zt_hip_gfx1100_w64.s)" = 21 || { echo "[FAIL] zt_hip: RDNA kernels in wave32 and wave64"; exit 1; }; \
+	  echo "[PASS] zt_hip kernels compile for AMD GPUs ($(ZT_HIP_ARCHS), gfx1100 wave64: 21 kernels each)"; \
+	else echo "[SKIP] zt_hip AMD GPU code (clang without the AMDGPU target)"; fi
+	@g++ -std=c++20 -O1 -Wall -Werror -Wextra -Wno-unused-function -Wno-misleading-indentation -Wno-unknown-pragmas -I$(ZXV_TMP) src/tensor/test_zt_hip_emu.cpp -lpthread -o $(ZXV_TMP)/test_zt_hip_emu && \
+	$(ZXV_TMP)/test_zt_hip_emu > $(ZXV_TMP)/test_zt_hip_emu.log 2>&1 && echo "[PASS] test_zt_hip_emu ($$(tail -1 $(ZXV_TMP)/test_zt_hip_emu.log))" || { cat $(ZXV_TMP)/test_zt_hip_emu.log; echo "[FAIL] test_zt_hip_emu"; exit 1; }
+
+test-hip: test-hip-offline
+	@$(ZXV_TMP)/test_zt_hip > $(ZXV_TMP)/test_zt_hip.log 2>&1 && { grep -E "^\[(SKIP|INFO)\]" $(ZXV_TMP)/test_zt_hip.log || true; echo "[PASS] test_zt_hip ($$(tail -1 $(ZXV_TMP)/test_zt_hip.log))"; } || { cat $(ZXV_TMP)/test_zt_hip.log; echo "[FAIL] test_zt_hip"; exit 1; }
+
+# The Vulkan backend (zt_vk.c: AMD Radeon, Arm Mali, Qualcomm Adreno, Intel,
+# NVIDIA). test-vk builds zt_vk.c both ways (stubs without the SPIR-V, the real
+# backend with it) with -Werror; with glslangValidator it builds the 20 kernels
+# from zt_vk.comp twice (64-bit integers, and -DZV_I32=1: pairs of 32-bit
+# words for GPUs without shaderInt64) and validates all 40 (spirv-val, when
+# installed), checking that no ZV_I32 module declares the Int64 capability
+# (spirv-dis); with a Vulkan device (a GPU, or lavapipe: Mesa's Vulkan on the
+# CPU, apt mesa-vulkan-drivers) it runs test_zt_vk, bit for bit against the C
+# reference, also with shared state mirrored, and again with ZT_VK_FORCE_I32=1
+# (the 32-bit kernels on any device). SKIP for what is missing, unless
+# ZT_VK_REQUIRE=1.
+.PHONY: test-vk
+test-vk:
+	@mkdir -p $(ZXV_TMP)
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -c src/tensor/zt_vk.c -o $(ZXV_TMP)/zt_vk_stub.o && echo "[PASS] zt_vk builds without Vulkan (stubs)" || { echo "[FAIL] zt_vk stub build"; exit 1; }
+	@if ! command -v glslangValidator >/dev/null; then echo "[SKIP] zt_vk kernels (needs glslangValidator: apt glslang-tools)"; exit 0; fi; \
+	sh src/tensor/gen_zt_vk_spv.sh $(ZXV_TMP)/zt_vk_spv.h && echo "[PASS] zt_vk.comp builds to SPIR-V (20 kernels, with 64-bit integers and with 32-bit words only)" || { echo "[FAIL] zt_vk.comp"; exit 1; }; \
+	if command -v spirv-val >/dev/null; then \
+	  for i32 in 0 1; do for k in 0 1 2 4 5 6 7 8 9 10 11 12 13 14 100 101 102 103 104 105; do glslangValidator -S comp --target-env vulkan1.1 -DZK=$$k -DZV_I32=$$i32 -o $(ZXV_TMP)/zt_vk_$${i32}_$$k.spv src/tensor/zt_vk.comp >/dev/null && spirv-val --target-env vulkan1.1 $(ZXV_TMP)/zt_vk_$${i32}_$$k.spv || { echo "[FAIL] spirv-val kernel $$k (ZV_I32=$$i32)"; exit 1; }; done; done; \
+	  echo "[PASS] spirv-val: all 40 kernels (20 each set) valid for Vulkan 1.1"; \
+	  if command -v spirv-dis >/dev/null; then \
+	    for k in 0 1 2 4 5 6 7 8 9 10 11 12 13 14 100 101 102 103 104 105; do spirv-dis $(ZXV_TMP)/zt_vk_1_$$k.spv > $(ZXV_TMP)/zt_vk_1_$$k.dis || { echo "[FAIL] spirv-dis kernel $$k"; exit 1; }; if grep -qE "OpCapability Int64|OpTypeInt 64" $(ZXV_TMP)/zt_vk_1_$$k.dis; then echo "[FAIL] ZV_I32 kernel $$k uses 64-bit integers"; exit 1; fi; done; \
+	    echo "[PASS] spirv-dis: no ZV_I32 kernel declares Int64 or a 64-bit integer type"; \
+	  else echo "[SKIP] the ZV_I32 Int64 check (spirv-dis: apt spirv-tools)"; fi; \
+	else echo "[SKIP] spirv-val (apt spirv-tools)"; fi; \
+	if ! echo '#include <vulkan/vulkan.h>' | gcc -E -x c - >/dev/null 2>&1; then echo "[SKIP] test_zt_vk (needs the Vulkan headers: apt libvulkan-dev)"; exit 0; fi; \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -DZT_VK_SPV_H='"$(ZXV_TMP)/zt_vk_spv.h"' src/tensor/test_zt_vk.c src/tensor/zt_vk.c $(ZT_CUDA_SRCS:src/tensor/zt_cuda.c=) -ldl -lpthread -o $(ZXV_TMP)/test_zt_vk || { echo "[FAIL] test_zt_vk build"; exit 1; }; \
+	for set in int64 i32; do for mode in import mirror; do \
+	  if [ $$set = i32 ]; then export ZT_VK_FORCE_I32=1; else unset ZT_VK_FORCE_I32; fi; \
+	  if [ $$mode = mirror ]; then export ZT_VK_NO_IMPORT=1; else unset ZT_VK_NO_IMPORT; fi; \
+	  log=$(ZXV_TMP)/test_zt_vk_$${set}_$$mode.log; \
+	  $(ZXV_TMP)/test_zt_vk > $$log 2>&1 && { grep -E "^\[(SKIP|INFO)\]" $$log || true; echo "[PASS] test_zt_vk, kernels $$set, state $$mode ($$(tail -1 $$log))"; } || { cat $$log; echo "[FAIL] test_zt_vk, kernels $$set, state $$mode"; exit 1; }; \
+	  if grep -q "^\[SKIP\]" $$log; then break 2; fi; \
+	  if [ $$set = i32 ] && ! grep -q "kernels: 32-bit words only" $$log; then echo "[FAIL] ZT_VK_FORCE_I32=1 did not select the 32-bit kernels"; exit 1; fi; \
+	done; done; \
+	if ! grep -q "^\[SKIP\]" $(ZXV_TMP)/test_zt_vk_int64_import.log; then \
+	  unset ZT_VK_FORCE_I32 ZT_VK_NO_IMPORT; \
+	  gcc -std=c11 -O2 -Wall -Werror -Wextra -Iarch/hosted -Isrc/tensor -DZT_VK_SPV_H='"$(ZXV_TMP)/zt_vk_spv.h"' arch/hosted/test_zxv_zt_gpu.c arch/hosted/zxv_zt_glue.c src/tensor/zt*.c -ldl -lpthread -lm -o $(ZXV_TMP)/test_zxv_zt_gpu || { echo "[FAIL] test_zxv_zt_gpu build"; exit 1; }; \
+	  ZT_GPU=vulkan ZXV_GPU_REQUIRE=1 $(ZXV_TMP)/test_zxv_zt_gpu > $(ZXV_TMP)/test_zxv_zt_gpu.log 2>&1 && echo "[PASS] the app's models on Vulkan == the CPU ($$(tail -1 $(ZXV_TMP)/test_zxv_zt_gpu.log))" || { cat $(ZXV_TMP)/test_zxv_zt_gpu.log; echo "[FAIL] test_zxv_zt_gpu on Vulkan"; exit 1; }; \
+	fi
+
+# The WebGPU backend (zt_wgpu.c: zt_wgpu.wgsl through webgpu.h, natively or in
+# a browser). test-wgpu builds zt_wgpu.c without webgpu.h (stubs) with
+# -Werror, turns zt_wgpu.wgsl into its C string, checks the WGSL holds no
+# float type or literal (rule R1), and validates it with naga (when
+# installed: cargo install naga-cli) at four size sets (desktop, phone,
+# one-token tile, the smallest). With emcc (emsdk) it builds zt_wgpu.c and
+# zt_accel.c for the browser (Emscripten's emdawnwebgpu bindings), and with
+# deno (a JavaScript runtime with WebGPU) it links test_zt_wgpu for the
+# browser (-sASYNCIFY) and runs it there. With webgpu.h (WGPU_INC=<dir holding
+# webgpu/webgpu.h>, else the copy in the pip package wgpu: pip install wgpu,
+# which also brings wgpu-native) it builds test_zt_wgpu and, when a WebGPU
+# library finds an adapter (ZT_WGPU_LIB=<libwgpu_native.so>, else the pip
+# package's; a GPU, or lavapipe: Mesa's Vulkan on the CPU), runs it bit for
+# bit against the C reference three times: the sizes the limits give,
+# ZT_WGPU_TILE=4,32,8 (desktop), and ZT_WGPU_TILE=1,8,2 with phone-sized
+# bindings and the weights in 64 KiB buffers; then the app's models on
+# WebGPU (test_zxv_zt_gpu, ZT_GPU=webgpu). SKIP for what is missing, unless
+# ZT_WGPU_REQUIRE=1.
+WGPU_INC ?=
+NAGA ?= naga
+EMCC ?= emcc
+DENO ?= deno
+.PHONY: test-wgpu
+test-wgpu:
+	@mkdir -p $(ZXV_TMP)
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -c src/tensor/zt_wgpu.c -o $(ZXV_TMP)/zt_wgpu_stub.o && echo "[PASS] zt_wgpu builds without WebGPU (stubs)" || { echo "[FAIL] zt_wgpu stub build"; exit 1; }
+	@sh src/tensor/gen_zt_wgpu_wgsl.sh $(ZXV_TMP)/zt_wgpu_wgsl.h && echo "[PASS] zt_wgpu.wgsl into a C string" || { echo "[FAIL] gen_zt_wgpu_wgsl.sh"; exit 1; }
+	@if sed -e 's://.*$$::' src/tensor/zt_wgpu.wgsl | grep -nE '\bf(16|32|64)\b|[0-9]\.|\.[0-9]|[0-9]e[+-]?[0-9]|\b[0-9]+[fh]\b|float'; then echo "[FAIL] zt_wgpu.wgsl: a float type or literal (rule R1: integers only)"; exit 1; fi; echo "[PASS] zt_wgpu.wgsl: integers only (no f16/f32 type, no float literal)"
+	@if command -v $(NAGA) >/dev/null; then \
+	  for cfg in "256 4 32 8" "256 2 32 4" "256 4 32 1" "64 1 8 2"; do set -- $$cfg; \
+	    printf 'const ZW_WG: u32 = %su;\nconst ZW_R: u32 = %su;\nconst ZW_L: u32 = %su;\nconst ZW_T: u32 = %su;\n' $$1 $$2 $$3 $$4 > $(ZXV_TMP)/zt_wgpu_check.wgsl; \
+	    cat src/tensor/zt_wgpu.wgsl >> $(ZXV_TMP)/zt_wgpu_check.wgsl; \
+	    $(NAGA) $(ZXV_TMP)/zt_wgpu_check.wgsl > $(ZXV_TMP)/zt_wgpu_naga.log 2>&1 || { cat $(ZXV_TMP)/zt_wgpu_naga.log; echo "[FAIL] naga: zt_wgpu.wgsl with sizes $$cfg"; exit 1; }; \
+	  done; echo "[PASS] naga $$($(NAGA) --version 2>/dev/null | tail -1): zt_wgpu.wgsl valid at four size sets (WG R L T: 256 4 32 8, 256 2 32 4, 256 4 32 1, 64 1 8 2)"; \
+	else echo "[SKIP] WGSL validation (needs naga: cargo install naga-cli)"; fi
+	@if command -v $(EMCC) >/dev/null; then \
+	  for f in zt_wgpu zt_accel; do $(EMCC) --use-port=emdawnwebgpu -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -DZT_WGPU_WGSL_H='"$(ZXV_TMP)/zt_wgpu_wgsl.h"' -c src/tensor/$$f.c -o $(ZXV_TMP)/$${f}_web.o > $(ZXV_TMP)/zt_wgpu_emcc.log 2>&1 || { cat $(ZXV_TMP)/zt_wgpu_emcc.log; echo "[FAIL] $$f.c for the browser (emcc, emdawnwebgpu)"; exit 1; }; done; \
+	  echo "[PASS] zt_wgpu.c and zt_accel.c build for the browser (emcc --use-port=emdawnwebgpu, -Werror)"; \
+	  if command -v $(DENO) >/dev/null; then \
+	    $(EMCC) --use-port=emdawnwebgpu -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -DZT_WGPU_WGSL_H='"$(ZXV_TMP)/zt_wgpu_wgsl.h"' -sDEFAULT_TO_CXX -sASYNCIFY=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=268435456 -sMAXIMUM_MEMORY=2147483648 -sSTACK_SIZE=1048576 -sENVIRONMENT=web -sSINGLE_FILE=1 -sEXIT_RUNTIME=1 src/tensor/test_zt_wgpu.c src/tensor/zt_wgpu.c $(ZT_CUDA_SRCS:src/tensor/zt_cuda.c=) -o $(ZXV_TMP)/test_zt_wgpu_web.js > $(ZXV_TMP)/zt_wgpu_emcc.log 2>&1 || { cat $(ZXV_TMP)/zt_wgpu_emcc.log; echo "[FAIL] test_zt_wgpu for the browser (emcc link)"; exit 1; }; \
+	    $(DENO) run --unstable-webgpu -A $(ZXV_TMP)/test_zt_wgpu_web.js > $(ZXV_TMP)/test_zt_wgpu_web.log 2>&1 && { grep -E "^\[(SKIP|INFO)\]" $(ZXV_TMP)/test_zt_wgpu_web.log || true; echo "[PASS] test_zt_wgpu built for the browser, run in $$($(DENO) --version | head -1)'s WebGPU ($$(tail -1 $(ZXV_TMP)/test_zt_wgpu_web.log))"; } || { cat $(ZXV_TMP)/test_zt_wgpu_web.log; echo "[FAIL] test_zt_wgpu for the browser, in Deno"; exit 1; }; \
+	  else echo "[SKIP] the browser build's run (needs deno, a JavaScript runtime with WebGPU)"; fi; \
+	else echo "[SKIP] the browser build (needs emcc: emsdk; and deno to run it)"; fi
+	@inc="$(WGPU_INC)"; lib="$${ZT_WGPU_LIB:-}"; \
+	pk=$$(python3 -I -c 'import importlib.util as u; s = u.find_spec("wgpu"); print(s.submodule_search_locations[0] if s else "")' 2>/dev/null); \
+	if [ -n "$$pk" ] && [ -f "$$pk/resources/webgpu.h" ]; then \
+	  if [ -z "$$inc" ]; then mkdir -p $(ZXV_TMP)/wgpu_inc/webgpu && cp "$$pk/resources/webgpu.h" $(ZXV_TMP)/wgpu_inc/webgpu/ && inc=$(ZXV_TMP)/wgpu_inc; fi; \
+	  if [ -z "$$lib" ]; then lib=$$(ls "$$pk"/resources/libwgpu_native*.so 2>/dev/null | head -1); fi; \
+	fi; \
+	if [ -z "$$inc" ] && ! echo '#include <webgpu/webgpu.h>' | gcc -E -x c - >/dev/null 2>&1; then \
+	  echo "[SKIP] test_zt_wgpu (needs webgpu.h: WGPU_INC=<dir holding webgpu/webgpu.h>, or pip install wgpu)"; \
+	  if [ "$${ZT_WGPU_REQUIRE:-0}" = 1 ]; then exit 1; fi; exit 0; fi; \
+	incf=; [ -n "$$inc" ] && incf="-I$$inc"; \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor $$incf -DZT_WGPU_WGSL_H='"$(ZXV_TMP)/zt_wgpu_wgsl.h"' src/tensor/test_zt_wgpu.c src/tensor/zt_wgpu.c $(ZT_CUDA_SRCS:src/tensor/zt_cuda.c=) -ldl -lpthread -o $(ZXV_TMP)/test_zt_wgpu || { echo "[FAIL] test_zt_wgpu build"; exit 1; }; \
+	echo "[PASS] test_zt_wgpu builds against webgpu.h ($${inc:-system})"; \
+	if [ -n "$$lib" ]; then export ZT_WGPU_LIB="$$lib"; fi; \
+	for run in limits desktop phone; do \
+	  unset ZT_WGPU_TILE ZT_WGPU_MAX_BINDING ZT_WGPU_MAX_BUFFER; want=; \
+	  if [ $$run = desktop ]; then export ZT_WGPU_TILE=4,32,8; want="products 4x32 threads, tile 8"; fi; \
+	  if [ $$run = phone ]; then export ZT_WGPU_TILE=1,8,2 ZT_WGPU_MAX_BINDING=4194304 ZT_WGPU_MAX_BUFFER=65536; want="products 1x8 threads, tile 2, layer workgroup 256, binding 4194304, weights buffer 65536"; fi; \
+	  log=$(ZXV_TMP)/test_zt_wgpu_$$run.log; \
+	  $(ZXV_TMP)/test_zt_wgpu > $$log 2>&1 && { grep -E "^\[(SKIP|INFO)\]" $$log || true; echo "[PASS] test_zt_wgpu, sizes $$run ($$(tail -1 $$log))"; } || { cat $$log; echo "[FAIL] test_zt_wgpu, sizes $$run"; exit 1; }; \
+	  if grep -q "^\[SKIP\]" $$log; then break; fi; \
+	  if [ -n "$$want" ] && ! grep -q "$$want" $$log; then echo "[FAIL] test_zt_wgpu, sizes $$run: not the sizes asked for ($$want)"; exit 1; fi; \
+	done; \
+	if ! grep -q "^\[SKIP\]" $(ZXV_TMP)/test_zt_wgpu_limits.log; then \
+	  unset ZT_WGPU_TILE ZT_WGPU_MAX_BINDING ZT_WGPU_MAX_BUFFER; \
+	  gcc -std=c11 -O2 -Wall -Werror -Wextra -Iarch/hosted -Isrc/tensor $$incf -DZT_WGPU_WGSL_H='"$(ZXV_TMP)/zt_wgpu_wgsl.h"' arch/hosted/test_zxv_zt_gpu.c arch/hosted/zxv_zt_glue.c src/tensor/zt*.c -ldl -lpthread -lm -o $(ZXV_TMP)/test_zxv_zt_wgpu || { echo "[FAIL] test_zxv_zt_gpu build (WebGPU)"; exit 1; }; \
+	  ZT_GPU=webgpu ZXV_GPU_REQUIRE=1 $(ZXV_TMP)/test_zxv_zt_wgpu > $(ZXV_TMP)/test_zxv_zt_wgpu.log 2>&1 && echo "[PASS] the app's models on WebGPU == the CPU ($$(tail -1 $(ZXV_TMP)/test_zxv_zt_wgpu.log))" || { cat $(ZXV_TMP)/test_zxv_zt_wgpu.log; echo "[FAIL] test_zxv_zt_gpu on WebGPU"; exit 1; }; \
+	fi
+
+# The model in a browser tab (web/ai: zxv_ai.js, its Worker and
+# zxv_ai_engine.c built to wasm). The engine built natively answers each
+# prompt exactly as the app does (test_zxv_ai_engine: ids, streamed pieces,
+# logits digest, on the determiner's engines and on the C reference), on the
+# tiny test model and on ZXV_AI_MODEL=<a .gguf> when given; the tiny model's
+# ids and digests are pinned in web/ai/test_tiny.zw. With emcc
+# (emsdk) web/ai/build.sh builds it for the browser; node runs it on the CPU
+# in wasm and deno on WebGPU (every pass on the GPU), and both must print the
+# native lines exactly; deno then runs what a page does (test_zxv_ai_page:
+# refusals of a wrong size, SHA-256 or CID, streaming, abort, the kept
+# choice, devices cpu and webgpu). SKIP for what is missing, unless
+# ZXV_AI_WEB_REQUIRE=1.
+NODE ?= node
+ZXV_AI_MODEL ?=
+.PHONY: test-ai-web
+test-ai-web:
+	@mkdir -p $(ZXV_TMP)/zxv_ai_web
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -Iarch/hosted -Isrc/tensor arch/hosted/write_test_model.c src/tensor/zt_gguf.c src/tensor/zt.c -o $(ZXV_TMP)/write_test_model && $(ZXV_TMP)/write_test_model $(ZXV_TMP)/zxv_ai_web/tiny.gguf > /dev/null || { echo "[FAIL] write_test_model"; exit 1; }
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -Iarch/hosted -Isrc/tensor ../web/ai/test_zxv_ai_engine.c ../web/ai/zxv_ai_engine.c arch/hosted/zxv_zt_glue.c src/tensor/zt*.c -ldl -lpthread -lm -o $(ZXV_TMP)/test_zxv_ai_engine || { echo "[FAIL] test_zxv_ai_engine build"; exit 1; }
+	@for m in $(ZXV_TMP)/zxv_ai_web/tiny.gguf $(ZXV_AI_MODEL); do n=$$(basename $$m .gguf); \
+	  $(ZXV_TMP)/test_zxv_ai_engine $$m 24 > $(ZXV_TMP)/zxv_ai_web/$$n.native.log 2>&1 && grep '^ZW' $(ZXV_TMP)/zxv_ai_web/$$n.native.log > $(ZXV_TMP)/zxv_ai_web/$$n.native.zw && echo "[PASS] test_zxv_ai_engine $$n: the browser's engine answers as the app does ($$(tail -1 $(ZXV_TMP)/zxv_ai_web/$$n.native.log))" || { cat $(ZXV_TMP)/zxv_ai_web/$$n.native.log; echo "[FAIL] test_zxv_ai_engine $$n"; exit 1; }; \
+	done
+	@diff ../web/ai/test_tiny.zw $(ZXV_TMP)/zxv_ai_web/tiny.native.zw && echo "[PASS] the tiny model's ids and logits digests are web/ai/test_tiny.zw's" || { echo "[FAIL] the tiny model's ids or logits digests changed (web/ai/test_tiny.zw)"; exit 1; }
+	@req=$${ZXV_AI_WEB_REQUIRE:-0}; d=$(ZXV_TMP)/zxv_ai_web; \
+	if ! command -v $(EMCC) >/dev/null; then echo "[SKIP] the browser build (needs emcc: emsdk)"; [ $$req = 1 ] && exit 1; exit 0; fi; \
+	EMCC=$(EMCC) sh ../web/ai/build.sh $$d/page > $$d/build.log 2>&1 || { cat $$d/build.log; echo "[FAIL] web/ai/build.sh"; exit 1; }; \
+	echo "[PASS] web/ai/build.sh: zxv_ai_engine.wasm $$(wc -c < $$d/page/zxv_ai_engine.wasm) bytes, -Werror"; \
+	cp $$d/tiny.gguf $$d/page/; \
+	for m in $$d/tiny.gguf $(ZXV_AI_MODEL); do n=$$(basename $$m .gguf); \
+	  if command -v $(NODE) >/dev/null; then \
+	    $(NODE) ../web/ai/test_zxv_ai.mjs $$d/page/zxv_ai_engine.js $$m 24 > $$d/$$n.node.log 2>&1; \
+	    grep '^ZW' $$d/$$n.node.log | diff $$d/$$n.native.zw - > $$d/$$n.node.diff && echo "[PASS] $$n in wasm on the CPU ($$($(NODE) --version)) == native, token and logits digest" || { cat $$d/$$n.node.log $$d/$$n.node.diff; echo "[FAIL] $$n in wasm on the CPU != native"; exit 1; }; \
+	  else echo "[SKIP] the wasm CPU run (needs node)"; [ $$req = 1 ] && exit 1; fi; \
+	  if command -v $(DENO) >/dev/null; then \
+	    $(DENO) run --unstable-webgpu -A ../web/ai/test_zxv_ai.mjs $$d/page/zxv_ai_engine.js $$m 24 "cpu=c/1 gpu=webgpu:0-max" > $$d/$$n.deno.log 2>&1; \
+	    if grep -q 'gpu=webgpu:0-max' $$d/$$n.deno.log; then \
+	      grep '^ZW' $$d/$$n.deno.log | diff $$d/$$n.native.zw - > $$d/$$n.deno.diff && echo "[PASS] $$n in wasm on WebGPU ($$(grep -m1 'device:' $$d/$$n.deno.log | sed 's/.*device: //')) == native, token and logits digest" || { cat $$d/$$n.deno.log $$d/$$n.deno.diff; echo "[FAIL] $$n in wasm on WebGPU != native"; exit 1; }; \
+	    else grep -m1 'device:' $$d/$$n.deno.log; echo "[SKIP] the WebGPU run (no WebGPU adapter in deno)"; [ $$req = 1 ] && exit 1; fi; \
+	  else echo "[SKIP] the WebGPU run (needs deno, a JavaScript runtime with WebGPU)"; [ $$req = 1 ] && exit 1; fi; \
+	done; \
+	if command -v $(DENO) >/dev/null; then \
+	  $(DENO) run --unstable-webgpu --location http://zxv.test/ -A ../web/ai/test_zxv_ai_page.mjs $$d/page tiny.gguf $$d/tiny.native.zw 24 > $$d/page.log 2>&1 && echo "[PASS] test_zxv_ai_page: what a page gets from zxv_ai.js ($$(tail -1 $$d/page.log))" || { cat $$d/page.log; echo "[FAIL] test_zxv_ai_page"; exit 1; }; \
+	fi
 
 .PHONY: hwe-vectors
 hwe-vectors:
@@ -1784,6 +2011,16 @@ test-market:
 
 # V-Bill hub demo (src/vhub): signed exact-rational pegs, fiat A -> V-Bill -> fiat B
 # as one balanced pay_ledger posting, sovereign rule plug-ins that fail closed.
+# Token yield (src/swarm/swarm_yield.h): verified work per token, counting
+# retries and revisions, verified work per second, the yield candle chart and
+# the (off by default) pool-weight link, checked against pay_commons_split.
+.PHONY: test-yield
+test-yield:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_yield.c src/swarm/swarm_yield.c src/swarm/swarm_quality.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o $(ZXV_TMP)/test_swarm_yield || exit 3; \
+	$(ZXV_TMP)/test_swarm_yield > $(ZXV_TMP)/test_swarm_yield.log 2>&1 && echo "[PASS] test_swarm_yield" || { tail -40 $(ZXV_TMP)/test_swarm_yield.log; echo "[FAIL] test_swarm_yield"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -DYIELD_WITH_PAY -Iinclude -Isrc/swarm -Isrc/pay -Isrc/tensor -Isrc/mlkem -Isrc/robin_debanks -Isrc/zcapital -Isrc/surplus src/swarm/test_swarm_yield.c src/swarm/swarm_yield.c src/swarm/swarm_quality.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/pay/pay_*.c src/tensor/zt.c src/mlkem/keccak.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_swarm_yield_pay || exit 3; \
+	$(ZXV_TMP)/test_swarm_yield_pay > $(ZXV_TMP)/test_swarm_yield_pay.log 2>&1 && echo "[PASS] test_swarm_yield (pool link)" || { tail -40 $(ZXV_TMP)/test_swarm_yield_pay.log; echo "[FAIL] test_swarm_yield (pool link)"; exit 1; }
+
 # Token denominations and octane (src/swarm/swarm_denom.h): plain, compressed
 # and super tokens on the Fibonacci ladder, exact wrap/unwrap, budget lockstep.
 .PHONY: test-denom

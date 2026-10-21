@@ -72,6 +72,28 @@ if [ -n "$DEFS" ]; then
     "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN $DEFS -I"$HERE" -I"$K/src/tensor" "$@" -lpthread \
         -o "$T/test_swarm_slots"
     "$T/test_swarm_slots" "$T"
+    # the models on the GPU this machine has (G7: Metal on a Mac; CUDA, HIP
+    # or Vulkan elsewhere), every reply equal to the CPU's; with no GPU both
+    # runs are on the CPU and the test says so
+    set -- "$HERE/test_zxv_zt_gpu.c" "$HERE/zxv_zt_glue.c"
+    for f in "$K"/src/tensor/zt*.c; do set -- "$@" "$f"; done
+    GPUF="-ldl"
+    case "$("$CC" -dumpmachine 2>/dev/null)" in
+        *darwin*|*apple*)
+            set -- "$@" "$K/src/tensor/zt_metal.m"
+            GPUF="-DZT_HAVE_METAL -framework Metal -framework Foundation" ;;
+        *)
+            if command -v glslangValidator >/dev/null 2>&1 &&
+                echo '#include <vulkan/vulkan.h>' | "$CC" -E -x c - >/dev/null 2>&1; then
+                sh "$K/src/tensor/gen_zt_vk_spv.sh" "$T/zt_vk_spv.h"
+                GPUF="$GPUF -DZT_VK_SPV_H=\"$T/zt_vk_spv.h\""
+            fi ;;
+    esac
+    # shellcheck disable=SC2086 # GPUF is a list of flags
+    "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN $DEFS -I"$HERE" -I"$K/src/tensor" "$@" $GPUF -lpthread \
+        -o "$T/test_zt_gpu"
+    "$T/test_zt_gpu" > "$T/test_zt_gpu.log" 2>&1 || { cat "$T/test_zt_gpu.log"; exit 1; }
+    echo "[PASS] app models on the GPU == the CPU ($(tail -1 "$T/test_zt_gpu.log"))"
 fi
 
 # the 64-state tag on one answer (zxv_answer_tag.h)
