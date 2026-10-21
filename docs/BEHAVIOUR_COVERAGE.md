@@ -62,20 +62,25 @@ Counts are after this change (X25519, IPFS and the event-space audit moved to BE
    | HKDF / TLS 1.3 | `kernel/src/tls/test_hkdf_props.c` | HMAC, Extract, Expand, labels and the whole schedule against Python's hmac/hashlib (`gen_hkdf_ref.py`), every length and buffer bound |
 
 4. **Mutation targets** for those modules, nine of them in the CI subset at their measured
-   scores (`tests/harness/mutator/targets.json`):
+   scores (`tests/harness/mutator/targets.json`). Every survivor is then classified by
+   measurement (`tests/harness/mutator/classify.py`, a differential probe under ASan+UBSan)
+   and read by hand. A survivor is one of three things: a gap in the tests (a negative
+   mutant: a test was added), a bug (a positive mutant: the code was fixed), or equivalent
+   (argued in tests/MUTATION_REPORT.md):
 
-   | Module | before | after |
-   |---|---|---|
-   | lpres | 55.2% | 86.7% |
-   | oseq | 44.1% | 85.2% |
-   | Z[phi] | 41.3% | 72.0% (the rest is `zphi_selfcheck`) |
-   | modbind | no test | 71.1% |
-   | zxv_decl_gate | no test | 48.2% |
-   | swarm budget / market / ledger / reserve | 68 / 57 / 64 / 68% | 87 / 83 / 92 / 88% |
-   | zcapital | 48.0% | 90.9% |
-   | HKDF | 45.7% | 88.5% |
+   | Module | before | after | adjusted (equivalents excluded) | open |
+   |---|---|---|---|---|
+   | lpres | 55.2% | 86.9% | 91.3% (the rest is its boot bring-up) | 0 |
+   | oseq | 44.1% | 88.3% | 100% | 0 |
+   | Z[phi] | 41.3% | 73.0% | 73.0% (the rest is `zphi_selfcheck`) | 0 |
+   | modbind | no test | 79.1% | 82.4% (the rest is `modbind_selfcheck`) | 1, held for B7 |
+   | zxv_decl_gate | no test | 72.2% | 86.2% (the rest is its negative tests) | 0 |
+   | swarm budget / market / ledger / reserve | 68 / 57 / 64 / 68% | 96.5 / 93.5 / 99.2 / 97.8% | 100% each | 0 |
+   | zcapital | 48.0% | 98.0% | 100% | 0 |
+   | HKDF | 45.7% | 92.8% | 100% | 0 |
 
-   Two bugs came out of it (oseq; AUDIT_FINDINGS F6, F7), both fixed.
+   Seven bugs came out of it, all fixed (AUDIT_FINDINGS F6 to F12). Five of them (F8 to F12)
+   were positive mutants: the mutant was more correct than the code.
 
 ### What is left
 
@@ -93,6 +98,7 @@ Counts are after this change (X25519, IPFS and the event-space audit moved to BE
 
 Reproduce: `python3 tests/harness/tiers.py props` (tests),
 `python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only lpres,oseq --phase both` (scores),
+`python3 tests/harness/mutator/classify.py --results OUT` (survivor classes),
 `ZXV_BOOT_DENY_FAIL=1 build_system/ci_boot_check.sh arm64 build_system/Makefile.arm64 30 "[AI_OK]"` (boot).
 
 ## Inventory

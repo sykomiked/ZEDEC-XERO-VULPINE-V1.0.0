@@ -90,6 +90,20 @@ static void test_logic(void)
     CHECK(lpres_conjoin(B, N) == N && lpres_disjoin(B, N) == B,
           "the documented deviation: B and N meet at N, join at B");
     CHECK(lpres_negate((lpres_state_t)7) == N, "an out-of-range state negates to NEITHER");
+    /* closure: whatever the inputs, the result is one of the four states, and
+     * a value outside them reads as NEITHER, as in negation */
+    for (int a = 0; a < 9; a++)
+        for (int b = 0; b < 9; b++) {
+            lpres_state_t x = (lpres_state_t)a, y = (lpres_state_t)b;
+            lpres_state_t nx = a > 3 ? N : x, ny = b > 3 ? N : y;
+            CHECK(lpres_conjoin(x, y) == lpres_conjoin(nx, ny) && lpres_disjoin(x, y) == lpres_disjoin(nx, ny),
+                  "an out-of-range state is NEITHER to conjoin and disjoin");
+            CHECK((unsigned)lpres_conjoin(x, y) <= 3u && (unsigned)lpres_disjoin(x, y) <= 3u,
+                  "conjoin and disjoin are closed over the four states");
+        }
+    CHECK(lpres_conjoin(T, (lpres_state_t)5) == N && lpres_disjoin(F, (lpres_state_t)5) == N &&
+              lpres_conjoin((lpres_state_t)5, T) == N && lpres_disjoin((lpres_state_t)5, F) == N,
+          "the identities do not pass an out-of-range value through");
     CHECK(lpres_kjoin((lpres_state_t)4, T) == T, "kjoin keeps two bits");
     CHECK(strcmp(lpres_state_name(B), "both") == 0 && strcmp(lpres_state_name(N), "neither") == 0 &&
               strcmp(lpres_state_name(T), "true") == 0 && strcmp(lpres_state_name(F), "false") == 0 &&
@@ -271,6 +285,16 @@ static void test_registry_edges(void)
     lpres_get(&reg, 1)->positive_evidence = 0;
     lpres_get(&reg, 1)->negative_evidence = 0;
     CHECK(lpres_add_evidence(&reg, 1, false) && lpres_get(&reg, 1)->state == F, "N + negative = F");
+    /* evidence counts saturate instead of wrapping back to "nothing known" */
+    lpres_get(&reg, 1)->negative_evidence = UINT32_MAX;
+    CHECK(lpres_add_evidence(&reg, 1, false) && lpres_get(&reg, 1)->negative_evidence == UINT32_MAX &&
+              lpres_get(&reg, 1)->state == F,
+          "negative evidence at the ceiling stays FALSE");
+    lpres_get(&reg, 1)->negative_evidence = 0;
+    lpres_get(&reg, 1)->positive_evidence = UINT32_MAX;
+    CHECK(lpres_add_evidence(&reg, 1, true) && lpres_get(&reg, 1)->positive_evidence == UINT32_MAX &&
+              lpres_get(&reg, 1)->state == T,
+          "positive evidence at the ceiling stays TRUE");
 
     /* capacity */
     lpres_registry_init(&reg);

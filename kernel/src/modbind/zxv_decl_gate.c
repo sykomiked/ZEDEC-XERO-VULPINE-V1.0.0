@@ -210,19 +210,33 @@ static void gate_report_all(void)
  * grounds that a tolerance in a permission check is a vulnerability. */
 #define GATE_WEAK_NAMED 8u
 
+/* Distinct real-power magnitudes an edge can carry: four non-zero drive levels
+ * (1000, 750, 500, 250 permille) times seven distinct power factors (distance k
+ * and 13 - k give the same factor), plus zero. The table once held MB_PHASES
+ * (13) entries, and from the fourteenth distinct power on an edge was counted
+ * in `edges` but in no cut, so the sweep's last line read "13 of 14". */
+#define GATE_PW_MAX (4u * 7u + 1u)
+
 static void gate_power_readout(void)
 {
     uint32_t n = modbind_count();
     uint32_t kcnt[MB_PHASES];      /* edges at each phase distance 0..12      */
     uint32_t phcnt[MB_PHASES];     /* modules seated at each phase            */
-    uint32_t pw_val[MB_PHASES];    /* distinct real-power magnitudes present  */
-    uint32_t pw_cnt[MB_PHASES];
+    uint32_t pw_val[GATE_PW_MAX];  /* distinct real-power magnitudes present  */
+    uint32_t pw_cnt[GATE_PW_MAX];
     uint32_t npw = 0;
     uint32_t edges = 0, weakest = 0xFFFFFFFFu, phases_used = 0;
     uint32_t i, x, t;
     uint8_t  j, q;
 
-    for (i = 0; i < MB_PHASES; i++) { kcnt[i] = 0; phcnt[i] = 0; pw_val[i] = 0; pw_cnt[i] = 0; }
+    for (i = 0; i < MB_PHASES; i++) {
+        kcnt[i] = 0;
+        phcnt[i] = 0;
+    }
+    for (i = 0; i < GATE_PW_MAX; i++) {
+        pw_val[i] = 0;
+        pw_cnt[i] = 0;
+    }
 
     for (i = 0; i < n; i++) {
         const mb_module_t *m = modbind_get(i);
@@ -255,8 +269,12 @@ static void gate_power_readout(void)
                         kcnt[k]++;
                         if (mag < weakest) weakest = mag;
                         for (t = 0; t < npw; t++) if (pw_val[t] == mag) break;
-                        if (t == npw && npw < MB_PHASES) { pw_val[npw] = mag; pw_cnt[npw] = 0; npw++; }
-                        if (t < MB_PHASES) pw_cnt[t]++;
+                        if (t == npw && npw < GATE_PW_MAX) {
+                            pw_val[npw] = mag;
+                            pw_cnt[npw] = 0;
+                            npw++;
+                        }
+                        if (t < GATE_PW_MAX) pw_cnt[t]++;
                     }
                 }
             }
@@ -342,7 +360,7 @@ static void gate_power_readout(void)
      * offers. The breakpoints are the distinct powers present, not three round
      * numbers somebody liked -- so this answers "how many fail at 500" for the
      * 500 that actually exists in this graph rather than for an invented one.
-     * Selection sort over at most 13 values; no allocation, no 64-bit divide. */
+     * Selection sort over at most GATE_PW_MAX values; no allocation, no 64-bit divide. */
     {
         for (i = 0; i + 1 < npw; i++) {
             uint32_t lo = i;
