@@ -51,6 +51,18 @@ coffer	check transfer_ok amount=1,9007199254740991,0,5,5,5 after=0,0,0,-1,0,0 ro
 coffer	check transfer_ok amount=5,5 after=0,1000000000000000000 room=0,0 gap=0,0 = both
 coffer	check holdings balance=100,250,-50,0 = 300
 coffer	check holdings balance=9223372036854775807,0 = 9223372036854775807
+crown	check standing uptime=0,1,0,0,0 dropped=0,0,0,0,0 routing=0,0,1,0,0 audit=0,0,0,0,0 fraud=0,0,0,1,0 volume=0,0,0,0,0 stake=0,0,0,0,0 invalid=0,0,0,0,1 = true,false,false,false,false
+crown	check standing uptime=0,-1 dropped=0,0 routing=0,0 audit=0,0 fraud=0,0 volume=0,0 stake=0,0 invalid=0,0 = both
+crown	check allot units=7 weight=5,3,2 total=10 extra=1,0,0 = 4,2,1
+crown	check allot units=999999999 weight=333333333,333333333,333333332 total=999999998 extra=1,0,0 = 333333334,333333333,333333332
+crown	check allot units=0 weight=1,0 total=1 extra=0,0 = 0,0
+crown	check allot units=7 weight=5,3,2 total=9 extra=1,0,0 = both
+crown	check draw_at seed=42,42,42,42,42,0,999999999 members=5,5,5,5,5,999999,1 step=0,1,2,3,4,999998,0 = 2,0,3,1,4,999995,0
+crown	check draw_at seed=42,1000000000 members=5,5 step=0,0 = both
+crown	check pool_after opening=100 inflow=50,0,25 granted=120,30,25 = 30,0,0
+crown	check pool_after opening=0 inflow=0,999999999 granted=0,1 = 0,999999998
+crown	check vintner.sale_value bottles=0,40 price=2500,2500 = 0,100000
+crown	check gatehouse.use_ok asked=1,1 granted=1,0 revoked=0,0 = true,false
 flint	check cells pixels=0,7,8,1919,65535,65535 cell=8,8,8,8,1,256 = 0,0,1,239,65535,255
 flint	check cells pixels=800,65536 cell=8,8 = both
 flint	check cells pixels=800,800 cell=8,257 = both

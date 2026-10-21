@@ -1,0 +1,22 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# In good standing for a grant (crown_rules.h CW1), in Eve: grants.eval
+# answers the reason bits an appeal has not cleared, and each bit comes
+# here as its own flag, 1 set, 0 clear. The only record that fits is every
+# flag clear: no unappealed reason. A flag that is set, or no flag at all
+# (below 0 or above 1), does not fit: not in good standing. standing.sutra
+# refuses a flag below 0 where this answers no: held.
+eve crown
+clear = 0 .. 0
+
+reasons_left {
+  uptime: clear
+  dropped: clear
+  routing: clear
+  audit: clear
+  fraud: clear
+  volume: clear
+  stake: clear
+  invalid: clear
+}

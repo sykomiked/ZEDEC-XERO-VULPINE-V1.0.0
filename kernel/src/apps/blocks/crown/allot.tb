@@ -1,0 +1,38 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A whole number of units split by weight, largest remainder (crown_rules.h
+! CW2), in Trebago, from the units and the weights alone, as grants.h G3
+! splits a grant's barrels: each recipient gets floor(units * weight / w),
+! w the sum of the weights, and the units left over go one each to the
+! largest remainders, a tie to the earlier recipient, so the grants sum to
+! units exactly. allot.sutra takes total (w) and extra (each row's leftover
+! 1) from the model; this works both out again and refuses a total or an
+! extra that is not what the weights give, where Sutra answers with them:
+! held. Trebago has no floor: y = units * weight / w is exact, and floor(y)
+! is counted three digits at a time, each digit the count of k = 1 to 999
+! with y >= k * step. For a y with denominator w,
+! min(1, max(0, min(1, max(-1, y - t)) * w + 1)) is 1 exactly when y >= t.
+! ok is 0 for units outside 0..999999999, a negative weight, or weights
+! summing to 0 or past 999999999 (every term then stays inside 64 bits),
+! and the grant is divided by it: a division by zero, refused.
+trebago allot
+  in  units, weight(n), total, extra(n)
+  out allot(n)
+  var y(n), a(n), b(n), c(n), q(n), r(n), rank(n), ex(n), w, ok
+  w = sum(i, weight(i))
+  ok = min(1, max(0, units + 1)) * min(1, max(0, 999999999 - units + 1)) * min(1, max(0, w)) &
+     * min(1, max(0, 999999999 - w + 1)) * (1 - min(1, sum(i, min(1, max(0, 0 - weight(i))))))
+  y(i) = units * weight(i) / max(1, w)
+  a(i) = sum(k = 1:999, min(1, max(0, min(1, max(-1, y(i) - k * 1000000)) * w + 1)))
+  y(i) = y(i) - a(i) * 1000000
+  b(i) = sum(k = 1:999, min(1, max(0, min(1, max(-1, y(i) - k * 1000)) * w + 1)))
+  y(i) = y(i) - b(i) * 1000
+  c(i) = sum(k = 1:999, min(1, max(0, min(1, max(-1, y(i) - k)) * w + 1)))
+  r(i) = (y(i) - c(i)) * w
+  q(i) = 1000000 * a(i) + 1000 * b(i) + c(i)
+  rank(i) = sum(j, min(1, max(0, r(j) - r(i))) + (1 - min(1, abs(r(j) - r(i)))) * min(1, max(0, i - j)))
+  ex(i) = min(1, max(0, units - sum(j, q(j)) - rank(i)))
+  ok = ok * (1 - min(1, abs(total - w))) * (1 - min(1, sum(i, abs(extra(i) - ex(i)))))
+  allot(i) = (q(i) + ex(i)) / ok
+end

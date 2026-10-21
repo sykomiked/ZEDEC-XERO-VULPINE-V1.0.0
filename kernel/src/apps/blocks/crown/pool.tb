@@ -1,0 +1,20 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The grant pool after each epoch (crown_rules.h CW4), in Trebago, one
+! epoch per row in order: opening + the running sum of (inflow - granted)
+! through that epoch, in integer minor units, exact. A grant is paid only
+! from the pool's balance (grants.h G3), so a pool that would go below 0 at
+! any epoch, or an opening, inflow or grant below 0, makes ok 0 and every
+! answer a division by zero: refused. A sum past 64 bits is refused by
+! Trebago itself, never wrapped.
+trebago pool
+  in  opening, inflow(n), granted(n)
+  out pool(n)
+  var p(n), bad
+  p(i) = scan(inflow(i) - granted(i))
+  p(i) = opening + p(i)
+  bad = min(1, max(0, 0 - opening) + sum(i, max(0, 0 - p(i)) + max(0, 0 - inflow(i)) &
+      + max(0, 0 - granted(i))))
+  pool(i) = p(i) / (1 - bad)
+end

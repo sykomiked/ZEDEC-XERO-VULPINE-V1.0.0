@@ -119,7 +119,11 @@
 #define ALX_SLOT_LOGIC_KITLING_MEMORY_OK         111u /* 490.53 kitling.memory_ok */
 #define ALX_SLOT_NUM_KITLING_STAGE               112u /* 590.48 kitling.stage */
 #define ALX_SLOT_NUM_KITLING_ZECK                113u /* 590.49 kitling.zeck */
-#define ALX_SLOT__COUNT 113u
+#define ALX_SLOT_NUM_CROWN_ALLOT                 114u /* 590.50 crown.allot */
+#define ALX_SLOT_NUM_CROWN_DRAW_AT               115u /* 590.51 crown.draw_at */
+#define ALX_SLOT_NUM_CROWN_POOL_AFTER            116u /* 590.52 crown.pool_after */
+#define ALX_SLOT_LOGIC_CROWN_STANDING            117u /* 490.54 crown.standing */
+#define ALX_SLOT__COUNT 117u
 /* clang-format on */
 
 #endif

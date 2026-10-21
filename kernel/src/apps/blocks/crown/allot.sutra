@@ -1,0 +1,24 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One recipient's grant of a whole number of units split by weight
+# (crown_rules.h CW2), in Sutra, one recipient per row: its floor,
+# units * weight / total truncated as COMPUTE does, plus extra, the 1 the
+# largest remainder gives it (0 when it gets none). The model works out
+# total (the sum of the weights) and extra (the leftover units go one each
+# to the largest remainders, a tie to the earlier recipient), and this
+# answers with what it is given; allot.tb works both out again from the weights
+# and refuses a total or an extra they do not give: held. units and the
+# total fit 9(9): past them, or below 0, a size error, refused; a total of
+# 0 divides by zero.
+record allotment
+  units: 9(9)
+  weight: 9(9)
+  total: 9(9)
+  extra: 9
+  floor: 9(9)
+  grant: 9(10)
+procedure
+  compute floor = units * weight / total
+  compute grant = floor + extra
+  answer grant

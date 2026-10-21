@@ -148,3 +148,7 @@
 111	logic.kitling_memory_ok	490.53	kitling.memory_ok	base
 112	num.kitling_stage	590.48	kitling.stage	base
 113	num.kitling_zeck	590.49	kitling.zeck	base
+114	num.crown_allot	590.50	crown.allot	base
+115	num.crown_draw_at	590.51	crown.draw_at	base
+116	num.crown_pool_after	590.52	crown.pool_after	base
+117	logic.crown_standing	490.54	crown.standing	base

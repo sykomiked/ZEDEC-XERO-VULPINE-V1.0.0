@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The draw order (crown_rules.h CW3), in Sutra, one place per row: the
+# member drawn at place step is (seed + step * 1000003) mod members, the
+# quotient truncated as COMPUTE does and what it leaves answered. room,
+# members - step - 1, is unsigned, so a step past the last member is a size
+# error, refused; members 0 divides by zero. The seed fits 9(9): a longer
+# published seed is refused here and answered by draw.tb: held.
+record draw-place
+  seed: 9(9)
+  members: 9(6)
+  step: 9(6)
+  room: 9(6)
+  turns: 9(13)
+  member: 9(6)
+procedure
+  compute room = members - step - 1
+  compute turns = (seed + step * 1000003) / members
+  compute member = seed + step * 1000003 - turns * members
+  answer member

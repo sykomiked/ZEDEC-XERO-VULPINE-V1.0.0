@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# In good standing for a grant (crown_rules.h CW1), in Sutra: every one of
+# the eight reason flags grants.eval leaves after appeals (uptime 1,
+# dropped 2, routing 4, audit 8, fraud 16, volume 32, stake 64, invalid
+# 128) is 0. Each flag fits one unsigned digit, so a flag below 0 is a
+# size error, refused, where standing.eve answers no: held.
+record reasons-left
+  uptime: 9
+  dropped: 9
+  routing: 9
+  audit: 9
+  fraud: 9
+  volume: 9
+  stake: 9
+  invalid: 9
+procedure
+  answer uptime = 0 and dropped = 0 and routing = 0 and audit = 0 and fraud = 0 and volume = 0 and stake = 0 and invalid = 0

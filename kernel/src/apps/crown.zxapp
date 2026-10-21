@@ -1,0 +1,102 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Crown, the Crown Allotment: layer 75 of the matrix. Mutual endowment and
+# allotment by sortition over zxvd's grant engine (grants.status,
+# grants.eval, grants.epoch, grants.pool_credit, grants.distribute,
+# grants.account; grants.setup, grants.account_open and grants.fund for
+# the sandbox). Every unit is a sandbox unit of the grant engine, never the
+# owner's money. An allotment is advice until the owner approves it: the
+# model proposes it and holds it, and only crown_approve sends
+# grants.distribute, and only while the owner has granted ledger.post and
+# not revoked it (gatehouse.use_ok, crown_model.h CM5).
+#
+# zxvd has no draw method: the draw order is worked out here from a
+# published seed (CW3), integer steps any member can check, and the seeded,
+# verifiable sortition draw a daemon would sign is missing from zxvd (not
+# invented). zxvd has no notification method either, so the model only
+# composes each notice's text.
+#
+# Two later layers lean on this one (Keystone 4, Serac 260), so its entries
+# are general rules owned here (CONCEPTS.tsv): good standing from reason
+# flags, a whole number split by weight with the largest remainder, a
+# seeded draw order and the pool after each epoch. Of the layers the task
+# names, Vintner (91) gives the grant's cost (barrels at a price,
+# vintner.sale_value) and Gatehouse (8) whether the owner lets Crown post
+# (gatehouse.use_ok); Ninefold (80) is not built yet, so it is not used.
+#
+# Witness pairs are of one kind. Eve answers truths only and checks each
+# field against its own range alone, so good standing comes as eight
+# flags, one per reason bit grants.eval leaves after appeals; the model's
+# C takes the bits apart (crown_rules.h CW1). Sutra runs one row at a time
+# and cannot see the other recipients, so the split takes the sum of the
+# weights and each row's largest-remainder 1 from the model, and Trebago
+# works both out again from the weights alone: a model that got them wrong
+# is held.
+#
+# Planned: Eiffel and Solidity own contracts, and good standing is the
+# allotment's contract with each member, so both wait on standing. Go runs
+# now and owns concurrency and messaging; Crown decides neither (its
+# notices are composed text, nothing is sent), so it has no Go block.
+#
+# Defaults taken (crown_model.h): the grant engine's own budget cap of 1/1
+# when the owner gives none (grants.status does not answer the cap).
+zxapp 1
+id     crown
+name   Crown
+version 1.0.0
+slot   75
+layer  L1
+matrix 75
+icon   icons/l1/075-crown.svg
+budget 233
+needs  ledger.read
+needs  ledger.post
+needs  notify
+model  apps/crown_model.c
+use    vintner 1     # @num.vintner_sale_value
+use    gatehouse 1   # @logic.gatehouse_use_ok
+
+# In good standing for a grant (CW1): no reason bit set that an appeal has
+# not cleared. Eve declares each flag 0..0; Sutra holds each to one
+# unsigned digit, so a flag below 0 is refused there and answered no by
+# Eve: held.
+provides standing truth uptime dropped routing audit fraud volume stake invalid
+logic    eve   standing apps/blocks/crown/standing.eve
+logic    sutra standing apps/blocks/crown/standing.sutra
+pending  Eiffel standing
+pending  Solidity standing
+
+# Each recipient's grant split by weight (CW2), largest remainder, summing
+# exactly to the units: Sutra from the model's total and extra, one row
+# each; Trebago from the weights alone, refusing a total or an extra the
+# weights do not give, which Sutra answers with: held.
+provides allot num units weight total extra
+logic    sutra   allot apps/blocks/crown/allot.sutra
+logic    trebago allot apps/blocks/crown/allot.tb
+
+# The member drawn at each place (CW3), from a published seed and the
+# member count: Trebago takes a seed of 12 digits, Sutra of 9: held past.
+provides draw_at num seed members step
+logic    trebago draw_at apps/blocks/crown/draw.tb
+logic    sutra   draw_at apps/blocks/crown/draw.sutra
+
+# The pool after each epoch (CW4), exact, in Trebago alone (the task's
+# pool and epoch totals); the model checks every pool grants.status and
+# grants.pool_credit answer against it.
+provides pool_after num opening inflow granted
+logic    trebago pool_after apps/blocks/crown/pool.tb
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check standing uptime=0,1,0,0,0 dropped=0,0,0,0,0 routing=0,0,1,0,0 audit=0,0,0,0,0 fraud=0,0,0,1,0 volume=0,0,0,0,0 stake=0,0,0,0,0 invalid=0,0,0,0,1 = true,false,false,false,false
+check standing uptime=0,-1 dropped=0,0 routing=0,0 audit=0,0 fraud=0,0 volume=0,0 stake=0,0 invalid=0,0 = both
+check allot units=7 weight=5,3,2 total=10 extra=1,0,0 = 4,2,1
+check allot units=999999999 weight=333333333,333333333,333333332 total=999999998 extra=1,0,0 = 333333334,333333333,333333332
+check allot units=0 weight=1,0 total=1 extra=0,0 = 0,0
+check allot units=7 weight=5,3,2 total=9 extra=1,0,0 = both
+check draw_at seed=42,42,42,42,42,0,999999999 members=5,5,5,5,5,999999,1 step=0,1,2,3,4,999998,0 = 2,0,3,1,4,999995,0
+check draw_at seed=42,1000000000 members=5,5 step=0,0 = both
+check pool_after opening=100 inflow=50,0,25 granted=120,30,25 = 30,0,0
+check pool_after opening=0 inflow=0,999999999 granted=0,1 = 0,999999998
+check vintner.sale_value bottles=0,40 price=2500,2500 = 0,100000
+check gatehouse.use_ok asked=1,1 granted=1,0 revoked=0,0 = true,false

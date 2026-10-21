@@ -1,0 +1,33 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The draw order (crown_rules.h CW3), in Trebago, one place per row: the
+! member (0 .. members - 1) drawn at place step of an allotment is
+! (seed + step * 1000003) mod members, from the published seed alone. 1000003
+! is a prime above every member count (at most 999999), so steps 0 to
+! members - 1 reach every member exactly once: an order anyone can check,
+! by integer steps only, no hashing. Trebago has no mod: x = seed +
+! step * 1000003 has floor(x / members) counted three digits at a time,
+! each digit the count of k = 1 to 999 with k * scale * members <= x,
+! which min(1, max(0, x - k * scale * members + 1)) is for integers; what
+! is left is the member. ok is 0 for a seed outside 0..999999999999, a
+! member count outside 1..999999 or a step outside 0..members - 1, and the
+! answer is divided by it: refused. draw.sutra holds the seed to 9(9):
+! a longer published seed is held.
+trebago draw
+  in  seed(n), members(n), step(n)
+  out member(n)
+  var x(n), a(n), b(n), c(n), d(n), ok(n)
+  ok(i) = min(1, max(0, seed(i) + 1)) * min(1, max(0, 999999999999 - seed(i) + 1)) &
+        * min(1, max(0, members(i))) * min(1, max(0, 999999 - members(i) + 1)) &
+        * min(1, max(0, step(i) + 1)) * min(1, max(0, members(i) - step(i)))
+  x(i) = seed(i) + step(i) * 1000003
+  a(i) = sum(k = 1:999, min(1, max(0, x(i) - k * 1000000000 * members(i) + 1)))
+  x(i) = x(i) - a(i) * 1000000000 * members(i)
+  b(i) = sum(k = 1:999, min(1, max(0, x(i) - k * 1000000 * members(i) + 1)))
+  x(i) = x(i) - b(i) * 1000000 * members(i)
+  c(i) = sum(k = 1:999, min(1, max(0, x(i) - k * 1000 * members(i) + 1)))
+  x(i) = x(i) - c(i) * 1000 * members(i)
+  d(i) = sum(k = 1:999, min(1, max(0, x(i) - k * members(i) + 1)))
+  member(i) = (x(i) - d(i) * members(i)) / ok(i)
+end
