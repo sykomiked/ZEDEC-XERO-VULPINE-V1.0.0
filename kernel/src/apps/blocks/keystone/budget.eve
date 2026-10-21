@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What one app's energy budget may hold (keystone_rules.h KS2), in Eve: a
+# rolling window of 1 to 86400000 ms (a day at most; 0 is power.budget's
+# clear, never a budget), the app's spend in that window of 1 to 999999999
+# millijoules, and the device's whole budget in the same window of 1 to
+# 999999999 millijoules. Eve holds each range on its own; that the app's
+# spend is no more than the whole is budget.kron's to say, so a spend past
+# the whole is held.
+eve keystone
+budget_window = 1 .. 86400000
+millijoules = 1 .. 999999999
+
+energy_budget {
+  window: budget_window
+  spend: millijoules
+  whole: millijoules
+}

@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a display, sound and text setting may hold (keystone_rules.h KS1),
+# in Eve: brightness and volume are percents, 0 to 100; the text size is a
+# percent of the normal size, 50 (half) to 400 (four times). Each value is
+# held to its own range; setting.kron says the same, and nothing relates
+# the three.
+eve keystone
+percent = 0 .. 100
+text_scale = 50 .. 400
+
+setting {
+  brightness: percent
+  volume: percent
+  textsize: text_scale
+}

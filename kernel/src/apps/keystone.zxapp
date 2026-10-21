@@ -1,0 +1,82 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Keystone, Settings: layer 4 of the matrix. The settings zxvd keeps and
+# can say, read and set only through methods it has (keystone_model.h):
+# the machine (sys.info), the Hoard (files.root), the model slot
+# (model.info), simple mode (ui.get, ui.set) and energy budgets per app
+# and for the device (power.budget). Budgets are advisory and
+# owner-confirmed: the model proposes a split and holds it, and only
+# keystone_apply, with the owner's word, sends power.budget.
+#
+# zxvd has no method for the display (brightness, scale), the sound
+# (volume, output), the keyboard, the language in use (xlate.languages
+# lists what detection knows, nothing selects one), the network
+# settings, sharing, or choosing a model (model.info only reads the slot);
+# the settings.* store SYSTEM_UTILITIES.md asks for is not in zxvd. None
+# is invented, and those settings are not kept here.
+#
+# One later layer leans on this one (Seedbank 33), and wave 20 apps use it
+# for setting limits and budget shares, so its entries are general rules
+# owned here (CONCEPTS.tsv): a setting's limits and an energy budget's.
+#
+#   setting_ok         brightness and volume 0..100 percent, the text
+#                      size 50..400 percent of normal, each on its own
+#                      (KS1), in Eve and KRON. They hold the same three
+#                      ranges with nothing between them, so no input makes
+#                      them disagree.
+#   energy_budget_ok   one app's energy budget (KS2): window 1..86400000
+#                      ms (0 is power.budget's clear, never a budget),
+#                      spend and whole 1..999999999 mJ. Eve holds each
+#                      range on its own; KRON also holds the spend inside
+#                      the whole, a relation across fields Eve cannot say:
+#                      a spend past the whole is held.
+#   crown.allot        the budget shares across apps (KS3): the device's
+#                      budget split by the owner's weights, largest
+#                      remainder, summing to the whole exactly. The
+#                      largest_remainder_split concept is Crown's, so it is
+#                      used, never written again. The task's "KRON +
+#                      Trebago" for it is not taken: Crown runs it in Sutra
+#                      and Trebago, and its owner keeps its languages.
+#
+# Of the layers the task names, Crown (75) gives the split. Hollow (2),
+# Talisman (76), Satchel (7) and Typecase (113) are built, but none has a
+# rule a setting needs: their entries are windows on a desk, thresholds of
+# trust, packages and fonts. They are not used.
+#
+# Defaults taken (keystone_rules.h): the task gives no numbers, and zxvd
+# keeps no limits for these settings, so the ranges above are Keystone's.
+# power.budget takes any window_ms and max_uj from 0; Keystone's are
+# inside them (a share is millijoules, sent as max_uj = share * 1000).
+zxapp 1
+id     keystone
+name   Keystone
+version 1.0.0
+slot   4
+layer  L1
+matrix 4
+icon   icons/l1/004-keystone.svg
+budget 233
+needs  sys.read
+needs  notify
+model  apps/keystone_model.c
+use    crown 1   # @num.crown_allot
+
+# A setting inside its limits (KS1), Eve and KRON.
+provides setting_ok truth brightness volume textsize
+logic    eve  setting_ok apps/blocks/keystone/setting.eve
+logic    kron setting_ok apps/blocks/keystone/setting.kron
+
+# One app's energy budget inside its limits and the device's (KS2), Eve and KRON.
+provides energy_budget_ok truth window spend whole
+logic    eve  energy_budget_ok apps/blocks/keystone/budget.eve
+logic    kron energy_budget_ok apps/blocks/keystone/budget.kron
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check setting_ok brightness=0,100,101,-1,50,50,50,50 volume=0,100,50,50,101,-1,50,50 textsize=50,400,100,100,100,100,49,401 = true,true,false,false,false,false,false,false
+# agree: setting_ok Eve and KRON hold the same three ranges, each on its own, with nothing relating them, so no integer input can split them
+check energy_budget_ok window=1,86400000,0,86400001,1000,1000,1000,1000 spend=1,999999999,5,5,0,1000000000,10,-1 whole=1,999999999,5,5,5,1000000000,10,0 = true,true,false,false,false,false,true,false
+check energy_budget_ok window=1000,1000 spend=5,10 whole=9,9 = both
+# The budget shares (KS3) through Crown's split, millijoules by weight.
+check crown.allot units=1000 weight=1,1,1 total=3 extra=1,0,0 = 334,333,333
+check crown.allot units=1000 weight=1,1,1 total=4 extra=1,0,0 = both

@@ -117,6 +117,11 @@ hollow	check dock_ok place=99,1,-99,100 app=999,5,1,1 pinned=9,1,1,1 added=99999
 keepsake	check removed snapshots=5,6,0 keep=5,5,3 = 0,1,0
 keepsake	check removed snapshots=1000000000 keep=1 = both
 keepsake	check keep_ok keep=0,1,4294967295 = false,true,true
+keystone	check setting_ok brightness=0,100,101,-1,50,50,50,50 volume=0,100,50,50,101,-1,50,50 textsize=50,400,100,100,100,100,49,401 = true,true,false,false,false,false,false,false
+keystone	check energy_budget_ok window=1,86400000,0,86400001,1000,1000,1000,1000 spend=1,999999999,5,5,0,1000000000,10,-1 whole=1,999999999,5,5,5,1000000000,10,0 = true,true,false,false,false,false,true,false
+keystone	check energy_budget_ok window=1000,1000 spend=5,10 whole=9,9 = both
+keystone	check crown.allot units=1000 weight=1,1,1 total=3 extra=1,0,0 = 334,333,333
+keystone	check crown.allot units=1000 weight=1,1,1 total=4 extra=1,0,0 = both
 kitling	check stage generation=0,1,2,4,5,12,13,33,34,4294967295 = 0,1,2,2,3,3,4,4,5,5
 kitling	check stage generation=0,4294967296 = both
 kitling	check stage generation=0,-1 = both

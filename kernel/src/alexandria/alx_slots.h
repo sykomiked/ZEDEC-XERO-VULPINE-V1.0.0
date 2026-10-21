@@ -123,7 +123,9 @@
 #define ALX_SLOT_NUM_CROWN_DRAW_AT               115u /* 590.51 crown.draw_at */
 #define ALX_SLOT_NUM_CROWN_POOL_AFTER            116u /* 590.52 crown.pool_after */
 #define ALX_SLOT_LOGIC_CROWN_STANDING            117u /* 490.54 crown.standing */
-#define ALX_SLOT__COUNT 117u
+#define ALX_SLOT_LOGIC_KEYSTONE_ENERGY_BUDGET_OK 118u /* 490.55 keystone.energy_budget_ok */
+#define ALX_SLOT_LOGIC_KEYSTONE_SETTING_OK       119u /* 490.56 keystone.setting_ok */
+#define ALX_SLOT__COUNT 119u
 /* clang-format on */
 
 #endif

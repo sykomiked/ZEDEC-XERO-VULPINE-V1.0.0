@@ -1,0 +1,1 @@
+(window>0)&(window<86400001)&(spend>0)&(spend<1000000000)&(whole>0)&(whole<1000000000)&spend<whole+1

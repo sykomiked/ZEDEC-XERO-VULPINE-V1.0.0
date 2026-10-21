@@ -152,3 +152,5 @@
 115	num.crown_draw_at	590.51	crown.draw_at	base
 116	num.crown_pool_after	590.52	crown.pool_after	base
 117	logic.crown_standing	490.54	crown.standing	base
+118	logic.keystone_energy_budget_ok	490.55	keystone.energy_budget_ok	base
+119	logic.keystone_setting_ok	490.56	keystone.setting_ok	base

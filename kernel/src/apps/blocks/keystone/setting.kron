@@ -1,0 +1,1 @@
+(brightness>-1)&(brightness<101)&(volume>-1)&(volume<101)&(textsize>49)&textsize<401
