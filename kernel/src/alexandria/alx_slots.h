@@ -109,7 +109,12 @@
 #define ALX_SLOT_NUM_LOCKBOX_DAYS_LEFT           101u /* 590.43 lockbox.days_left */
 #define ALX_SLOT_LOGIC_LOCKBOX_SECRET_OK         102u /* 490.48 lockbox.secret_ok */
 #define ALX_SLOT_NUM_LOCKBOX_STRENGTH            103u /* 590.44 lockbox.strength */
-#define ALX_SLOT__COUNT 103u
+#define ALX_SLOT_LOGIC_HALLOO_CALL_OK            104u /* 490.49 halloo.call_ok */
+#define ALX_SLOT_NUM_HALLOO_HMS                  105u /* 590.45 halloo.hms */
+#define ALX_SLOT_NUM_HALLOO_QUIET_LEFT           106u /* 590.46 halloo.quiet_left */
+#define ALX_SLOT_LOGIC_HALLOO_RING_OK            107u /* 490.50 halloo.ring_ok */
+#define ALX_SLOT_LOGIC_HALLOO_RING_WAIT_OK       108u /* 490.51 halloo.ring_wait_ok */
+#define ALX_SLOT__COUNT 108u
 /* clang-format on */
 
 #endif

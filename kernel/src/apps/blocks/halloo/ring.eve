@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# May this call ring now (halloo_rules.h HR2), in Eve: the caller is a
+# known contact (known 1), not blocked (blocked 0), and no quiet hours are
+# running (quiet 0: the minutes of quiet hours left, HR1). Eve checks each
+# field against its own range, so the quiet hours come in as HR1's count,
+# worked out by quiet.kron and quiet.rs. A flag that is no flag (2, or
+# below 0) is never read as yes here; ring.kron reads any known above 0 as
+# known and any quiet below 1 as none: such a call is held.
+eve halloo
+flag_yes = 1 .. 1
+flag_no = 0 .. 0
+none_left = 0 .. 0
+
+ring_now {
+  known: flag_yes
+  blocked: flag_no
+  quiet: none_left
+}

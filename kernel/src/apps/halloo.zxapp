@@ -1,0 +1,102 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Halloo, voice and video calls: layer 28 of the matrix. Place, answer and
+# end calls through zxvd's call group (call.start, call.accept,
+# call.hangup, call.status, call.signal), and keep a history of them.
+# zxvd does signalling only: media (capture, codecs, RTP) is the host's
+# job and is not wired (H5), so a connected call carries no sound yet.
+# The screen always says that Halloo cannot reach emergency services
+# (halloo_model.h HALLOO_NO_EMERGENCY). call.signal's messages are not
+# encrypted by zxvd, so the model relays them only when the caller says
+# the carrier is an encrypted session (halloo_model.h HM4).
+#
+# One later layer (Kindred, 44) leans on this one, and its layer leans on
+# no other, so the general rules here are owned here (CONCEPTS.tsv): the
+# minutes of quiet hours left, whether a call may ring now, and a length
+# as hours, minutes and seconds. Nothing nearer the core fits: the shared
+# blocks are capacities, shares, days and gcds, and almanac.hours is the
+# hours past a whole day, not a length's hours. Stillwater (144) owns a
+# minute inside a daily window as a truth, but it is built after this
+# layer, so it is not used (app_gate.py refuses a use that points
+# outward); quiet_left answers how long the quiet lasts, which a ringing
+# rule needs and quiet_now does not say.
+#
+# Witness pairs are of one kind (zxapp.c run_one B3). Eve answers truths
+# only and checks each field against its own range alone, so the task's
+# "known contact, not blocked, quiet hours as minutes of day" in Eve and
+# KRON is split: the quiet hours, a relation across three minutes, are
+# KRON and Rust (quiet_left, a number); the ring rule takes quiet_left's
+# answer as a field and is Eve and KRON (ring_ok). The model's C
+# (halloo_rules.h) is the third witness of each.
+#
+# zxvd ends ringing at 30 s (call_session.c ring_ms) and has no method to
+# change it; the owner's ring time (ring_wait_ok) may be shorter, never
+# longer, so the limit is 5000..30000 ms. Defaults taken: no quiet hours
+# until the owner sets them, a ring time of 30000 ms.
+#
+# Planned languages: Gleam (messaging, types) on ring_ok, whether a call
+# message may ring. Python already has a runtime (no pending line).
+# LabVIEW (dataflow, signal) owns instrument signals; Halloo's signal path
+# is media, which zxvd does not wire, so no entry fits it.
+zxapp 1
+id     halloo
+name   Halloo
+version 1.0.0
+slot   28
+layer  L1
+matrix 28
+icon   icons/l1/028-halloo.svg
+budget 233
+needs  peers
+needs  mic
+needs  camera
+needs  notify
+model  apps/halloo_model.c
+
+# Minutes of quiet hours left at a minute of the day (HR1): 1..1440
+# inside them, 0 outside. Rust traps on a minute outside 0..1439, KRON
+# answers it: held.
+provides quiet_left num opens closes now
+logic    kron quiet_left apps/blocks/halloo/quiet.kron
+logic    wasm quiet_left apps/blocks/halloo/quiet.wasm
+
+# May this call ring now (HR2): known, not blocked, no quiet hours left.
+# Eve declares each flag's one value, KRON reads above 0 as yes: a flag
+# that is no flag is held.
+provides ring_ok truth known blocked quiet
+logic    eve  ring_ok apps/blocks/halloo/ring.eve
+logic    kron ring_ok apps/blocks/halloo/ring.kron
+pending  Gleam ring_ok
+
+# How long a call may ring (HR3), a limit in Eve; the model's C checks it
+# again before keeping the owner's setting.
+provides ring_wait_ok truth ringms
+logic    eve ring_wait_ok apps/blocks/halloo/wait.eve
+
+# A call's length as h * 10000 + m * 100 + s (HR4): Sutra holds 9(10) ms,
+# KRON answers any: held past it or below 0.
+provides hms num ms
+logic    kron  hms apps/blocks/halloo/hms.kron
+logic    sutra hms apps/blocks/halloo/hms.sutra
+
+# A call fits its history record (HR5): MYRA holds the digits, Eve the
+# ranges; a direction, media or reason MYRA fits but Halloo does not know
+# is held.
+provides call_ok truth seq peer dir media reason ms stamp
+logic    myra call_ok apps/blocks/halloo/call.myra
+logic    eve  call_ok apps/blocks/halloo/call.eve
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check quiet_left opens=1320,1320,1320,1320,420,600,0,0 closes=420,420,420,420,1320,600,1,0 now=1320,1400,419,420,900,600,1,1439 = 540,460,1,0,420,1440,0,1
+check quiet_left opens=1320,1320 closes=420,420 now=0,-1 = both
+check quiet_left opens=1320,1440 closes=420,420 now=0,0 = both
+check ring_ok known=1,0,1,1,1,1 blocked=0,0,1,0,0,1 quiet=0,0,0,1,1440,0 = true,false,false,false,false,false
+check ring_ok known=1,2 blocked=0,0 quiet=0,0 = both
+check ring_ok known=1,1 blocked=0,0 quiet=0,-1 = both
+check ring_wait_ok ringms=5000,30000,4999,30001,0,-1 = true,true,false,false,false,false
+check hms ms=0,999,1000,3723000,86399999,9999999999 = 0,0,1,10203,235959,27774639
+check hms ms=1000,10000000000 = both
+check hms ms=1000,-1 = both
+check call_ok seq=1,999999999,1000000000,1,1 peer=1,4294967295,1,10000000000,1 dir=0,1,0,0,0 media=0,1,0,0,0 reason=0,10,0,0,0 ms=0,9999999999,0,0,0 stamp=0,9999999999999,0,0,10000000000000 = true,true,false,false,false
+check call_ok seq=1,1 peer=7,7 dir=1,2 media=0,0 reason=1,1 ms=60000,60000 stamp=1700000000000,1700000000000 = both

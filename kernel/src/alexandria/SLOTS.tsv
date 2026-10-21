@@ -138,3 +138,8 @@
 101	num.lockbox_days_left	590.43	lockbox.days_left	base
 102	logic.lockbox_secret_ok	490.48	lockbox.secret_ok	base
 103	num.lockbox_strength	590.44	lockbox.strength	base
+104	logic.halloo_call_ok	490.49	halloo.call_ok	base
+105	num.halloo_hms	590.45	halloo.hms	base
+106	num.halloo_quiet_left	590.46	halloo.quiet_left	base
+107	logic.halloo_ring_ok	490.50	halloo.ring_ok	base
+108	logic.halloo_ring_wait_ok	490.51	halloo.ring_wait_ok	base

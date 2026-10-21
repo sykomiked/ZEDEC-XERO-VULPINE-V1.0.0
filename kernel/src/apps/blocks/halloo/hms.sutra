@@ -1,0 +1,22 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A call's length in milliseconds as hours, minutes and seconds, written
+# h * 10000 + m * 100 + s (1:02:03 is 10203), whole seconds, the part
+# second dropped (halloo_rules.h HR4). ms fits 9(10), nearly 116 days;
+# a longer or negative length is refused here, while hms.kron answers it:
+# held.
+record call-length
+  ms: 9(10)
+  secs: 9(7)
+  hours: 9(4)
+  mins: 9(2)
+  rest: 9(2)
+  hms: 9(8)
+procedure
+  compute secs = ms / 1000
+  compute hours = secs / 3600
+  compute mins = (secs - hours * 3600) / 60
+  compute rest = secs - hours * 3600 - mins * 60
+  compute hms = hours * 10000 + mins * 100 + rest
+  answer hms

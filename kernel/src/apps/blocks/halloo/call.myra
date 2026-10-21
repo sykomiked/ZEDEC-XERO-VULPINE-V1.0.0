@@ -1,0 +1,10 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Halloo files one call in its history, in MYRA (halloo_rules.h HR5):
+; its number, the other node's member id, which way it went (0 in, 1 out),
+; its media (0 audio, 1 audio and video), how it ended (zxvd's end_reason,
+; 0 none to 10 cancelled), how long it was connected in ms, and when it
+; ended in ms since 1970. The rules say what the values may mean; this
+; says whether they make a record.
+^ZXHALLOO(seq:i9) = peer:i10! ^ dir:i1! ^ media:i1! ^ reason:i2! ^ ms:i10! ^ stamp:i13!

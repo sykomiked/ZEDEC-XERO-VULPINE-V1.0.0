@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# How long Halloo lets a call ring (halloo_rules.h HR3), in Eve: 5000 to
+# 30000 ms. zxvd ends ringing NO_ANSWER at 30 s (call_session.h, ring_ms)
+# and has no method to change it, so the owner's ring time may be shorter
+# but never longer; below 5 s a call rings out before a person can reach
+# the device. A limit only, in one language: the model's C
+# (halloo_ring_wait_ok) is its second reading.
+eve halloo
+ring_span = 5000 .. 30000
+
+ring_wait {
+  ringms: ring_span
+}

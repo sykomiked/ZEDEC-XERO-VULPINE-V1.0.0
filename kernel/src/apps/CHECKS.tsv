@@ -77,6 +77,18 @@ gleaner	check leave_ok personal=1,-1 consent=1,1 = both
 gleaner	check witness.kind_count kind=1,2,2,5,3 want=2 = 2
 gleaner	check witness.kind_count kind=1,2 want=1,1 = both
 glint	check item_ok folder=1 seq=1,2 kind=3,1000 size=5 = true,false
+halloo	check quiet_left opens=1320,1320,1320,1320,420,600,0,0 closes=420,420,420,420,1320,600,1,0 now=1320,1400,419,420,900,600,1,1439 = 540,460,1,0,420,1440,0,1
+halloo	check quiet_left opens=1320,1320 closes=420,420 now=0,-1 = both
+halloo	check quiet_left opens=1320,1440 closes=420,420 now=0,0 = both
+halloo	check ring_ok known=1,0,1,1,1,1 blocked=0,0,1,0,0,1 quiet=0,0,0,1,1440,0 = true,false,false,false,false,false
+halloo	check ring_ok known=1,2 blocked=0,0 quiet=0,0 = both
+halloo	check ring_ok known=1,1 blocked=0,0 quiet=0,-1 = both
+halloo	check ring_wait_ok ringms=5000,30000,4999,30001,0,-1 = true,true,false,false,false,false
+halloo	check hms ms=0,999,1000,3723000,86399999,9999999999 = 0,0,1,10203,235959,27774639
+halloo	check hms ms=1000,10000000000 = both
+halloo	check hms ms=1000,-1 = both
+halloo	check call_ok seq=1,999999999,1000000000,1,1 peer=1,4294967295,1,10000000000,1 dir=0,1,0,0,0 media=0,1,0,0,0 reason=0,10,0,0,0 ms=0,9999999999,0,0,0 stamp=0,9999999999999,0,0,10000000000000 = true,true,false,false,false
+halloo	check call_ok seq=1,1 peer=7,7 dir=1,2 media=0,0 reason=1,1 ms=60000,60000 stamp=1700000000000,1700000000000 = both
 hollow	check tile_cols windows=0,1,2,4,5,9,10,64 = 0,1,2,2,3,3,4,8
 hollow	check tile_cols windows=4,65 = both
 hollow	check tile_cols windows=4,-1 = both

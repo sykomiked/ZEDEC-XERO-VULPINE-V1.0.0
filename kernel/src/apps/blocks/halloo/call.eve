@@ -1,0 +1,28 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What one call in Halloo's history may say (halloo_rules.h HR5), in Eve:
+# a number from 1, a member id of 1 to 2^32 - 1 (call.start's peer), a
+# direction 0 or 1, a media 0 or 1, one of zxvd's eleven end reasons (0
+# none to 10 cancelled), a connected time of at most 10 digits of ms and
+# an end time of at most 13 digits of ms since 1970. call.myra holds only
+# the digits: a direction or media of 2 to 9, or a reason of 11 to 99,
+# fits MYRA but means nothing to Halloo: held.
+eve halloo
+call_no = 1 .. 999999999
+member = 1 .. 4294967295
+direction = 0 .. 1
+media_kind = 0 .. 1
+end_reason = 0 .. 10
+talk_ms = 0 .. 9999999999
+ended_at = 0 .. 9999999999999
+
+call_record {
+  seq: call_no
+  peer: member
+  dir: direction
+  media: media_kind
+  reason: end_reason
+  ms: talk_ms
+  stamp: ended_at
+}
