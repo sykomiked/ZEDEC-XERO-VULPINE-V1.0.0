@@ -137,6 +137,18 @@
  *       lets the last revealer pick between "reveal" and "withhold"; pair
  *       that with a forfeitable bond. A published future beacon value can be
  *       fed in as one more party whose secret is the beacon output.
+ *   R5  VRF beacon party (kernel/src/vrf, RFC 9381 ECVRF-EDWARDS25519-
+ *       SHA512-TAI, shared with the dispute juries). Before the first
+ *       ballot, allot_commit_vrf() registers a party by its public key; its
+ *       commitment slot holds SHA3-256("ZXV-ALLOT-VRF-PK" || epoch || party
+ *       || pk), so the header binds the key. After close, allot_reveal_vrf()
+ *       takes a proof pi over alpha = the epoch's header hash, which nobody
+ *       knows until the epoch closes; vrf_verify must accept it, and the
+ *       party's secret becomes SHA3-256("ZXV-ALLOT-VRF-BETA" || beta). A
+ *       VRF output is unique for (pk, alpha), so the key holder cannot
+ *       grind it by re-proving; like any party it can only withhold (R3).
+ *       allot_reveal() refuses a VRF party and allot_reveal_vrf() refuses a
+ *       secret party (ALLOT_ERR_PARTY).
  *   R4  No modulo bias. 64-bit draws x come from SHAKE256(seed, counter);
  *       x is rejected while x >= 2^64 - (2^64 mod T), then
  *       steward = x mod T, for T ballots.
@@ -226,6 +238,8 @@
 
 #define ALLOT_ID_LEN       32u
 #define ALLOT_HASH_LEN     32u
+#define ALLOT_VRF_PK       32u /* R5: VRF_PK_LEN */
+#define ALLOT_VRF_PROOF    80u /* R5: VRF_PROOF_LEN */
 #define ALLOT_MAX_PARTIES  16u
 #define ALLOT_FIB_MIN      2u  /* F(2)  = 1 ballot (tests)    */
 #define ALLOT_FIB_MAX      80u /* F(80) ~ 2.3e16 fee units */
@@ -365,6 +379,8 @@ typedef struct {
     uint8_t commit[ALLOT_MAX_PARTIES][ALLOT_HASH_LEN];
     uint8_t secret[ALLOT_MAX_PARTIES][ALLOT_HASH_LEN];
     bool revealed[ALLOT_MAX_PARTIES];
+    bool is_vrf[ALLOT_MAX_PARTIES];                  /* R5 */
+    uint8_t vrf_pk[ALLOT_MAX_PARTIES][ALLOT_VRF_PK]; /* R5 */
     allot_settlement_t last; /* valid once phase == ALLOT_SETTLED */
 } allot_t;
 
@@ -467,6 +483,16 @@ allot_status_t allot_free_entry(allot_t *r, const uint8_t owner[ALLOT_ID_LEN],
  * No ballot is minted. ALLOT_ERR_MODE outside FREE mode, ALLOT_ERR_DUST
  * for 0. */
 allot_status_t allot_endow(allot_t *r, const uint8_t source[ALLOT_ID_LEN], uint64_t amount);
+
+/* R5: register a VRF beacon party by its public key. Same phase rule as
+ * allot_commit (OPEN, no ballots yet). */
+allot_status_t allot_commit_vrf(allot_t *r, const uint8_t party[ALLOT_ID_LEN],
+                                const uint8_t pk[ALLOT_VRF_PK]);
+
+/* R5: reveal a VRF party with its proof over the header hash. Only while
+ * CLOSED. ALLOT_ERR_COMMIT when vrf_verify refuses the proof. */
+allot_status_t allot_reveal_vrf(allot_t *r, const uint8_t party[ALLOT_ID_LEN],
+                                const uint8_t pi[ALLOT_VRF_PROOF]);
 
 /* R2: reveal a party's secret. Only while CLOSED. */
 allot_status_t allot_reveal(allot_t *r, const uint8_t party[ALLOT_ID_LEN],
