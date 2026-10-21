@@ -94,6 +94,10 @@ energy_budget_limits	keystone.energy_budget_ok	energy_budget_ok,power_budget_ok,
 # an example rate, a local word. When a block owns the assurance fee, it goes
 # above as assurance_fee.
 #
+days_in_month	solstice.month_days	month_days,days_in_month,month_length,days_of_month	the days in a month of the proleptic Gregorian calendar, 28..31: 31 for months 1, 3, 5, 7, 8, 10, 12, 30 for 4, 6, 9, 11, February 29 in a year divisible by 4 except a century not divisible by 400, else 28; year 1..999999999999999999 and month 1..12, else refused; FORTRAN 77 and its Lingua IR keep 32-bit integers and refuse a year past 999999999, where BASIC answers (held)
+day_of_week	solstice.weekday	weekday,day_of_week,iso_weekday,weekday_of_date	the day of the week of a proleptic Gregorian date, 1 Monday..7 Sunday (ISO 8601), by Zeller's congruence; year 1..999999999999999999, month 1..12 and the day inside its month, else refused; FORTRAN 77 and its Lingua IR refuse a year past 999999999, where BASIC answers (held)
+next_occurrence	solstice.next_occurrence	next_occurrence,next_repeat,repeat_next,next_date,next_recurrence	the next date of an event repeating every `every` days from day `start`, seen on day `today`, all days since 1970-01-01: the first start + k * every (k >= 0) on or after today; start and today 0..2932896 (9999-12-31), every 1..2932896, anything else refused (C++ traps, KRON answers: held; an every of 0 refused by both)
+events_overlap	solstice.events_overlap	events_overlap,event_overlap,time_overlap,times_overlap,time_clash	whether two spans of time overlap, each from its start up to, not including, its finish (seconds since 1970), given as margins: aover (the first's finish minus the second's start) and bover (the second's finish minus the first's start) each 1..253402300799; a margin past that is no measurement and is held (Eve refuses, KRON reads any margin above 0 as overlapping)
 # Local words: a name each app may define for itself, because it means
 # something different in each (an app's own total, count or rule). A
 # local word never stands for a shared concept; when two apps need the

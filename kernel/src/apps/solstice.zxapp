@@ -1,0 +1,115 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Solstice, the calendar: layer 43 of the matrix. Events are files in the
+# Hoard, one each (Solstice/<n>.event), listed with files.list, read with
+# files.read, written with files.write (a new one with exclusive set, so
+# no event is written over) and put in the Trash with files.trash
+# (solstice_model.h SM1-SM5). The model says when each repeating event
+# next falls, which events overlap, what a month's page holds and which
+# notices are due.
+#
+# zxvd has no time-zone method and no method to post a notice, and none is
+# invented: times are kept in UTC (the view adds the owner's offset), and
+# the model only composes the notice text; the notify capability is
+# declared for the notice once zxvd has a method for it.
+#
+# An anchor of the matrix: its layer leans on no other layer's code yet.
+# The one idea nearer the core it needs is almanac's whole days from
+# seconds (an event's day is its start's), used, never written again.
+# treadle.next_run is a minute of the day that wraps at midnight, not a
+# day that repeats; hollow.shown counts the pixels two segments share, not
+# whether two times overlap. So the weekday, the days in a month, the next
+# occurrence and the overlap are general rules a later layer takes with
+# "use solstice 1", each a concept with Solstice as its owner
+# (CONCEPTS.tsv). The event record is Solstice's own.
+#
+# Witness pairs are of one kind, since a witnessed call compares answers
+# exactly. Eve answers truths only and checks each field against its own
+# range, so the overlap is given as two margins (the model works out each
+# event's finish minus the other's start), and Eve and KRON witness it.
+#
+# Kept in C, since no runnable language owns calendar conversion: a day
+# number from a date and back (solstice_rules.h), and the notice text.
+#
+# Planned languages with no entry of their kind here: Raku (parse, text),
+# TeX (typesetting) and PostScript (layout). Solstice parses no grammar in
+# a block and typesets or lays out no page (the view draws the month), so
+# there is no pending line.
+zxapp 1
+id     solstice
+name   Solstice
+version 1.0.0
+slot   43
+layer  L1
+matrix 43
+icon   icons/l1/043-solstice.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  notify
+model  apps/solstice_model.c
+use    almanac 1   # @time.almanac_days
+
+# The days in a month (SO1). FORTRAN 77, twin Reckonwyrm, and the same
+# program as Lingua IR keep 32-bit integers, so they hold a year of nine
+# digits; BASIC, twin Hatchling, holds eighteen as the C does: a year past
+# nine digits is held. A Lingua block reads one row per call (zxapp_lingua.c
+# L1), so each check line has one row. The lines name the runtimes, since
+# the Alexandria index numbers runtimes, not twins.
+provides month_days num year month
+logic    fortran77 month_days apps/blocks/solstice/month_days.f
+logic    basic     month_days apps/blocks/solstice/month_days.bas
+logic    zlir      month_days apps/blocks/solstice/month_days.zlir
+
+# The day of the week of a date, 1 Monday .. 7 Sunday (SO2), the same three
+# with the same widths.
+provides weekday num year month day
+logic    fortran77 weekday apps/blocks/solstice/weekday.f
+logic    basic     weekday apps/blocks/solstice/weekday.bas
+logic    zlir      weekday apps/blocks/solstice/weekday.zlir
+
+# The next date of a repeating event (SO3), days since 1970: KRON and C++
+# (as WebAssembly); a day past 9999-12-31 is refused by C++ (a trap) and
+# answered by KRON: held.
+provides next_occurrence num start every today
+logic    kron next_occurrence apps/blocks/solstice/next_occurrence.kron
+logic    wasm next_occurrence apps/blocks/solstice/next_occurrence.wasm
+
+# Two events overlap (SO4): Eve holds each margin to the seconds up to the
+# last of year 9999, KRON reads any margin above 0: one past it is held.
+provides events_overlap truth aover bover
+logic    eve  events_overlap apps/blocks/solstice/overlap.eve
+logic    kron events_overlap apps/blocks/solstice/overlap.kron
+
+# An event makes a ^ZXEVENT record (SO5), in MYRA.
+provides event_ok truth event start finish every alarm
+logic    myra event_ok apps/blocks/solstice/event.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check month_days year=2023 month=1 = 31
+check month_days year=2023 month=2 = 28
+check month_days year=2024 month=2 = 29
+check month_days year=1900 month=2 = 28
+check month_days year=2000 month=2 = 29
+check month_days year=2023 month=4 = 30
+check month_days year=2023 month=8 = 31
+check month_days year=2023 month=9 = 30
+check month_days year=999999999 month=12 = 31
+check month_days year=1000000000 month=2 = both
+check weekday year=1 month=1 day=1 = 1
+check weekday year=1970 month=1 day=1 = 4
+check weekday year=2000 month=1 day=1 = 6
+check weekday year=2000 month=2 day=29 = 2
+check weekday year=2026 month=10 day=21 = 3
+check weekday year=2026 month=10 day=25 = 7
+check weekday year=9999 month=12 day=31 = 5
+check weekday year=999999999 month=12 day=31 = 5
+check weekday year=1000000000 month=1 day=1 = both
+check next_occurrence start=100,100,100,100,0,2932896,5 every=7,7,7,7,1,1,2932896 today=50,100,101,107,2932896,2932896,6 = 100,100,107,107,2932896,2932896,2932901
+check next_occurrence start=100,100 every=7,7 today=101,2932897 = both
+check events_overlap aover=1,0,3600,253402300799,-5,1 bover=1,5,3600,1,7,0 = true,false,true,true,false,false
+check events_overlap aover=1,253402300800 bover=1,1 = both
+check event_ok event=1,999999999,1000000000,1,1,1 start=0,999999999999,0,1000000000000,0,0 finish=1,999999999999,1,1,1,1 every=0,9999999,0,0,10000000,0 alarm=0,9999,0,0,0,10000 = true,true,false,false,false,false
+check almanac.days seconds=0,86399,86400,200000 = 0,0,1,2
+check almanac.days seconds=86400,-86401 = both

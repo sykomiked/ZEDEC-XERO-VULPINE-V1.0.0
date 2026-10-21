@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Two events overlap (solstice_rules.h SO4), in Eve. An event runs from its
+# start up to, not including, its finish, in seconds since 1970. Eve checks
+# each field against its own range, so the two events come as margins:
+# aover, how far the first event's finish lies past the second's start,
+# and bover, how far the second's finish lies past the first's start. They
+# overlap when both margins are at least one second. Every time is 0 ..
+# 253402300799 (the last second of year 9999), so a margin past that is no
+# measurement: Eve refuses it, while overlap.kron reads any margin above 0
+# as overlapping, and the call is held.
+eve solstice
+margin = 1 .. 253402300799
+
+events_overlap {
+  aover: margin
+  bover: margin
+}

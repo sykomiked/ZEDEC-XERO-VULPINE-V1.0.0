@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Solstice files an event, in MYRA: its number, its start and finish in
+; seconds since 1970 (twelve digits reach the last second of year 9999),
+; how many days apart it repeats (0: once) and how many minutes before its
+; start its notice is due. The model says what the values may mean
+; (solstice_rules.h SO5); this says whether they make a record.
+^ZXEVENT(event:i9) = start:i12! ^ finish:i12! ^ every:i7! ^ alarm:i4!

@@ -154,3 +154,8 @@
 117	logic.crown_standing	490.54	crown.standing	base
 118	logic.keystone_energy_budget_ok	490.55	keystone.energy_budget_ok	base
 119	logic.keystone_setting_ok	490.56	keystone.setting_ok	base
+120	logic.solstice_event_ok	490.57	solstice.event_ok	base
+121	logic.solstice_events_overlap	490.58	solstice.events_overlap	base
+122	num.solstice_month_days	590.53	solstice.month_days	base
+123	num.solstice_next_occurrence	590.54	solstice.next_occurrence	base
+124	num.solstice_weekday	590.55	solstice.weekday	base

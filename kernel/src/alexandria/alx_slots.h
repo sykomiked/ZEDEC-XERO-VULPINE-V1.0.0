@@ -125,7 +125,12 @@
 #define ALX_SLOT_LOGIC_CROWN_STANDING            117u /* 490.54 crown.standing */
 #define ALX_SLOT_LOGIC_KEYSTONE_ENERGY_BUDGET_OK 118u /* 490.55 keystone.energy_budget_ok */
 #define ALX_SLOT_LOGIC_KEYSTONE_SETTING_OK       119u /* 490.56 keystone.setting_ok */
-#define ALX_SLOT__COUNT 119u
+#define ALX_SLOT_LOGIC_SOLSTICE_EVENT_OK         120u /* 490.57 solstice.event_ok */
+#define ALX_SLOT_LOGIC_SOLSTICE_EVENTS_OVERLAP   121u /* 490.58 solstice.events_overlap */
+#define ALX_SLOT_NUM_SOLSTICE_MONTH_DAYS         122u /* 590.53 solstice.month_days */
+#define ALX_SLOT_NUM_SOLSTICE_NEXT_OCCURRENCE    123u /* 590.54 solstice.next_occurrence */
+#define ALX_SLOT_NUM_SOLSTICE_WEEKDAY            124u /* 590.55 solstice.weekday */
+#define ALX_SLOT__COUNT 124u
 /* clang-format on */
 
 #endif
