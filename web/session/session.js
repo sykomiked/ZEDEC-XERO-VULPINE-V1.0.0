@@ -43,7 +43,9 @@ const STEP_WORDS = {
     done : 'Done'
 };
 
-let worker = null, workerReady = null, pending = null;
+let worker = null, workerReady = null;
+let nextId = 0;
+const waiting = new Map(); // request id -> {resolve, reject}, for this worker
 let mode = 'seed';
 let did = '';
 let space = null;
@@ -63,60 +65,97 @@ function say(el, text, ok)
 
 async function manifestHash(path)
 {
-    const res = await fetch('../boot.json', {cache : 'no-cache'});
-    if (!res.ok) throw new Error(`boot.json: ${res.status} ${res.statusText}`);
-    const m = await res.json();
+    let m;
+    try {
+        const res = await fetch('../boot.json', {cache : 'no-cache', signal : AbortSignal.timeout(30000)});
+        if (!res.ok) throw new Error(`boot.json: ${res.status} ${res.statusText}`);
+        m = await res.json();
+    } catch (err) {
+        if (err.name === 'TimeoutError') throw new Error('boot.json did not arrive within 30 s');
+        if (err instanceof SyntaxError) throw new Error('boot.json is not a whole manifest');
+        if (err instanceof TypeError) throw new Error(`boot.json could not be read (${err.message})`);
+        throw err;
+    }
     const e = (m.system || []).find((f) => f.path === path);
     if (!e || !e.sha256) throw new Error(`boot.json does not list ${path}`);
     return e.sha256;
 }
 
+// Every request to the worker has its own id and its own answer; a request
+// still waiting when the worker ends is refused, never left hanging.
+function failAll(err)
+{
+    for (const w of waiting.values()) w.reject(err);
+    waiting.clear();
+}
+
+function post(w, msg)
+{
+    const id = ++nextId;
+    return new Promise((resolve, reject) => {
+        waiting.set(id, {resolve, reject});
+        w.postMessage(Object.assign({id}, msg));
+    });
+}
+
 function startWorker()
 {
-    worker = new Worker('passport_worker.js');
-    workerReady = new Promise((resolve, reject) => {
-        worker.onmessage = (ev) => {
-            const m = ev.data;
-            if (m.op === 'ready') return resolve();
-            if (m.op === 'error' && m.where === 'start') return reject(new Error(m.message || 'the passport did not start'));
-            onWorker(m);
-        };
-        worker.onerror = (ev) => {
-            ev.preventDefault();
-            const err = new Error(ev.message || 'the passport stopped');
-            reject(err);
-            if (pending) pending.reject(err);
-            pending = null;
-        };
+    const w = new Worker('passport_worker.js');
+    worker = w;
+    w.onmessage = (ev) => {
+        if (w !== worker) return; // a worker already ended
+        const m = ev.data || {};
+        if (m.op === 'step') return onStep(m);
+        const p = waiting.get(m.id);
+        if (!p) return;
+        waiting.delete(m.id);
+        if (m.op === 'error' && m.message) p.reject(new Error(m.message));
+        else p.resolve(m);
+    };
+    w.onerror = (ev) => {
+        ev.preventDefault();
+        if (w === worker) failAll(new Error(ev.message || 'the passport stopped'));
+    };
+    workerReady = manifestHash('session/zxv_passport.wasm').then((sha256) => post(w, {op : 'start', sha256})).then((m) => {
+        if (m.op !== 'ready') throw new Error(m.message || 'the passport did not start');
     });
-    manifestHash('session/zxv_passport.wasm')
-        .then((sha256) => worker.postMessage({op : 'start', sha256}))
-        .catch((err) => worker.onmessage({data : {op : 'error', where : 'start', message : err.message}}));
     return workerReady;
 }
 
-function onWorker(m)
+function stopWorker()
 {
-    if (m.op === 'step') {
-        $('meter').classList.add('on');
-        $('bar').style.width = `${Math.round((100 * m.done) / m.of)}%`;
-        $('what').textContent = STEP_WORDS[m.label] || m.label;
-        $('what').classList.toggle('pulse', m.done < m.of);
-        return;
-    }
-    if (!pending) return;
-    const p = pending;
-    pending = null;
-    if (m.op === 'error' && m.message) p.reject(new Error(m.message));
-    else p.resolve(m);
+    if (worker) worker.terminate();
+    worker = null;
+    failAll(new Error('the passport was closed'));
+}
+
+function onStep(m)
+{
+    $('meter').classList.add('on');
+    $('bar').style.width = `${Math.round((100 * m.done) / m.of)}%`;
+    $('what').textContent = STEP_WORDS[m.label] || m.label;
+    $('what').classList.toggle('pulse', m.done < m.of);
 }
 
 function ask(msg)
 {
-    return workerReady.then(() => new Promise((resolve, reject) => {
-        pending = {resolve, reject};
-        worker.postMessage(msg);
-    }));
+    const w = worker;
+    return workerReady.then(() => post(w, msg));
+}
+
+// Seed text as people paste it: full-width letters, any kind of dash or
+// space, line breaks. The passport reads only ASCII with '-' and ' ' between
+// groups, so these become a space; anything else is left for it to refuse.
+// The engine keeps the subject of the last regular-expression match (the old
+// RegExp.input) for as long as no other match replaces it, which would keep
+// the seed alive in the page; a match on a constant replaces it at once.
+const SEED_GAPS = /[\s\u00ad\u2010-\u2015\u2212\ufe58\ufe63]+/g;
+const FORGET = /-/;
+function seedText(s)
+{
+    const t = String(s).normalize('NFKC').replace(SEED_GAPS, ' ').trim();
+    FORGET.exec('-');
+    return t;
 }
 
 function utf8len(s)
@@ -140,7 +179,7 @@ function loginWords(code, where)
     case PP.SIZE:
         return 'That is longer than any seed or passphrase.';
     case PP.WEAK:
-        return 'The passphrase is too short: it needs at least 16 characters.';
+        return 'The passphrase is too short: it needs at least 16 bytes (16 plain letters; accented letters and emoji count two to four each).';
     case PP.KDF:
         return 'This browser could not set aside the 64 MiB the passphrase stretch needs.';
     case PP.CRYPTO:
@@ -148,7 +187,8 @@ function loginWords(code, where)
     case PP.ARG:
         if (where === 'stretch' && (!handle || utf8len(handle) > 64))
             return 'Give a handle of 1 to 64 bytes: the name that keeps your passphrase apart from anyone else\'s.';
-        if (where === 'stretch' && utf8len(pass) > 256) return 'The passphrase is longer than 256 bytes.';
+        if (where === 'stretch' && utf8len(pass) > 256)
+            return `The passphrase is ${utf8len(pass)} bytes: it can be at most 256. Nothing was cut off; type a shorter one.`;
         if (where === 'seed' || where === 'confirm') return 'Type your seed first.';
         return 'The passport refused that input.';
     default:
@@ -198,7 +238,7 @@ async function enter()
     say($('why'), '');
     $('bar').style.width = '0%';
     const msg = mode === 'pass' ? {op : 'login', mode, handle : $('handle').value, pass : $('pass').value}
-                                : {op : 'login', mode, text : $(mode === 'new' ? 'confirm' : 'seed').value};
+                                : {op : 'login', mode, text : seedText($(mode === 'new' ? 'confirm' : 'seed').value)};
     try {
         const r = await ask(msg);
         if (r.op === 'did') {
@@ -222,6 +262,7 @@ async function enter()
 async function newSeed()
 {
     say($('why'), '');
+    $('make').disabled = true; // one seed at a time: the one shown is the one kept
     try {
         const r = await ask({op : 'seed_new'});
         if (r.op !== 'seed') throw new Error(loginWords(r.code, r.where));
@@ -232,6 +273,7 @@ async function newSeed()
     } catch (err) {
         say($('why'), `No seed was made: ${err.message}`);
     }
+    $('make').disabled = false;
 }
 
 async function signOut()
@@ -241,7 +283,7 @@ async function signOut()
     } catch (err) {
         // the worker is ended below either way
     }
-    worker.terminate();
+    stopWorker();
     did = '';
     newStage = 'make';
     delete document.body.dataset.did;
@@ -274,7 +316,12 @@ async function rpc(method, params)
         throw new Error(`zxvd refused this page (${why}). Open the page from the ZXV-WEB link zxvd printed, so it carries this launch's token.`);
     }
     if (!res.ok) throw new Error(`zxvd answered ${res.status} ${res.statusText}`);
-    const j = await res.json();
+    let j;
+    try {
+        j = await res.json();
+    } catch (err) {
+        throw new Error('zxvd stopped in the middle of its answer: is it still running?');
+    }
     if (j.error) throw new Error(`${method}: ${j.error.message}`);
     return j.result;
 }
