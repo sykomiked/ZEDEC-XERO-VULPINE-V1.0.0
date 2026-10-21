@@ -446,6 +446,20 @@ async function tabModelEntry()
     }
 }
 
+// A software GPU (the browser's fallback adapter, as on a server with no
+// graphics card) is never faster than the CPU engine, and measuring a whole
+// model on it takes minutes: such a tab runs on the CPU from the start.
+async function tabDevice()
+{
+    try {
+        const a = navigator.gpu && await navigator.gpu.requestAdapter();
+        if (!a || a.isFallbackAdapter || (a.info && a.info.isFallbackAdapter)) return 'cpu';
+    } catch (err) {
+        return 'cpu';
+    }
+    return 'auto';
+}
+
 const AI_PHASE = {fetch : 'Fetching the model', check : 'Checking it against its SHA-256', load : 'Loading it into this tab'};
 
 function loadTabAI()
@@ -459,7 +473,7 @@ function loadTabAI()
         const {openAI} = await import('../ai/zxv_ai.js');
         return openAI({
             model : Object.assign({}, tabModel, {base : new URL('../', location.href).href}),
-            device : 'auto',
+            device : await tabDevice(),
             onProgress : (bytes, total, phase) => {
                 const pct = total > 0 ? Math.min(100, Math.floor(bytes * 100 / total)) : 0;
                 $('ai-bar').style.width = `${pct}%`;
