@@ -143,3 +143,8 @@
 106	num.halloo_quiet_left	590.46	halloo.quiet_left	base
 107	logic.halloo_ring_ok	490.50	halloo.ring_ok	base
 108	logic.halloo_ring_wait_ok	490.51	halloo.ring_wait_ok	base
+109	num.kitling_gene_strength	590.47	kitling.gene_strength	base
+110	logic.kitling_grown	490.52	kitling.grown	base
+111	logic.kitling_memory_ok	490.53	kitling.memory_ok	base
+112	num.kitling_stage	590.48	kitling.stage	base
+113	num.kitling_zeck	590.49	kitling.zeck	base

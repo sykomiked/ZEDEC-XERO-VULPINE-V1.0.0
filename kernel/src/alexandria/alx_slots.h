@@ -114,7 +114,12 @@
 #define ALX_SLOT_NUM_HALLOO_QUIET_LEFT           106u /* 590.46 halloo.quiet_left */
 #define ALX_SLOT_LOGIC_HALLOO_RING_OK            107u /* 490.50 halloo.ring_ok */
 #define ALX_SLOT_LOGIC_HALLOO_RING_WAIT_OK       108u /* 490.51 halloo.ring_wait_ok */
-#define ALX_SLOT__COUNT 108u
+#define ALX_SLOT_NUM_KITLING_GENE_STRENGTH       109u /* 590.47 kitling.gene_strength */
+#define ALX_SLOT_LOGIC_KITLING_GROWN             110u /* 490.52 kitling.grown */
+#define ALX_SLOT_LOGIC_KITLING_MEMORY_OK         111u /* 490.53 kitling.memory_ok */
+#define ALX_SLOT_NUM_KITLING_STAGE               112u /* 590.48 kitling.stage */
+#define ALX_SLOT_NUM_KITLING_ZECK                113u /* 590.49 kitling.zeck */
+#define ALX_SLOT__COUNT 113u
 /* clang-format on */
 
 #endif

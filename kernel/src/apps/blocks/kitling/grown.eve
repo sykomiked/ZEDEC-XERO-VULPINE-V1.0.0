@@ -1,0 +1,13 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Is the companion grown (kitling_rules.h KR2), in Eve: its generation is
+# 5 or more, the grown stage 3 (KR1), and no more than 4294967295,
+# the most swarm_dna.h D5 keeps in 32 bits. grown.kron reads any
+# generation above 4 as grown: one past 32 bits is held.
+eve kitling
+grown_generation = 5 .. 4294967295
+
+companion_growth {
+  generation: grown_generation
+}

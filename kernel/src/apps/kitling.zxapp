@@ -1,0 +1,115 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Kitling, your Chiglet companion: layer 62 of the matrix. The companion
+# zxvd's swarm holds: its DNA (companion.dna: the seed, the 8 genes, the
+# traits they express, its parents and generation), its generation
+# (companion.generation), its feeling and the swarm's cycle mood
+# (companion.mood), talk (swarm.ask, under zxvd's tokens-per-cycle gate)
+# and the swarm's state (swarm.state, which carries the companion's
+# budget). Every talk is kept as a memory in the model, a bounded log that
+# refuses a new talk when full (kitling_model.h KM4).
+#
+# The companion never spends past the owner's budget and never moves
+# money: before each talk the model reads the companion's budget from
+# swarm.state and asks only when the cycle is open, the budget is not
+# exhausted, a whole answer's worth (max_per_answer) is left, and the
+# owner's own cap for the cycle still holds it (KM3); zxvd's gate holds
+# the same line on its side. The model calls no ledger, pay or market
+# method. zxvd has no notification method, so the model only composes the
+# notice text (KM5); none is invented.
+#
+# 9 later layers lean on this one, so its entries are general rules owned
+# here (CONCEPTS.tsv): a growth stage from a generation, whether a
+# generation is grown, a token amount in Zeckendorf form, a gene byte's
+# strength in permille and a companion memory record. Nothing nearer the
+# core fits them: the shared blocks are capacities, shares, days, gcds and
+# swarm shares. The used_share block owns a share of a capacity in use, and
+# the companion's budget used this cycle is one: it is used, never written
+# again. Treadle's run_within_budget is the idea of a run inside the
+# owner's budget, but Treadle comes after this layer in the build order
+# (app_gate.py refuses a use that points outward), so the model holds that
+# line in C and zxvd's gate holds it again.
+#
+# Witness pairs are of one kind, since a witnessed call compares answers
+# exactly and a truth entry refuses a number (zxapp.c run_one B3). Eve
+# answers truths only (zxapp_eve.c EV2), so the task's "Eve + KRON" for the
+# growth stage is split as Gatehouse splits its rule: Eve and KRON witness
+# whether the companion is grown (grown), Trebago and KRON the stage number
+# itself (stage), and the model's C is the third witness of both
+# (kitling_rules.h).
+#
+# The Zeckendorf form is FORTRAN 77 (twin Reckonwyrm), BASIC (twin
+# Hatchling) and the FORTRAN precompiled to Lingua IR (zxlang pack), each
+# witnessed against the C that follows swarm_denom.h D1 and D3, which the
+# model test checks against swarm_denom.c itself. A Lingua block reads one
+# amount per call (zxapp_lingua.c L1), so each check line has one row.
+#
+# Planned: Mojo owns numeric kernels for models and Clojure immutable data
+# transforms; the trait strengths, a vector of genes made into the model's
+# traits, are both, so they wait on them (pending). Occam owns channels and
+# parallel processes: Kitling decides nothing of that kind, so it has no
+# pending line.
+zxapp 1
+id     kitling
+name   Kitling
+version 1.0.0
+slot   62
+layer  L1
+matrix 62
+icon   icons/l1/062-kitling.svg
+budget 233
+needs  swarm
+needs  ai.ask
+needs  notify
+model  apps/kitling_model.c
+use    used_share 1   # @num.used_x100
+
+# The growth stage from the generation (KR1): Trebago answers -1 past a
+# 32-bit generation or below 0, as the C refuses; KRON counts the steps of
+# any integer: held there.
+provides stage num generation
+logic    trebago stage apps/blocks/kitling/stage.tb
+logic    kron    stage apps/blocks/kitling/stage.kron
+
+# Grown, the stage at 3 or more (KR2): Eve declares 5..4294967295, KRON
+# reads any generation above 4: one past 32 bits is held.
+provides grown truth generation
+logic    eve  grown apps/blocks/kitling/grown.eve
+logic    kron grown apps/blocks/kitling/grown.kron
+
+# A token amount in Zeckendorf form for display (KR3). FORTRAN 77, twin
+# Reckonwyrm, and the same program as Lingua IR keep 32-bit integers (31
+# tiers); BASIC, twin Hatchling, holds the 63 tiers below F(65). The lines
+# name the runtimes, since the Alexandria index numbers runtimes, not twins.
+provides zeck num charge
+logic    fortran77 zeck apps/blocks/kitling/zeck.f
+logic    basic     zeck apps/blocks/kitling/zeck.bas
+logic    zlir      zeck apps/blocks/kitling/zeck.zlir
+
+# Each gene byte's trait strength in permille (KR4), in KRON alone, as the
+# task asks; the model refuses a value that is no gene byte before calling.
+provides gene_strength num gene
+logic    kron gene_strength apps/blocks/kitling/strength.kron
+pending  Mojo gene_strength
+pending  Clojure gene_strength
+
+# A memory of a talk fits its record (KR5), in MYRA.
+provides memory_ok truth seq stamp emotion intensity tokens
+logic    myra memory_ok apps/blocks/kitling/memory.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check stage generation=0,1,2,4,5,12,13,33,34,4294967295 = 0,1,2,2,3,3,4,4,5,5
+check stage generation=0,4294967296 = both
+check stage generation=0,-1 = both
+check grown generation=0,4,5,34,4294967295,-1 = false,false,true,true,true,false
+check grown generation=5,4294967296 = both
+check zeck charge=0 = 0
+check zeck charge=12 = 21
+check zeck charge=100 = 532
+check zeck charge=3524577 = 1431655765
+check zeck charge=3524578 = both
+check gene_strength gene=0,1,127,128,254,255 = 0,4,498,502,996,1000
+check memory_ok seq=1,999999999,1000000000,1,1 stamp=0,999999999999999,0,1000000000000000,0 emotion=0,7,0,0,10 intensity=0,5,0,0,0 tokens=0,999999999,0,0,0 = true,true,false,false,false
+check used_share.used_x100 total=450,450,450,1 left=450,0,225,1 = 0,10000,5000,0
+check used_share.used_x100 total=450,450 left=0,451 = both

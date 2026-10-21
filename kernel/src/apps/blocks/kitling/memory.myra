@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Kitling files one memory of a talk with the companion, in MYRA
+; (kitling_rules.h KR5): its number, when it was (ms since 1970), the
+; companion's feeling then (swarm_emotion.h palette index) and its
+; intensity (0 .. 5), and the tokens the answer cost. Kitling asks whether
+; the numbers fit before it keeps them.
+^ZXKITLING(seq:i9) = stamp:i15! ^ emotion:i1! ^ intensity:i1! ^ tokens:i9!
