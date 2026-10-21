@@ -106,7 +106,10 @@
 #define ALX_SLOT_LOGIC_CARAVAN_FITS_OK           98u /* 490.46 caravan.fits_ok */
 #define ALX_SLOT_NUM_CARAVAN_GIRTH               99u /* 590.42 caravan.girth */
 #define ALX_SLOT_LOGIC_CARAVAN_SHIP_OK           100u /* 490.47 caravan.ship_ok */
-#define ALX_SLOT__COUNT 100u
+#define ALX_SLOT_NUM_LOCKBOX_DAYS_LEFT           101u /* 590.43 lockbox.days_left */
+#define ALX_SLOT_LOGIC_LOCKBOX_SECRET_OK         102u /* 490.48 lockbox.secret_ok */
+#define ALX_SLOT_NUM_LOCKBOX_STRENGTH            103u /* 590.44 lockbox.strength */
+#define ALX_SLOT__COUNT 103u
 /* clang-format on */
 
 #endif

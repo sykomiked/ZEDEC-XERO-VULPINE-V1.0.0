@@ -1,0 +1,28 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A saved password's strength, 0..100 (lockbox_rules.h LR1), in Sutra:
+# 3 points a byte up to 20 bytes, 10 a class of character up to 4 classes,
+# 5 taken away for every byte that repeats the one before it, never below
+# 0. Only counts come in, never the password. length and repeats fit 9(4)
+# and classes 9, so a negative count or one past its picture is refused.
+record strength
+  length: 9(4)
+  classes: 9
+  repeats: 9(4)
+  points: s9(6)
+procedure
+  compute points = length * 3
+  if length > 20
+    compute points = 60
+  end-if
+  if classes > 4
+    compute points = points + 40
+  else
+    compute points = points + classes * 10
+  end-if
+  compute points = points - repeats * 5
+  if points < 0
+    answer 0
+  end-if
+  answer points

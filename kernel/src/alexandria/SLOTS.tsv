@@ -135,3 +135,6 @@
 98	logic.caravan_fits_ok	490.46	caravan.fits_ok	base
 99	num.caravan_girth	590.42	caravan.girth	base
 100	logic.caravan_ship_ok	490.47	caravan.ship_ok	base
+101	num.lockbox_days_left	590.43	lockbox.days_left	base
+102	logic.lockbox_secret_ok	490.48	lockbox.secret_ok	base
+103	num.lockbox_strength	590.44	lockbox.strength	base

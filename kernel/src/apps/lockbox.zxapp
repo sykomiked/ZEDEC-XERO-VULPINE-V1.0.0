@@ -1,0 +1,66 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Lockbox, keys and passwords: the node's post-quantum identity keys (the
+# ML-DSA-87 signing key and the ML-KEM-1024 key, by their public ids from
+# fab.status), whether an air-gap seal check guards them (a sealed
+# hardware key), when each key expires, the saved passwords' strength,
+# and the books' seal (books.file, ledger.read). Security stays advice:
+# a weak password or a key near its expiry is a notice, and nothing is
+# kept until the owner confirms it (lockbox_model.h LB4).
+#
+# No secret byte enters the app: a saved password is a name and three
+# counts (length, classes of character, repeats), and the tests give
+# counts only. zxvd has no method to store a secret, to list keys with an
+# expiry, to seal a key to hardware or to post a notice, so the owner sets
+# each expiry, the items live in the model, and the notice is composed
+# for the view (lockbox_model.h LB2, LB3).
+#
+# A foundation of the matrix: three later layers lean on this one, and
+# later tasks call its strength score, its limits and its key expiry, so
+# each entry is general and registered in CONCEPTS.tsv with Lockbox as
+# owner. Nothing earlier fits. Coffer (the task's "use coffer 1") owns
+# money rules (a balance, a transfer allowed, holdings), and no key or
+# password rule is one of them, so Lockbox uses none of it. almanac.days
+# is days in a count of seconds, with no "never below 0" and no refusal
+# past year 9999; signpost.ttl_left is seconds. threshold.phrase_ok is
+# the same 12..1024 length band, but Threshold is further out in the
+# build order (place 29 against Lockbox's 23), so it may not be used
+# here; secret_ok adds the classes and repeats to it.
+zxapp 1
+id     lockbox
+name   Lockbox
+version 1.0.0
+slot   9
+layer  L1
+matrix 9
+icon   icons/l1/009-lockbox.svg
+budget 233
+needs  ledger.read
+needs  notify
+model  apps/lockbox_model.c
+
+# A saved password's strength, 0..100, from its length, classes of
+# character and repeats: Sutra holds its pictures (9(4), 9, 9(4)) and
+# refuses past them, KRON answers any integer; past them it is held.
+provides strength num length classes repeats
+logic    sutra strength apps/blocks/lockbox/strength.sutra
+logic    kron  strength apps/blocks/lockbox/strength.kron
+
+# Days left before a key expires, never below 0: C++ (WebAssembly) traps
+# outside 0..253402300799 seconds (year 9999), KRON answers: held.
+provides days_left num expires now
+logic    wasm days_left apps/blocks/lockbox/days_left.wasm
+logic    kron days_left apps/blocks/lockbox/days_left.kron
+
+# A saved password inside the limits: 12..1024 bytes, 1..4 classes and
+# 0..1023 repeats, each against its own range (Eve).
+provides secret_ok truth length classes repeats
+logic    eve secret_ok apps/blocks/lockbox/secret.eve
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check strength length=0,12,20,40,12 classes=0,2,4,9,1 repeats=0,1,0,0,20 = 0,51,100,100,0
+check strength length=12,10000 classes=3,3 repeats=0,0 = both
+check days_left expires=86400,172799,0,253402300799 now=0,0,86400,0 = 1,1,0,2932896
+check days_left expires=86400,-1 now=0,0 = both
+check secret_ok length=11,12,1024,1025 classes=1,1,4,4 repeats=0,0,1023,0 = false,true,true,false
