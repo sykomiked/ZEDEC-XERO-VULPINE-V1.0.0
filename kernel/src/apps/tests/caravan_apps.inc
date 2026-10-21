@@ -141,6 +141,32 @@ APPS_TEST(caravan)
     CHECK(caravan_route(&CV, 2, &r) == ZXM_OK && r.nopt == 1 && r.carrier[0] == 2 &&
               caravan_route(&CV, 9, &r) == ZXM_E_ARG && caravan_route(&CV, 1, NULL) == ZXM_E_ARG,
           "route: only the freight carrier takes the crate");
+
+    /* the advice (CM6): pce_strat's own entries answer the route question */
+    caravan_advice_t adv = {-7, -7};
+    before = sent;
+    CHECK(caravan_advise(&CV, 1, &adv) == ZXM_OK && adv.carrier == 1 &&
+              adv.agree == LPRES_STATE_TRUE && sent == before && CV.ship[0].carrier == 1,
+          "advice: the post is quicker either way, all three rules agree, nothing written");
+    CHECK(caravan_advise(&CV, 2, &adv) == ZXM_OK && adv.carrier == 2 &&
+              adv.agree == LPRES_STATE_TRUE,
+          "advice: one carrier fits the crate, the rules have one option");
+    {
+        /* a courier that is quicker at best and slower at worst than the post: the worst case
+         * (and the lower expected payoff) keep the post, least regret takes the courier */
+        static caravan_t X;
+        X = CV;
+        X.carrier[X.ncarriers++] = (caravan_carrier_t){3, 31500, 1200, 3000, 5000, 4, 80};
+        CHECK(caravan_advise(&X, 1, &adv) == ZXM_OK && adv.carrier == 1 &&
+                  adv.agree == LPRES_STATE_BOTH,
+              "advice: the rules split, BOTH, two of three for the post (%d %d)", adv.carrier,
+              adv.agree);
+        X.ncarriers = 1; /* the post alone cannot take the crate */
+        CHECK(caravan_advise(&X, 2, &adv) == ZXM_E_STATE &&
+                  caravan_advise(&CV, 9, &adv) == ZXM_E_ARG &&
+                  caravan_advise(&CV, 1, NULL) == ZXM_E_ARG,
+              "advice: none when nothing fits, no such shipment, nowhere to put it");
+    }
     before = sent;
     CHECK(caravan_choose(&CV, 1, 2, false) == ZXM_E_STATE && sent == before &&
               CV.ship[0].carrier == 1,

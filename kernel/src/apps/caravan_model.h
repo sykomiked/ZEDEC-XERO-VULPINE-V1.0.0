@@ -35,8 +35,12 @@
  *       (pce_entry.c strat_of): one option per carrier whose limits the
  *       parcel fits, its row of payoffs minus its quickest and minus its
  *       slowest transit in hours, both scenarios possible (lo 0, hi 1, den
- *       1). caravan_choose changes a drafted shipment's carrier only with
- *       the owner's confirmation.
+ *       1). caravan_advise asks the pce_strat block's own engine entries
+ *       (pce_entry.c strat.leader and strat.decide, the c logic of
+ *       pce_strat.leader and pce_strat.decide): the carrier most of its
+ *       three rules pick, and whether all three agree (TRUE) or split
+ *       (BOTH). That is advice only: caravan_choose changes a drafted
+ *       shipment's carrier only with the owner's confirmation.
  *   CM7 A shipment moves forward only: drafted, labelled, handed over, in
  *       transit, delivered; returned from handed over or in transit; its
  *       stamp never goes back. Only a drafted shipment is removed. */
@@ -105,6 +109,12 @@ typedef struct {
     int32_t carrier[CARAVAN_CARRIERS]; /* option k is carrier[k] */
 } caravan_route_t;
 
+/* CM6: pce_strat's answer to the route question, advice only. */
+typedef struct {
+    int32_t carrier; /* the carrier most of the three rules pick (strat.leader) */
+    int32_t agree;   /* strat.decide, lpres's code: TRUE all three pick it, BOTH they split */
+} caravan_advice_t;
+
 typedef struct {
     zxm_link_t *link;
     bool loaded; /* a load succeeded: changes may be written (CM4) */
@@ -147,6 +157,9 @@ int caravan_advance(caravan_t *c, int64_t id, int64_t status, int64_t stamp);
 int caravan_remove(caravan_t *c, int64_t id);
 /* The route question for a shipment (CM6); ZXM_E_STATE when no carrier fits. */
 int caravan_route(const caravan_t *c, int64_t id, caravan_route_t *r);
+/* pce_strat's advice on that question (CM6): ZXM_E_STATE when no carrier
+ * fits, ZXM_E_ARG for no such shipment or an answer the engine refused. */
+int caravan_advise(const caravan_t *c, int64_t id, caravan_advice_t *adv);
 /* The owner's choice of carrier for a drafted shipment (CM6). */
 int caravan_choose(caravan_t *c, int64_t id, int64_t carrier, bool confirmed);
 /* A shipment's notice text, in c->notice. */

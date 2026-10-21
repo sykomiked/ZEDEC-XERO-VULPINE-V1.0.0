@@ -19,16 +19,15 @@
 # and Gatehouse (8) and Assay (72) come after this layer in the build order,
 # so none of them is used; app_gate.py refuses a use that points outward.
 #
-# Route choice (task: "use pce_strat 1"): held, not used. The per-app
-# harness (test_zxapp.c test_apps_each) composes an app from the shared
-# blocks it registers, used_share and swarm_shares, and from other apps;
-# the pce_* blocks run on the C engines of kernel/src/pce, which only
-# test_zxapp_pce.c links, so an app that uses pce_strat never loads there
-# and the gate cannot pass it. The model builds the route question in
-# pce_strat's own contract instead (caravan_route: payoff a row per
-# carrier that fits, nopt, lo, hi, den; pce_entry.c strat_of), ready for
-# pce_strat.leader and pce_strat.decide once the harness registers them,
-# and the owner confirms the carrier (caravan_choose).
+# Route choice: pce_strat (the shared block on kernel/src/pce's strategy
+# engine, which both app harnesses register and link). The model puts the
+# route question in pce_strat's contract (caravan_route: payoff a row per
+# carrier that fits, minus its quickest and slowest hours, nopt, lo, hi,
+# den), and caravan_advise asks the block's own entries: leader, the
+# carrier most of the three rules pick, and decide, TRUE when all three
+# agree and BOTH when they split. That is advice only: the owner confirms
+# the carrier (caravan_choose, CM6). Only decide has a slot in the sealed
+# index (@strat.decide); leader is named here, without one.
 #
 # Witness pairs are of one kind, since a witnessed call compares answers
 # exactly and a truth entry refuses a number (zxapp.c run_one B3). Eve
@@ -63,6 +62,7 @@ needs  fs.write
 needs  location
 needs  notify
 model  apps/caravan_model.c
+use    pce_strat 1   # @strat.decide, and its leader
 
 # A parcel's charged weight in grams (CR1): the larger of its mass and
 # ceil(length * width * height / divisor). Trebago counts the ceiling
@@ -109,3 +109,8 @@ check fits_n massleft=0,999999999,-1,0,0,10 lengthleft=0,99999,0,-1,0,10 girthle
 check fits_n massleft=0,1000000000 lengthleft=0,0 girthleft=0,0 = both
 check ship_ok ship=1,999999,1000000,1 carrier=1,999,1,1 mass=0,999999999,0,1000000000 charged=0,999999999,0,0 status=0,5,0,0 stamp=0,9999999999,0,0 = true,true,false,false
 check ship_ok ship=1,1 carrier=1,1 mass=500,500 charged=1200,1200 status=0,7 stamp=1700000000,1700000000 = both
+# The route (CM6): post (24 to 72 h) against freight (48 to 240 h); then a
+# courier (4 to 80 h) the rules split on, two of three for the post
+check pce_strat.decide payoff=-24,-72,-48,-240 nopt=2 lo=0,0 hi=1,1 den=1 = true
+check pce_strat.leader payoff=-48,-240,-24,-72 nopt=2 lo=0,0 hi=1,1 den=1 = 1
+check pce_strat.leader payoff=-24,-72,-48,-240,-4,-80 nopt=3 lo=0,0 hi=1,1 den=1 = 0

@@ -12,6 +12,7 @@
 #include "zxapp_kron.h"
 #include "zxapp_lingua.h"
 #include "zxapp_myra.h"
+#include "zxapp_pce.h"
 #include "zxapp_sutra.h"
 #include "zxapp_trebago.h"
 #include "zxapp_wasm.h"
@@ -2060,6 +2061,49 @@ static void test_wave0(void)
     CHECK(len > 0 && zxapp_parse(&SHARES, sbuf, (uint32_t) len) == ZXAPP_OK &&
               zxapp_registry_add(&WREG, &SHARES) == ZXAPP_OK,
           "the swarm_shares block registers");
+    /* the decision engines as shared blocks (zxapp_pce.h): pce_prob, pce_strat and pce_fin
+     * register like used_share and swarm_shares, on the c runtime, so an app may use them */
+    static const char *const PCE_IDS[3] = {"pce_prob", "pce_strat", "pce_fin"};
+    static zxapp_t PCE[3], PLAN;
+    static char pbuf[3][4096];
+    CHECK(zxapp_pce_register(&H) == ZXAPP_OK && zxapp_host_has(&H, ZXAPP_LANG_C),
+          "the c runtime (kernel/src/pce) registers");
+    for (int i = 0; i < 3; i++) {
+        char path[ZXAPP_PATH_MAX];
+        snprintf(path, sizeof path, "apps/blocks/%s.zxblock", PCE_IDS[i]);
+        len = read_src(0, path, pbuf[i], sizeof pbuf[i]);
+        CHECK(len > 0 && zxapp_parse(&PCE[i], pbuf[i], (uint32_t) len) == ZXAPP_OK &&
+                  zxapp_registry_add(&WREG, &PCE[i]) == ZXAPP_OK,
+              "the %s block registers: %s", PCE_IDS[i], PCE[i].err);
+    }
+    {
+        /* and answers through the engines once an app uses all three */
+        static const char M[] = "zxapp 1\nid planner\nname Planner\n"
+                                "use pce_prob 1\nuse pce_strat 1\nuse pce_fin 1\n";
+        static const int64_t m[4] = {99, 1, 0, 0}, th[4] = {9, 10, 1, 2}, smin[2] = {100, 110},
+                             bmax[2] = {150, 140}, cf[2] = {-100, 110}, rn[2] = {0, 2},
+                             rd[2] = {1, 10};
+        zxapp_arg_t va[2] = {{"m", m, 4}, {"th", th, 4}};
+        zxapp_arg_t za[2] = {{"seller_min", smin, 2}, {"buyer_max", bmax, 2}};
+        zxapp_arg_t fa[3] = {{"cf", cf, 2}, {"rate_num", rn, 2}, {"rate_den", rd, 2}};
+        zxapp_num_t o[4];
+        uint32_t n = 0;
+        static zxapp_registry_t PR;
+        PR = WREG;
+        CHECK(zxapp_parse(&PLAN, M, (uint32_t) strlen(M)) == ZXAPP_OK &&
+                  zxapp_compose(&PLAN, &PR) == ZXAPP_OK && zxapp_load(&PLAN, &H) == 8,
+              "pce blocks: an app of all three loads its 8 entries: %s", PLAN.err);
+        CHECK(zxapp_call(&PLAN, &H, "pce_prob.verdict", va, 2, o, 4, &n) == ZXAPP_OK && n == 1 &&
+                  o[0].num == ZXAPP_TRUE && o[0].den == 0,
+              "pce_prob.verdict: 99%% for is TRUE: %s", PLAN.err);
+        CHECK(zxapp_call(&PLAN, &H, "pce_strat.zopa", za, 2, o, 4, &n) == ZXAPP_OK && n == 1 &&
+                  o[0].num == ZXAPP_TRUE && o[0].den == 0,
+              "pce_strat.zopa: a deal under every estimate is TRUE: %s", PLAN.err);
+        CHECK(zxapp_call(&PLAN, &H, "pce_fin.npv_sign", fa, 3, o, 4, &n) == ZXAPP_OK && n == 1 &&
+                  o[0].num == ZXAPP_BOTH && o[0].den == 0,
+              "pce_fin.npv_sign: the rate decides the sign, BOTH: %s", PLAN.err);
+        zxapp_unload(&PLAN, &H);
+    }
     for (int i = 0; i < NAPPS; i++) {
         int got = wave_app(&APP[i], buf[i], sizeof buf[i], apps[i].path);
         CHECK(got == apps[i].loaded, "%s: %d of %d entries load: %s", apps[i].path, got,

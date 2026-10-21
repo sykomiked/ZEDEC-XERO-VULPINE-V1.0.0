@@ -5,8 +5,82 @@
  * @num.caravan_fits_n, @logic.caravan_ship_ok. */
 #include "caravan_rules.h"
 
-APP_TEST(caravan, 10, 90)
+/* The route question's answer worked out by hand (caravan_model.h CM6): every
+ * option is one carrier, its payoffs minus its quickest and slowest hours, both
+ * scenarios possible. Any likelihood is allowed, so the lower expected payoff
+ * is the worst case: both rules take the least slowest hours; least regret
+ * takes the least of max(quick - best quick, slow - best slow). The leader is
+ * the two of three, decide TRUE when regret agrees and BOTH when it does not.
+ * -1 when a tie leaves the pick to a rule's tie-break (the caller skips it). */
+#define CARAVAN_ROUTE_OPTS 16u /* caravan_model.h CARAVAN_CARRIERS, pce_strat.h PCE_STRAT_OPTS */
+
+static int caravan_route_oracle(const int64_t *q, const int64_t *s, uint32_t n, int64_t *agree)
 {
+    int64_t qmin = q[0], smin = s[0];
+    for (uint32_t i = 1; i < n; i++) {
+        if (q[i] < qmin) qmin = q[i];
+        if (s[i] < smin) smin = s[i];
+    }
+    int worst = -1, regret = -1;
+    int64_t best_r = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        int64_t r = q[i] - qmin > s[i] - smin ? q[i] - qmin : s[i] - smin;
+        if (s[i] == smin) {
+            if (worst >= 0) return -1;
+            worst = (int) i;
+        }
+        if (regret < 0 || r < best_r) {
+            regret = (int) i;
+            best_r = r;
+        }
+    }
+    for (uint32_t i = 0; i < n; i++) {
+        int64_t r = q[i] - qmin > s[i] - smin ? q[i] - qmin : s[i] - smin;
+        if (r == best_r && (int) i != regret) return -1;
+    }
+    *agree = worst == regret ? ZXAPP_TRUE : ZXAPP_BOTH;
+    return worst;
+}
+
+APP_TEST(caravan, 13, 90)
+{
+    /* the route (CM6): the pce_strat block it uses, through the app, against the hand answer */
+    {
+        static const int64_t lo[2] = {0, 0}, hi[2] = {1, 1}, den[1] = {1};
+        int64_t q[CARAVAN_ROUTE_OPTS], s[CARAVAN_ROUTE_OPTS], pay[CARAVAN_ROUTE_OPTS * 2u], nopt[1];
+        uint32_t ran = 0, split = 0, bad = 0;
+        for (uint32_t k = 0; k < 400u; k++) {
+            uint32_t n = (uint32_t) wrand(1, CARAVAN_ROUTE_OPTS);
+            for (uint32_t i = 0; i < n; i++) {
+                q[i] = wrand(1, 500);
+                s[i] = wrand(q[i], 9999); /* caravan_model.h CARAVAN_HOURS_MAX */
+                pay[2 * i] = -q[i];
+                pay[2 * i + 1] = -s[i];
+            }
+            int64_t agree = 0;
+            int want = caravan_route_oracle(q, s, n, &agree);
+            if (want < 0) continue;
+            nopt[0] = n;
+            zxapp_arg_t ra[5] = {{"payoff", pay, 2 * n},
+                                 {"nopt", nopt, 1},
+                                 {"lo", lo, 2},
+                                 {"hi", hi, 2},
+                                 {"den", den, 1}};
+            zxapp_num_t o[2];
+            uint32_t got = 0;
+            bool ok = zxapp_call(app, &H, "pce_strat.leader", ra, 5, o, 2, &got) == ZXAPP_OK &&
+                      got == 1 && o[0].num == want && o[0].den == 1;
+            ok = ok && zxapp_call(app, &H, "pce_strat.decide", ra, 5, o, 2, &got) == ZXAPP_OK &&
+                 got == 1 && o[0].num == agree && o[0].den == 0;
+            bad += !ok;
+            ran++;
+            split += agree == ZXAPP_BOTH;
+        }
+        CHECK(!bad && ran > 200u && split > 20u,
+              "Caravan: pce_strat.leader and decide = the hand answer (%u of %u wrong, %u split)",
+              bad, ran, split);
+    }
+
     static int64_t a[WAVE_ROWS], b[WAVE_ROWS], c[WAVE_ROWS], d[WAVE_ROWS], e[WAVE_ROWS],
         f[WAVE_ROWS], want[WAVE_ROWS];
 

@@ -42,6 +42,9 @@ caravan	check fits_n massleft=0,999999999,-1,0,0,10 lengthleft=0,99999,0,-1,0,10
 caravan	check fits_n massleft=0,1000000000 lengthleft=0,0 girthleft=0,0 = both
 caravan	check ship_ok ship=1,999999,1000000,1 carrier=1,999,1,1 mass=0,999999999,0,1000000000 charged=0,999999999,0,0 status=0,5,0,0 stamp=0,9999999999,0,0 = true,true,false,false
 caravan	check ship_ok ship=1,1 carrier=1,1 mass=500,500 charged=1200,1200 status=0,7 stamp=1700000000,1700000000 = both
+caravan	check pce_strat.decide payoff=-24,-72,-48,-240 nopt=2 lo=0,0 hi=1,1 den=1 = true
+caravan	check pce_strat.leader payoff=-48,-240,-24,-72 nopt=2 lo=0,0 hi=1,1 den=1 = 1
+caravan	check pce_strat.leader payoff=-24,-72,-48,-240,-4,-80 nopt=3 lo=0,0 hi=1,1 den=1 = 0
 coffer	check balance before=0,100,-50,999999999999999998 moved=0,-100,25,1 = 0,0,-25,999999999999999999
 coffer	check balance before=1,1000000000000000000 moved=0,0 = both
 coffer	check transfer_ok amount=1,9007199254740991,0,5,5,5 after=0,0,0,-1,0,0 room=0,0,0,0,-1,0 gap=0,0,0,0,0,1 = true,true,false,false,false,false

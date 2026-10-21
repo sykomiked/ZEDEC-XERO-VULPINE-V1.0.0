@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "caravan_model.h"
+#include "../pce/pce_entry.h"
 
 /* ---- parcels and carriers (CR1-CR3) ----------------------------------------- */
 
@@ -515,6 +516,37 @@ int caravan_route(const caravan_t *c, int64_t id, caravan_route_t *r)
     r->lo[0] = r->lo[1] = 0;
     r->hi[0] = r->hi[1] = 1;
     r->den = 1;
+    return ZXM_OK;
+}
+
+/* One pce_strat entry ("strat.decide" or "strat.leader", the block's c logic) on a route. */
+static int strat_call(const caravan_route_t *r, const char *entry, pce_num_t *out)
+{
+    const pce_arg_t in[5] = {{"payoff", r->payoff, (uint32_t) r->nopt * 2u},
+                             {"nopt", &r->nopt, 1u},
+                             {"lo", r->lo, 2u},
+                             {"hi", r->hi, 2u},
+                             {"den", &r->den, 1u}};
+    uint32_t n = 0;
+    if (pce_entry_call(entry, in, 5u, out, 1u, &n) != PCE_OK || n != 1u) return ZXM_E_ARG;
+    return ZXM_OK;
+}
+
+int caravan_advise(const caravan_t *c, int64_t id, caravan_advice_t *adv)
+{
+    caravan_route_t r;
+    pce_num_t leader, agree;
+    if (!adv) return ZXM_E_ARG;
+    int rc = caravan_route(c, id, &r);
+    if (rc == ZXM_OK) rc = strat_call(&r, "strat.leader", &leader);
+    if (rc == ZXM_OK) rc = strat_call(&r, "strat.decide", &agree);
+    if (rc != ZXM_OK) return rc;
+    /* every option fits (caravan_route), so the rules always pick one */
+    if (leader.den != 1 || leader.num < 0 || leader.num >= r.nopt || agree.den != 0 ||
+        (agree.num != LPRES_STATE_TRUE && agree.num != LPRES_STATE_BOTH))
+        return ZXM_E_PROTOCOL;
+    adv->carrier = r.carrier[leader.num];
+    adv->agree = (int32_t) agree.num;
     return ZXM_OK;
 }
 

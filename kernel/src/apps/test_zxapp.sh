@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # test_zxapp.sh — build libzxv, the apl-kron, ada-eve, cobol-sutra, fortran-trebago and mumps-myra
-# pillars and the Z-Wasm kit (incrementally) and run test_zxapp.c: app manifests, and KRON, Eve,
+# pillars and the Z-Wasm kit (incrementally) and run test_zxapp.c: app manifests, the shared blocks
+# (the pce_* ones on the decision engines of kernel/src/pce), and KRON, Eve,
 # Sutra, Trebago, MYRA, WebAssembly and legacy (every Lingua language) app logic. Exits 3 when only the build failed.
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -28,8 +29,13 @@ for f in "$HERE"/tests/*_zxapp.inc; do
     ROWS="$ROWS APP_TEST_ROW($id)"
 done
 echo "#define APP_TESTS_ROWS$ROWS" >>"$T/app_tests.inc"
-"$CC" -std=c11 -O1 -Wall -Wextra -Werror ${CFLAGS:-} -DAPP_TESTS_INDEX="\"$T/app_tests.inc\"" -I"$HERE" -I"$R/kernel/include" -I"$R/kernel/src/modbind" -I"$R/sdk/pillars/apl-kron/include" -I"$R/sdk/pillars/ada-eve/include" -I"$R/sdk/pillars/cobol-sutra/include" -I"$R/sdk/pillars/fortran-trebago/include" -I"$R/sdk/pillars/mumps-myra/include" -I"$R/sdk/kits/z-wasm/include" -I"$R/sdk/kits/z-wasm/test" -I"$R/sdk/libzxv/include" \
+# the decision engines behind the pce_* blocks (kernel/Makefile PCE_SRCS): an app may use them
+PCE=""
+for f in pce pce_prob pce_tac pce_strat pce_fin pce_entry; do PCE="$PCE $HERE/../pce/$f.c"; done
+# shellcheck disable=SC2086 # PCE is a list of paths without spaces
+"$CC" -std=c11 -O1 -Wall -Wextra -Werror ${CFLAGS:-} -DAPP_TESTS_INDEX="\"$T/app_tests.inc\"" -I"$HERE" -I"$R/kernel/include" -I"$R/kernel/src/modbind" -I"$R/kernel/src/lpres" -I"$R/kernel/src/event_space" -I"$R/kernel/src/surplus" -I"$R/sdk/pillars/apl-kron/include" -I"$R/sdk/pillars/ada-eve/include" -I"$R/sdk/pillars/cobol-sutra/include" -I"$R/sdk/pillars/fortran-trebago/include" -I"$R/sdk/pillars/mumps-myra/include" -I"$R/sdk/kits/z-wasm/include" -I"$R/sdk/kits/z-wasm/test" -I"$R/sdk/libzxv/include" \
     "$HERE/test_zxapp.c" "$HERE/zxapp.c" "$HERE/zxwire.c" "$HERE/zxboard.c" "$HERE/zxapp_kron.c" "$HERE/zxapp_eve.c" "$HERE/zxapp_wasm.c" "$HERE/zxapp_sutra.c" "$HERE/zxapp_trebago.c" "$HERE/zxapp_myra.c" "$HERE/zxapp_lingua.c" "$HERE"/../lingua/zl_*.c "$HERE/../robin_debanks/sha256.c" \
+    "$HERE/zxapp_pce.c" $PCE "$HERE/../paradox/paradox.c" "$HERE/../lpres/lpres_hex.c" "$HERE/../lpres/lpres.c" "$HERE/../rational/rational.c" \
     "$R/sdk/pillars/apl-kron/build/libzkron.a" "$R/sdk/pillars/ada-eve/build/libzeve.a" "$R/sdk/kits/z-wasm/build/libzwasm.a" \
     "$R/sdk/pillars/cobol-sutra/build/libzsutra.a" "$R/sdk/pillars/fortran-trebago/build/libztrebago.a" "$R/sdk/pillars/mumps-myra/build/libzmyra.a" -L"$R/sdk/libzxv/build" -lzxv -Wl,-rpath,"$R/sdk/libzxv/build" -lpthread \
     -o "$T/test_zxapp" || exit 3
