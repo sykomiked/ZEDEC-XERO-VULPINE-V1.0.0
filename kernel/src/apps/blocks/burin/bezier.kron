@@ -1,0 +1,7 @@
+u:steps-step
+qa:(pa*u)+pb*step
+qb:(pb*u)+pc*step
+qc:(pc*u)+pd*step
+ra:(qa*u)+qb*step
+rb:(qb*u)+qc*step
+_((ra*u)+rb*step)%steps*steps*steps

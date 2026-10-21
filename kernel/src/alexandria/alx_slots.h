@@ -130,7 +130,12 @@
 #define ALX_SLOT_NUM_SOLSTICE_MONTH_DAYS         122u /* 590.53 solstice.month_days */
 #define ALX_SLOT_NUM_SOLSTICE_NEXT_OCCURRENCE    123u /* 590.54 solstice.next_occurrence */
 #define ALX_SLOT_NUM_SOLSTICE_WEEKDAY            124u /* 590.55 solstice.weekday */
-#define ALX_SLOT__COUNT 124u
+#define ALX_SLOT_NUM_BURIN_BEZIER_AT             125u /* 590.56 burin.bezier_at */
+#define ALX_SLOT_LOGIC_BURIN_DRAWING_RECORD_OK   126u /* 490.59 burin.drawing_record_ok */
+#define ALX_SLOT_NUM_BURIN_HATCH_GAP             127u /* 590.57 burin.hatch_gap */
+#define ALX_SLOT_NUM_BURIN_HATCH_LINES           128u /* 590.58 burin.hatch_lines */
+#define ALX_SLOT_LOGIC_BURIN_PATH_LIMITS_OK      129u /* 490.60 burin.path_limits_ok */
+#define ALX_SLOT__COUNT 129u
 /* clang-format on */
 
 #endif

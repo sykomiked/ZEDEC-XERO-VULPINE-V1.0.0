@@ -159,3 +159,8 @@
 122	num.solstice_month_days	590.53	solstice.month_days	base
 123	num.solstice_next_occurrence	590.54	solstice.next_occurrence	base
 124	num.solstice_weekday	590.55	solstice.weekday	base
+125	num.burin_bezier_at	590.56	burin.bezier_at	base
+126	logic.burin_drawing_record_ok	490.59	burin.drawing_record_ok	base
+127	num.burin_hatch_gap	590.57	burin.hatch_gap	base
+128	num.burin_hatch_lines	590.58	burin.hatch_lines	base
+129	logic.burin_path_limits_ok	490.60	burin.path_limits_ok	base

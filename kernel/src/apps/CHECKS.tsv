@@ -31,6 +31,16 @@ brazier	check heat_ok temp=-1,0,450,451,-2732 = false,true,true,false,false
 brazier	check heat_safe temp=-201,-200,600,601,250 = false,true,true,false,true
 brazier	check used_share.used_x100 total=50000,50000,50000,1 left=0,35700,50000,1 = 10000,2860,0,0
 brazier	check used_share.used_x100 total=50000,50000 left=0,50001 = both
+burin	check bezier_at pa=0,0,0,-1000000,0,0 pb=100,0,0,1000000,0,0 pc=200,0,0,1000000,100,0 pd=300,1,-1,1000000,100,1000000 step=1,1,1,0,1,1024 steps=3,2,2,1024,2,1024 = 100,0,-1,-1000000,50,1000000
+burin	check bezier_at pa=0,2000000 pb=0,0 pc=0,0 pd=0,0 step=1,1 steps=2,2 = both
+burin	check bezier_at pa=0,0 pb=0,0 pc=0,0 pd=8,8 step=1,1 steps=2,2000 = both
+burin	check hatch_lines span=0,1,100,99,101,9999999 gap=10,10,20,20,20,1 = 0,0,4,4,5,9999998
+burin	check hatch_lines span=100,-5 gap=20,20 = both
+burin	check hatch_lines span=100,10000000 gap=20,20 = both
+burin	check hatch_gap span=100,0,7,9999999 lines=4,1,2,9999 = 20,0,7/3,9999999/10000
+burin	check hatch_gap span=100,100 lines=4,0 = both
+burin	check path_limits_ok points=2,769,1,770,2,2,2,2,2 width=1,1000000,1,1,0,1000001,1,1,1 height=1,1000000,1,1,1,1,0,1,1 stroke=1,10000,1,1,1,1,1,0,10001 = true,true,false,false,false,false,false,false,false
+burin	check drawing_record_ok path=999999999,1000000000,0,0,0 points=999,1,1000,1,1 stroke=99999,1,1,100000,1 mtime=999999999999,1,1,1,1000000000000 = true,false,false,false,false
 caravan	check charged mass=0,500,500,999999999,0,0,1000 length=0,300,300,0,99999,1,400 width=0,200,200,0,99999,1,300 height=0,100,100,0,100,1,200 divisor=5000,5000,1,1,99999,1,6000 = 0,1200,6000000,999999999,9999900,1,4000
 caravan	check charged mass=500,500 length=300,100000 width=200,200 height=100,100 divisor=5000,5000 = both
 caravan	check charged mass=500,500 length=300,10000 width=200,10000 height=100,1000 divisor=5000,1 = both

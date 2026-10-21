@@ -1,0 +1,27 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! How many hatch lines a shape takes across a span at a spacing
+! (burin_rules.h BR2), in Trebago: lines at gap, 2 * gap, ... strictly
+! inside the span, so neither edge is cut twice: floor((span - 1) / gap),
+! and none for a span of 0. Trebago is exact and has no floor, so the
+! floor of x = span - 1 over gap is counted three digits at a time, each
+! digit the count of k = 1 to 999 with k * scale * gap <= x, which
+! min(1, max(0, x - k * scale * gap + 1)) is for integers. ok is 0 for a
+! span outside 0..9999999 or a gap outside 1..9999999 (hundredths of a
+! point), and the count is divided by it: refused, where hatch_lines.kron
+! answers: held.
+trebago hatch_lines
+  in  span(n), gap(n)
+  out lines(n)
+  var x(n), a(n), b(n), c(n), ok(n)
+  ok(i) = min(1, max(0, span(i) + 1)) * min(1, max(0, 9999999 - span(i) + 1)) &
+        * min(1, max(0, gap(i))) * min(1, max(0, 9999999 - gap(i) + 1))
+  x(i) = span(i) - 1
+  a(i) = sum(k = 1:999, min(1, max(0, x(i) - k * 1000000 * gap(i) + 1)))
+  x(i) = x(i) - a(i) * 1000000 * gap(i)
+  b(i) = sum(k = 1:999, min(1, max(0, x(i) - k * 1000 * gap(i) + 1)))
+  x(i) = x(i) - b(i) * 1000 * gap(i)
+  c(i) = sum(k = 1:999, min(1, max(0, x(i) - k * gap(i) + 1)))
+  lines(i) = (1000000 * a(i) + 1000 * b(i) + c(i)) / ok(i)
+end

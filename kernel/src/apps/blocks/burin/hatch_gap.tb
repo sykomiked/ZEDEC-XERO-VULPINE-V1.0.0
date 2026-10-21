@@ -1,0 +1,18 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The spacing that sets a number of hatch lines evenly across a span
+! (burin_rules.h BR3), in Trebago: span / (lines + 1), an exact reduced
+! rational, never rounded, so line k (1 .. lines) lies at k * span /
+! (lines + 1) and both edges are left uncut. ok is 0 for a span outside
+! 0..9999999 (hundredths of a point) or a count outside 1..9999, and the
+! spacing is divided by it: refused, where hatch_gap.kron answers (a count
+! of 0 is the whole span there): held.
+trebago hatch_gap
+  in  span(n), lines(n)
+  out gap(n)
+  var ok(n)
+  ok(i) = min(1, max(0, span(i) + 1)) * min(1, max(0, 9999999 - span(i) + 1)) &
+        * min(1, max(0, lines(i))) * min(1, max(0, 9999 - lines(i) + 1))
+  gap(i) = span(i) / (lines(i) + 1) / ok(i)
+end

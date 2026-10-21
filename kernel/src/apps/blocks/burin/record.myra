@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Burin files one path of a drawing in MYRA (burin_rules.h BR5): the
+; path's number, how many points it holds, its stroke width in hundredths
+; of a point and when the drawing was saved (Unix seconds). Burin asks
+; whether the numbers fit before it lists them.
+^ZXBURIN(path:i9) = points:i3! ^ stroke:i5! ^ mtime:i12!

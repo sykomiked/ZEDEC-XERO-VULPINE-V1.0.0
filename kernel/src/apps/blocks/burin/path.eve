@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What one Burin path may be (burin_rules.h BR4): 2 to 769 points (a start
+# and up to 256 segments, a cubic taking three), on a page 1 to 1000000
+# hundredths of a point on each side (10000 points, about 3.5 metres), cut
+# with a stroke 1 to 10000 hundredths of a point wide. Eve checks that each
+# value fits its range; rules across values stay in the model.
+eve burin
+point_count = 2 .. 769
+page_side = 1 .. 1000000
+stroke_width = 1 .. 10000
+
+drawing_path {
+  points: point_count
+  width: page_side
+  height: page_side
+  stroke: stroke_width
+}
