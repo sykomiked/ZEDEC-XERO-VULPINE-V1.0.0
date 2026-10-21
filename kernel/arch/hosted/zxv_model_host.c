@@ -137,10 +137,11 @@ static int open_model_file(const char *path, file_map_t *f, zt_gguf_t *g, zt_tok
     if (m != 0) {
         unmap_file(f);
         if (m == -2)
-            snprintf(I->status, sizeof I->status, "The model file %s is empty or not a regular file.",
-                     base_name(path));
+            snprintf(I->status, sizeof I->status,
+                     "The model file %s is empty or not a regular file.", base_name(path));
         else
-            snprintf(I->status, sizeof I->status, "Could not open the model file %s.", base_name(path));
+            snprintf(I->status, sizeof I->status, "Could not open the model file %s.",
+                     base_name(path));
         return -1;
     }
     int32_t r = zt_gguf_open(g, f->map, f->size);
