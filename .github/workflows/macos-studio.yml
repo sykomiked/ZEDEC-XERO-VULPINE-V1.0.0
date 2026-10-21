@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Build zxvd
         run: sh kernel/arch/hosted/build_zxvd.sh "$RUNNER_TEMP/zxvd"
       - name: swift test (unit + live daemon)
@@ -51,7 +51,7 @@ jobs:
     runs-on: macos-14
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Build zxvd
         run: sh kernel/arch/hosted/build_zxvd.sh "$RUNNER_TEMP/zxvd"
       - name: swift test (unit + live daemon)
@@ -71,7 +71,7 @@ jobs:
           "dist/ZXV Studio.app/Contents/MacOS/ZXVStudio" --smoke /tmp/zxs/run/zxvd.sock
           test ! -S /tmp/zxs/run/zxvd.sock
       - name: Upload the app
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: zxv-studio-macos
           path: dist/ZXV-Studio-*-macos.zip

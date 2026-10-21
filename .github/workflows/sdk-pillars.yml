@@ -150,7 +150,7 @@ jobs:
       fortran_trebago: ${{ steps.p.outputs.fortran_trebago }}
       mumps_myra: ${{ steps.p.outputs.mumps_myra }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: p
@@ -190,8 +190,8 @@ jobs:
       run:
         working-directory: sdk/pillars/${{ matrix.pillar }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: make -C ../../libzxv all
@@ -220,8 +220,8 @@ jobs:
       run:
         working-directory: sdk/pillars/${{ matrix.pillar }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: make -C ../../libzxv all
@@ -250,8 +250,8 @@ jobs:
       run:
         working-directory: sdk/pillars/cobol-sutra
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install GnuCOBOL
@@ -284,8 +284,8 @@ jobs:
       run:
         working-directory: sdk/pillars/fortran-trebago
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install gfortran (Ubuntu)
@@ -338,8 +338,8 @@ jobs:
       run:
         working-directory: sdk/pillars/fortran-trebago
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install gfortran
@@ -380,8 +380,8 @@ jobs:
       run:
         working-directory: sdk/pillars/ada-eve
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install GNAT (Ubuntu)
@@ -419,8 +419,8 @@ jobs:
       run:
         working-directory: sdk/pillars/ada-eve
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install GNAT
@@ -453,7 +453,7 @@ jobs:
       run:
         working-directory: sdk/pillars/ada-eve
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install GNAT
         run: |
           sudo apt-get update
@@ -488,8 +488,8 @@ jobs:
       run:
         working-directory: sdk/pillars/apl-kron
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: make -C ../../libzxv all
@@ -517,8 +517,8 @@ jobs:
       run:
         working-directory: sdk/pillars/apl-kron
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: make -C ../../libzxv all
@@ -550,8 +550,8 @@ jobs:
       NGNK_COMMIT: b9eeb91e0343ef6029f59d55dd98f82667b9bd59
       GNUAPL_SHA256: 24bbb744fce47e62837234a053bdeecee51b9ea61c82c79f7cc191bc6a54c0a1
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: make -C ../../libzxv all
@@ -619,8 +619,8 @@ jobs:
       run:
         working-directory: sdk/pillars/mumps-myra
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: make -C ../../libzxv all
@@ -648,8 +648,8 @@ jobs:
       run:
         working-directory: sdk/pillars/mumps-myra
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: make -C ../../libzxv all
@@ -678,8 +678,8 @@ jobs:
       run:
         working-directory: sdk/pillars/mumps-myra
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install GT.M (Ubuntu's fis-gtm package)
