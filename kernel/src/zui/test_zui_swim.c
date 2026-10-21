@@ -718,7 +718,8 @@ static void test_golden(void)
     zui_swim_draw(&A, &s, NULL, NULL, 0);
     for (int i = 0; i < W * H; i++) p = fnv(p, PX[i]);
     printf("  pixel digest %016llx\n", (unsigned long long) p);
-    CHECK(p == 0x03740105c70eb6a4ull, "SW8 the pixel digest is unchanged");
+    /* drawn with zui_tokens.h's contrast EDGE 0x568D6E and FAINT 0x6E9C80 */
+    CHECK(p == 0xdfd1ac9130fd4f2cull, "SW8 the pixel digest is unchanged");
     zui_motion_reset();
 }
 
