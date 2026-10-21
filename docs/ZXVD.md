@@ -56,6 +56,16 @@ served (`zxv_http_guard.h` G6). `tests/browser/test_browser.sh` drives it end
 to end in headless Chromium. `swarm.state`'s `companion.answered_by_model`
 says whether the model wrote the last answer, which the page shows beside it.
 
+The same root is the front of a sealed IPFS root. Its `index.html`
+(`web/entry`) reads `entry.json` (`tools/web/make_entry_json.py`, written
+last) and offers three ways in: Run here (the boot screen, `boot.html`, then
+the login and the companion with the model running in the tab through
+`web/ai`, named by `boot.json`'s `models` entry), Install (the disc images
+and scripts, this machine's first) and Run as a VM (`vm.json`'s discs and
+launchers, checked against its SHA-256). Without `entry.json`, or under
+zxvd, it opens the boot screen directly; a page that zxvd does not serve
+never calls `/api/rpc`. `tools/web/test_root_tools.py` checks the tools.
+
 ## The socket
 
 - JSON-RPC 2.0, one request per line, one response per line.

@@ -15,6 +15,13 @@
 //              record (swarm.state companion.answered_by_model and the tag);
 //              when no model wrote it, the page says so and why.
 //
+// Where no zxvd serves the page (the root opened from an IPFS gateway or any
+// static host), the page runs in this tab alone: one Home space, and the
+// companion is the model boot.json's models list names, run in the tab by
+// web/ai (zxv_ai.js), fetched and checked against its sha256 when the
+// companion opens, its reply streamed as it is written. The same model and
+// prompt give the same tokens and digest as the app and the golden disc.
+//
 // Every failure is shown in words where it happened. Nothing is invented.
 
 'use strict';
@@ -247,6 +254,9 @@ async function signOut()
     delete document.body.dataset.did;
     $('did').textContent = '';
     space = null;
+    $('prompt').value = '';
+    $('answer-text').textContent = '';
+    $('answer').classList.remove('on');
     $('meter').classList.remove('on');
     $('bar').style.width = '0%';
     startWorker().catch((err) => say($('why'), `The passport could not start: ${err.message}`));
@@ -257,6 +267,33 @@ async function signOut()
 // ---------- zxvd, through the window's /api/rpc ----------
 
 let rpcId = 0;
+
+// zxvd serves the root at /web/ and answers its own JSON-RPC there, or
+// refuses a page that lacks this launch's token (403). Anywhere else (a
+// gateway's /ipfs/<cid>/, any static host) nothing is asked: the tab is the
+// whole system.
+let host = null;
+async function probeHost()
+{
+    if (host) return host;
+    host = 'tab';
+    document.body.dataset.host = host;
+    if (!location.pathname.startsWith('/web/')) return host;
+    try {
+        const res = await fetch('/api/rpc', {
+            method : 'POST',
+            headers : {'Content-Type' : 'application/json'},
+            body : JSON.stringify({jsonrpc : '2.0', id : ++rpcId, method : 'model.info', params : {}})
+        });
+        if (res.status === 403) host = 'zxvd';
+        else if (res.ok && (await res.json().catch(() => ({}))).jsonrpc === '2.0') host = 'zxvd';
+    } catch (err) {
+        // nothing answers: this tab is the whole system
+    }
+    document.body.dataset.host = host;
+    return host;
+}
+
 async function rpc(method, params)
 {
     let res;
@@ -314,6 +351,12 @@ async function openSpaces()
     show('v-spaces');
     const box = $('spaces');
     box.textContent = '';
+    if (await probeHost() === 'tab') {
+        say($('spaces-why'), '');
+        const home = {id : 'home', kind : 'home', name : 'Home', role : 'owner', view : true, write : true};
+        box.append(tile('home', 'Home', 'in this browser', () => openSpace(home), 'space-home'));
+        return;
+    }
     say($('spaces-why'), 'Asking zxvd for your spaces.', true);
     try {
         const r = await rpc('spaces.list');
@@ -337,6 +380,14 @@ async function openSpace(s)
     apps.textContent = '';
     const rights = s.write ? 'see and change' : s.view ? 'see' : 'not see';
     say($('space-note'), `A ${s.kind} space. You are its ${s.role}: you can ${rights} what is in it.`, true);
+    if (host === 'tab') {
+        tabModel = await tabModelEntry();
+        model = tabModel ? {name : tabModel.name, can_generate : true} : null;
+        say($('space-note'), 'This space lives in this browser tab: nothing in it leaves the tab.', true);
+        apps.append(tile('companion', 'Companion', tabModel ? `${tabModel.name}, runs in this tab` : 'no model in this root',
+                         openCompanion, 'app-companion'));
+        return;
+    }
     try {
         model = await rpc('model.info');
     } catch (err) {
@@ -352,6 +403,20 @@ function openCompanion()
     show('v-ask');
     $('answer').classList.remove('on');
     say($('ask-why'), '');
+    if (host === 'tab') {
+        $('thinking').textContent = 'The companion is writing, in this tab.';
+        if (tabModel) {
+            $('model-line').textContent =
+                `${tabModel.name} (${tabModel.quant}, ${size(tabModel.bytes)}) answers in this tab. ` +
+                'Nothing you ask leaves it.';
+            loadTabAI().catch(() => {});
+        } else {
+            $('model-line').textContent = 'No model can answer here: this root\'s boot.json names none.';
+        }
+        $('ask').disabled = !tabModel || !$('prompt').value.trim();
+        $('prompt').focus();
+        return;
+    }
     if (model && model.can_generate)
         $('model-line').textContent = `${model.name} (${model.arch}) answers on this machine, within the companion's token budget.`;
     else
@@ -360,10 +425,109 @@ function openCompanion()
     $('prompt').focus();
 }
 
+// ---------- the model in this tab (web/ai) ----------
+
+let tabModel = null, tabAI = null, tabAILoading = null;
+
+function size(n)
+{
+    return n >= 1048576 ? `${Math.round(n / 1048576)} MiB` : `${Math.ceil(n / 1024)} KiB`;
+}
+
+async function tabModelEntry()
+{
+    try {
+        const res = await fetch('../boot.json', {cache : 'no-cache'});
+        const m = res.ok ? ((await res.json()).models || [])[0] : null;
+        if (!m || !m.path || !(m.bytes > 0) || !/^[0-9a-f]{64}$/.test(m.sha256 || '')) return null;
+        return m;
+    } catch (err) {
+        return null;
+    }
+}
+
+const AI_PHASE = {fetch : 'Fetching the model', check : 'Checking it against its SHA-256', load : 'Loading it into this tab'};
+
+function loadTabAI()
+{
+    if (tabAILoading) return tabAILoading;
+    const meter = $('ai-meter');
+    meter.classList.add('on');
+    $('ai-what').textContent = 'Starting the model\'s engine.';
+    $('ai-bar').style.width = '0';
+    tabAILoading = (async () => {
+        const {openAI} = await import('../ai/zxv_ai.js');
+        return openAI({
+            model : Object.assign({}, tabModel, {base : new URL('../', location.href).href}),
+            device : 'auto',
+            onProgress : (bytes, total, phase) => {
+                const pct = total > 0 ? Math.min(100, Math.floor(bytes * 100 / total)) : 0;
+                $('ai-bar').style.width = `${pct}%`;
+                $('ai-what').textContent = phase === 'fetch' ? `${AI_PHASE.fetch}: ${size(bytes)} of ${size(total)}` :
+                    (AI_PHASE[phase] || phase);
+            }
+        });
+    })();
+    tabAILoading.then((ai) => {
+        tabAI = ai;
+        meter.classList.remove('on');
+    }, (err) => {
+        tabAILoading = null;
+        meter.classList.remove('on');
+        say($('ask-why'), `The model could not start in this tab: ${err.message}`);
+    });
+    return tabAILoading;
+}
+
+const STOP_WORDS = {
+    eos : '',
+    max : ' It stopped at the reply\'s length limit.',
+    ctx : ' It stopped where the model\'s context ran out.',
+    abort : ' It was stopped.'
+};
+
+async function askInTab(prompt)
+{
+    const ai = tabAI || await loadTabAI();
+    const box = $('answer'), text = $('answer-text');
+    text.textContent = '';
+    $('answer-prov').textContent = '';
+    box.classList.remove('nomodel');
+    box.dataset.model = 'yes';
+    box.classList.add('on');
+    const r = await ai.generate(prompt, {
+        maxTokens : 256,
+        onToken : (t) => {
+            text.textContent += t;
+            text.scrollTop = text.scrollHeight;
+        }
+    });
+    text.textContent = r.text;
+    box.dataset.tokens = String(r.nGen);
+    box.dataset.digest = r.digest;
+    const on = ai.device === 'webgpu' ? 'the GPU (WebGPU)' : 'the CPU (WebAssembly)';
+    $('answer-prov').textContent = `Written by ${tabModel.name} in this tab on ${on}: ${r.nGen} tokens after a ` +
+        `${r.nPrompt}-token prompt, logits digest ${r.digest}.${STOP_WORDS[r.stopped] || ''}`;
+}
+
 async function askCompanion()
 {
     const prompt = $('prompt').value.trim();
     if (!prompt) return;
+    if (host === 'tab') {
+        if (!tabModel) return;
+        $('ask').disabled = true;
+        say($('ask-why'), '');
+        $('thinking').classList.add('on');
+        try {
+            await askInTab(prompt);
+        } catch (err) {
+            say($('ask-why'), err.message);
+        }
+        $('thinking').classList.remove('on');
+        $('ask').disabled = !$('prompt').value.trim();
+        return;
+    }
     $('ask').disabled = true;
     $('answer').classList.remove('on');
     say($('ask-why'), '');

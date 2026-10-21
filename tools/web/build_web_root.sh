@@ -2,11 +2,18 @@
 # Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 # SPDX-License-Identifier: Apache-2.0
 #
-# build_web_root.sh OUT [--brand DIR] — put together the browser surface that
-# zxvd serves at /web/ (zxvd --web-root OUT): the boot screen, then the
-# passport login, the spaces and the companion.
+# build_web_root.sh OUT [--brand DIR] [--ai DIR] [--model ENTRY.json] — put
+# together the browser surface: the root's front page, the boot screen, then
+# the passport login, the spaces and the companion. zxvd serves it at /web/
+# (zxvd --web-root OUT); a sealed root serves it from any gateway.
 #
-#   OUT/index.html boot.js zxv_boot.wasm     the boot screen (web/boot)
+#   OUT/index.html entry.js                  the front page (web/entry): Run
+#                                            here / Install / Run as a VM, from
+#                                            entry.json, which the root's
+#                                            builder writes last
+#                                            (make_entry_json.py); without one,
+#                                            or under zxvd, it opens boot.html
+#   OUT/boot.html boot.js zxv_boot.wasm      the boot screen (web/boot)
 #   OUT/brand/*-gold.zxvg                    the five logos, from --brand DIR
 #                                            (the gold brand SVGs; the crest is
 #                                            ascw-small.svg), else left out
@@ -17,9 +24,16 @@
 #                                            kernel/src/passport and ident
 #   OUT/session/ASCW-Golden-Latin2.ttf       the face the session draws in
 #   OUT/session/fox.svg                      the fox (kernel/src/zui/brand)
+#   OUT/ai/zxv_ai.js zxv_ai_worker.js zxv_ai_engine.js zxv_ai_engine.wasm
+#                                            the model in the tab (web/ai):
+#                                            from --ai DIR (sh web/ai/build.sh
+#                                            DIR), else built here when emcc is
+#                                            at hand, else left out (the
+#                                            companion then says so)
 #   OUT/boot.json                            every file the boot streams, with
 #                                            its size and SHA-256; next is the
-#                                            login
+#                                            login; models is the --model entry
+#                                            (the tab's companion runs it)
 #
 # The boot screen counts the session's own files as the system it loads, so
 # its bars move exactly as fast as the login really arrives, and a file that
@@ -34,23 +48,26 @@
 set -eu
 R=$(cd "$(dirname "$0")/../.." && pwd)
 K="$R/kernel"
-OUT=${1:?usage: build_web_root.sh OUT [--brand DIR]}
+USAGE="usage: build_web_root.sh OUT [--brand DIR] [--ai DIR] [--model ENTRY.json]"
+OUT=${1:?$USAGE}
 shift
-BRAND=""
+BRAND="" AI="" MODEL=""
 while [ $# -gt 0 ]; do
+    [ -n "${2:-}" ] || { echo "$1 needs a value; $USAGE" >&2; exit 2; }
     case "$1" in
-    --brand)
-        [ -n "${2:-}" ] || { echo "--brand needs a folder" >&2; exit 2; }
-        BRAND=$2
-        shift 2
-        ;;
-    *) echo "usage: build_web_root.sh OUT [--brand DIR]" >&2; exit 2 ;;
+    --brand) BRAND=$2 ;;
+    --ai) AI=$2 ;;
+    --model) MODEL=$2 ;;
+    *) echo "$USAGE" >&2; exit 2 ;;
     esac
+    shift 2
 done
 CLANG=${CLANG:-clang}
 mkdir -p "$OUT/session" "$OUT/brand"
 
-cp "$R/web/boot/index.html" "$R/web/boot/boot.js" "$R/web/boot/zxv_boot.wasm" "$OUT/"
+cp "$R/web/entry/index.html" "$R/web/entry/entry.js" "$OUT/"
+cp "$R/web/boot/index.html" "$OUT/boot.html"
+cp "$R/web/boot/boot.js" "$R/web/boot/zxv_boot.wasm" "$OUT/"
 cp "$R/web/session/index.html" "$R/web/session/session.js" "$R/web/session/passport_worker.js" \
     "$OUT/session/"
 cp "$R/assets/fonts/ascw-golden/ASCW-Golden-Latin2.ttf" "$R/kernel/src/zui/brand/fox.svg" \
@@ -90,8 +107,29 @@ if [ -n "$BRAND" ]; then
     done
 fi
 
+# the model in the tab
+AIFILES="zxv_ai.js zxv_ai_worker.js zxv_ai_engine.js zxv_ai_engine.wasm"
+if [ -z "$AI" ] && command -v emcc > /dev/null 2>&1; then
+    AI="$OUT/.ai-build"
+    sh "$R/web/ai/build.sh" "$AI"
+fi
+AISYS=""
+if [ -n "$AI" ]; then
+    mkdir -p "$OUT/ai"
+    for f in $AIFILES; do
+        [ -f "$AI/$f" ] || { echo "--ai $AI has no $f (build it with sh web/ai/build.sh)" >&2; exit 1; }
+        cp "$AI/$f" "$OUT/ai/"
+        AISYS="$AISYS ai/$f"
+    done
+    rm -rf "$OUT/.ai-build"
+else
+    echo "no --ai and no emcc: the root has no model engine, so the tab's companion cannot answer" >&2
+fi
+
 # Every file but the pages: zxvd puts the window's token plumbing into each
 # page it serves (zxv_host.c send_web), so a page never matches its file.
+# shellcheck disable=SC2086 # AISYS is a list of plain relative paths
 python3 "$R/tools/web/make_boot_manifest.py" "$OUT" --next session/index.html \
+    ${MODEL:+--model "$MODEL"} \
     session/session.js session/passport_worker.js \
-    session/zxv_passport.wasm session/ASCW-Golden-Latin2.ttf session/fox.svg
+    session/zxv_passport.wasm session/ASCW-Golden-Latin2.ttf session/fox.svg $AISYS

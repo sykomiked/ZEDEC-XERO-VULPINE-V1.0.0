@@ -1726,11 +1726,14 @@ test-passport:
 # natively against the same sources, checked export by export against the
 # passport itself; then the browser root with the glue built to wasm32
 # (tools/web/build_web_root.sh; wasm-ld refuses any symbol left undefined, so
-# the module imports nothing). Needs clang with the wasm32 target and wasm-ld.
+# the module imports nothing); then the root's front matter (entry.json and
+# boot.json's models, tools/web/test_root_tools.py). Needs clang with the
+# wasm32 target and wasm-ld.
 .PHONY: test-passport-wasm
 test-passport-wasm:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -DPW_HOST $(PASSPORT_INC) ../web/session/test_passport_wasm.c ../web/session/zxv_passport_wasm.c $(PASSPORT_SRCS) $(PASSPORT_DEPS) -o $(ZXV_TMP)/test_passport_wasm && ASAN_OPTIONS=detect_leaks=0 $(ZXV_TMP)/test_passport_wasm > $(ZXV_TMP)/test_passport_wasm.log 2>&1 && echo "[PASS] test_passport_wasm ($$(tail -1 $(ZXV_TMP)/test_passport_wasm.log))" || { cat $(ZXV_TMP)/test_passport_wasm.log; echo "[FAIL] test_passport_wasm"; exit 1; }
 	@rm -rf $(ZXV_TMP)/web_root && sh ../tools/web/build_web_root.sh $(ZXV_TMP)/web_root > $(ZXV_TMP)/web_root.log 2>&1 && echo "[PASS] browser root with zxv_passport.wasm ($$(wc -c < $(ZXV_TMP)/web_root/session/zxv_passport.wasm) bytes, no imports)" || { cat $(ZXV_TMP)/web_root.log; echo "[FAIL] browser root"; exit 1; }
+	@python3 ../tools/web/test_root_tools.py $(ZXV_TMP)/web_root > $(ZXV_TMP)/test_root_tools.log 2>&1 && echo "[PASS] root front matter ($$(tail -1 $(ZXV_TMP)/test_root_tools.log))" || { cat $(ZXV_TMP)/test_root_tools.log; echo "[FAIL] root front matter"; exit 1; }
 
 # Grammar-constrained decoding (src/tensor/zt_gram.h) and the paraconsistent
 # evidence head (src/tensor/zt_evh.h, roadmap 6.6b P2.1, with paradox.h's
