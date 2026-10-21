@@ -37,7 +37,7 @@ jobs:
       matrix:
         arch: [arm64, x86_64]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Build toolchain image
@@ -70,7 +70,7 @@ jobs:
             sha256sum "$d.gz" > "$d.gz.sha256"
           done
           { echo '```'; for d in $discs; do cat "${d%.img}.sizes"; done; ls -l ./*.gz; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: golden-discs-${{ matrix.arch }}
           retention-days: 7
