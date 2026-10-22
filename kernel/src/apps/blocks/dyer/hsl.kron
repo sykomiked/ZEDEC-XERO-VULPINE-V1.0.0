@@ -1,0 +1,16 @@
+mx:r|g|b
+mn:r&g&b
+d:mx-mn
+z:0|1-d
+dd:d+z
+den:z+255-abs mx+mn-255
+ll:_((200*mx+mn)+51)%102
+ss:_((2000*d)+den)%2*den
+isr:0|1+r-mx
+isg:(1-isr)*0|1+g-mx
+isb:1-isr+isg
+hr:360 res _((2*(360*dd)+60*g-b)+dd)%2*dd
+hg:_((2*(120*dd)+60*b-r)+dd)%2*dd
+hb:_((2*(240*dd)+60*r-g)+dd)%2*dd
+hh:(isr*hr)+(isg*hg)+isb*hb
+(hh*0|1-abs part-1)+(ss*0|1-abs part-2)+ll*0|1-abs part-3

@@ -443,3 +443,9 @@
 406	logic.mercer_product_node_ok	492.05	mercer.product_node_ok	base
 407	num.mercer_stock_after_sale	591.94	mercer.stock_after_sale	base
 408	num.mercer_stock_grid_cell	591.95	mercer.stock_grid_cell	base
+409	num.dyer_contrast_grade	591.96	dyer.contrast_grade	base
+410	num.dyer_contrast_ratio_x100	591.97	dyer.contrast_ratio_x100	base
+411	num.dyer_hsl_to_rgb	591.98	dyer.hsl_to_rgb	base
+412	num.dyer_rel_luminance	591.99	dyer.rel_luminance	base
+413	num.dyer_rgb_to_hsl	592.01	dyer.rgb_to_hsl	base
+414	logic.dyer_swatch_ok	492.06	dyer.swatch_ok	base

@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What one swatch of a Dyer palette may hold (dyer_rules.h DY6), in Eve: a
+# place 0 .. 63 and a colour 0 .. 16777215 (0xRRGGBB, 8 bits a channel).
+# Each field is held to its own range.
+eve dyer
+swatch_place = 0 .. 63
+swatch_color = 0 .. 16777215
+
+swatch {
+  place: swatch_place
+  color: swatch_color
+}

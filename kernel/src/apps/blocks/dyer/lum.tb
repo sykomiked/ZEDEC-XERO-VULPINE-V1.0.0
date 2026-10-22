@@ -1,0 +1,300 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A colour's relative luminance in millionths (dyer_rules.h DY3), in
+! Trebago, one colour a row: floor((2126 R + 7152 G + 722 B) / 10000), where
+! R, G and B are the channels' linear light from the sRGB table (t(c + 1)
+! for channel c, in millionths, dyer_rules.h DYER_SRGB): c / 255 / (1292 /
+! 100) below the knee and ((c / 255 + 55 / 1000) / (1055 / 1000)) to the
+! power 12 / 5 above it, rounded to the nearest millionth once, when the
+! table was made, never here. The same 256 numbers are lum.kron's t. A
+! channel looks its value up as sum(k, t(k) * max(0, 1 - |c + 1 - k|)),
+! since a subscript cannot be a value. Trebago is exact and has no floor,
+! so the floor is counted three digits at a time (the sum is at most
+! 10^10). ok is 0 for a channel outside 0..255, and the luminance is
+! divided by it: refused, as lum.kron's index refuses it.
+trebago rel_luminance
+  in  r(n), g(n), b(n)
+  out y(n)
+  var t(256), ok(n), x(n), a(n), c(n)
+  t(k) = 304 * max(0, 1 - abs(k - 2)) &
+       + 607 * max(0, 1 - abs(k - 3)) &
+       + 911 * max(0, 1 - abs(k - 4)) &
+       + 1214 * max(0, 1 - abs(k - 5)) &
+       + 1518 * max(0, 1 - abs(k - 6)) &
+       + 1821 * max(0, 1 - abs(k - 7)) &
+       + 2125 * max(0, 1 - abs(k - 8)) &
+       + 2428 * max(0, 1 - abs(k - 9)) &
+       + 2732 * max(0, 1 - abs(k - 10)) &
+       + 3035 * max(0, 1 - abs(k - 11)) &
+       + 3347 * max(0, 1 - abs(k - 12)) &
+       + 3677 * max(0, 1 - abs(k - 13)) &
+       + 4025 * max(0, 1 - abs(k - 14)) &
+       + 4391 * max(0, 1 - abs(k - 15)) &
+       + 4777 * max(0, 1 - abs(k - 16))
+  t(k) = t(k) &
+       + 5182 * max(0, 1 - abs(k - 17)) &
+       + 5605 * max(0, 1 - abs(k - 18)) &
+       + 6049 * max(0, 1 - abs(k - 19)) &
+       + 6512 * max(0, 1 - abs(k - 20)) &
+       + 6995 * max(0, 1 - abs(k - 21)) &
+       + 7499 * max(0, 1 - abs(k - 22)) &
+       + 8023 * max(0, 1 - abs(k - 23)) &
+       + 8568 * max(0, 1 - abs(k - 24)) &
+       + 9134 * max(0, 1 - abs(k - 25)) &
+       + 9721 * max(0, 1 - abs(k - 26)) &
+       + 10330 * max(0, 1 - abs(k - 27)) &
+       + 10960 * max(0, 1 - abs(k - 28)) &
+       + 11612 * max(0, 1 - abs(k - 29)) &
+       + 12286 * max(0, 1 - abs(k - 30)) &
+       + 12983 * max(0, 1 - abs(k - 31)) &
+       + 13702 * max(0, 1 - abs(k - 32))
+  t(k) = t(k) &
+       + 14444 * max(0, 1 - abs(k - 33)) &
+       + 15209 * max(0, 1 - abs(k - 34)) &
+       + 15996 * max(0, 1 - abs(k - 35)) &
+       + 16807 * max(0, 1 - abs(k - 36)) &
+       + 17642 * max(0, 1 - abs(k - 37)) &
+       + 18500 * max(0, 1 - abs(k - 38)) &
+       + 19382 * max(0, 1 - abs(k - 39)) &
+       + 20289 * max(0, 1 - abs(k - 40)) &
+       + 21219 * max(0, 1 - abs(k - 41)) &
+       + 22174 * max(0, 1 - abs(k - 42)) &
+       + 23153 * max(0, 1 - abs(k - 43)) &
+       + 24158 * max(0, 1 - abs(k - 44)) &
+       + 25187 * max(0, 1 - abs(k - 45)) &
+       + 26241 * max(0, 1 - abs(k - 46)) &
+       + 27321 * max(0, 1 - abs(k - 47)) &
+       + 28426 * max(0, 1 - abs(k - 48))
+  t(k) = t(k) &
+       + 29557 * max(0, 1 - abs(k - 49)) &
+       + 30713 * max(0, 1 - abs(k - 50)) &
+       + 31896 * max(0, 1 - abs(k - 51)) &
+       + 33105 * max(0, 1 - abs(k - 52)) &
+       + 34340 * max(0, 1 - abs(k - 53)) &
+       + 35601 * max(0, 1 - abs(k - 54)) &
+       + 36889 * max(0, 1 - abs(k - 55)) &
+       + 38204 * max(0, 1 - abs(k - 56)) &
+       + 39546 * max(0, 1 - abs(k - 57)) &
+       + 40915 * max(0, 1 - abs(k - 58)) &
+       + 42311 * max(0, 1 - abs(k - 59)) &
+       + 43735 * max(0, 1 - abs(k - 60)) &
+       + 45186 * max(0, 1 - abs(k - 61)) &
+       + 46665 * max(0, 1 - abs(k - 62)) &
+       + 48172 * max(0, 1 - abs(k - 63)) &
+       + 49707 * max(0, 1 - abs(k - 64))
+  t(k) = t(k) &
+       + 51269 * max(0, 1 - abs(k - 65)) &
+       + 52861 * max(0, 1 - abs(k - 66)) &
+       + 54480 * max(0, 1 - abs(k - 67)) &
+       + 56128 * max(0, 1 - abs(k - 68)) &
+       + 57805 * max(0, 1 - abs(k - 69)) &
+       + 59511 * max(0, 1 - abs(k - 70)) &
+       + 61246 * max(0, 1 - abs(k - 71)) &
+       + 63010 * max(0, 1 - abs(k - 72)) &
+       + 64803 * max(0, 1 - abs(k - 73)) &
+       + 66626 * max(0, 1 - abs(k - 74)) &
+       + 68478 * max(0, 1 - abs(k - 75)) &
+       + 70360 * max(0, 1 - abs(k - 76)) &
+       + 72272 * max(0, 1 - abs(k - 77)) &
+       + 74214 * max(0, 1 - abs(k - 78)) &
+       + 76185 * max(0, 1 - abs(k - 79)) &
+       + 78187 * max(0, 1 - abs(k - 80))
+  t(k) = t(k) &
+       + 80220 * max(0, 1 - abs(k - 81)) &
+       + 82283 * max(0, 1 - abs(k - 82)) &
+       + 84376 * max(0, 1 - abs(k - 83)) &
+       + 86500 * max(0, 1 - abs(k - 84)) &
+       + 88656 * max(0, 1 - abs(k - 85)) &
+       + 90842 * max(0, 1 - abs(k - 86)) &
+       + 93059 * max(0, 1 - abs(k - 87)) &
+       + 95307 * max(0, 1 - abs(k - 88)) &
+       + 97587 * max(0, 1 - abs(k - 89)) &
+       + 99899 * max(0, 1 - abs(k - 90)) &
+       + 102242 * max(0, 1 - abs(k - 91)) &
+       + 104616 * max(0, 1 - abs(k - 92)) &
+       + 107023 * max(0, 1 - abs(k - 93)) &
+       + 109462 * max(0, 1 - abs(k - 94)) &
+       + 111932 * max(0, 1 - abs(k - 95)) &
+       + 114435 * max(0, 1 - abs(k - 96))
+  t(k) = t(k) &
+       + 116971 * max(0, 1 - abs(k - 97)) &
+       + 119538 * max(0, 1 - abs(k - 98)) &
+       + 122139 * max(0, 1 - abs(k - 99)) &
+       + 124772 * max(0, 1 - abs(k - 100)) &
+       + 127438 * max(0, 1 - abs(k - 101)) &
+       + 130136 * max(0, 1 - abs(k - 102)) &
+       + 132868 * max(0, 1 - abs(k - 103)) &
+       + 135633 * max(0, 1 - abs(k - 104)) &
+       + 138432 * max(0, 1 - abs(k - 105)) &
+       + 141263 * max(0, 1 - abs(k - 106)) &
+       + 144128 * max(0, 1 - abs(k - 107)) &
+       + 147027 * max(0, 1 - abs(k - 108)) &
+       + 149960 * max(0, 1 - abs(k - 109)) &
+       + 152926 * max(0, 1 - abs(k - 110)) &
+       + 155926 * max(0, 1 - abs(k - 111)) &
+       + 158961 * max(0, 1 - abs(k - 112))
+  t(k) = t(k) &
+       + 162029 * max(0, 1 - abs(k - 113)) &
+       + 165132 * max(0, 1 - abs(k - 114)) &
+       + 168269 * max(0, 1 - abs(k - 115)) &
+       + 171441 * max(0, 1 - abs(k - 116)) &
+       + 174647 * max(0, 1 - abs(k - 117)) &
+       + 177888 * max(0, 1 - abs(k - 118)) &
+       + 181164 * max(0, 1 - abs(k - 119)) &
+       + 184475 * max(0, 1 - abs(k - 120)) &
+       + 187821 * max(0, 1 - abs(k - 121)) &
+       + 191202 * max(0, 1 - abs(k - 122)) &
+       + 194618 * max(0, 1 - abs(k - 123)) &
+       + 198069 * max(0, 1 - abs(k - 124)) &
+       + 201556 * max(0, 1 - abs(k - 125)) &
+       + 205079 * max(0, 1 - abs(k - 126)) &
+       + 208637 * max(0, 1 - abs(k - 127)) &
+       + 212231 * max(0, 1 - abs(k - 128))
+  t(k) = t(k) &
+       + 215861 * max(0, 1 - abs(k - 129)) &
+       + 219526 * max(0, 1 - abs(k - 130)) &
+       + 223228 * max(0, 1 - abs(k - 131)) &
+       + 226966 * max(0, 1 - abs(k - 132)) &
+       + 230740 * max(0, 1 - abs(k - 133)) &
+       + 234551 * max(0, 1 - abs(k - 134)) &
+       + 238398 * max(0, 1 - abs(k - 135)) &
+       + 242281 * max(0, 1 - abs(k - 136)) &
+       + 246201 * max(0, 1 - abs(k - 137)) &
+       + 250158 * max(0, 1 - abs(k - 138)) &
+       + 254152 * max(0, 1 - abs(k - 139)) &
+       + 258183 * max(0, 1 - abs(k - 140)) &
+       + 262251 * max(0, 1 - abs(k - 141)) &
+       + 266356 * max(0, 1 - abs(k - 142)) &
+       + 270498 * max(0, 1 - abs(k - 143)) &
+       + 274677 * max(0, 1 - abs(k - 144))
+  t(k) = t(k) &
+       + 278894 * max(0, 1 - abs(k - 145)) &
+       + 283149 * max(0, 1 - abs(k - 146)) &
+       + 287441 * max(0, 1 - abs(k - 147)) &
+       + 291771 * max(0, 1 - abs(k - 148)) &
+       + 296138 * max(0, 1 - abs(k - 149)) &
+       + 300544 * max(0, 1 - abs(k - 150)) &
+       + 304987 * max(0, 1 - abs(k - 151)) &
+       + 309469 * max(0, 1 - abs(k - 152)) &
+       + 313989 * max(0, 1 - abs(k - 153)) &
+       + 318547 * max(0, 1 - abs(k - 154)) &
+       + 323143 * max(0, 1 - abs(k - 155)) &
+       + 327778 * max(0, 1 - abs(k - 156)) &
+       + 332452 * max(0, 1 - abs(k - 157)) &
+       + 337164 * max(0, 1 - abs(k - 158)) &
+       + 341914 * max(0, 1 - abs(k - 159)) &
+       + 346704 * max(0, 1 - abs(k - 160))
+  t(k) = t(k) &
+       + 351533 * max(0, 1 - abs(k - 161)) &
+       + 356400 * max(0, 1 - abs(k - 162)) &
+       + 361307 * max(0, 1 - abs(k - 163)) &
+       + 366253 * max(0, 1 - abs(k - 164)) &
+       + 371238 * max(0, 1 - abs(k - 165)) &
+       + 376262 * max(0, 1 - abs(k - 166)) &
+       + 381326 * max(0, 1 - abs(k - 167)) &
+       + 386429 * max(0, 1 - abs(k - 168)) &
+       + 391572 * max(0, 1 - abs(k - 169)) &
+       + 396755 * max(0, 1 - abs(k - 170)) &
+       + 401978 * max(0, 1 - abs(k - 171)) &
+       + 407240 * max(0, 1 - abs(k - 172)) &
+       + 412543 * max(0, 1 - abs(k - 173)) &
+       + 417885 * max(0, 1 - abs(k - 174)) &
+       + 423268 * max(0, 1 - abs(k - 175)) &
+       + 428690 * max(0, 1 - abs(k - 176))
+  t(k) = t(k) &
+       + 434154 * max(0, 1 - abs(k - 177)) &
+       + 439657 * max(0, 1 - abs(k - 178)) &
+       + 445201 * max(0, 1 - abs(k - 179)) &
+       + 450786 * max(0, 1 - abs(k - 180)) &
+       + 456411 * max(0, 1 - abs(k - 181)) &
+       + 462077 * max(0, 1 - abs(k - 182)) &
+       + 467784 * max(0, 1 - abs(k - 183)) &
+       + 473531 * max(0, 1 - abs(k - 184)) &
+       + 479320 * max(0, 1 - abs(k - 185)) &
+       + 485150 * max(0, 1 - abs(k - 186)) &
+       + 491021 * max(0, 1 - abs(k - 187)) &
+       + 496933 * max(0, 1 - abs(k - 188)) &
+       + 502886 * max(0, 1 - abs(k - 189)) &
+       + 508881 * max(0, 1 - abs(k - 190)) &
+       + 514918 * max(0, 1 - abs(k - 191)) &
+       + 520996 * max(0, 1 - abs(k - 192))
+  t(k) = t(k) &
+       + 527115 * max(0, 1 - abs(k - 193)) &
+       + 533276 * max(0, 1 - abs(k - 194)) &
+       + 539479 * max(0, 1 - abs(k - 195)) &
+       + 545724 * max(0, 1 - abs(k - 196)) &
+       + 552011 * max(0, 1 - abs(k - 197)) &
+       + 558340 * max(0, 1 - abs(k - 198)) &
+       + 564712 * max(0, 1 - abs(k - 199)) &
+       + 571125 * max(0, 1 - abs(k - 200)) &
+       + 577580 * max(0, 1 - abs(k - 201)) &
+       + 584078 * max(0, 1 - abs(k - 202)) &
+       + 590619 * max(0, 1 - abs(k - 203)) &
+       + 597202 * max(0, 1 - abs(k - 204)) &
+       + 603827 * max(0, 1 - abs(k - 205)) &
+       + 610496 * max(0, 1 - abs(k - 206)) &
+       + 617207 * max(0, 1 - abs(k - 207)) &
+       + 623960 * max(0, 1 - abs(k - 208))
+  t(k) = t(k) &
+       + 630757 * max(0, 1 - abs(k - 209)) &
+       + 637597 * max(0, 1 - abs(k - 210)) &
+       + 644480 * max(0, 1 - abs(k - 211)) &
+       + 651406 * max(0, 1 - abs(k - 212)) &
+       + 658375 * max(0, 1 - abs(k - 213)) &
+       + 665387 * max(0, 1 - abs(k - 214)) &
+       + 672443 * max(0, 1 - abs(k - 215)) &
+       + 679542 * max(0, 1 - abs(k - 216)) &
+       + 686685 * max(0, 1 - abs(k - 217)) &
+       + 693872 * max(0, 1 - abs(k - 218)) &
+       + 701102 * max(0, 1 - abs(k - 219)) &
+       + 708376 * max(0, 1 - abs(k - 220)) &
+       + 715694 * max(0, 1 - abs(k - 221)) &
+       + 723055 * max(0, 1 - abs(k - 222)) &
+       + 730461 * max(0, 1 - abs(k - 223)) &
+       + 737910 * max(0, 1 - abs(k - 224))
+  t(k) = t(k) &
+       + 745404 * max(0, 1 - abs(k - 225)) &
+       + 752942 * max(0, 1 - abs(k - 226)) &
+       + 760525 * max(0, 1 - abs(k - 227)) &
+       + 768151 * max(0, 1 - abs(k - 228)) &
+       + 775822 * max(0, 1 - abs(k - 229)) &
+       + 783538 * max(0, 1 - abs(k - 230)) &
+       + 791298 * max(0, 1 - abs(k - 231)) &
+       + 799103 * max(0, 1 - abs(k - 232)) &
+       + 806952 * max(0, 1 - abs(k - 233)) &
+       + 814847 * max(0, 1 - abs(k - 234)) &
+       + 822786 * max(0, 1 - abs(k - 235)) &
+       + 830770 * max(0, 1 - abs(k - 236)) &
+       + 838799 * max(0, 1 - abs(k - 237)) &
+       + 846873 * max(0, 1 - abs(k - 238)) &
+       + 854993 * max(0, 1 - abs(k - 239)) &
+       + 863157 * max(0, 1 - abs(k - 240))
+  t(k) = t(k) &
+       + 871367 * max(0, 1 - abs(k - 241)) &
+       + 879622 * max(0, 1 - abs(k - 242)) &
+       + 887923 * max(0, 1 - abs(k - 243)) &
+       + 896269 * max(0, 1 - abs(k - 244)) &
+       + 904661 * max(0, 1 - abs(k - 245)) &
+       + 913099 * max(0, 1 - abs(k - 246)) &
+       + 921582 * max(0, 1 - abs(k - 247)) &
+       + 930111 * max(0, 1 - abs(k - 248)) &
+       + 938686 * max(0, 1 - abs(k - 249)) &
+       + 947307 * max(0, 1 - abs(k - 250)) &
+       + 955973 * max(0, 1 - abs(k - 251)) &
+       + 964686 * max(0, 1 - abs(k - 252)) &
+       + 973445 * max(0, 1 - abs(k - 253)) &
+       + 982251 * max(0, 1 - abs(k - 254)) &
+       + 991102 * max(0, 1 - abs(k - 255)) &
+       + 1000000 * max(0, 1 - abs(k - 256))
+  ok(i) = min(1, max(0, r(i) + 1)) * min(1, max(0, 256 - r(i))) &
+        * min(1, max(0, g(i) + 1)) * min(1, max(0, 256 - g(i))) &
+        * min(1, max(0, b(i) + 1)) * min(1, max(0, 256 - b(i)))
+  x(i) = 2126 * sum(k, t(k) * max(0, 1 - abs(r(i) + 1 - k))) &
+       + 7152 * sum(k, t(k) * max(0, 1 - abs(g(i) + 1 - k))) &
+       + 722 * sum(k, t(k) * max(0, 1 - abs(b(i) + 1 - k)))
+  a(i) = sum(k = 1:1000, min(1, max(0, x(i) - 10000000 * k + 1)))
+  x(i) = x(i) - 10000000 * a(i)
+  c(i) = sum(k = 1:999, min(1, max(0, x(i) - 10000 * k + 1)))
+  y(i) = (1000 * a(i) + c(i)) / ok(i)
+end

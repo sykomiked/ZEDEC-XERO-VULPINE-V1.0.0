@@ -1,0 +1,22 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The contrast ratio of two colours, x100 (dyer_rules.h DY4), in Trebago,
+! one pair a row: fore and back are their relative luminances in
+! millionths (0..1000000, either one the lighter), and the ratio is
+! floor(100 (lighter + 50000) / (darker + 50000)), 100 for two equal
+! colours up to 2100 for white on black. Trebago is exact and has no
+! floor, so the floor is counted: of k = 1 to 2100, those with k times the
+! divisor at most the dividend. ok is 0 for a luminance outside
+! 0..1000000, and the ratio is divided by it: refused, where contrast.kron
+! answers: held.
+trebago contrast_x100
+  in  fore(n), back(n)
+  out ratio(n)
+  var ok(n), hi(n), lo(n)
+  ok(i) = min(1, max(0, fore(i) + 1)) * min(1, max(0, 1000001 - fore(i))) &
+        * min(1, max(0, back(i) + 1)) * min(1, max(0, 1000001 - back(i)))
+  hi(i) = max(fore(i), back(i)) + 50000
+  lo(i) = min(fore(i), back(i)) + 50000
+  ratio(i) = sum(k = 1:2100, min(1, max(0, 100 * hi(i) - k * lo(i) + 1))) / ok(i)
+end

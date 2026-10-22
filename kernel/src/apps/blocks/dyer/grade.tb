@@ -1,0 +1,16 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Which pass marks a contrast ratio x100 meets (dyer_rules.h DY5), in
+! Trebago, one ratio a row: 2 at 450 or more (body text), 1 at 300 to 449
+! (large text and parts of the screen only), 0 below 300. min(1, max(0,
+! ratio - 449)) is 1 exactly when ratio is at least 450 for integers. ok is
+! 0 for a ratio outside 100..2100, which no two colours make, and the mark
+! is divided by it: refused, where grade.kron answers: held.
+trebago contrast_grade
+  in  ratio(n)
+  out mark(n)
+  var ok(n)
+  ok(i) = min(1, max(0, ratio(i) - 99)) * min(1, max(0, 2101 - ratio(i)))
+  mark(i) = (min(1, max(0, ratio(i) - 449)) + min(1, max(0, ratio(i) - 299))) / ok(i)
+end

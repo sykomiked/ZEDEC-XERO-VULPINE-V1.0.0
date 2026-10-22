@@ -1,0 +1,108 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Dyer, a colour picker and palettes: layer 116 of the matrix. Colours are
+# picked by number (RGB, HSL or hex text), converted between the three,
+# checked for contrast against the 450 and 300 pass marks, and kept as
+# palettes in the Hoard, one text file each under Palettes/ (files.read,
+# files.write; dyer_model.h DM1-DM6). A palette is written only on the
+# owner's word. zxvd has no method that reads a pixel off the screen, so
+# Dyer picks no colour from the screen and invents none; it takes the
+# numbers it is given.
+#
+# Reuse, nearer the core: none. Dyer's layer leans on no other layer's code
+# (MATRIX_ORDER: leans_on -), and nothing earlier is about colour: Gesso's
+# entries change one channel value at a time and Witness's count kinds;
+# no shared block converts, weighs or compares colours. Every entry is a
+# general rule another layer may take with "use dyer 1" (colour models,
+# luminance, contrast and its pass marks), so each is registered in
+# CONCEPTS.tsv with Dyer as owner.
+#
+# Witnessed in two languages, as the task says: the conversions (DY1,
+# DY2), the luminance (DY3), the contrast ratio (DY4) and its pass marks
+# (DY5) are KRON and Trebago. Trebago is exact and has no floor, so each
+# rounding is counted (see the .tb files); it refuses an input outside its
+# domain by dividing by zero, where KRON answers it: held (BOTH). The
+# luminance reads one table of 256 linear-light values in both: KRON's
+# index refuses a channel outside 0..255 as Trebago does, so no input
+# makes them differ (the agree line below). A swatch of a palette is a
+# record (MYRA) and two ranges (Eve), witnessed: MYRA holds digits, sign
+# aside, so a place or colour past its range but inside its digits is
+# held. Input names have no underscore: KRON reads _ as floor. KRON
+# blocks carry no comment, since KRON's comment mark is not #; these lines
+# say what they do.
+#
+# Planned languages: JOSS (formula, a calculation at a desk) owns the
+# contrast ratio's formula; KRON and Trebago stand in. Perl (text,
+# patterns) would own reading hex text, but an entry takes integers, not
+# text, so hex text is read and written in the model's C (dyer_hex_parse,
+# dyer_hex_text) and Perl has no entry here.
+#
+# Defaults taken (dyer_rules.h, dyer_model.h): every rounding to the
+# nearest with a half up; palettes of at most 64 swatches, names of 1 to
+# 32 letters, digits, '-' and '_'.
+zxapp 1
+id     dyer
+name   Dyer
+version 1.0.0
+slot   116
+layer  L1
+matrix 116
+icon   icons/l1/116-dyer.svg
+budget 233
+needs  fs.read
+needs  fs.write
+model  apps/dyer_model.c
+
+# RGB to HSL (DY1): part 1 hue 0..359, 2 saturation 0..1000, 3 lightness
+# 0..1000, each to the nearest; a channel outside 0..255 refused.
+provides rgb_to_hsl num r g b part
+logic    kron    rgb_to_hsl apps/blocks/dyer/hsl.kron
+logic    trebago rgb_to_hsl apps/blocks/dyer/hsl.tb
+
+# HSL to RGB (DY2): part 1 red, 2 green, 3 blue, 0..255 to the nearest.
+provides hsl_to_rgb num h s l part
+logic    kron    hsl_to_rgb apps/blocks/dyer/rgb.kron
+logic    trebago hsl_to_rgb apps/blocks/dyer/rgb.tb
+
+# Relative luminance in millionths (DY3), from the sRGB table.
+provides rel_luminance num r g b
+logic    kron    rel_luminance apps/blocks/dyer/lum.kron
+logic    trebago rel_luminance apps/blocks/dyer/lum.tb
+
+# Contrast ratio x100 of two luminances (DY4): 100 to 2100.
+provides contrast_ratio_x100 num fore back
+logic    kron    contrast_ratio_x100 apps/blocks/dyer/contrast.kron
+logic    trebago contrast_ratio_x100 apps/blocks/dyer/contrast.tb
+pending  JOSS contrast_ratio_x100
+
+# The pass marks a ratio meets (DY5): 2 at 450 (body text), 1 at 300
+# (large text), 0 below.
+provides contrast_grade num ratio
+logic    kron    contrast_grade apps/blocks/dyer/grade.kron
+logic    trebago contrast_grade apps/blocks/dyer/grade.tb
+
+# A swatch of a palette (DY6): the ^ZXDYER record in MYRA, the ranges in Eve.
+provides swatch_ok truth place color
+logic    eve  swatch_ok apps/blocks/dyer/swatch.eve
+logic    myra swatch_ok apps/blocks/dyer/swatch.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check rgb_to_hsl r=255,255,255,0,255,255,10,200,0,0,255,128,1 g=0,0,0,0,255,255,20,100,255,0,0,128,0 b=0,0,0,0,255,255,30,50,0,255,128,128,0 part=1,2,3,3,3,2,1,2,1,1,1,3,3 = 0,1000,500,0,1000,0,210,600,120,240,330,502,2
+check rgb_to_hsl r=10,256 g=20,0 b=30,0 part=1,1 = both
+check rgb_to_hsl r=10,10 g=20,20 b=30,30 part=1,4 = both
+check hsl_to_rgb h=0,0,120,240,0,0,359,210,30,200,0 s=1000,1000,1000,1000,0,0,1000,500,1000,333,0 l=500,500,500,500,1000,0,500,500,500,666,500 part=1,2,2,3,1,3,3,3,2,1,2 = 255,0,255,255,255,0,4,191,128,141,128
+check hsl_to_rgb h=0,360 s=500,500 l=500,500 part=1,1 = both
+check hsl_to_rgb h=0,0 s=500,1001 l=500,500 part=1,1 = both
+check rel_luminance r=255,0,128,0,0,119,255,1 g=255,0,0,128,0,119,255,1 b=255,0,0,0,128,119,0,1 = 1000000,0,45892,154383,15585,184475,927800,304
+# agree: rel_luminance both read the same 256-value table, and KRON's index refuses a channel outside 0..255 as Trebago's divisor does
+check contrast_ratio_x100 fore=1000000,0,500,0,1000000,184187,1000000,5 back=0,1000000,500,0,1000000,1000000,174564,6 = 2100,2100,100,100,100,448,467,100
+check contrast_ratio_x100 fore=5,1000001 back=6,0 = both
+check contrast_ratio_x100 fore=5,-1 back=6,0 = both
+check contrast_grade ratio=100,299,300,449,450,2100,1000 = 0,0,1,1,2,2,2
+check contrast_grade ratio=450,99 = both
+check contrast_grade ratio=450,2101 = both
+check swatch_ok place=0,63,5,100,0 color=0,16777215,255,0,100000000 = true,true,true,false,false
+check swatch_ok place=1,64 color=0,0 = both
+check swatch_ok place=1,1 color=0,16777216 = both
+check swatch_ok place=1,-1 color=0,0 = both

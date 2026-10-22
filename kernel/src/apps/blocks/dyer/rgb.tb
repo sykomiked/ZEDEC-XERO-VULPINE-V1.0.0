@@ -1,0 +1,28 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A colour's red, green or blue from its hue, saturation and lightness
+! (dyer_rules.h DY2), in Trebago, one colour a row: part 1 red, 2 green,
+! 3 blue, 0..255 to the nearest, a half up. With a = s min(l, 1000 - l),
+! the channel's turn k = (n + h) mod 360 (n 0 for red, 240 for green, 120
+! for blue) and t = max(-30, min(k - 90, 270 - k, 30)), the channel's level
+! is q / 30000000 with q = 30000 l - a t, so the channel is
+! (17 q + 1000000) / 2000000. Trebago is exact and has no floor, so the
+! floor is counted: of k = 1 to 255, those with 2000000 k at most
+! 17 q + 1000000. ok is 0 for a hue outside 0..359, a saturation or
+! lightness outside 0..1000 or a part outside 1..3, and the channel is
+! divided by it: refused, where rgb.kron answers: held.
+trebago hsl_to_rgb
+  in  h(n), s(n), l(n), part(n)
+  out c(n)
+  var ok(n), k(n), t(n), q(n)
+  ok(i) = min(1, max(0, h(i) + 1)) * min(1, max(0, 360 - h(i))) &
+        * min(1, max(0, s(i) + 1)) * min(1, max(0, 1001 - s(i))) &
+        * min(1, max(0, l(i) + 1)) * min(1, max(0, 1001 - l(i))) &
+        * min(1, max(0, part(i))) * min(1, max(0, 4 - part(i)))
+  k(i) = 240 * max(0, 1 - abs(part(i) - 2)) + 120 * max(0, 1 - abs(part(i) - 3)) + h(i)
+  k(i) = k(i) - 360 * min(1, max(0, k(i) - 359))
+  t(i) = max(-30, min(k(i) - 90, 270 - k(i), 30))
+  q(i) = 30000 * l(i) - s(i) * min(l(i), 1000 - l(i)) * t(i)
+  c(i) = sum(j = 1:255, min(1, max(0, 17 * q(i) + 1000000 - 2000000 * j + 1))) / ok(i)
+end

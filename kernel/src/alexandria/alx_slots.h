@@ -414,7 +414,13 @@
 #define ALX_SLOT_LOGIC_MERCER_PRODUCT_NODE_OK    406u /* 492.05 mercer.product_node_ok */
 #define ALX_SLOT_NUM_MERCER_STOCK_AFTER_SALE     407u /* 591.94 mercer.stock_after_sale */
 #define ALX_SLOT_NUM_MERCER_STOCK_GRID_CELL      408u /* 591.95 mercer.stock_grid_cell */
-#define ALX_SLOT__COUNT 408u
+#define ALX_SLOT_NUM_DYER_CONTRAST_GRADE         409u /* 591.96 dyer.contrast_grade */
+#define ALX_SLOT_NUM_DYER_CONTRAST_RATIO_X100    410u /* 591.97 dyer.contrast_ratio_x100 */
+#define ALX_SLOT_NUM_DYER_HSL_TO_RGB             411u /* 591.98 dyer.hsl_to_rgb */
+#define ALX_SLOT_NUM_DYER_REL_LUMINANCE          412u /* 591.99 dyer.rel_luminance */
+#define ALX_SLOT_NUM_DYER_RGB_TO_HSL             413u /* 592.01 dyer.rgb_to_hsl */
+#define ALX_SLOT_LOGIC_DYER_SWATCH_OK            414u /* 492.06 dyer.swatch_ok */
+#define ALX_SLOT__COUNT 414u
 /* clang-format on */
 
 #endif

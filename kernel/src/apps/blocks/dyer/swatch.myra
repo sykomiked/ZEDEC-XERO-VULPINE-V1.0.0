@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Dyer files one swatch of a palette in MYRA (dyer_rules.h DY6): its
+; place in the palette (0 .. 63) and its colour as one number 0xRRGGBB
+; (0 .. 16777215). The record holds the place in 2 digits and the colour
+; in 8; swatch.eve holds each to its range.
+^ZXDYER(place:i2) = color:i8!
