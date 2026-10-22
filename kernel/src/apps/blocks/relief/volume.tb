@@ -1,0 +1,32 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The volume a closed triangle mesh encloses (relief_rules.h RR4), in
+! Trebago, by signed tetrahedra. The corners come one to a row, three to a
+! face (x, y, z), counter-clockwise seen from outside, and orient one to a
+! face: 1 as wound, -1 wound the other way, 0 left out. Face j (corners
+! 3j-2, 3j-1, 3j) adds orient * det(a, b, c) / 6, the signed volume of the
+! tetrahedron it makes with the origin, so the parts outside the mesh
+! cancel and the sum is what it encloses. Exact: a reduced rational in
+! cubic hundredths of a millimetre, never rounded. (An entry takes at most
+! 8 inputs, so a face's nine coordinates cannot be nine inputs.)
+! Every coordinate is -100000 .. 100000 (a metre either way):
+! min(1, max(0, 0 - v - 100000)) is 1 exactly when v < -100000 and
+! min(1, max(0, v - 100000)) exactly when v > 100000. bad counts those,
+! odd an orient past -1 .. 1, and n - 3f is not 0 when the corners are not
+! three to a face; the sum is divided by 1 - min(1, all of them): any one
+! is a division by zero, refused, never added.
+trebago mesh_volume
+  in  x(n), y(n), z(n), orient(f)
+  out vol
+  var bad(n), odd(f), det(f)
+  bad(i) = min(1, max(0, 0 - x(i) - 100000)) + min(1, max(0, x(i) - 100000)) &
+         + min(1, max(0, 0 - y(i) - 100000)) + min(1, max(0, y(i) - 100000)) &
+         + min(1, max(0, 0 - z(i) - 100000)) + min(1, max(0, z(i) - 100000))
+  odd(j) = min(1, max(0, abs(orient(j)) - 1))
+  det(j) = orient(j) * (x(3*j-2) * (y(3*j-1) * z(3*j) - z(3*j-1) * y(3*j)) &
+         - y(3*j-2) * (x(3*j-1) * z(3*j) - z(3*j-1) * x(3*j)) &
+         + z(3*j-2) * (x(3*j-1) * y(3*j) - y(3*j-1) * x(3*j)))
+  vol = sum(j, det(j)) / 6 &
+      / (1 - min(1, sum(i, bad(i)) + sum(j, odd(j)) + abs(n - 3 * f)))
+end

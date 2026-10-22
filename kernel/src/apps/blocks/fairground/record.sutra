@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# An offer's fixed business record (fairground_rules.h FR4), in Sutra, as
+# Fairground files it: offer (its number in the owner's list) 0..9999,
+# kind 1 share, 2 want, 3 sell, resource 1 compute, 2 storage, units and
+# price 0..999999999999999999 (18 digits, minor units for the price) and
+# status 0 waiting for the owner, 1 sent, 2 refused by zxvd, 3 cancelled.
+# Every field is s9(18): a value past 18 digits is refused outright.
+record fairground-offer-record
+  offer: s9(18)
+  kind: s9(18)
+  resource: s9(18)
+  units: s9(18)
+  price: s9(18)
+  status: s9(18)
+procedure
+  answer offer >= 0 and offer <= 9999 and kind >= 1 and kind <= 3 and resource >= 1 and resource <= 2 and units >= 0 and price >= 0 and status >= 0 and status <= 3

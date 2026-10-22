@@ -289,3 +289,13 @@
 252	num.kindred_name_prefix_hit	591.16	kindred.name_prefix_hit	base
 253	num.lodestone_latency_mean_ms	591.17	lodestone.latency_mean_ms	base
 254	logic.lodestone_net_contact_ok	491.28	lodestone.net_contact_ok	base
+255	num.fairground_assurance_fee	591.18	fairground.assurance_fee	base
+256	logic.fairground_offer_allowed	491.29	fairground.offer_allowed	base
+257	logic.fairground_offer_rec_ok	491.30	fairground.offer_rec_ok	base
+258	num.fairground_offer_unit_price	591.19	fairground.offer_unit_price	base
+259	num.relief_depth_layer_offset	591.20	relief.depth_layer_offset	base
+260	logic.relief_mesh_limits_ok	491.31	relief.mesh_limits_ok	base
+261	logic.relief_mesh_record_ok	491.32	relief.mesh_record_ok	base
+262	num.relief_mesh_volume	591.21	relief.mesh_volume	base
+263	num.relief_vertex_screen_x	591.22	relief.vertex_screen_x	base
+264	num.relief_vertex_screen_y	591.23	relief.vertex_screen_y	base

@@ -1,0 +1,97 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Relief, 3D modelling and the depth effect: layer 60 of the matrix. A
+# model is one closed triangle mesh, kept as a text file in the Hoard
+# (files.read, files.write), turned, scaled and seen in perspective on the
+# screen, split into depth layers that shift as the device tilts, and
+# measured exactly (relief_model.h RM1-RM6). Lengths are hundredths of a
+# millimetre; a turn is a cosine and sine in 4096ths (relief_rules.h).
+#
+# Two later layers lean on this one, so its entries are general rules owned
+# here (CONCEPTS.tsv), for any later layer that places, draws or measures a
+# solid:
+#
+#   vertex_screen_x    a vertex's screen x after a turn about the vertical
+#   vertex_screen_y    axis, a scale and a perspective view, in fixed point
+#                      and floored (RR1, RR2). C++ (as WebAssembly) and KRON
+#                      are witnessed: the C++ traps on a coordinate, turn,
+#                      scale or view outside its domain and on a vertex at
+#                      or behind the viewer, where KRON still answers: held.
+#                      The model's C (relief_rules.h) is the third witness.
+#   depth_layer_offset how far a depth layer moves when the nearest moves
+#                      shift pixels, the farthest still (RR3), in KRON.
+#   mesh_volume        the volume a closed mesh encloses by signed
+#                      tetrahedra, an exact rational (RR4), in Trebago.
+#   mesh_limits_ok     vertices and faces, each against its own range (RR5),
+#                      so Eve alone.
+#   mesh_record_ok     a mesh's record in MYRA (^ZXRELIEF, RR6).
+#
+# Of the layers the task names, Kitling (62), Trellis (29) and Coffer (73)
+# are built before this one, and none fits: Kitling grows a companion and
+# scores its genes and memories, Trellis keeps the owner's device mesh (a
+# network of devices, not a solid) and Coffer moves money, which Relief
+# never does. No shared block turns, projects or measures a solid either
+# (burin.bezier_at is a curve in the plane, hollow.shown a pixel overlap),
+# so nothing is used: reuse 0, and every entry here is new.
+#
+# Planned (no runtime yet): Julia owns numeric and matrix work, and the
+# vertex transform is a rotation matrix applied to a vector; Mojo owns
+# numeric kernels, and the mesh volume is the numeric kernel here. Both are
+# pending. Simula 67 owns simulation with classes; Relief simulates
+# nothing, so it has no entry of its kind and no pending line.
+zxapp 1
+id     relief
+name   Relief
+version 1.0.0
+slot   60
+layer  L1
+matrix 60
+icon   icons/l1/060-relief.svg
+budget 233
+needs  fs.read
+needs  fs.write
+model  apps/relief_model.c
+
+# RR1 and RR2: one vertex through the view, x and y on the screen.
+provides vertex_screen_x num x z cos sin scale focal
+logic    wasm vertex_screen_x apps/blocks/relief/screen_x.wasm
+logic    kron vertex_screen_x apps/blocks/relief/screen_x.kron
+pending  Julia vertex_screen_x
+
+provides vertex_screen_y num x y z cos sin scale focal
+logic    wasm vertex_screen_y apps/blocks/relief/screen_y.wasm
+logic    kron vertex_screen_y apps/blocks/relief/screen_y.kron
+
+# RR3: the depth effect, one layer per row.
+provides depth_layer_offset num shift depth far
+logic    kron depth_layer_offset apps/blocks/relief/depth.kron
+
+# RR4: the enclosed volume, exact. An entry takes at most 8 inputs, so a
+# face's nine coordinates come as three corner rows (x, y, z) and orient
+# one row a face: 1 as wound, -1 reversed, 0 left out.
+provides mesh_volume num x y z orient
+logic    trebago mesh_volume apps/blocks/relief/volume.tb
+pending  Mojo mesh_volume
+
+# RR5: what a mesh may hold.
+provides mesh_limits_ok truth vertices faces
+logic    eve mesh_limits_ok apps/blocks/relief/limits.eve
+
+# RR6: a mesh fits its record.
+provides mesh_record_ok truth mesh vertices faces mtime
+logic    myra mesh_record_ok apps/blocks/relief/record.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check vertex_screen_x x=1000,1000,-1,100000,0 z=0,1000,0,100000,-100000 cos=4096,0,4096,4096,4096 sin=0,4096,0,4096,0 scale=100,100,50,1000,100 focal=1000,2000,1000,1000000,100001 = 1000,2000,-1,2000000,0
+check vertex_screen_x x=1000,100001 z=0,0 cos=4096,4096 sin=0,0 scale=100,100 focal=1000,1000 = both
+check vertex_screen_x x=0,0 z=0,-100000 cos=4096,4096 sin=0,0 scale=100,100 focal=1,1 = both
+check vertex_screen_y x=1000,1000,-1,100000,0 y=-1000,500,-1,100000,7 z=0,1000,0,100000,-100000 cos=4096,0,4096,4096,4096 sin=0,4096,0,4096,0 scale=100,100,50,1000,100 focal=1000,2000,1000,1000000,100001 = -1000,1000,-1,1000000,700007
+check vertex_screen_y x=0,0 y=10,10 z=0,0 cos=4096,4096 sin=0,0 scale=100,1001 focal=1000,1000 = both
+check vertex_screen_y x=0,0 y=10,10 z=0,-100000 cos=4096,4096 sin=0,0 scale=100,100 focal=1,1 = both
+check depth_layer_offset shift=40,40,-40,7,100000,-100000 depth=0,10,5,1,0,1000000 far=10,10,10,3,1000000,1000000 = 40,0,-20,4,100000,0
+check mesh_volume x=1000,0,0,0,0,1000,0,0,0,0,1000,0 y=0,1000,0,0,1000,0,0,0,1000,0,0,0 z=0,0,1000,0,0,0,0,1000,0,0,0,1000 orient=1,1,1,1 = 500000000/3
+check mesh_volume x=1000,0,0,1000,0,0 y=0,1000,0,0,1000,0 z=0,0,1000,0,0,1000 orient=1,0 = 500000000/3
+check mesh_volume x=1000,0,0,1000,0,0 y=0,1000,0,0,1000,0 z=0,0,1000,0,0,1000 orient=-1,-1 = -1000000000/3
+check mesh_limits_ok vertices=4,512,3,513,4,4 faces=4,1020,4,4,3,1021 = true,true,false,false,false,false
+check mesh_record_ok mesh=999999999,1000000000,0,0,0 vertices=999,1,1000,1,1 faces=9999,1,1,10000,1 mtime=999999999999,1,1,1,1000000000000 = true,false,false,false,false

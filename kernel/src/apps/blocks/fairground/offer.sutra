@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# An offer allowed (fairground_rules.h FR2), in Sutra: price and units at
+# least 1, and priceroom (how far the price is inside the owner's limit)
+# and unitsroom (the owner's most units less the units) not below 0. Every
+# field is s9(9): a value past 9 digits either way is a size error,
+# refused, where offer.eve answers no: the two disagree and it is held.
+record fairground-offer-rule
+  price: s9(9)
+  units: s9(9)
+  priceroom: s9(9)
+  unitsroom: s9(9)
+procedure
+  answer price >= 1 and units >= 1 and priceroom >= 0 and unitsroom >= 0

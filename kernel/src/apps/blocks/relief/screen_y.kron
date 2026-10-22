@@ -1,0 +1,2 @@
+zr:(z*cos)-x*sin
+_(scale*focal*4096*y)%100*(4096*focal)+zr

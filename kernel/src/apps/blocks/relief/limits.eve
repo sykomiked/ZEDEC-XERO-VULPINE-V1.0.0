@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What one Relief mesh may be (relief_rules.h RR5): 4 to 512 vertices and
+# 4 to 1020 faces. A tetrahedron (4 and 4) is the least closed mesh, and a
+# closed triangle mesh of V vertices has 2V - 4 faces, so 512 vertices close
+# with 1020. Eve checks that each value fits its range; how the two relate
+# (a mesh that is closed) is the model's.
+eve relief
+vertex_count = 4 .. 512
+face_count = 4 .. 1020
+
+mesh_limits {
+  vertices: vertex_count
+  faces: face_count
+}

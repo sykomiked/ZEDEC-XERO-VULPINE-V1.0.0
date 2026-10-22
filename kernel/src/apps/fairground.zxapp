@@ -1,0 +1,106 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Fairground, the cooperative market: layer 79 of the matrix. What the
+# owner shares, wants and still waits on (net.offers), sharing, wanting
+# and selling on the peer network (net.command share, want, sell), the
+# settled sales and purchases and the fees the node paid (mesh.books, the
+# peer book's settlements in peer.status), and the swarm's market (the
+# money supply, pot, levy and fees of swarm.state). Every method is
+# zxvd's; none is invented.
+#
+# Advisory and owner-confirmed (fairground_model.h FM3): a share, a want
+# or a sell is only checked and held, with a notice, until the owner
+# approves it; only then is net.command sent, and a cancelled one sends
+# nothing. Networking is off by default and Fairground never turns it on
+# or off (no "off", "lan", "online" or "peer" command): the network's
+# mode is Trellis's (layer 29). Money is integer minor units of VFV, the
+# peer book's unit, never a float.
+#
+# 6 later layers lean on this one, so its rules are general and owned
+# here (CONCEPTS.tsv): the assurance fee on a sale, an offer inside the
+# owner's limits, the price per unit across offers and an offer's record.
+# Of the layers the task names, Coffer (73) is built before this one and
+# owns the money: the wallet after a settlement is coffer.balance, used as
+# it is. Vintner (91) is built before it, but its quantity_at_price is one
+# price per unit, where a receipt here carries one price for all its
+# units, so it does not fit. Toolchest (126) judges kits and Trellis (29)
+# the mesh's devices and the network's mode, neither of which Fairground
+# decides, so neither is used. Commons (27) comes after this layer in the
+# build order (MATRIX_ORDER.tsv), so nothing of it is used.
+#
+# Witness pairs are of one kind (zxapp.c run_one B3). Sutra and Trebago
+# witness the assurance fee, a number (copied from blocks/fee_check's
+# shape). Eve and Sutra witness offer_allowed, a truth: Eve checks each
+# field against its own range alone, so the owner's limits come as
+# margins (priceroom, unitsroom) the model works out. Trebago alone gives
+# the price per unit across offers, an exact rational, and Sutra the
+# offer's fixed record. The model's C (fairground_rules.h) is the third
+# witness of each.
+#
+# Planned (no runtime yet): Eiffel (design by contract) and Solidity
+# (contract rules) own whether an offer may stand, the contract an offer
+# makes: pending on offer_allowed. SAS (statistical reports) owns the
+# price per unit across offers, a statistic over the owner's records:
+# pending on offer_unit_price.
+#
+# Defaults taken: the owner's limits start at 0, so nothing is allowed
+# until the owner sets them (fairground_set_limits); a share is checked
+# only against its digits (it has no price) and still waits for the
+# owner. swarm.state is the swarm's, so `swarm` is declared beside the
+# task's peers, net, ledger.read and notify. zxvd has no notification
+# method, so the notice is only composed for the view (fairground_t
+# notice).
+zxapp 1
+id     fairground
+name   Fairground
+version 1.0.0
+slot   79
+layer  L1
+matrix 79
+icon   icons/l1/079-fairground.svg
+budget 233
+needs  peers
+needs  net
+needs  ledger.read
+needs  notify
+needs  swarm
+model  apps/fairground_model.c
+use    coffer 1   # @num.coffer_balance
+
+# The 0.08889% assurance fee on a sale (FR1): floor(amount * 8889 / 10^7).
+# Sutra holds 15 digits and refuses past them; Trebago answers to 2^53 - 1.
+provides assurance_fee num amount
+logic    sutra   assurance_fee apps/blocks/fairground/fee.sutra
+logic    trebago assurance_fee apps/blocks/fairground/fee.tb
+
+# An offer inside the owner's limits (FR2): price and units at least 1,
+# both margins not below 0. Eve holds 9 digits as no; Sutra refuses them.
+provides offer_allowed truth price units priceroom unitsroom
+logic    eve   offer_allowed apps/blocks/fairground/offer.eve
+logic    sutra offer_allowed apps/blocks/fairground/offer.sutra
+pending  Eiffel offer_allowed
+pending  Solidity offer_allowed
+
+# The price per unit across offers (FR3), exact, in Trebago.
+provides offer_unit_price num price units
+logic    trebago offer_unit_price apps/blocks/fairground/unit.tb
+pending  SAS offer_unit_price
+
+# An offer's fixed business record (FR4), in Sutra.
+provides offer_rec_ok truth offer kind resource units price status
+logic    sutra offer_rec_ok apps/blocks/fairground/record.sutra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check assurance_fee amount=0,1124,1125,180000,10000000,999999999999999 = 0,0,1,160,8889,888899999999
+check assurance_fee amount=1,1000000000000000 = both
+check assurance_fee amount=1,9007199254740991 = both
+check offer_allowed price=1,999999999,0,5,5,5 units=1,999999999,1,0,1,1 priceroom=0,999999999,0,0,-1,0 unitsroom=0,0,0,0,0,-1 = true,true,false,false,false,false
+check offer_allowed price=1,1000000000 units=1,1 priceroom=0,0 unitsroom=0,0 = both
+check offer_allowed price=1,1 units=1,1 priceroom=0,1000000000 unitsroom=0,0 = both
+check offer_unit_price price=300,400 units=2,4 = 350/3
+check offer_unit_price price=0,0 units=1,1 = 0
+check offer_unit_price price=7,0 units=1,1 = 7/2
+check offer_rec_ok offer=0,9999,10000,1,1,1,1 kind=1,3,1,0,2,2,2 resource=1,2,1,1,3,1,1 units=0,999999999999999999,0,0,0,-1,0 price=0,999999999999999999,0,0,0,0,0 status=0,3,0,0,0,0,4 = true,true,false,false,false,false,false
+# The wallet after a settlement (FM4): a want of 300 and its fee 0 paid, a sale of 500
+check coffer.balance before=1000,0 moved=-300,500 = 700,500

@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The price per unit across offers (fairground_rules.h FR3), in Trebago:
+! the sum of the offers' prices over the sum of their units, an exact
+! reduced rational, never rounded (7 over 2 units is 7/2). Each price is
+! 0 or more and each offer holds at least 1 unit: bad counts the offers
+! that do not, and the answer is divided by 1 - min(1, bad), so any one
+! of them is a division by zero, refused. A sum past 64 bits is refused by
+! Trebago itself, never wrapped.
+trebago offer_unit_price
+  in  price(n), units(n)
+  out unit
+  var bad(n)
+  bad(i) = min(1, max(0, 0 - price(i))) + min(1, max(0, 1 - units(i)))
+  unit = sum(i, price(i)) / sum(i, units(i)) / (1 - min(1, sum(i, bad(i))))
+end

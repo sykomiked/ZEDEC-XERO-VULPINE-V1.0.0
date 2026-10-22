@@ -260,7 +260,17 @@
 #define ALX_SLOT_NUM_KINDRED_NAME_PREFIX_HIT     252u /* 591.16 kindred.name_prefix_hit */
 #define ALX_SLOT_NUM_LODESTONE_LATENCY_MEAN_MS   253u /* 591.17 lodestone.latency_mean_ms */
 #define ALX_SLOT_LOGIC_LODESTONE_NET_CONTACT_OK  254u /* 491.28 lodestone.net_contact_ok */
-#define ALX_SLOT__COUNT 254u
+#define ALX_SLOT_NUM_FAIRGROUND_ASSURANCE_FEE    255u /* 591.18 fairground.assurance_fee */
+#define ALX_SLOT_LOGIC_FAIRGROUND_OFFER_ALLOWED  256u /* 491.29 fairground.offer_allowed */
+#define ALX_SLOT_LOGIC_FAIRGROUND_OFFER_REC_OK   257u /* 491.30 fairground.offer_rec_ok */
+#define ALX_SLOT_NUM_FAIRGROUND_OFFER_UNIT_PRICE 258u /* 591.19 fairground.offer_unit_price */
+#define ALX_SLOT_NUM_RELIEF_DEPTH_LAYER_OFFSET   259u /* 591.20 relief.depth_layer_offset */
+#define ALX_SLOT_LOGIC_RELIEF_MESH_LIMITS_OK     260u /* 491.31 relief.mesh_limits_ok */
+#define ALX_SLOT_LOGIC_RELIEF_MESH_RECORD_OK     261u /* 491.32 relief.mesh_record_ok */
+#define ALX_SLOT_NUM_RELIEF_MESH_VOLUME          262u /* 591.21 relief.mesh_volume */
+#define ALX_SLOT_NUM_RELIEF_VERTEX_SCREEN_X      263u /* 591.22 relief.vertex_screen_x */
+#define ALX_SLOT_NUM_RELIEF_VERTEX_SCREEN_Y      264u /* 591.23 relief.vertex_screen_y */
+#define ALX_SLOT__COUNT 264u
 /* clang-format on */
 
 #endif

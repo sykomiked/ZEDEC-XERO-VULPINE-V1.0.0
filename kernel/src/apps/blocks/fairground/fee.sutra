@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The 0.08889% assurance fee on a sale, in Sutra (fairground_rules.h FR1,
+# pay_assure.h F1): floor(amount * 8889 / 10000000), amount in integer
+# minor units. amount fits 9(15), so a larger or a negative one is a size
+# error: refused, never cut short. fee.tb says the same in Trebago, which
+# answers up to 2^53 - 1 (ZXV_AMOUNT_MAX): past 15 digits it is held.
+record fairground-fee
+  amount: 9(15)
+  fee: 9(12)
+procedure
+  compute fee = amount * 8889 / 10000000
+  answer fee

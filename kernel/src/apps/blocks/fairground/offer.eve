@@ -1,0 +1,23 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# An offer allowed (fairground_rules.h FR2), in Eve: a want or a sell
+# inside the owner's limits. Eve checks each field against its own range,
+# so the limits come as margins the model works out: priceroom is how far
+# the price is inside the owner's price limit (the ceiling minus the price
+# for a want, the price minus the floor for a sell) and unitsroom the
+# owner's most units for one offer minus the units. Price and units are
+# 1..999999999 (9 digits, one receipt's price in minor units), each room
+# 0..999999999; a room below 0 is past the owner's limit. offer.sutra says
+# the same in Sutra, which refuses a value past 9 digits: held.
+eve fairground
+offer_price = 1 .. 999999999
+offer_units = 1 .. 999999999
+offer_room = 0 .. 999999999
+
+offer_rule {
+  price: offer_price
+  units: offer_units
+  priceroom: offer_room
+  unitsroom: offer_room
+}

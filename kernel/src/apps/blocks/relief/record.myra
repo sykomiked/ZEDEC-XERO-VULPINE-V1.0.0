@@ -1,0 +1,7 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Relief files one mesh in MYRA (relief_rules.h RR6): the mesh's
+; number, how many vertices and faces it holds and when it was saved (Unix
+; seconds). Relief asks whether the numbers fit before it lists them.
+^ZXRELIEF(mesh:i9) = vertices:i3! ^ faces:i4! ^ mtime:i12!
