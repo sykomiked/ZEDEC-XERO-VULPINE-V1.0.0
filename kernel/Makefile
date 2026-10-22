@@ -1714,14 +1714,17 @@ test-settle:
 
 # The Sicilian Crown Allotment (src/allotment/allot.h): opt-in ballots, Fibonacci
 # epoch trigger, exact split, commit-reveal draw replayed against a Python model.
-ALLOT_SRCS = src/allotment/allot.c src/pay/pay_util.c src/mlkem/keccak.c src/tensor/zt.c
-ALLOT_INC = -Iinclude -Isrc/modbind -Isrc/allotment -Isrc/pay -Isrc/mlkem -Isrc/tensor
+# R5 beacon parties verify with src/vrf; its vendored ref10 field code left-shifts negative
+# limbs, so that one object is built with UBSan's shift-base check off (as test-vrf does).
+ALLOT_SRCS = src/allotment/allot.c src/pay/pay_util.c src/mlkem/keccak.c src/tensor/zt.c $(ZXV_TMP)/allot_vrf.o
+ALLOT_INC = -Iinclude -Isrc/modbind -Isrc/allotment -Isrc/pay -Isrc/mlkem -Isrc/tensor -Isrc/vrf
 .PHONY: test-allotment
 test-allotment:
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -DTEST_HOST -Isrc/vrf -c src/vrf/vrf.c -o $(ZXV_TMP)/allot_vrf.o || { echo "[FAIL] allotment vrf object"; exit 1; }
 	@python3 -I src/allotment/gen_allot_ref.py $(ZXV_TMP)/allot_ref.txt || { echo "[FAIL] gen_allot_ref"; exit 1; }
 	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(ALLOT_INC) src/allotment/test_allot.c $(ALLOT_SRCS) -o $(ZXV_TMP)/test_allot && $(ZXV_TMP)/test_allot $(ZXV_TMP)/allot_ref.txt > $(ZXV_TMP)/test_allot.log 2>&1 && echo "[PASS] test_allot ($$(tail -1 $(ZXV_TMP)/test_allot.log))" || { cat $(ZXV_TMP)/test_allot.log; echo "[FAIL] test_allot"; exit 1; }
 	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(ALLOT_INC) -c src/allotment/allot.c -o $(ZXV_TMP)/allot_a64.o && \
-	if nm -u $(ZXV_TMP)/allot_a64.o | grep -vE ' (pay_[a-z0-9_]+|sha3_256|shake256)$$' | grep -q .; then nm -u $(ZXV_TMP)/allot_a64.o; echo "[FAIL] allotment libc symbol"; exit 1; fi && \
+	if nm -u $(ZXV_TMP)/allot_a64.o | grep -vE ' (pay_[a-z0-9_]+|sha3_256|shake256|vrf_verify)$$' | grep -q .; then nm -u $(ZXV_TMP)/allot_a64.o; echo "[FAIL] allotment libc symbol"; exit 1; fi && \
 	echo "[PASS] allotment freestanding (aarch64-none-elf, no libc)"
 	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(ALLOT_INC) src/allotment/test_allot_ladder.c src/allotment/allot_ladder.c $(ALLOT_SRCS) -o $(ZXV_TMP)/test_allot_ladder && $(ZXV_TMP)/test_allot_ladder > $(ZXV_TMP)/test_allot_ladder.log 2>&1 && echo "[PASS] test_allot_ladder ($$(tail -1 $(ZXV_TMP)/test_allot_ladder.log); $$(grep '^cost:' $(ZXV_TMP)/test_allot_ladder.log))" || { cat $(ZXV_TMP)/test_allot_ladder.log; echo "[FAIL] test_allot_ladder"; exit 1; }
 	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(ALLOT_INC) -c src/allotment/allot_ladder.c -o $(ZXV_TMP)/allot_ladder_a64.o && \

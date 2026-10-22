@@ -5,6 +5,7 @@
  * Usage: test_allot REF   where REF is the output of gen_allot_ref.py, an
  * independent Python model of the same scenario run by test_replay(). */
 #include "allot.h"
+#include "vrf.h"
 #include "keccak.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -1110,6 +1111,90 @@ static void test_free_mode(void)
     CHECK(allot_config_check(&bad) == ALLOT_ERR_CONFIG, "free: an unknown mode is refused");
 }
 
+/* ===== R5: VRF beacon party ===== */
+static void test_vrf_party(void)
+{
+    allot_config_t c;
+    allot_config_default(&c);
+    c.jurisdiction_permits = true;
+    c.fib_index = 3; /* F(3) = 2 ballots */
+    allot_t r;
+    allot_settlement_t s1, s2;
+    uint8_t a[32], b[32], fund[32], beacon[32], party[32], sec[32], cm[32];
+    uint8_t seed[32], pk[VRF_PK_LEN], sk[VRF_SK_LEN], pi[VRF_PROOF_LEN], early[VRF_PROOF_LEN];
+    ident("alice", 0, a);
+    ident("bob", 0, b);
+    ident("fund", 0, fund);
+    ident("beacon", 0, beacon);
+    ident("party", 0, party);
+    ident("vrf-seed", 0, seed);
+    epoch_secret(1, 0, sec);
+    vrf_keypair(seed, pk, sk);
+
+    CHECK(allot_init(&r, &c, 1, NULL, g_ranges, 8) == ALLOT_OK, "vrf: init");
+    CHECK(allot_commit_vrf(&r, beacon, pk) == ALLOT_OK && r.is_vrf[0] &&
+              !memcmp(r.vrf_pk[0], pk, 32),
+          "vrf: a beacon party registers by its key");
+    CHECK(allot_commit_vrf(&r, beacon, pk) == ALLOT_ERR_PARTY, "vrf: no duplicate party");
+    CHECK(allot_commit_vrf(&r, party, NULL) == ALLOT_ERR_ARG, "vrf: null key");
+    allot_commitment(1, party, sec, cm);
+    CHECK(allot_commit(&r, party, cm) == ALLOT_OK && !r.is_vrf[1], "vrf: a secret party beside it");
+    allot_endow(&r, fund, 1000);
+    CHECK(allot_free_entry(&r, a, NULL) == ALLOT_OK, "vrf: ballot a");
+    CHECK(allot_commit_vrf(&r, fund, pk) == ALLOT_ERR_PHASE, "vrf: no key after the first ballot");
+    /* a proof made before close cannot be over the header hash */
+    uint8_t guess[32];
+    memset(guess, 0, sizeof guess);
+    CHECK(vrf_prove(sk, guess, 32, early), "vrf: prove over a guessed alpha");
+    CHECK(allot_reveal_vrf(&r, beacon, early) == ALLOT_ERR_PHASE, "vrf: no reveal while open");
+    CHECK(allot_free_entry(&r, b, NULL) == ALLOT_OK && r.phase == ALLOT_CLOSED, "vrf: close");
+
+    CHECK(allot_reveal_vrf(&r, beacon, early) == ALLOT_ERR_COMMIT && !r.revealed[0],
+          "vrf: a proof over any other alpha is refused");
+    CHECK(vrf_prove(sk, r.header_hash, ALLOT_HASH_LEN, pi), "vrf: prove over the header hash");
+    uint8_t bad[VRF_PROOF_LEN];
+    memcpy(bad, pi, sizeof bad);
+    bad[40] ^= 1;
+    CHECK(allot_reveal_vrf(&r, beacon, bad) == ALLOT_ERR_COMMIT,
+          "vrf: a tampered proof is refused");
+    CHECK(allot_reveal(&r, beacon, sec) == ALLOT_ERR_PARTY,
+          "vrf: a VRF party cannot reveal a secret");
+    CHECK(allot_reveal_vrf(&r, party, pi) == ALLOT_ERR_PARTY,
+          "vrf: a secret party cannot reveal a proof");
+    CHECK(allot_select(&r, &s1) == ALLOT_ERR_REVEALS, "vrf: the beacon must reveal (R3)");
+    CHECK(allot_reveal_vrf(&r, beacon, pi) == ALLOT_OK && r.revealed[0], "vrf: the beacon reveals");
+    CHECK(allot_reveal_vrf(&r, beacon, pi) == ALLOT_ERR_PARTY, "vrf: only once");
+    uint8_t beta[VRF_OUT_LEN], want[32], in[18 + VRF_OUT_LEN];
+    CHECK(vrf_verify(pk, r.header_hash, 32, pi, beta), "vrf: beta");
+    memcpy(in, "ZXV-ALLOT-VRF-BETA", 18);
+    memcpy(in + 18, beta, VRF_OUT_LEN);
+    sha3_256(in, sizeof in, want);
+    CHECK(!memcmp(r.secret[0], want, 32), "vrf: the party secret is SHA3(tag || beta)");
+    CHECK(allot_reveal(&r, party, sec) == ALLOT_OK, "vrf: the secret party reveals");
+    CHECK(allot_select(&r, &s1) == ALLOT_OK && allot_select(&r, &s2) == ALLOT_OK &&
+              !memcmp(&s1, &s2, sizeof s1) && s1.crown_endowment == 1000,
+          "vrf: the selection replays exactly");
+
+    /* the beacon moves the seed: a different key gives a different seed */
+    allot_t r2;
+    uint8_t seed2[32], pk2[VRF_PK_LEN], sk2[VRF_SK_LEN], pi2[VRF_PROOF_LEN];
+    allot_settlement_t t;
+    ident("vrf-seed", 1, seed2);
+    vrf_keypair(seed2, pk2, sk2);
+    allot_range_t rg2[8];
+    allot_init(&r2, &c, 1, NULL, rg2, 8);
+    allot_commit_vrf(&r2, beacon, pk2);
+    allot_commit(&r2, party, cm);
+    allot_endow(&r2, fund, 1000);
+    allot_free_entry(&r2, a, NULL);
+    allot_free_entry(&r2, b, NULL);
+    vrf_prove(sk2, r2.header_hash, ALLOT_HASH_LEN, pi2);
+    CHECK(allot_reveal_vrf(&r2, beacon, pi2) == ALLOT_OK &&
+              allot_reveal(&r2, party, sec) == ALLOT_OK && allot_select(&r2, &t) == ALLOT_OK &&
+              memcmp(t.seed, s1.seed, 32) != 0 && memcmp(r2.header_hash, r.header_hash, 32) != 0,
+          "vrf: the key is bound into the header, and the beacon moves the seed");
+}
+
 int main(int argc, char **argv)
 {
     if (argc != 2) {
@@ -1126,6 +1211,7 @@ int main(int argc, char **argv)
     test_nav();
     test_post();
     test_free_mode();
+    test_vrf_party();
     test_draw_uniform();
     test_pick();
     test_replay(argv[1]);

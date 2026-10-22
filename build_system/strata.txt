@@ -46,6 +46,7 @@ tls/ecdsa_int                    base       # the curve arithmetic ecdsa.c share
 tls/ecdsa_sign                   base       # RFC 6979 P-256 signing (the IRC gateway's certificate key)
 tls/rsa                          base       # RSA PKCS #1 v1.5 and PSS verification
 ubh                              base
+vrf                              base       # RFC 9381 ECVRF over the vendored ed25519 arithmetic; dispute juries and allotment beacons
 zcapital                         base       # the nine-form capital types; swarm and pay both build on them
 qr                               base       # QR Code encoder: pure bytes to modules
 devprof                          base       # the device line as data: profiles, OS support table, gap matrix
