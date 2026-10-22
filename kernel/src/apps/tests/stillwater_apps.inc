@@ -212,7 +212,14 @@ APPS_TEST(stillwater)
           "stillwater: two held");
     uint32_t marked = 0;
     sw_marked = 2;
-    CHECK(stillwater_mark_read(&S, &marked) == ZXM_OK && marked == 2 && S.unread == 0 &&
+    {
+        int before = sent;
+        CHECK(stillwater_mark_read(&S, &marked, false) == ZXM_E_STATE && sent == before &&
+                  marked == 0 && S.unread == 2 && S.held == 2 && !sw_n(&S, 12)->read &&
+                  !sw_n(&S, 13)->read,
+              "stillwater: without the owner's word nothing is sent and nothing marked");
+    }
+    CHECK(stillwater_mark_read(&S, &marked, true) == ZXM_OK && marked == 2 && S.unread == 0 &&
               S.held == 0 && sw_n(&S, 12)->read && sw_n(&S, 13)->read,
           "stillwater: marked read through zxvd");
 

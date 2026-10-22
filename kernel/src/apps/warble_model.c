@@ -463,12 +463,25 @@ static int keep_hall(warble_t *w)
     return ZXM_OK;
 }
 
+/* arguments first, then the hall, then the owner's word (WM8: when the
+ * call changes what every listener hears); ZXM_OK when it may be sent */
+static int hall_gate(warble_t *w, int64_t pos_ms, int64_t rate_q16, bool changes,
+                     bool owner_confirmed)
+{
+    if (pos_ms < -1 || rate_q16 < 0 || rate_q16 > WARBLE_RATE_MAX) return ZXM_E_ARG;
+    if (!w->hall_cid[0]) return ZXM_E_STATE;
+    if (changes && !owner_confirmed) {
+        say(w, "Only the owner's confirmed word changes what the hall plays", "");
+        return ZXM_E_STATE;
+    }
+    return ZXM_OK;
+}
+
+/* one hall.* call, its gate already passed */
 static int hall_call(warble_t *w, const char *method, const char *media, int64_t pos_ms,
                      int64_t rate_q16)
 {
     zxm_link_t *l = w->link;
-    if (!w->hall_cid[0]) return ZXM_E_STATE;
-    if (pos_ms < -1 || rate_q16 < 0 || rate_q16 > WARBLE_RATE_MAX) return ZXM_E_ARG;
     zxm_begin(l, method);
     zxm_p_str(l, "cid", w->hall_cid);
     if (media) zxm_p_str(l, "media", media);
@@ -479,23 +492,31 @@ static int hall_call(warble_t *w, const char *method, const char *media, int64_t
     return keep_hall(w);
 }
 
-int warble_hall_load(warble_t *w, const char *media, int64_t pos_ms)
+int warble_hall_load(warble_t *w, const char *media, int64_t pos_ms, bool owner_confirmed)
 {
     if (!cid_ok(media, WARBLE_MEDIA_MAX)) return ZXM_E_ARG;
+    int rc = hall_gate(w, pos_ms, 0, true, owner_confirmed);
+    if (rc) return rc;
     return hall_call(w, "hall.load", media, pos_ms, 0);
 }
 
-int warble_hall_play(warble_t *w, int64_t pos_ms, int64_t rate_q16)
+int warble_hall_play(warble_t *w, int64_t pos_ms, int64_t rate_q16, bool owner_confirmed)
 {
+    int rc = hall_gate(w, pos_ms, rate_q16, true, owner_confirmed);
+    if (rc) return rc;
     return hall_call(w, "hall.play", NULL, pos_ms, rate_q16);
 }
 
-int warble_hall_pause(warble_t *w, int64_t pos_ms)
+int warble_hall_pause(warble_t *w, int64_t pos_ms, bool owner_confirmed)
 {
+    int rc = hall_gate(w, pos_ms, 0, true, owner_confirmed);
+    if (rc) return rc;
     return hall_call(w, "hall.pause", NULL, pos_ms, 0);
 }
 
 int warble_hall_status(warble_t *w)
 {
+    int rc = hall_gate(w, -1, 0, false, false);
+    if (rc) return rc;
     return hall_call(w, "hall.status", NULL, -1, 0);
 }

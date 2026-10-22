@@ -24,7 +24,10 @@
  *   ST4 A WATCHFIRE EMERGENCY is an urgent note whose source is
  *       "watchfire". It is never held (SW2).
  *   ST5 A refresh checks every value before it changes anything: a reply
- *       out of bounds leaves what was shown as it was. */
+ *       out of bounds leaves what was shown as it was.
+ *   ST6 Advisory and owner-confirmed: notes.mark_read changes the notices
+ *       zxvd keeps, so it is sent only on the owner's confirmed word
+ *       (ZXM_E_STATE without it, nothing sent, nothing marked here). */
 #ifndef STILLWATER_MODEL_H
 #define STILLWATER_MODEL_H
 
@@ -109,8 +112,8 @@ int stillwater_quiet_at(const stillwater_schedule_t *sc, uint32_t weekday, uint3
 int stillwater_refresh(stillwater_t *s, int64_t now_s, uint32_t weekday, uint32_t minute);
 /* screen.check for one app, into s->check. */
 int stillwater_check_app(stillwater_t *s, const char *app);
-/* notes.mark_read; *marked is how many zxvd marked. */
-int stillwater_mark_read(stillwater_t *s, uint32_t *marked);
+/* notes.mark_read on the owner's word (ST6); *marked is how many zxvd marked. */
+int stillwater_mark_read(stillwater_t *s, uint32_t *marked, bool owner_confirmed);
 const stillwater_note_t *stillwater_note(const stillwater_t *s, uint32_t seq);
 
 #endif

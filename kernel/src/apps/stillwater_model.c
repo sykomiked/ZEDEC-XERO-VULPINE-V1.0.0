@@ -236,10 +236,11 @@ int stillwater_check_app(stillwater_t *s, const char *app)
     return ZXM_OK;
 }
 
-int stillwater_mark_read(stillwater_t *s, uint32_t *marked)
+int stillwater_mark_read(stillwater_t *s, uint32_t *marked, bool owner_confirmed)
 {
     zxm_link_t *l = s->link;
     uint32_t n;
+    if (!owner_confirmed) return ZXM_E_STATE; /* ST6: zxvd's notes are read on the owner's word */
     zxm_begin(l, "notes.mark_read");
     int rc = zxm_call(l);
     if (rc) return rc;

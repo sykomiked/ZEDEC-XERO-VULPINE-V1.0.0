@@ -39,6 +39,11 @@
  *       fab.put copies at most a 2 MiB block, so Warble does not make one),
  *       hall.play, hall.pause and hall.status, each answer kept in hall.
  *       zxvd's pspace switch is the owner's; its refusals are shown as is.
+ *   WM8 Advisory and owner-confirmed: hall.load, hall.play and hall.pause
+ *       change what every listener hears, so each is sent only on the
+ *       owner's confirmed word, checked after the arguments and the hall
+ *       (ZXM_E_STATE without it, said in the notice, nothing sent, the
+ *       hall kept). hall.status only reads.
  *
  * Nothing is checked after it is sent: every argument is checked first,
  * and a refused call leaves the model as it was. No drawing, no
@@ -130,9 +135,10 @@ int warble_set_volume(warble_t *w, int64_t volume);
 
 /* WM7: pos_ms -1 is "where every listener is"; rate_q16 0 is normal speed. */
 int warble_hall_set(warble_t *w, const char *cid);
-int warble_hall_load(warble_t *w, const char *media, int64_t pos_ms);
-int warble_hall_play(warble_t *w, int64_t pos_ms, int64_t rate_q16);
-int warble_hall_pause(warble_t *w, int64_t pos_ms);
+/* WM8: load, play and pause need owner_confirmed. */
+int warble_hall_load(warble_t *w, const char *media, int64_t pos_ms, bool owner_confirmed);
+int warble_hall_play(warble_t *w, int64_t pos_ms, int64_t rate_q16, bool owner_confirmed);
+int warble_hall_pause(warble_t *w, int64_t pos_ms, bool owner_confirmed);
 int warble_hall_status(warble_t *w);
 
 #endif

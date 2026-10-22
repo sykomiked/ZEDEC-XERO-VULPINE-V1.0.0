@@ -163,7 +163,7 @@ APPS_TEST(warble)
     CANNED = WB_OK "{\"set\":true,\"state\":\"stop\",\"media\":\"" WB_MEDIA "\",\"pos_ms\":0,"
                    "\"base_pos_ms\":0,\"at_ms\":5,\"rate_q16\":65536,\"now_ms\":5,\"viewers\":3,"
                    "\"may_control\":true}}";
-    CHECK(warble_hall_load(&WB, WB_MEDIA, -1) == ZXM_OK && WB.hall.set &&
+    CHECK(warble_hall_load(&WB, WB_MEDIA, -1, true) == ZXM_OK && WB.hall.set &&
               WB.hall.state == WARBLE_HALL_STOP && !strcmp(WB.hall.media, WB_MEDIA) &&
               WB.hall.viewers == 3 && WB.hall.may_control &&
               strstr(last_req, "\"method\":\"hall.load\"") &&
@@ -173,14 +173,14 @@ APPS_TEST(warble)
         WB_OK "{\"set\":true,\"state\":\"play\",\"media\":\"" WB_MEDIA "\",\"pos_ms\":1500,"
               "\"base_pos_ms\":1500,\"at_ms\":9,\"rate_q16\":131072,\"now_ms\":9,\"viewers\":3,"
               "\"may_control\":true}}";
-    CHECK(warble_hall_play(&WB, 1500, 131072) == ZXM_OK && WB.hall.state == WARBLE_HALL_PLAY &&
+    CHECK(warble_hall_play(&WB, 1500, 131072, true) == ZXM_OK && WB.hall.state == WARBLE_HALL_PLAY &&
               WB.hall.pos_ms == 1500 && WB.hall.rate_q16 == 131072 &&
               strstr(last_req, "\"pos_ms\":1500") && strstr(last_req, "\"rate_q16\":131072"),
           "warble: hall.play at twice the speed (%s)", FAKE.err);
     CANNED = WB_OK "{\"set\":true,\"state\":\"pause\",\"media\":\"" WB_MEDIA "\",\"pos_ms\":4000,"
                    "\"base_pos_ms\":4000,\"at_ms\":12,\"rate_q16\":131072,\"now_ms\":12,"
                    "\"viewers\":2,\"may_control\":true}}";
-    CHECK(warble_hall_pause(&WB, -1) == ZXM_OK && WB.hall.state == WARBLE_HALL_PAUSE &&
+    CHECK(warble_hall_pause(&WB, -1, true) == ZXM_OK && WB.hall.state == WARBLE_HALL_PAUSE &&
               WB.hall.pos_ms == 4000 && WB.hall.viewers == 2 &&
               strstr(last_req, "\"method\":\"hall.pause\"") && !strstr(last_req, "pos_ms"),
           "warble: hall.pause where every listener is (%s)", FAKE.err);
@@ -188,14 +188,21 @@ APPS_TEST(warble)
         WB_OK "{\"set\":true,\"state\":\"dance\",\"media\":\"x\",\"pos_ms\":1,\"rate_q16\":65536}}";
     CHECK(warble_hall_status(&WB) == ZXM_E_PROTOCOL && WB.hall.state == WARBLE_HALL_PAUSE,
           "warble: a state zxvd never says is refused, the hall kept");
+    last_req[0] = 0;
+    CHECK(warble_hall_load(&WB, WB_MEDIA, 0, false) == ZXM_E_STATE &&
+              warble_hall_play(&WB, 0, 0, false) == ZXM_E_STATE &&
+              warble_hall_pause(&WB, -1, false) == ZXM_E_STATE && !last_req[0] &&
+              WB.hall.state == WARBLE_HALL_PAUSE && WB.hall.pos_ms == 4000 &&
+              strstr(WB.notice, "owner's confirmed word") != NULL,
+          "warble: without the owner's word no hall call is sent and the hall is kept");
     CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"error\":{\"code\":-32032,\"message\":\"only the "
              "hall's owner controls playback\"}}";
-    CHECK(warble_hall_play(&WB, -1, 0) == ZXM_E_REMOTE && FAKE.err_code == -32032 &&
+    CHECK(warble_hall_play(&WB, -1, 0, true) == ZXM_E_REMOTE && FAKE.err_code == -32032 &&
               WB.hall.state == WARBLE_HALL_PAUSE,
           "warble: the owner's hall refuses a listener, shown as is");
-    CHECK(warble_hall_load(&WB, "Not a CID", 0) == ZXM_E_ARG &&
-              warble_hall_play(&WB, -2, 0) == ZXM_E_ARG &&
-              warble_hall_play(&WB, 0, WARBLE_RATE_MAX + 1) == ZXM_E_ARG,
+    CHECK(warble_hall_load(&WB, "Not a CID", 0, true) == ZXM_E_ARG &&
+              warble_hall_play(&WB, -2, 0, true) == ZXM_E_ARG &&
+              warble_hall_play(&WB, 0, WARBLE_RATE_MAX + 1, true) == ZXM_E_ARG,
           "warble: a bad media, position or rate is never sent");
     CANNED = NULL;
     WB.link = &LINK;
