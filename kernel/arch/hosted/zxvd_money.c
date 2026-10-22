@@ -556,9 +556,9 @@ static void m_qn_setup(zxvd_call_t *c)
     bool ok = zxvd_sandbox_book_open(&QB) == 0 && open_acct(&QB, QB.a[0].asset, 0, &res) &&
               open_acct(&QB, QB.a[0].asset, 0, &esc);
     for (uint32_t i = 0; ok && i < QNOTE_MAX_LOTS; i++) {
-        char code[8];
+        /* QNOTE_MAX_LOTS is 8: one digit names the lot */
+        char code[8] = {'Q', 'N', (char) ('0' + i % 10u), 0};
         uint16_t as;
-        snprintf(code, sizeof code, "QN%u", (unsigned) i);
         ok = pay_ledger_add_asset(&QB.L, code, 0, PAY_ASSET_UNIT, &as) == PAY_OK &&
              open_acct(&QB, as, PAY_ACCT_ISSUER, &QISS[i]);
     }
