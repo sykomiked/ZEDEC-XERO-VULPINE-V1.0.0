@@ -225,7 +225,9 @@
 #define ALX_SLOT_NUM_TOOLCHEST_INSTALLED_BYTES   217u /* 591.03 toolchest.installed_bytes */
 #define ALX_SLOT_LOGIC_TOOLCHEST_KIT_RECORD_OK   218u /* 491.06 toolchest.kit_record_ok */
 #define ALX_SLOT_NUM_TOOLCHEST_VERSION_FITS      219u /* 591.04 toolchest.version_fits */
-#define ALX_SLOT__COUNT 219u
+#define ALX_SLOT_LOGIC_TWELVEFOLD_LP_ENTAIL_KEPT 220u /* 491.07 twelvefold.lp_entail_kept */
+#define ALX_SLOT_LOGIC_TWELVEFOLD_LP_LIMITS_OK   221u /* 491.08 twelvefold.lp_limits_ok */
+#define ALX_SLOT__COUNT 221u
 /* clang-format on */
 
 #endif

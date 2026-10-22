@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a Twelvefold formula may be (twelvefold_rules.h TR3), in Eve: at
+# most 6 distinct variables (4^6 = 4096 assignments in its table) and at
+# most 16 connectives deep (an atom is 0 deep). Anything else does not
+# fit: the formula is refused before it is evaluated.
+eve twelvefold
+formula_vars = 0 .. 6
+formula_depth = 0 .. 16
+
+formula_limits {
+  vars: formula_vars
+  depth: formula_depth
+}

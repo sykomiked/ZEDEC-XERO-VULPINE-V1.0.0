@@ -254,3 +254,5 @@
 217	num.toolchest_installed_bytes	591.03	toolchest.installed_bytes	base
 218	logic.toolchest_kit_record_ok	491.06	toolchest.kit_record_ok	base
 219	num.toolchest_version_fits	591.04	toolchest.version_fits	base
+220	logic.twelvefold_lp_entail_kept	491.07	twelvefold.lp_entail_kept	base
+221	logic.twelvefold_lp_limits_ok	491.08	twelvefold.lp_limits_ok	base

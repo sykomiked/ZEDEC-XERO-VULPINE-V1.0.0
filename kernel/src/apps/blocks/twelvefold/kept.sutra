@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One assignment keeps a four-valued consequence, in Sutra
+# (twelvefold_rules.h TR2). premise is the value code C produced for the
+# conjunction of the premises (lpres_conjoin), conclusion the code of the
+# conclusion, in the kernel's numbering: NEITHER 0, TRUE 1, FALSE 2,
+# BOTH 3. TRUE and BOTH are designated. The assignment keeps the
+# consequence when the premise is not designated or the conclusion is.
+# A code past 3 is no value: storing -1 in the unsigned check field is a
+# size error, refused; a negative code does not fit 9: refused.
+record entail-kept
+  premise: 9
+  conclusion: 9
+  nocode: 9
+procedure
+  if premise > 3 or conclusion > 3
+    compute nocode = 0 - 1
+  end-if
+  answer premise = 0 or premise = 2 or conclusion = 1 or conclusion = 3
