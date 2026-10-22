@@ -320,7 +320,11 @@
 #define ALX_SLOT_NUM_CARTULARY_RETENTION_LEFT    312u /* 591.50 cartulary.retention_left */
 #define ALX_SLOT_LOGIC_CARTULARY_RETENTION_OK    313u /* 491.54 cartulary.retention_ok */
 #define ALX_SLOT_LOGIC_CARTULARY_VERSION_MAY_GO  314u /* 491.55 cartulary.version_may_go */
-#define ALX_SLOT__COUNT 314u
+#define ALX_SLOT_NUM_ORRERY_CIVIL_DAY            315u /* 591.51 orrery.civil_day */
+#define ALX_SLOT_NUM_ORRERY_PLANET_LONGITUDE     316u /* 591.52 orrery.planet_longitude */
+#define ALX_SLOT_LOGIC_ORRERY_SKY_ABOVE_HORIZON  317u /* 491.56 orrery.sky_above_horizon */
+#define ALX_SLOT_LOGIC_ORRERY_SKY_OBSERVATION_OK 318u /* 491.57 orrery.sky_observation_ok */
+#define ALX_SLOT__COUNT 318u
 /* clang-format on */
 
 #endif

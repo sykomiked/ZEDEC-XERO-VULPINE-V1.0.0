@@ -1,0 +1,8 @@
+mm:0|1&3-month
+y:year-mm
+era:_y%400
+yoe:y-400*era
+mp:month+(12*mm)-3
+doy:(day-1)+_(2+153*mp)%5
+doe:(365*yoe)+(_yoe%4)+doy-_yoe%100
+(146097*era)+doe-719468

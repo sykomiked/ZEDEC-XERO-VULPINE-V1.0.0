@@ -1,0 +1,105 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Orrery, the sky, stars and planets: layer 101 of the matrix. The sky from
+# where the machine is: each planet's mean longitude today, which bright
+# stars are above the horizon now, and a log of what the owner saw
+# (orrery_model.h OM1-OM5). The clock is sys.info's time_ms and the place
+# is place.here.
+#
+# zxvd has no sky data method, and none is invented: the planets' mean
+# elements and the sine table are integer tables in the blocks (and the
+# same numbers in orrery_rules.h), the stars' places a table in the model.
+#
+# Its layer leans on no other layer's code yet. Two ideas nearer the core
+# answer what it needs, and are used, never written again: Almanac's whole
+# days from seconds (the day of zxvd's clock) and Solstice's days in a
+# month (a date's day must be inside its month). Solstice keeps the day
+# count of a date in C only; Orrery gives it as an entry (civil_day), and it,
+# the mean longitude, the horizon rule and the observation record are
+# concepts with Orrery as their owner (CONCEPTS.tsv), since a later layer
+# that keeps dates or a sky takes them with "use orrery 1".
+#
+# Witness pairs are of one kind, since a witnessed call compares answers
+# exactly. FORTRAN 77 (twin Reckonwyrm) and Pascal (twin Tutordrake) keep
+# 32-bit integers and read one row per call (zxapp_lingua.c L1), so each
+# check line that reaches them has one row; the lines name the runtimes,
+# since the Alexandria index numbers runtimes, not twins. The task's
+# "above the horizon in KRON" stays KRON alone: it is a relation across
+# fields over a table, which Eve (each field against its own range) cannot
+# say, and the model's C (orrery_rules.h OR3) is its reference in the test.
+# The local sidereal time and the hour angle stay in C (OR5): they are the
+# model's arithmetic between the clock and OR3, not a decision.
+#
+# Planned (no runtime yet): Mojo owns numeric kernels and Simula I
+# discrete-event simulation; the planets' motion day by day is both, so
+# planet_longitude waits on them (pending).
+zxapp 1
+id     orrery
+name   Orrery
+version 1.0.0
+slot   101
+layer  L1
+matrix 101
+icon   icons/l1/101-orrery.svg
+budget 233
+needs  location
+needs  sys.read
+model  apps/orrery_model.c
+use    almanac 1    # @time.almanac_days
+use    solstice 1   # @num.solstice_month_days
+
+# The day number of a date (OR1), days since 1970-01-01, years 1..9999.
+# FORTRAN 77, twin Reckonwyrm, and Pascal, twin Tutordrake (written step by
+# step, for teaching), refuse a year outside 1..9999 or a day outside its
+# month; KRON counts any year of the proleptic calendar: held.
+provides civil_day num year month day
+logic    kron      civil_day apps/blocks/orrery/civil_day.kron
+# FORTRAN 77, twin Reckonwyrm
+logic    fortran77 civil_day apps/blocks/orrery/civil_day.f
+# Pascal, twin Tutordrake
+logic    pascal    civil_day apps/blocks/orrery/civil_day.pas
+
+# A planet's heliocentric mean longitude (OR2), millidegrees mod 360000:
+# KRON and FORTRAN 77 (twin Reckonwyrm), which takes the product mod
+# 360000000 by doubling so it never passes 32 bits. FORTRAN 77 refuses a
+# day outside years 1..9999; KRON answers any day: held.
+provides planet_longitude num planet day
+logic    kron      planet_longitude apps/blocks/orrery/planet_longitude.kron
+# FORTRAN 77, twin Reckonwyrm
+logic    fortran77 planet_longitude apps/blocks/orrery/planet_longitude.f
+pending  Mojo planet_longitude
+pending  Simula_I planet_longitude
+
+# Above the horizon (OR3): latitude, declination and hour angle in whole
+# degrees, from one integer sine table, in KRON.
+provides sky_above_horizon truth lat dec hour
+logic    kron sky_above_horizon apps/blocks/orrery/above_horizon.kron
+
+# An observation makes a ^ZXOBS record (OR4), in MYRA.
+provides sky_observation_ok truth obs body time alt az
+logic    myra sky_observation_ok apps/blocks/orrery/observation.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check civil_day year=1970 month=1 day=1 = 0
+check civil_day year=1969 month=12 day=31 = -1
+check civil_day year=2000 month=1 day=1 = 10957
+check civil_day year=2000 month=2 day=29 = 11016
+check civil_day year=2026 month=10 day=22 = 20748
+check civil_day year=1 month=1 day=1 = -719162
+check civil_day year=9999 month=12 day=31 = 2932896
+check civil_day year=10000 month=1 day=1 = both
+check civil_day year=2023 month=2 day=29 = both
+check planet_longitude planet=1 day=10957 = 250204
+check planet_longitude planet=1 day=10956 = 246111
+check planet_longitude planet=3 day=10957 = 99972
+check planet_longitude planet=8 day=-719162 = 258035
+check planet_longitude planet=4 day=2932896 = 107644
+check planet_longitude planet=1 day=2932897 = both
+check planet_longitude planet=5 day=-719163 = both
+check sky_above_horizon lat=51,51,51,0,90,90,-33,51,91,0 dec=89,-60,0,0,1,-1,-60,0,0,0 hour=180,0,90,90,0,0,0,0,0,360 = true,false,false,false,true,false,true,true,false,false
+check sky_observation_ok obs=1,999999999,1000000000,1,1,1,1 body=1,108,1,10000,1,1,1 time=0,999999999999,0,0,1000000000000,0,0 alt=0,-90000,0,0,0,1000000,0 az=0,359999,0,0,0,0,1000000 = true,true,false,false,false,false,false
+check almanac.days seconds=0,86399,86400,200000 = 0,0,1,2
+check almanac.days seconds=86400,-86401 = both
+check solstice.month_days year=2000 month=2 = 29
+check solstice.month_days year=1900 month=2 = 28

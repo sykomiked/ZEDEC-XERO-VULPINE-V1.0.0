@@ -1,0 +1,49 @@
+C Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+C SPDX-License-Identifier: Apache-2.0
+C     A PLANET'S HELIOCENTRIC MEAN LONGITUDE (ORRERY_RULES.H OR2): READS
+C     THE PLANET (1 MERCURY .. 8 NEPTUNE) AND THE DAY (DAYS SINCE
+C     1970-01-01), PRINTS MILLIDEGREES 0 TO 359999: THE LONGITUDE AT
+C     2000-01-01 (DAY 10957) PLUS THE RATE (MICRODEGREES A DAY) TIMES THE
+C     DAYS SINCE, FLOORED TO MILLIDEGREES, MOD 360 DEGREES. AN INTEGER
+C     HERE IS 32 BITS, SO THE PRODUCT IS TAKEN MOD 360000000 BY DOUBLING
+C     AND ADDING, NEVER PAST 720000000. A PLANET OUTSIDE 1 TO 8 OR A DAY
+C     OUTSIDE YEARS 1 TO 9999 (-719162 TO 2932896) IS REFUSED.
+      PROGRAM PLONG
+      INTEGER IP, ID, L0(8), RT(8), M, N, IA, IY
+      READ *, IP, ID
+      IF (IP .LT. 1 .OR. IP .GT. 8) THEN
+        PRINT *, 'REFUSED'
+        STOP
+      END IF
+      IF (ID .LT. -719162 .OR. ID .GT. 2932896) THEN
+        PRINT *, 'REFUSED'
+        STOP
+      END IF
+      L0(1) = 250204
+      L0(2) = 181178
+      L0(3) = 99972
+      L0(4) = 355185
+      L0(5) = 34355
+      L0(6) = 49938
+      L0(7) = 313232
+      L0(8) = 304877
+      RT(1) = 4092339
+      RT(2) = 1602130
+      RT(3) = 985609
+      RT(4) = 524033
+      RT(5) = 83087
+      RT(6) = 33470
+      RT(7) = 11731
+      RT(8) = 5981
+      M = 360000000
+      N = ID - 10957
+      IF (N .LT. 0) N = N + M
+      IA = RT(IP)
+      IY = 0
+      DO WHILE (N .GT. 0)
+        IF (MOD(N, 2) .EQ. 1) IY = MOD(IY + IA, M)
+        IA = MOD(IA + IA, M)
+        N = N / 2
+      END DO
+      PRINT *, MOD(L0(IP) + IY / 1000, 360000)
+      END

@@ -317,6 +317,10 @@ def code_of(path):
         text = re.sub(r"//.*", "", text)
     if ext in (".alg", ".a60"):  # ALGOL 60: "comment" up to the next ";", across lines
         text = re.sub(r"\bcomment\b[^;]*;", lambda m: "\n" * m.group().count("\n"), text)
+    if ext == ".pas":  # Pascal: { ... } and (* ... *) across lines, strings in apostrophes
+        text = re.sub(r"\{[^}]*\}|\(\*.*?\*\)", lambda m: "\n" * m.group().count("\n"), text,
+                      flags=re.S)
+        text = re.sub(r"'[^'\n]*'", "''", text)
     out = []
     for n, line in enumerate(text.split("\n"), 1):
         if ext == ".f" and line[:1] in ("C", "c", "*", "!"):

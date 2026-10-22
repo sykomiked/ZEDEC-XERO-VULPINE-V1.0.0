@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Orrery files a sky observation, in MYRA: its number, the body seen
+; (1..8 a planet, 101..108 a star of the model's table), when (seconds
+; since 1970; twelve digits reach the last second of year 9999), and where
+; in the sky, altitude and azimuth in millidegrees. The model says what the
+; values may mean (orrery_rules.h OR4); this says whether they make a record.
+^ZXOBS(obs:i9) = body:i4! ^ time:i12! ^ alt:i6! ^ az:i6!

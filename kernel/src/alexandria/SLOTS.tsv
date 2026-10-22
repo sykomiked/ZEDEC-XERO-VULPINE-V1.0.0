@@ -349,3 +349,7 @@
 312	num.cartulary_retention_left	591.50	cartulary.retention_left	base
 313	logic.cartulary_retention_ok	491.54	cartulary.retention_ok	base
 314	logic.cartulary_version_may_go	491.55	cartulary.version_may_go	base
+315	num.orrery_civil_day	591.51	orrery.civil_day	base
+316	num.orrery_planet_longitude	591.52	orrery.planet_longitude	base
+317	logic.orrery_sky_above_horizon	491.56	orrery.sky_above_horizon	base
+318	logic.orrery_sky_observation_ok	491.57	orrery.sky_observation_ok	base
