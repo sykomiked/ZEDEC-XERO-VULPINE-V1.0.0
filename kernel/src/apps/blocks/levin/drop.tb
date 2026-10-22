@@ -1,0 +1,18 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A circuit's voltage drop in microvolts (levin_rules.h LR3), in Trebago,
+! one circuit a row: out and back along `metres` of cable (one way,
+! 0 .. 9999) carrying `ma` milliamps (0 .. 999999) with `mohm` milliohms a
+! metre per conductor (0 .. 99999): 2 * metres * ma * mohm, exact. ok is
+! 0, and the drop divided by it refused, outside that domain; drop.kron
+! answers any integers, so past it the two disagree: held.
+trebago circuitdrop
+  in  metres(n), ma(n), mohm(n)
+  out uv(n)
+  var ok(n)
+  ok(i) = min(1, max(0, metres(i) + 1)) * min(1, max(0, 9999 - metres(i) + 1)) &
+        * min(1, max(0, ma(i) + 1)) * min(1, max(0, 999999 - ma(i) + 1)) &
+        * min(1, max(0, mohm(i) + 1)) * min(1, max(0, 99999 - mohm(i) + 1))
+  uv(i) = (2 * metres(i) * ma(i) * mohm(i)) / ok(i)
+end

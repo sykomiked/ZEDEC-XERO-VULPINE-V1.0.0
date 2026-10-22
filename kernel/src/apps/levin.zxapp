@@ -1,0 +1,135 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Levin, the home wiring planner: L2, slot 236. It plans a home's wiring:
+# the panel tree of circuits, the loads on each by room, each circuit's
+# current, voltage drop and breaker check, the test run after work and the
+# permit's fees. The plan is one text file in the Hoard (files.read,
+# files.write); the machine's own draw is power.status. See
+# levin_model.h LM1-LM9 and levin_rules.h LR1-LR7.
+#
+# Advisory: Levin never switches a breaker or a device and sends no
+# command; a licensed electrician does the work and the inspection. Every
+# change to the plan is the owner's act (owner_confirmed). zxvd has no
+# meter or clamp method, so a circuit's measured draw is typed in by the
+# person, and none is invented; zxvd has no notification method either,
+# so the model only composes the notice's text (notify).
+#
+# Composed, not written again (four uses of ZXAPP_USES 8; its own 9 logic
+# lines and its parts' 37 are 46 of ZXAPP_LOGIC_MAX 128; every part
+# carries version 1.0.0 and its provides lines): whether a command to a
+# device on a circuit would be allowed is homestead.device_cmd_ok (shown,
+# never sent) and a circuit's energy total over its readings
+# homestead.device_energy; the panel's temperature against its limits is
+# brazier.heat_ok and brazier.heat_safe; a test run's five steps
+# (continuity, insulation, polarity, earth loop, residual-current trip),
+# every code 0 in order, are mockingbird.boot_passed; a load's exact
+# current is tally.ratio_div (Tally owns rational arithmetic).
+#
+# The task's slot 236 is no matrix layer (zxapp.c M1: 0..144); an L2 app
+# sits on the layer of its part that is outermost in MATRIX_ORDER.tsv:
+# Homestead (place 93, layer 94), past Brazier (52), Mockingbird (27) and
+# Tally (18).
+#
+# Later layers use the breaker check, the load current and the voltage
+# drop (Luminaire, Pyrometer, Capstan, Insolation, Ravelin, Arcology,
+# Heliostat, Macrame, Manometer), so those three are general and
+# registered in CONCEPTS.tsv with Levin as owner. Kept in C: text (the plan
+# file, names, the notice), zxvd's answers, and the four-valued join of
+# plan and reading (lpres_kjoin, then lpres_conjoin, LR7).
+#
+# Planned (no runtime yet): Verilog owns checking circuits, so it waits on
+# circuit_breaker_ok; Delphi owns structure over strong types, so it
+# waits on the panel tree. Simula I owns discrete-event simulation, and
+# Levin simulates nothing (a test run is recorded, not simulated), so it
+# has no pending line.
+zxapp 1
+id     levin
+name   Levin
+version 1.0.0
+slot   236
+layer  L2
+matrix 94
+icon   icons/l2/236-levin.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  sys.read
+needs  notify
+model  apps/levin_model.c
+use    homestead 1     # @logic.homestead_device_cmd_ok @num.homestead_device_energy
+use    brazier 1       # @logic.brazier_heat_ok @logic.brazier_heat_safe
+use    mockingbird 1   # @logic.mockingbird_boot_passed
+use    tally 1         # @num.tally_ratio_div
+# what it exports, so apps built from it can use them too (C1)
+provides homestead.device_cmd_ok truth above below owed ai
+provides homestead.device_energy num device want wh
+provides brazier.heat_ok truth temp
+provides brazier.heat_safe truth temp
+provides mockingbird.boot_passed truth rom loader kernel drivers apps
+provides tally.ratio_div num an ad bn bd
+
+# A circuit within its breaker (LR1, critical): the load at most 80% of
+# the breaker, the cable rated at least the breaker, the drop at most the
+# owner's limit, as three margins. Ada as Eve declares each range, APL as
+# KRON compares; a margin past its range held (Eve refuses, KRON within).
+provides circuit_breaker_ok truth spare cable slack
+logic    eve  circuit_breaker_ok apps/blocks/levin/breaker.eve
+logic    kron circuit_breaker_ok apps/blocks/levin/breaker.kron
+pending  Verilog circuit_breaker_ok
+
+# A load's current (LR2, critical): 1000 * watts / volts mA, exact. FORTRAN
+# as Trebago and APL as KRON; volts past 999 held (Trebago refuses).
+provides circuit_load_ma num watts volts
+logic    trebago circuit_load_ma apps/blocks/levin/load.tb
+logic    kron    circuit_load_ma apps/blocks/levin/load.kron
+
+# The voltage drop (LR3, critical): 2 * metres * ma * mohm microvolts.
+# FORTRAN as Trebago and APL as KRON; past the domain held.
+provides circuit_drop_uv num metres ma mohm
+logic    trebago circuit_drop_uv apps/blocks/levin/drop.tb
+logic    kron    circuit_drop_uv apps/blocks/levin/drop.kron
+
+# The circuit matrix (LR4), circuits by rooms by loads. APL as KRON.
+provides circuit_room_watts num circuit room watts
+logic    kron circuit_room_watts apps/blocks/levin/matrix.kron
+
+# A wiring permit's fee (LR5), refused on overflow. COBOL as Sutra.
+provides wiring_permit_fee num base inspections visit
+logic    sutra wiring_permit_fee apps/blocks/levin/permit.sutra
+
+# The panel tree (LR6): ^ZXLEVIN(panel, circuit) = parent ^ breaker ^
+# cable. MUMPS as MYRA.
+provides panel_circuit_ok truth panel circuit parent breaker cable
+logic    myra panel_circuit_ok apps/blocks/levin/panel.myra
+pending  Delphi panel_circuit_ok
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check circuit_breaker_ok spare=0,999999,-1,5,5,800000 cable=0,999999,5,-1,5,0 slack=0,999999999,5,5,-1,0 = true,true,false,false,false,true
+check circuit_breaker_ok spare=5,1000000 cable=5,5 slack=5,5 = both
+check circuit_breaker_ok spare=5,5 cable=5,5 slack=5,1000000000 = both
+check circuit_load_ma watts=2000,0,999999,100,3000 volts=230,230,1,3,230 = 200000/23,0,999999000,100000/3,300000/23
+check circuit_load_ma watts=2000,2000 volts=230,1000 = both
+check circuit_load_ma watts=2000,1000000 volts=230,230 = both
+check circuit_drop_uv metres=20,0,9999,1 ma=8696,5000,999999,1 mohm=7,7,99999,0 = 2434880,0,1999778002219998,0
+check circuit_drop_uv metres=20,10000 ma=1,1 mohm=1,1 = both
+check circuit_drop_uv metres=20,20 ma=1,-1 mohm=1,1 = both
+check circuit_room_watts circuit=3,3,4,3,4 room=1,1,1,2,1 watts=2000,500,100,60,40 = 2500,2500,140,60,140
+check wiring_permit_fee base=15000,0,9999999,0 inspections=2,0,0,99 visit=7500,0,0,999999 = 30000,0,9999999,98999901
+check panel_circuit_ok panel=1,99,100,1,1,-99 circuit=3,999,1,1000,1,1 parent=0,999,0,0,0,0 breaker=20000,999999,1,1,1000000,1 cable=25000,999999,1,1,1,-999999 = true,true,false,false,false,true
+# A device on a circuit: a command shown, never sent; a circuit's energy
+check homestead.device_cmd_ok above=0,1,1 below=1,0,0 owed=0,-1,0 ai=0,0,1 = true,true,false
+check homestead.device_cmd_ok above=5,199999 below=5,5 owed=0,0 ai=0,0 = both
+check homestead.device_energy device=3,4,3,3 want=3 wh=1200,700,800,0 = 2000
+check homestead.device_energy device=1,1,1 want=1 wh=9223372036854775807,1,-1 = both
+# The panel's temperature against its limits
+check brazier.heat_ok temp=-1,0,450,451 = false,true,true,false
+# agree: brazier.heat_ok one integer against one declared range: Eve and KRON read the same reading the same way
+check brazier.heat_safe temp=-201,-200,600,601 = false,true,true,false
+# agree: brazier.heat_safe one integer against one declared range: Eve and KRON read the same reading the same way
+# A test run's five steps, every code 0 in order
+check mockingbird.boot_passed rom=0,1 loader=0,-1 kernel=0,-1 drivers=0,-1 apps=0,-1 = true,false
+check mockingbird.boot_passed rom=0,0 loader=0,0 kernel=0,-1 drivers=0,0 apps=0,0 = both
+# A load's exact current, through Tally
+check tally.ratio_div an=2000000,1 ad=1,3 bn=230,1 bd=1,6 = 200000/23,2
+check tally.ratio_div an=1,1000000000000000000 ad=1,1 bn=3,1 bd=1,1 = both

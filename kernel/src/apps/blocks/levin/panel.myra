@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Levin files one circuit of a home's panel tree in MYRA
+; (levin_rules.h LR6): a sparse record under the panel and the circuit,
+; with the circuit it is fed from (its parent, 0 for the panel's main
+; switch), its breaker's rating and its cable's rating, both in mA. The
+; model asks whether the numbers fit before it keeps the circuit.
+^ZXLEVIN(panel:i2, circuit:i3) = parent:i3! ^ breaker:i6! ^ cable:i6!

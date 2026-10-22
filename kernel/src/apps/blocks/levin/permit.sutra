@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A wiring permit's fee in minor units, in Sutra (levin_rules.h LR5): the
+# authority's base fee plus each inspection visit at its fee, exact. base
+# fits 9(7), inspections 9(2) and visit 9(6); a value past its picture,
+# or a negative, is a size error, and so is a fee past 9(8): an overflow,
+# refused, never wrapped.
+record wiring-permit
+  base: 9(7)
+  inspections: 9(2)
+  visit: 9(6)
+  fee: 9(8)
+procedure
+  compute fee = base + inspections * visit
+  answer fee

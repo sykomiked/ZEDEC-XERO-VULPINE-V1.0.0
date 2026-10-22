@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A circuit within its breaker (levin_rules.h LR1), in Eve. Eve checks
+# each field against its own range, so the circuit comes as its three
+# margins: spare = 4 * breaker - 5 * load in mA (the load at most 80% of
+# the breaker's rating), cable = cable rating - breaker rating in mA (the
+# cable rated at least the breaker) and slack = the owner's limit - the
+# voltage drop in microvolts. A margin below 0 is a circuit past its
+# breaker. breaker.kron reads any margin at or above 0 as within: a
+# margin past its range is no circuit Levin plans, held.
+eve levin
+load_spare = 0 .. 999999
+cable_spare = 0 .. 999999
+drop_slack = 0 .. 999999999
+
+circuit_margins {
+  spare: load_spare
+  cable: cable_spare
+  slack: drop_slack
+}

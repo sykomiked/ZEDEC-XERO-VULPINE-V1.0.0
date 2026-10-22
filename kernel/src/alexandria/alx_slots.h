@@ -439,7 +439,13 @@
 #define ALX_SLOT_LOGIC_TRIBUTARY_ANSWER_SRC_OK   431u /* 492.13 tributary.answer_src_ok */
 #define ALX_SLOT_LOGIC_TRIBUTARY_ASK_WITHIN_CAPS 432u /* 492.14 tributary.ask_within_caps */
 #define ALX_SLOT_NUM_TRIBUTARY_QUERY_LEDGER      433u /* 592.12 tributary.query_ledger */
-#define ALX_SLOT__COUNT 433u
+#define ALX_SLOT_LOGIC_LEVIN_CIRCUIT_BREAKER_OK  434u /* 492.15 levin.circuit_breaker_ok */
+#define ALX_SLOT_NUM_LEVIN_CIRCUIT_DROP_UV       435u /* 592.13 levin.circuit_drop_uv */
+#define ALX_SLOT_NUM_LEVIN_CIRCUIT_LOAD_MA       436u /* 592.14 levin.circuit_load_ma */
+#define ALX_SLOT_NUM_LEVIN_CIRCUIT_ROOM_WATTS    437u /* 592.15 levin.circuit_room_watts */
+#define ALX_SLOT_LOGIC_LEVIN_PANEL_CIRCUIT_OK    438u /* 492.16 levin.panel_circuit_ok */
+#define ALX_SLOT_NUM_LEVIN_WIRING_PERMIT_FEE     439u /* 592.16 levin.wiring_permit_fee */
+#define ALX_SLOT__COUNT 439u
 /* clang-format on */
 
 #endif

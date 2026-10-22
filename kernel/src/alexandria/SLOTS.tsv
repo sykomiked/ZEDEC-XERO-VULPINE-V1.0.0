@@ -468,3 +468,9 @@
 431	logic.tributary_answer_src_ok	492.13	tributary.answer_src_ok	base
 432	logic.tributary_ask_within_caps	492.14	tributary.ask_within_caps	base
 433	num.tributary_query_ledger	592.12	tributary.query_ledger	base
+434	logic.levin_circuit_breaker_ok	492.15	levin.circuit_breaker_ok	base
+435	num.levin_circuit_drop_uv	592.13	levin.circuit_drop_uv	base
+436	num.levin_circuit_load_ma	592.14	levin.circuit_load_ma	base
+437	num.levin_circuit_room_watts	592.15	levin.circuit_room_watts	base
+438	logic.levin_panel_circuit_ok	492.16	levin.panel_circuit_ok	base
+439	num.levin_wiring_permit_fee	592.16	levin.wiring_permit_fee	base

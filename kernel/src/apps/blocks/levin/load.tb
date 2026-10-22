@@ -1,0 +1,16 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A load's current in milliamps (levin_rules.h LR2), in Trebago, one load
+! a row: 1000 * watts / volts, an exact reduced fraction, never rounded.
+! ok is 0, and the current divided by it refused, for watts outside
+! 0 .. 999999 or volts outside 1 .. 999; load.kron answers any volts but
+! 0, so past this domain the two disagree: held.
+trebago circuitload
+  in  watts(n), volts(n)
+  out ma(n)
+  var ok(n)
+  ok(i) = min(1, max(0, watts(i) + 1)) * min(1, max(0, 999999 - watts(i) + 1)) &
+        * min(1, max(0, volts(i))) * min(1, max(0, 999 - volts(i) + 1))
+  ma(i) = (watts(i) * 1000 / volts(i)) / ok(i)
+end
