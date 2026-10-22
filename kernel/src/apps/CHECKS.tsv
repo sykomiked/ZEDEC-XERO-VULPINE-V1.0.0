@@ -555,6 +555,14 @@ tally	check fx_rest amount=1,1000000000000 rnum=1,1 rden=3,3 = both
 tally	check unit_convert qty=1,1,5,3,1,1,1,2 src=4,7,12,20,5,16,0,19 dst=2,3,9,19,4,15,3,18 = 127/5000,25146/15625,45359237/20000,72,12,128,1/1000000,120
 tally	check pce_fin.npv cf=-100,110 rate_num=1 rate_den=10 = 0
 tally	check pce_fin.npv cf=-100,121 rate_num=1,0 rate_den=10,1 = 10,21
+tallystick	check taxed_line_total qty=0,1,3,999999,2,1 price=0,1000,1999,9999999,5,1 taxn=0,1,2,1,1,1 taxd=1,10,25,1,4,2 = 0,1100,6477,19999978000002,13,2
+tallystick	check taxed_line_total qty=1,1000000 price=1,1 taxn=0,0 taxd=1,1 = both
+tallystick	check taxed_line_total qty=1,1 price=1,10000000 taxn=0,0 taxd=1,1 = both
+tallystick	check paid_in_full total=100,100,0,9007199254740991,100,9007199254740992 over=0,5,0,999999999999999999,-1,0 = true,true,true,true,false,false
+tallystick	check paid_in_full total=100,100 over=0,1000000000000000000 = both
+tallystick	check next_doc_number last=0,1,41,999999998 = 1,2,42,999999999
+tallystick	check coffer.holdings balance=1100,6477,13 = 7590
+tallystick	check witness.chain_ok seq=1,2,3 prev=0,1,2 last=0,1,2 = true,true,true
 threshold	check rights_ok role=1,1,1,2,2,2,3,3,1 own=0,1,0,1,0,1,1,0,0 target=2,1,3,2,2,3,3,2,0 = true,true,false,true,false,false,false,false,false
 threshold	check rights_ok role=1,10 own=0,0 target=2,2 = both
 threshold	check skip_ok seats=1,0,2,1,1,4096 lock=0,0,0,1,0,0 auto=1,1,1,1,0,1 = true,false,false,false,false,false

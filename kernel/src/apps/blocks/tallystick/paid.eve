@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether an invoice is paid in full, in Eve (tallystick_rules.h TR2):
+# what was paid is at or above the total, given as its margin over = paid
+# - total (coffer.balance), which must be 0 or more and fit 18 digits;
+# the total is 0 to 2^53 - 1 minor units (libzxv ZXV_AMOUNT_MAX), the most
+# one posting carries. Each field is checked against its own range; a
+# margin below 0 (still owing) does not fit: not paid in full. paid.sutra
+# says the same in Sutra.
+eve tallystick
+minor_total = 0 .. 9007199254740991
+minor_over = 0 .. 999999999999999999
+
+paid_rule {
+  total: minor_total
+  over: minor_over
+}

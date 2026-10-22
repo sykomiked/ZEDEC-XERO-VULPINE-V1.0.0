@@ -1,0 +1,13 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The next number of an invoice or receipt, in Sutra (tallystick_rules.h
+# TR3): a fixed business record of nine digits, last + 1 from 1. last and
+# next fit 9(9): a negative last, or a next past 999999999, is a size
+# error, refused; the sequence is never wrapped or restarted.
+record doc-sequence
+  last: 9(9)
+  next: 9(9)
+procedure
+  compute next = last + 1
+  answer next

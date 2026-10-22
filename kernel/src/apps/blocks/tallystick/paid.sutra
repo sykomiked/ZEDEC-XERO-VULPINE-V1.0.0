@@ -1,0 +1,13 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether an invoice is paid in full, in Sutra (tallystick_rules.h TR2):
+# the total 0 to 2^53 - 1 minor units and over (paid - total) at least 0.
+# Both fields are s9(18): a margin past 18 digits is a size error, refused,
+# where paid.eve answers FALSE: held. The app records the invoice as paid
+# only when both say TRUE.
+record paid-check
+  total: s9(18)
+  over: s9(18)
+procedure
+  answer total >= 0 and total <= 9007199254740991 and over >= 0

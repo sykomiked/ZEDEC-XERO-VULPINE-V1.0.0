@@ -306,3 +306,6 @@
 269	num.pollen_freight_packets	591.27	pollen.freight_packets	base
 270	logic.pollen_share_limits_ok	491.34	pollen.share_limits_ok	base
 271	logic.pollen_share_record_ok	491.35	pollen.share_record_ok	base
+272	num.tallystick_next_doc_number	591.28	tallystick.next_doc_number	base
+273	logic.tallystick_paid_in_full	491.36	tallystick.paid_in_full	base
+274	num.tallystick_taxed_line_total	591.29	tallystick.taxed_line_total	base

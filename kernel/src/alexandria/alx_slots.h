@@ -277,7 +277,10 @@
 #define ALX_SLOT_NUM_POLLEN_FREIGHT_PACKETS      269u /* 591.27 pollen.freight_packets */
 #define ALX_SLOT_LOGIC_POLLEN_SHARE_LIMITS_OK    270u /* 491.34 pollen.share_limits_ok */
 #define ALX_SLOT_LOGIC_POLLEN_SHARE_RECORD_OK    271u /* 491.35 pollen.share_record_ok */
-#define ALX_SLOT__COUNT 271u
+#define ALX_SLOT_NUM_TALLYSTICK_NEXT_DOC_NUMBER  272u /* 591.28 tallystick.next_doc_number */
+#define ALX_SLOT_LOGIC_TALLYSTICK_PAID_IN_FULL   273u /* 491.36 tallystick.paid_in_full */
+#define ALX_SLOT_NUM_TALLYSTICK_TAXED_LINE_TOTAL 274u /* 591.29 tallystick.taxed_line_total */
+#define ALX_SLOT__COUNT 274u
 /* clang-format on */
 
 #endif

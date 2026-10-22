@@ -1,0 +1,37 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! One line of an invoice with its tax, in Trebago (tallystick_rules.h
+! TR1), one line per row: net = qty * price, and the tax at taxn / taxd
+! rounded half up, floor(y / d) with y = 2 * net * taxn + taxd and
+! d = 2 * taxd; the answer is net + tax. Trebago is exact and has no floor,
+! so the quotient is counted in integers, three digits at a time from the
+! top: each digit the count of k with y - k * step * d >= 0, which
+! min(1, max(0, ... + 1)) is for integers, then that much taken off y.
+! The tax is at most the net, below 10^13, so the top group (10^12) is one
+! digit. ok is 0 for a negative qty, price or taxn, a taxd below 1, a rate
+! past 100 percent (taxn above taxd) or a net past 13 digits, and the
+! total is divided by it: refused. line.sutra holds qty to 9(6), price to
+! 9(7) and the rate to 9(5): past them the two disagree and it is held.
+trebago line
+  in  qty(n), price(n), taxn(n), taxd(n)
+  out total(n)
+  var net(n), y(n), d(n), a(n), b(n), c(n), e(n), f(n), ok(n)
+  net(i) = qty(i) * price(i)
+  ok(i) = min(1, max(0, qty(i) + 1)) * min(1, max(0, price(i) + 1)) &
+        * min(1, max(0, taxn(i) + 1)) * min(1, max(0, taxd(i))) &
+        * min(1, max(0, taxd(i) - taxn(i) + 1)) * min(1, max(0, 9999999999999 - net(i) + 1))
+  y(i) = 2 * net(i) * taxn(i) * ok(i) + taxd(i)
+  d(i) = 2 * taxd(i)
+  a(i) = sum(k = 1:9, min(1, max(0, y(i) - k * 1000000000000 * d(i) + 1)))
+  y(i) = y(i) - a(i) * 1000000000000 * d(i)
+  b(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000000000 * d(i) + 1)))
+  y(i) = y(i) - b(i) * 1000000000 * d(i)
+  c(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000000 * d(i) + 1)))
+  y(i) = y(i) - c(i) * 1000000 * d(i)
+  e(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000 * d(i) + 1)))
+  y(i) = y(i) - e(i) * 1000 * d(i)
+  f(i) = sum(k = 1:999, min(1, max(0, y(i) - k * d(i) + 1)))
+  total(i) = (net(i) + a(i) * 1000000000000 + b(i) * 1000000000 + c(i) * 1000000 &
+           + e(i) * 1000 + f(i)) / ok(i)
+end

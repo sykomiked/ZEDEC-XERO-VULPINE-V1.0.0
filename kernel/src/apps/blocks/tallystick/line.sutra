@@ -1,0 +1,28 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One line of an invoice with its tax, in Sutra (tallystick_rules.h TR1),
+# one line per row: net = qty * price in integer minor units, the tax at
+# taxn / taxd rounded half up to a whole minor unit, floor((2 * net * taxn
+# + taxd) / (2 * taxd)) (COMPUTE truncates, and nothing here is negative),
+# and the line's total net + tax. qty fits 9(6) whole units, price 9(7)
+# minor units, taxn and taxd 9(5): a negative or a longer value is a size
+# error, refused. room (taxd - taxn) is unsigned, so a rate past 100
+# percent does not fit, refused; a taxd of 0 is a division by zero,
+# refused. line.tb says the same in Trebago, which takes any size that
+# keeps the net to 13 digits: past these pictures the two disagree, held.
+record taxed-line
+  qty: 9(6)
+  price: 9(7)
+  taxn: 9(5)
+  taxd: 9(5)
+  room: 9(5)
+  net: 9(13)
+  tax: 9(13)
+  total: 9(14)
+procedure
+  compute room = taxd - taxn
+  compute net = qty * price
+  compute tax = (2 * net * taxn + taxd) / (2 * taxd)
+  compute total = net + tax
+  answer total
