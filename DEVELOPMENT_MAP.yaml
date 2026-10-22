@@ -1,3 +1,6 @@
+# SUPERSEDED (2026-10-15): the current architecture is docs/ARCHITECTURE.md and every
+# module is described in docs/SYSTEM_REFERENCE.md. Kept for the record; its
+# canonical_tree paths are from an older repository layout.
 # ============================================================================
 # ZXV / ZEDEC pqOS — DEVELOPMENT MAP
 #

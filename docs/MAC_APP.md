@@ -28,7 +28,7 @@ To uninstall, quit ZXV, then delete the app and the folders listed in [Where dat
 ## First run
 
 1. ZXV opens a window with a Dock icon and a menu bar.
-2. It starts its engine (`ZXV.app/Contents/MacOS/zxv-engine`) in the background. The engine scans the hardware, sizes the swarm and serves the window.
+2. It starts its engine (`ZXV.app/Contents/MacOS/zxv-engine`) in the background. The engine scans the hardware and sizes the swarm. The window is the ZXV desktop itself, drawn natively (zui on Metal): a launcher rail with Burrow (files), Quillon, Glint, Spindle and Murmuration, each opening in its own window, and the Desktop / Spaces switch in the top bar. Its apps talk to the engine over its control socket; the bar says "zxvd connected" or "zxvd not running".
 3. If no model is installed, ZXV asks once what to do:
    - **Download Model.** Shown only when the app's model manifest lists a model (this release lists Qwen2.5-1.5B-Instruct, Q4_K_M, about 1.1 GB, Apache-2.0). ZXV downloads it from IPFS when the manifest gives a CID, otherwise from the HTTPS mirror the manifest pins (the model's Hugging Face file at a fixed commit), checks its size and SHA-256, installs it and restarts the swarm with it. You get a notification when it finishes.
    - **Choose GGUF File…** Pick a `.gguf` file you already have. ZXV reads it where it is and does not copy it.
@@ -56,7 +56,7 @@ The engine maps the file read-only and checks every header extent before it read
 | Your model choice and the "asked once" flag | `~/Library/Preferences/com.36n9genetics.zxv-swarm.plist` (macOS user defaults) |
 | Engine log | `~/Library/Logs/ZXV/engine.log`. It starts afresh once it passes 4 MB and never contains the access token. |
 | Model download log | `~/Library/Logs/ZXV/fetch.log` |
-| Window data (cookies, storage) | Nowhere. The window uses a non-persistent WebKit data store. |
+| Window data | Nowhere. The window is drawn by the app itself; there is no browser and no web data store. |
 
 ZXV writes nothing else: no login item, no launch agent, no files outside these folders, and no system settings.
 
@@ -66,7 +66,7 @@ ZXV writes nothing else: no login item, no launch agent, no files outside these 
 - **It runs only while it is open.** Closing the window quits ZXV. The engine is tied to the app through a pipe, so it stops even if the app crashes or is force-quit.
 - **A control socket for you only.** Built on a Mac, the engine is zxvd and also listens on `~/Library/Application Support/ZXV/run/zxvd.sock`: a UNIX socket, mode 0600 in a 0700 folder, that answers only processes running as you (docs/ZXVD.md). The app uses it to stop the engine politely on Quit and to show unread notifications on the Dock icon; scripts and the SDKs can use it too. It is removed when the engine stops.
 - **It stays off the network.** The window is served on `127.0.0.1` with a port picked at launch, and never on a network interface. Every API request must carry a random 256-bit token that is new at every launch. The engine also rejects requests whose `Host`, `Origin` or `Sec-Fetch-Site` header shows they came from another site, so a web page in your browser cannot drive or read ZXV. This is the fix for gap 14; see `kernel/arch/hosted/zxv_http_guard.h`.
-- **Links leave the app.** Links in the window open in your default browser. Only the engine's own page can load in the ZXV window.
+- **No browser inside.** The Mac app's window loads no web page. The engine still serves its small web window on `127.0.0.1` for browsers (that is what Linux and Windows use), under the same token.
 
 ## Offline, LAN and online
 
@@ -101,7 +101,7 @@ On a Mac with Xcode or the Command Line Tools, it produces this bundle:
 ```text
 ZXV.app/Contents/
   Info.plist                 from macos/Info.plist.in (LSUIElement false: Dock icon and menus)
-  MacOS/ZXV                  native shell, macos/ZXVApp.m (AppKit + WKWebView), arm64 + x86_64
+  MacOS/ZXV                  native shell, macos/ZXVApp.m (AppKit + the zui desktop on Metal), arm64 + x86_64
   MacOS/zxv-engine           engine: zxvd (docs/ZXVD.md), the swarm plus its JSON-RPC control socket, arm64 + x86_64
   Frameworks/libzxv.dylib    libzxv, the stable C ABI zxvd's books go through, arm64 + x86_64
   Resources/AppIcon.icns     from kernel/boot/zede_logo.png (needs Pillow)
@@ -145,7 +145,7 @@ Notarisation is not part of the release plan. The script keeps an optional Devel
 
 - The engine listens on loopback.
 - The fetcher uses `curl`.
-- WKWebView compiles JavaScript in WebKit's own processes.
+- The window is drawn on the CPU and shown through Metal; no code is compiled at run time.
 - Nothing loads unsigned libraries.
 
 Any entitlement you add weakens the runtime, so add one only for a stated reason.
@@ -158,7 +158,7 @@ Never commit a certificate, key or password. The signing modes of `build_signed_
 
 - **Answers are greedy and slow, and real models are untested.** The forward pass (`kernel/src/tensor/zt_model.c`) is compiled in through `kernel/arch/hosted/zxv_zt_glue.c`. The glue loads the model once, wraps the message in the ChatML template when the vocabulary has `<|im_start|>` (Qwen2, Qwen3), and decodes greedily, up to 256 new tokens in a context of at most 2048. `test_zxv_zt_glue.c` checks the reply against the tensor engine's reference chain on a tiny random test model; no real model has been run through the app. It is one thread of scalar C (zt_model.h estimates 2.5 to 6 tokens a second for a 0.5B model; not measured), and `/api/ask` blocks the window while it runs. F32, F16, BF16, Q8_0, Q4_0, Q5_0, Q5_1, Q4_K and Q6_K weights load, so Q4_K_M files of models whose width is not a multiple of 256 (Qwen2.5-0.5B, 896 wide, which contain Q5_0/Q5_1 tensors) are accepted; none has been run yet. The model answers on its own: the swarm's market does not yet budget its tokens, and the swarm's agents are still stand-ins.
 - **Tokenizers.** Only byte-level BPE tokenizers (Qwen2, Llama 3) are supported. SentencePiece models (Llama 2, Mistral, Gemma) load as metadata only.
-- **Peer networking is basic.** The app runs one Vinea node over UDP (routing only, a new identity at each launch, IPv4, no NAT traversal or LAN discovery); `ipfs_node` file exchange, calls and social have no host glue yet.
+- **Peer networking is basic.** The app runs one Vinea node over UDP, IPv4 only (`kernel/arch/hosted/zxv_net_host.c`, linked into the engine through `kernel/arch/hosted/app_sources.sh`). It keeps its identity across launches, finds peers on the local link and can be introduced to peers behind other routers by UDP hole punching, as described under Peer network above; `ipfs_node` file exchange, calls and social have no host glue yet.
 - **Not sandboxed.** The engine is a separate process that reads a user-chosen model by path. Sandboxing would need `app-sandbox` plus `inherit` on the helper, network client and server entitlements, and security-scoped bookmarks for user-chosen files. It is required for the Mac App Store, which ZXV does not use.
 - **No self-update.** There is no update check yet. A hybrid-signed update path is gap 8 and gap 13.
 - **Not verified on a real Mac here.** The native shell (`macos/ZXVApp.m`), the Apple-clang universal build, icon rendering, and ad-hoc signing were written without a Mac. They are exercised only by the `macos-app` CI job on GitHub's `macos-14` runner. Intel coverage is the universal binary's x86_64 slice; nothing runs on an Intel Mac in CI.

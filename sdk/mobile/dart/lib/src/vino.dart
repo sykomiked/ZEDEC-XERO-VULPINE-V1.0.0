@@ -399,7 +399,7 @@ final class PlaySandbox {
 /// caller's clock (Unix time by convention); a wallet approves only within
 /// `[createdAt, expiresAt]`. A live request may not mark a paid chance outcome
 /// ([Vino.flagChance]: loot boxes, paid draws): encoding it is a
-/// [ChanceException]. The raffle is a separate module, not a payment request.
+/// [ChanceException]. The allotment is a separate module, not a payment request.
 ///
 /// Building one checks only the byte lengths; [encode] applies every rule.
 /// Byte lists are copied in and out, so an instance never changes. `amount`,

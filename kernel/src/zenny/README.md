@@ -32,7 +32,7 @@ the leg movements on a ledger is the caller's job. The rules Z1 to Z6 are in
   (V-Bill, fiat, and commodity legs with a standing, unexpired custodian
   attestation; compute vouchers are never backed). It mints
   `amount / kappa` new chips to a recipient (kappa never changes) and is
-  appended to the chain. `zenny_raffle_credit` adapts a raffle's
+  appended to the chain. `zenny_allot_credit` adapts an allotment's
   basket-NAV credit (dest 3) to it.
 
 **Honest limits.** A chip is a claim on its legs, not new money; compression

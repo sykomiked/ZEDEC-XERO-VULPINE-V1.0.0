@@ -42,7 +42,7 @@ namespace Zedec\Zxv;
  * REQUESTS AND RECEIPTS. A payment request is a fixed 160-byte canonical
  * record; its id is the SHA-256 of those bytes. A LIVE request marked as
  * having a paid chance outcome (loot boxes, paid draws) is refused
- * (ChanceRefusedException); the raffle is a separate module, not a payment
+ * (ChanceRefusedException); the allotment is a separate module, not a payment
  * request. A receipt is the wallet's ML-DSA-87 signature over 88 bytes
  * naming the request id, the wallet key and the approval time. A receipt
  * for an expired request, or one approved outside its window, is

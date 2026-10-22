@@ -103,9 +103,12 @@ int helion_selfcheck(uint32_t *perp_permille_out){
     /* (3) genuine 3D lift: all three axes gain extent */
     surplus_real_t mnx=pts[0].x,mxx=pts[0].x,mny=pts[0].y,mxy=pts[0].y,mnz=pts[0].z,mxz=pts[0].z;
     for (int i=1;i<N;i++){
-        if(pts[i].x<mnx)mnx=pts[i].x; if(pts[i].x>mxx)mxx=pts[i].x;
-        if(pts[i].y<mny)mny=pts[i].y; if(pts[i].y>mxy)mxy=pts[i].y;
-        if(pts[i].z<mnz)mnz=pts[i].z; if(pts[i].z>mxz)mxz=pts[i].z;
+        if (pts[i].x < mnx) mnx = pts[i].x;
+        if (pts[i].x > mxx) mxx = pts[i].x;
+        if (pts[i].y < mny) mny = pts[i].y;
+        if (pts[i].y > mxy) mxy = pts[i].y;
+        if (pts[i].z < mnz) mnz = pts[i].z;
+        if (pts[i].z > mxz) mxz = pts[i].z;
     }
     surplus_real_t ex=SR_SUB(mxx,mnx), ey=SR_SUB(mxy,mny), ez=SR_SUB(mxz,mnz);
     surplus_real_t eps = SR_FROM_FLOAT(0.2);

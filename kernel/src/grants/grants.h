@@ -13,17 +13,17 @@
  *     or fraud finding). An appeal path exists: a signed dispute-funnel
  *     ruling can override a failed check for one epoch.
  *   - "Grants are paid ONLY from the funded grant pool balance, never
- *     minted." The pool is fed by the raffle slice (default 5/55 of the pot,
- *     computed in the raffle module) through grant_pool_credit.
+ *     minted." The pool is fed by the allotment slice (default 5/55 of the pot,
+ *     computed in the allotment module) through grant_pool_credit.
  *   - "VIRTUAL UNTIL BACKED": every barrel is a virtual ledger unit labelled
  *     exactly "Virtual Barrel Allocation (Unbacked Synthetic Unit)" with
  *     status "Pending Physical Underwriter Attestation". The protocol makes
  *     no custody, warehousing or delivery claim. A lot becomes BACKED only
  *     when an outside custodian or co-op signs an attestation over (lot id,
  *     barrel count, underwriter id, expiry). Unbacked units are for display
- *     and weighting only: NOT redeemable into Vino and NOT lockable into
+ *     and weighting only: NOT claimable as a Vino allotment and NOT lockable into
  *     V-Notes. A disputed or expired attestation reverts the lot to unbacked.
- *   The word is always "raffle".
+ *   The word is always "allotment".
  *
  *   G1 BARRELS. grant_init registers the barrel asset "BRL-V" (pay_ledger
  *      kind UNIT, 0 decimals, not ISO 4217) and opens three accounts for the
@@ -35,7 +35,7 @@
  *      (holder account, lot, count) mirrored on the ledger: grant_check
  *      proves sum of holdings per lot == lot count, sum of lot counts ==
  *      issuer CREDIT, and each holder's DEBIT == its holdings. Barrels move
- *      only through this module (issue on grant, redeem on G5).
+ *      only through this module (issue on grant, accept allotment on G5).
  *   G2 STANDING. grant_eval(metrics, epoch) is eligible iff no bit of the
  *      reason mask is set: UPTIME (uptime_bps < min_uptime_bps), DROPPED (any
  *      dropped-tick report), ROUTING (any malicious-routing report), AUDIT
@@ -72,14 +72,15 @@
  *      account, holder or subject data): epoch, inflow, weight, rate, barrels
  *      and Vino granted, pool and reserve balances, barrels outstanding,
  *      backed and unbacked, lot counts.
- *   G5 BACKING AND REDEMPTION. grant_attest accepts a signature from a listed
+ *   G5 SUPPORT COMMITMENT AND ALLOTMENT. grant_attest accepts a signature from a listed
  *      underwriter over "zxv/grant-attest/v1" || lot || count || underwriter
  *      || expiry (little-endian) when count equals the lot's outstanding
  *      count, expiry > now and expiry is above the lot's last accepted
  *      expiry (so an old or disputed attestation cannot be replayed).
  *      grant_dispute takes a dispute-funnel ruling over "zxv/grant-dispute/v1"
  *      || lot || expiry of the attestation it voids. A lot is backed at tick
- *      now iff attested, not disputed and now < expiry. grant_redeem: only
+ *      now iff attested, not disputed and now < expiry. grant_accept_allotment
+ *      (ABI name grant_redeem): only
  *      for a backed lot, the holder returns n barrels to the issuer and
  *      receives n * price Vino from the reserve in ONE posting; unbacked ->
  *      GRANT_ERR_UNBACKED, expired -> GRANT_ERR_EXPIRED, disputed ->
@@ -89,9 +90,9 @@
  *
  * HONEST LIMITS. Barrels are software accounting units until an underwriter
  * attests; an attestation proves who signed, not that any oil exists. A pool
- * funded by raffle proceeds may share the raffle's legal treatment. A unit
+ * funded by allotment proceeds may share the allotment's legal treatment. A unit
  * that converts to money carries value whatever its label. Commodity custody
- * needs real custodians and insurance. The redemption price is supplied by
+ * needs real custodians and insurance. The allotment price is supplied by
  * the caller and is paid only while the reserve holds it (the ledger refuses
  * otherwise). Standing metrics are only as true as the reports fed in.
  * Designed to support an auditable grant program; it claims no compliance.
@@ -265,11 +266,11 @@ grant_status_t grant_underwriter_add(grant_t *g, uint32_t id);
 
 /* Start epoch e (> the current one): a fresh G4 record, stale appeals freed. */
 grant_status_t grant_epoch_begin(grant_t *g, uint64_t epoch);
-/* Move `amount` Vino from `from` into the pool (the raffle slice) and count
+/* Move `amount` Vino from `from` into the pool (the allotment slice) and count
  * it as this epoch's inflow. */
 grant_status_t grant_pool_credit(grant_t *g, uint32_t from, uint64_t amount, uint64_t tick);
 /* Record-only form, for a caller that posts the pool line itself inside a
- * larger all-or-nothing posting (the raffle's settlement): call it AFTER
+ * larger all-or-nothing posting (the allotment's settlement): call it AFTER
  * that posting commits. It counts `amount` as this epoch's inflow only when
  * the pool's ledger balance holds at least that much Vino not yet counted,
  * so inflow can never be recorded for money that did not land. */
@@ -312,6 +313,13 @@ bool grant_lock_ok(const grant_t *g, uint32_t lot, uint64_t now);
 const char *grant_label(const grant_t *g, uint32_t lot, uint64_t now, const char **status);
 grant_status_t grant_redeem(grant_t *g, uint32_t holder, uint32_t holder_vino, uint32_t lot,
                             uint64_t n, uint64_t price, uint64_t now);
+/* The mutual-aid name for grant_redeem; the exported symbol stays grant_redeem. */
+static inline grant_status_t grant_accept_allotment(grant_t *g, uint32_t holder,
+                                                    uint32_t holder_vino, uint32_t lot, uint64_t n,
+                                                    uint64_t price, uint64_t now)
+{
+    return grant_redeem(g, holder, holder_vino, lot, n, price, now);
+}
 
 /* Mirror check (G1) plus pay_ledger_check. */
 bool grant_check(const grant_t *g);

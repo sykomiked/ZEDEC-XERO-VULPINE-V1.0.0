@@ -1,5 +1,8 @@
 <!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
+
+> **Superseded (2026-10-15).** The current architecture is [docs/ARCHITECTURE.md](ARCHITECTURE.md) and every module is described in [docs/SYSTEM_REFERENCE.md](SYSTEM_REFERENCE.md). Its gap list is continued, with more detail, in [BAREMETAL_OS_GAPS.md](BAREMETAL_OS_GAPS.md). This file is kept for the record; where it disagrees with them or with the code, they win.
+
 # What ZXV needs to be a full turnkey OS
 
 This list (2026-10-12) compares ZXV with what macOS, Windows and a desktop

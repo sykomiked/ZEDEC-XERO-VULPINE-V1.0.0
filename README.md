@@ -38,7 +38,7 @@ same system, and an HPC version follows the local one.
 | **Languages** | Five language pillars (COBOL with Sutra, Fortran with Trebago, Ada with Eve, APL/K with KRON, MUMPS with MYRA), a shared IR for legacy languages with an AI twin for each, and spoken languages treated on par with programming languages. |
 | **AI swarm** | A swarm of small models on the integer tensor engine, scheduled by a tokens-per-cycle budget with Fibonacci scaling and an emotional economy, with GPU-first compute on Metal. |
 | **Logic and audit** | Four-valued paraconsistent logic (`lpres`) and a 64-state tag on decisions, a paradox engine, a paraconsistent ledger, peer audit of every posting, and a policy engine. |
-| **Economy** | An exact, interest-free ledger (assets = liabilities + equity every cycle), the 0.08889% assurance fee, escrow markets, V-Bills, the Crown Raffle and Player Cards. |
+| **Economy** | An exact, interest-free ledger (assets = liabilities + equity every cycle), the 0.08889% assurance fee, escrow markets, V-Bills, the Sicilian Crown Allotment and Player Cards. |
 | **Network** | Vinea peer-to-peer nodes over post-quantum sessions, Web 4 twins of classic network protocols, the AIRC chat layer, IPFS content addressing. |
 | **Security** | ML-KEM, ML-DSA, SLH-DSA and HQC from vendored reference code, checked against NIST vectors; capability-checked syscalls; signed updates. |
 | **Kernel** | Phase-tick scheduling, zxvfs with journal and extents, floating point banned at compile time, builds for arm64, x86_64, riscv64, riscv32 and arm32. |
@@ -110,6 +110,13 @@ The reasoning is in [DESIGN_PHILOSOPHY.md](DESIGN_PHILOSOPHY.md).
 
 ## Build and run
 
+**Verify the boot yourself:** one command builds the bare-metal disc from
+source, boots it in QEMU and checks every boot marker:
+`bash build_system/verify_boot.sh` (only Docker needed). Steps, what each
+marker proves and how to compare the disc's hash with CI's are in
+[docs/VERIFY_BOOT.md](docs/VERIFY_BOOT.md). You can also run the **Verify boot**
+workflow from the Actions tab.
+
 The reference kernel target is arm64. From the repository root:
 
 ```bash
@@ -141,8 +148,8 @@ toolchains, and [docs/CI.md](docs/CI.md) for what CI checks.
 
 | I want to… | Read |
 |---|---|
-| See the architecture | [ARCHITECTURE.md](ARCHITECTURE.md), [docs/ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md) |
-| Navigate the source | [SOURCE_CODE_NAVIGATION_GUIDE.md](SOURCE_CODE_NAVIGATION_GUIDE.md), [SUBSYSTEM_INDEX.md](SUBSYSTEM_INDEX.md) |
+| See the architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Look up any module | [docs/SYSTEM_REFERENCE.md](docs/SYSTEM_REFERENCE.md) |
 | Look up a term or see why a choice was made | [docs/supplemental/](docs/supplemental/README.md) |
 | Read the academic papers | [docs/academic/](docs/academic/README.md) |
 | See the roadmap | [ROADMAP.md](ROADMAP.md) |

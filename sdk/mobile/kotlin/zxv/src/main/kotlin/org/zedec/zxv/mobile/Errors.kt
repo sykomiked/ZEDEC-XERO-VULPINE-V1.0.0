@@ -353,7 +353,7 @@ class ExpiredException(status: Int, statusName: String, detail: String) :
 /**
  * A LIVE payment request marks a paid chance outcome (`ZXV_E_CHANCE`, -50, REFUSED):
  * loot boxes and paid draws cannot be paid for with live value through this ABI.
- * The raffle is a separate module, not a payment request.
+ * The allotment is a separate module, not a payment request.
  */
 class ChanceException(status: Int, statusName: String, detail: String) :
     ZxvRefusedException(status, statusName, detail)

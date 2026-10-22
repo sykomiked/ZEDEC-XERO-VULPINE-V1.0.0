@@ -68,7 +68,7 @@
  *
  * WEB 3. A decentralised compute / storage / pinning / inference network
  * lists through the same descriptor (network = PROV_NET_WEB3, with its chain
- * family and payout address). Settlement assets may be chain assets mapped to
+ * family and disbursement address). Settlement assets may be chain assets mapped to
  * VFV or ISO 4217 at a posted rate (prov_chain.h), and receipts can be
  * anchored on any chain as a 32-byte commitment.
  *
@@ -274,7 +274,7 @@ typedef struct {
     uint8_t network;                  /* prov_network_t */
     uint8_t chain_family;             /* WEB3: native chain (prov_chain_family_t) */
     char chain_id[PROV_CHAIN_ID_MAX]; /* "1", "cosmoshub-4", genesis tag   */
-    char payout_addr[PROV_ADDR_MAX];  /* WEB3: payout address text        */
+    char payout_addr[PROV_ADDR_MAX];  /* WEB3: disbursement address text  */
     char jurisdiction[8];             /* ISO 3166-1 alpha-2 of the legal entity  */
     prov_region_t regions[PROV_MAX_REGIONS];
     uint8_t n_regions;

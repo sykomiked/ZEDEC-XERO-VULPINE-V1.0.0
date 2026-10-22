@@ -1,0 +1,110 @@
+{
+  "schema": "zxv.tiamat.swarm/1",
+  "brand": "Tiamat Productive Agency AI",
+  "describe_as": "an agency of specialist AIs (never 'superintelligence')",
+  "manifest": "docs/release/swarm_model_manifest.json",
+
+  "levels": [
+    {"level": 0, "name": "organelle", "is": "one weight unit: a trunk, an adapter, an evidence head or a router head"},
+    {"level": 1, "name": "cell", "is": "one model (trunk + adapter, or a whole small model) with its evidence head; one dragon name"},
+    {"level": 2, "name": "tissue", "is": "cells that share one trunk; they share its weights, tokenizer and lower-layer pass"},
+    {"level": 3, "name": "organ", "is": "cells on one job, with at least one witness from a different lineage"},
+    {"level": 4, "name": "organ_system", "is": "organs joined across apps"},
+    {"level": 5, "name": "organism", "is": "one device's Tiamat: one chiglet's body"},
+    {"level": 6, "name": "species", "is": "every device on the same profile and pack"},
+    {"level": 7, "name": "environment", "is": "devices on the mesh, sharing finished jobs and server organs under both owners' grants"}
+  ],
+
+  "evidence": {
+    "rule": "Every cell answers through its evidence head (kernel/src/tensor/zt_evh.h): mu = evidence for, lambda = evidence against, mapped to TRUE, FALSE, BOTH or NEITHER. Organs combine verdicts with lpres_conjoin and lpres_disjoin, so grouping order never changes the verdict and a contradiction (BOTH) is never averaged away.",
+    "witness_rule": "A TRUE or FALSE verdict an organ reports needs a witness cell from a different lineage (different trunk or different developer). Same-trunk agreement counts as one witness.",
+    "native_training": "tools/tiamat/server/train_tfbn.py fits each cell's head on four-valued data (probe mode) and trains K/V-safe adapters with a four-way loss (adapter mode)."
+  },
+
+  "organs": {
+    "voice_of_tiamat": {"job": "dialogue with the owner, routing in", "cells": ["Parleywyvern", "Spinewyrm", "Greetwyvern", "Hostwyvern", "Heraldwyvern"], "lead": "Parleywyvern"},
+    "herald": {"job": "tool calls and routing", "cells": ["Toolhatchling", "Toolwyvern"], "lead": "Toolhatchling", "router_head": "fitted on Indexserpent embeddings (docs/AI_MODEL.md section 5) until Toolhatchling's engine path lands"},
+    "smith": {"job": "write and repair code", "cells": ["Codelindworm", "Mendlindworm"], "witness_from": "warden"},
+    "warden": {"job": "review code and security", "cells": ["Wardendrake", "Reviewdrake", "Bastiondrake"]},
+    "scribe": {"job": "extract, summarise, SQL", "cells": ["Tagwyrmling", "Gistwyrm", "Briefwyrm", "Recordlindworm"]},
+    "reckoner": {"job": "mathematics", "cells": ["Numberwyrm", "Theoremwyrm", "Puzzlewyrm"], "witness_from": "arbiter"},
+    "arbiter": {"job": "contradiction, argument and fallacy checks; the swarm's verifier", "cells": ["Verdictwyrmling", "Weighwyrmling", "Debatelindworm", "Fallacydrakeling", "Sophismdrake", "Choicewyrmling", "Choicewyrm", "Balancewyrm"], "lead": "Verdictwyrmling"},
+    "librarian": {"job": "embeddings, retrieval, reranking", "cells": ["Indexserpent", "Shelfserpent", "Bridgeserpent", "Twinserpent", "Sortserpent", "Swiftserpent", "Rankserpent"], "lead": "Indexserpent"},
+    "reader": {"job": "documents, OCR, images, video", "cells": ["Spotwyvern", "Letterwyvern", "Scrollwyvern", "Watchwyvern", "Sightwyvern", "Glimpsewyvern"]},
+    "ear": {"job": "speech and sound in", "cells": ["Listenlindworm", "Dictatelindworm", "Hearinglindworm", "Minutelindworm", "Rustlewyrmling", "Murmurwyrmling", "Thunderwyrmling"]},
+    "voice": {"job": "speech out; speaks only when tapped", "cells": ["Chimedrake", "Purrdrake", "Choirdrake"]},
+    "interpreter": {"job": "translation", "cells": ["Polyglotwyvern", "Parleywyvern"]},
+    "augur": {"job": "forecasts and tables; advisory only", "cells": ["Tidedrakeling", "Tidedrake", "Ledgerdrake", "Gaugedrake"]},
+    "sentinel": {"job": "moderation and anomaly watch", "cells": ["Shieldwyvern", "Thornwyvern", "Sievewyvern", "Lanterndrake", "Currentdrake", "Humdrake"]},
+    "painter": {"job": "images", "cells": ["Sketchwyvern", "Tilewyvern", "Muralwyvern"]},
+    "hand": {"job": "robot arms; logistics and mapping only, human-approved", "cells": ["Gripdrake", "Reachdrake", "Pairdrake", "Armdrakeling"]},
+    "natural_philosopher": {"job": "science questions", "cells": ["Alembicwyrm", "Starwyrm"], "witness_from": "reckoner"},
+    "council": {"job": "large multimodal decisions; advisory only", "cells": ["Senatewyrm"]},
+    "bard": {"job": "stories", "cells": ["Fablehatchling", "Fablewyvern"]},
+    "clerk": {"job": "regulatory and legal reading; advisory only, never legal advice", "cells": ["Statutewyrmling", "Compliancewyrm", "Dutywyrm", "Covenantwyrm"]}
+  },
+
+  "tissues": {
+    "Qwen/Qwen2.5-1.5B-Instruct": {"trunk": "Spinewyrm", "cells": ["Wardendrake", "Reviewdrake", "Debatelindworm"]},
+    "Qwen/Qwen2.5-Math-1.5B": {"trunk": "Numberwyrm", "cells": ["Theoremwyrm", "Puzzlewyrm"]},
+    "Qwen/Qwen2.5-0.5B-Instruct": {"trunk": "Kindlewyrm", "cells": ["Statutewyrmling"]},
+    "Qwen/Qwen2.5-Coder-0.5B-Instruct": {"trunk": "Awllindworm", "cells": ["Mendlindworm", "Recordlindworm"]}
+  },
+
+  "profiles": {
+    "_rule": "One config scales by profile. A profile lists the placements it loads; cells load lazily when an organ needs them and are paged out first-in by least surplus. Budgets are resident model bytes, leaving the rest of RAM to the OS and apps.",
+    "laptop_core": {"ram_gb": [8, 16], "compute": "CPU or integrated GPU", "loads": ["disc"], "resident_budget_bytes": 4000000000, "max_active_cells": 6},
+    "laptop_plus": {"ram_gb": [16, 32], "compute": "CPU or integrated GPU", "loads": ["disc", "disc_gated", "pack_laptop"], "resident_budget_bytes": 9000000000, "max_active_cells": 12},
+    "workstation": {"ram_gb": [32, 128], "compute": "GPU first", "loads": ["disc", "disc_gated", "pack_laptop", "pack_workstation"], "resident_budget_bytes": 48000000000, "max_active_cells": 34},
+    "server": {"ram_gb": [128, null], "compute": "GPU first", "loads": ["disc", "disc_gated", "pack_laptop", "pack_workstation", "server"], "resident_budget_bytes": null, "max_active_cells": 89}
+  },
+
+  "device_tiers": {
+    "_note": "Pioneer, Vanguard, Sovereign and Citadel are on GitHub (hardware/docs/oem); the other personal devices and all six servers are mapped by memory class until their specs land.",
+    "personal_1": "laptop_core", "personal_2": "laptop_plus", "personal_3 (Pioneer, 128 GB)": "workstation",
+    "institutional_1 (Vanguard, 192 GB)": "workstation", "institutional_2 (Sovereign, 384 GB)": "server", "institutional_3 (Citadel)": "server",
+    "personal_server_1": "workstation", "personal_server_2": "server", "personal_server_3": "server",
+    "institutional_server_1": "server", "institutional_server_2": "server", "institutional_server_3": "server"
+  },
+
+  "isf": {
+    "_rule": "kernel/src/surplus: members are picked by the most interaction surplus F (a near-copy of a member adds nothing); a level grows only while surplus_can_grow holds (Paper E reserve Q(t+1) = (1 - delta) Q(t) + eta S(t) - C(t)); hobby and routing weights move under the Lipschitz cap.",
+    "tokens_per_cycle": {"laptop_core": 2584, "laptop_plus": 6765, "workstation": 28657, "server": 121393},
+    "split": "Fibonacci: a level's budget F(n) splits into its two children's F(n-1) and F(n-2), exactly, all the way down to cells.",
+    "routing_score": "surplus gained per token: (F(team with cell) - F(team without)) / expected tokens, ties broken by the cell's hobby tilt, never by its verdict."
+  },
+
+  "cross_wiring": {
+    "_rule": "Each time a configuration is set, Tiamat wires the chosen cells together so no work is done twice, then measures what that saved against running them apart (tools/tiamat/server/bench_crosswire.py). Only exact sharing is used: two cells share a computation only when they would compute the same bits.",
+    "shared": [
+      {"what": "trunk weights", "when": "cells in one tissue", "how": "one read-only base, one adapter per cell (zt_lora, T23)"},
+      {"what": "tokenizer pass", "when": "cells with the same tokenizer (all Qwen2.5 cells)", "how": "tokenise once, Venn job table key (model family, context hash)"},
+      {"what": "lower-layer pass and KV cache", "when": "cells in one tissue whose adapters start at or above the split layer", "how": "run layers below the split once, fork the state, run each cell's upper layers. Exact because nothing below the split differs. Needs the engine's state fork (server task S7)."},
+      {"what": "retrieval embeddings", "when": "every organ", "how": "Indexserpent embeds each document once; every cell and the router reuse it"},
+      {"what": "finished jobs", "when": "any two agents asking the same question of the same model on the same context", "how": "kernel/src/swarm/swarm_overlap.h (V1 to V3): one run, cost split exactly"}
+    ],
+    "split_layer": "per tissue, the lowest layer every member's adapter can start at while it still passes its quality gate (set by extract_adapters.py, recorded in the DNA)",
+    "never_shared": "verdicts: each witness reasons on its own, or the paraconsistent join would count one opinion twice"
+  },
+
+  "reconfiguration": {
+    "_rule": "Adaptive and smart configuration are built in. Cells regroup into organs and organisms by task, device profile and ISF budget, within resource limits.",
+    "triggers": ["task mix changes", "profile or free memory changes", "a cell fails its health check", "the owner asks"],
+    "steps": ["propose: rank candidate groupings by routing_score within the profile's budget", "check: the arbiter replays a held-out probe set on the new grouping; it must not lose accuracy or raise BOTH-to-TRUE errors", "apply: rewire (cross_wiring), journal the change", "watch: if surplus falls below the old configuration's for a window, roll back automatically"],
+    "journal": "every reconfiguration is a signed entry (old config hash, new config hash, reason, measured surplus before and after); any entry can be rolled back to its old config",
+    "new_species": "a grouping becomes a new species only after the checker passes it and the owner approves"
+  },
+
+  "dna": {
+    "_status": "Field list proposed; the encoding is agreed with the 'Two-way genomic DNA encoding' thread through the coordinator.",
+    "records": ["owner key hash", "device profile", "organism composition: for each cell its dragon name, model id, revision, shipped sha256, adapter sha256, evidence head sha256", "tissues and split layers", "ISF budget class", "hobby set", "birth seed", "parent DNA hash (for agents a chiglet creates)", "journal head hash"],
+    "signature": "ML-DSA-87 owner signature (kernel/src/companion)"
+  },
+
+  "hobbies": {
+    "catalogue": "tools/tiamat/hobbies.txt (144 entries)",
+    "per_member": [3, 5],
+    "assign": "tools/tiamat/assign_dna_hobbies.py: deterministic from the DNA seed, unique within an agency",
+    "bounds": "hobbies spend only the growth budget, tilt proposals and break ties, never touch verdicts; drift past the DNA's Lipschitz cap resets the member and is journalled"
+  }
+}

@@ -14,7 +14,7 @@
  *   P2  THE ASSURANCE FEE. Each share pays fee = pay_assure_fee(gross),
  *       exactly floor(gross * 8889 / 10^7) (0.08889%, pay_assure.h F1), split
  *       exactly into the four fee-bucket accounts (pay_assure_split: 50%
- *       reserve floor + remainder, 25% V-Bill dividend pool, 15%
+ *       reserve floor + remainder, 25% V-Bill patronage disbursement pool, 15%
  *       infrastructure/node bounties, 10% regenerative capital); the member
  *       gets gross - fee. Quest uses the no-carry form F1 on purpose: a plan
  *       must be the same every time it is computed so that a rerun (P3) posts
@@ -22,26 +22,22 @@
  *   P3  ONE POSTING PER MEMBER through pay_ledger_post: pool DEBIT -gross,
  *       member DEBIT +net, each fee bucket DEBIT +its part, kind TRANSFER,
  *       all VFV.
- *       Each posting's idempotency key is SHA3-256("ZXV-QUEST-PAYOUT-v1" ||
- *       goal || member || pool account), and its UETR comes from that key,
- *       so a settlement interrupted halfway can simply be run again: posted
- *       shares come back PAY_DUPLICATE and are not paid twice. A rerun
- *       reuses the first attempt's tick and initiator, which are part of
- *       the request digest.
- *   P4  MINORS. A member whose age policy disallows money is paid into the
- *       policy's custodian account, or, with none, the share is HELD in the
- *       pool and listed in the plan. A member with no account is held too.
- *   P5  OPT-OUT LOSES NOTHING. Opted-out members are paid exactly as if
- *       they had stayed in.
- *   P6  VFV ONLY. The pool and the four fee-bucket accounts must hold the
- *       ledger's VFV asset; every fee-bucket account must carry
+ *       Each posting's idempotency key is SHA3-256("ZXV-QUEST-PAYOUT-v1" ||   (domain kept:
+ * changing it would change every key already posted) goal || member || pool account), and its UETR
+ * comes from that key, so a settlement interrupted halfway can simply be run again: posted shares
+ * come back PAY_DUPLICATE and are not paid twice. A rerun reuses the first attempt's tick and
+ * initiator, which are part of the request digest. P4  MINORS. A member whose age policy disallows
+ * money is paid into the policy's custodian account, or, with none, the share is HELD in the pool
+ * and listed in the plan. A member with no account is held too. P5  OPT-OUT LOSES NOTHING.
+ * Opted-out members are paid exactly as if they had stayed in. P6  VFV ONLY. The pool and the four
+ * fee-bucket accounts must hold the ledger's VFV asset; every fee-bucket account must carry
  *       PAY_ACCT_COMMONS.
  *
  * HONEST LIMITS. Settlement is one posting per member, not one atomic
  * posting for the whole goal (pay_ledger allows PAY_MAX_LINES lines), so a
  * failure part way leaves some members paid; rerunning is safe (P3). The
  * pool's balance is checked by pay_ledger when each share posts, not up
- * front. Fraud found after payout sets the goal's fraud_after_settle flag;
+ * front. Fraud found after disbursement sets the goal's fraud_after_settle flag;
  * reversing a payment is the operator's call through pay_ledger_reverse,
  * not something quest does on its own. Whether a VFV share is income is a
  * question for counsel. Freestanding C11: no libc, no allocation, no
@@ -82,5 +78,15 @@ qst_status_t qst_goal_settle(qst_world_t *w, uint32_t goal, pay_ledger_t *L,
                              const uint32_t member_acct[QST_GOAL_MEMBERS],
                              const uint32_t fee_acct[PAY_ASSURE_BUCKETS], pay_rat_t cap,
                              uint64_t tick, uint32_t initiator, qst_payout_plan_t *plan);
+
+/* Mutual-aid names for the disbursement plan; the ABI names above stay. */
+typedef qst_payout_line_t qst_disbursement_line_t;
+typedef qst_payout_plan_t qst_disbursement_plan_t;
+static inline qst_status_t qst_disbursement_plan(const qst_world_t *w, uint32_t goal,
+                                                 const uint32_t member_acct[QST_GOAL_MEMBERS],
+                                                 pay_rat_t cap, qst_disbursement_plan_t *out)
+{
+    return qst_payout_plan(w, goal, member_acct, cap, out);
+}
 
 #endif /* ZXV_QUEST_PAY_H */

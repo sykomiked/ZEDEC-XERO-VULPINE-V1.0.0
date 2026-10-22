@@ -247,13 +247,19 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     # zxvd_rpc.c, zxvd_aipi.c and the method groups (zxvd_*.c) against their unit tests; fails below the
     # baselines in tests/harness/mutator/targets.json (ci.yml's gate only runs
-    # on PRs to main)
-    name: zxvd mutation scores
+    # on PRs to main). Four shards balanced by mutant count (mutate.py --shard):
+    # in one job the 13 targets outgrew the 150-minute limit; zxvd_rpc alone
+    # is shard 1.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [ 1, 2, 3, 4 ]
+    name: zxvd mutation scores (${{ matrix.shard }}/4)
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v7
-      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc,zxvd_aipi,zxvd_cards,zxvd_ident,zxvd_econ,zxvd_instruments,zxvd_estate,zxvd_sandbox,zxvd_companion,zxvd_web4,zxvd_seats,zxvd_power,zxvd_fab,zxvd_pspace --ci --jobs 4 --out mutation-results
+      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc,zxvd_aipi,zxvd_cards,zxvd_ident,zxvd_econ,zxvd_instruments,zxvd_estate,zxvd_sandbox,zxvd_companion,zxvd_web4,zxvd_seats,zxvd_power,zxvd_pspace --ci --shard ${{ matrix.shard }}/4 --jobs 4 --out mutation-results
 
   real-model:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)

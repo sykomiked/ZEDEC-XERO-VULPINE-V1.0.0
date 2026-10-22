@@ -192,6 +192,10 @@ const char *zui_verbosity_name(zui_verbosity_t v);
  * shows the same words on screen (NULL: none). For speech_session_t:
  *   static int say(void *e, const char *t, const char *l)
  *   { return speech_session_say((speech_session_t *) e, t, l); }
+ * tidy, when set, rewrites what is said (not the caption) the way a person
+ * would say it, with tidy_words as its words: pass speech_tidy_fn
+ * (speech/speech_tidy.h), so a hash or a link on screen is named rather than
+ * spelled character by character. NULL says the text as it is.
  */
 typedef struct {
     int (*say)(void *engine, const char *text, const char *lang); /* 0 = ok */
@@ -200,6 +204,8 @@ typedef struct {
     void *engine;
     const char *lang;
     uint32_t said, stopped, failed;
+    uint32_t (*tidy)(const char *in, uint32_t n, char *out, uint32_t cap, const void *words);
+    const void *tidy_words;
 } zui_reader_voice_t;
 
 void zui_reader_voice_speak(const char *text, zui_say_t how, void *voice);

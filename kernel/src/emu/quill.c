@@ -45,7 +45,8 @@ static int32_t bake(int32_t x, int32_t y, int32_t z){
     int32_t dx = (x >> 16) - 4, dz = (z >> 16) - 4;
     int d2 = (int)(dx*dx + dz*dz);
     lum -= d2 * 3;                   /* falloff from room centre */
-    if (lum < 40) lum = 40; if (lum > 255) lum = 255;
+    if (lum < 40) lum = 40;
+    if (lum > 255) lum = 255;
     return lum;
 }
 
@@ -59,7 +60,9 @@ static void add_quad(int32_t x0,int32_t y0,int32_t z0, int32_t x1,int32_t y1,int
 }
 
 static void build_world(void){
-    if (g_built) return; g_built = 1; g_ntri = 0;
+    if (g_built) return;
+    g_built = 1;
+    g_ntri = 0;
     /* room 8 wide (x), 6 high (y), 8 deep (z) */
     add_quad(C(0),C(0),C(8), C(8),C(0),C(8), C(8),C(6),C(8), C(0),C(6),C(8), 1); /* far wall  */
     add_quad(C(0),C(0),C(0), C(0),C(0),C(8), C(0),C(6),C(8), C(0),C(6),C(0), 3); /* left wall */
@@ -116,9 +119,16 @@ void quill_render(uint32_t *fb, int w, int h, int32_t cx,int32_t cy,int32_t cz,
         if (area == 0) continue;                        /* degenerate */
         int neg = area < 0; if (neg) area = -area;      /* render both windings (interior scene) */
         int minx=p[0].sx, maxx=p[0].sx, miny=p[0].sy, maxy=p[0].sy;
-        for (int i=1;i<3;i++){ if(p[i].sx<minx)minx=p[i].sx; if(p[i].sx>maxx)maxx=p[i].sx;
-                               if(p[i].sy<miny)miny=p[i].sy; if(p[i].sy>maxy)maxy=p[i].sy; }
-        if (minx<0)minx=0; if (miny<0)miny=0; if (maxx>=w)maxx=w-1; if (maxy>=h)maxy=h-1;
+        for (int i = 1; i < 3; i++) {
+            if (p[i].sx < minx) minx = p[i].sx;
+            if (p[i].sx > maxx) maxx = p[i].sx;
+            if (p[i].sy < miny) miny = p[i].sy;
+            if (p[i].sy > maxy) maxy = p[i].sy;
+        }
+        if (minx < 0) minx = 0;
+        if (miny < 0) miny = 0;
+        if (maxx >= w) maxx = w - 1;
+        if (maxy >= h) maxy = h - 1;
         int tex = g_tri[t].tex;
         for (int y=miny;y<=maxy;y++){
             for (int x=minx;x<=maxx;x++){

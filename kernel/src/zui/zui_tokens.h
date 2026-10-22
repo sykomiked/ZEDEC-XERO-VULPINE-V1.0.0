@@ -29,13 +29,13 @@
 #define ZUI_PANEL      0x04331Au /* first carved step                   */
 #define ZUI_RAISED     0x0B4026u /* inputs, selected rows               */
 #define ZUI_HAIRLINE   0x15502Fu /* dividers (tint of the ground)       */
-#define ZUI_EDGE       0x2A6A47u /* control outlines                    */
+#define ZUI_EDGE       0x568D6Eu /* control outlines: >= 3:1 on VOID, PANEL, RAISED */
 #define ZUI_ENGRAVE_HI 0xCFE8D8u /* the light tint: lower lip of a cut  */
 #define ZUI_ENGRAVE_LO 0x001A0Bu /* the shade: upper wall of a cut      */
 #define ZUI_TEXT       0xD8F5E1u /* light green text                    */
 #define ZUI_TEXT_2     0xB2E0C2u
 #define ZUI_MUTED      0x84B795u
-#define ZUI_FAINT      0x5E8F72u
+#define ZUI_FAINT      0x6E9C80u /* >= 4.5:1 on VOID and PANEL; on RAISED use MUTED */
 #define ZUI_GOLD       0xF2C230u /* the one accent: golden yellow       */
 #define ZUI_GOLD_HI    0xFFD24Du
 #define ZUI_GOLD_GLOW  0xFFE38Au

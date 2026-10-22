@@ -34,6 +34,10 @@
  *      the page, space chooses the highlighted one.
  *   M5 No allocation, integer only, deterministic: the same events give the
  *      same output.
+ *   M6 LANGUAGES. Pinyin, Traditional Pinyin and Jyutping (single Han
+ *      characters from Unihan), Japanese kana with Joyo kanji, two-set
+ *      Hangul, and Ge'ez syllables; zui_ime_for_locale picks one for a
+ *      locale (zui_ime_lang.c).
  */
 #ifndef ZXV_ZUI_IME_H
 #define ZXV_ZUI_IME_H
@@ -45,7 +49,7 @@
 #include "zui_keymap.h"
 
 #define ZUI_IME_PRE_MAX    64u  /* bytes of preedit, with the NUL          */
-#define ZUI_IME_CAND_MAX   32u  /* candidates kept                         */
+#define ZUI_IME_CAND_MAX   64u  /* candidates kept                         */
 #define ZUI_IME_CAND_BYTES 24u  /* bytes of one candidate, with the NUL    */
 #define ZUI_IME_COMMIT_MAX 128u /* bytes of text waiting to be sent        */
 #define ZUI_IME_PAGE       9u   /* candidates per page (keys 1..9)         */
@@ -185,5 +189,46 @@ bool zui_ime_table_text(zui_ime_t *ime, uint32_t cp);
 void zui_ime_table_commit(zui_ime_t *ime);
 void zui_ime_table_cancel(zui_ime_t *ime);
 void zui_ime_table_select(zui_ime_t *ime, uint32_t i);
+/* Looks the letters typed so far up again, after an engine changed them. */
+void zui_ime_table_refresh(zui_ime_t *ime);
+
+/* ---- M6: the input methods of languages (zui_ime_lang.c) ------------------------ */
+/* Pinyin and Jyutping: the table engine over single Han characters from the
+ * Unihan database (tools/zui/gen_ime_han.py), typed without tones (u-umlaut
+ * is v), most used first. No word dictionary yet: words are typed one
+ * character at a time. */
+extern const zui_ime_dict_t zui_pinyin_dict, zui_pinyin_hant_dict, zui_jyutping_dict;
+extern const zui_ime_engine_t zui_ime_pinyin;      /* Simplified Chinese  */
+extern const zui_ime_engine_t zui_ime_pinyin_hant; /* Traditional Chinese */
+extern const zui_ime_engine_t zui_ime_jyutping;    /* Cantonese           */
+/* Japanese: romaji (Hepburn or Kunrei, nn or n' for ん, a doubled consonant
+ * for っ, - . , [ ] for ー 。 、 「 」) becomes hiragana as it is typed; the
+ * candidates are the hiragana, the katakana, then the Joyo kanji read that
+ * way (zui_kana_dict, keyed by hiragana). Enter sends the hiragana. */
+extern const zui_ime_dict_t zui_kana_dict;
+extern const zui_ime_engine_t zui_ime_kana;
+/* Korean: the two-set (Dubeolsik) layout on Latin keys; jamo join into
+ * syllables as they are typed, a final consonant moves on to the next
+ * syllable when a vowel follows, and Backspace takes back one jamo. */
+extern const zui_ime_engine_t zui_ime_hangul;
+/* Amharic and Tigrinya: SERA transliteration. A consonant letter waits in
+ * its sixth form; a vowel letter (e u i a E I o) picks the syllable, and W a
+ * the wa form (lWa is ሏ); a vowel alone gives the አ row, ` then a vowel the
+ * ዐ row, and `s `h `S give ሠ ኀ ፀ. : is ፡, :: is ።, , is ፣ and ; is ፤. */
+extern const zui_ime_engine_t zui_ime_geez;
+/* M7 Historical scripts with no layout of their own (cuneiform, Egyptian and
+ * Anatolian hieroglyphs, Linear A and B, Old Persian, Ugaritic, Phoenician,
+ * the Aramaic scripts, Gothic, runes, Coptic, Glagolitic, Brahmi, ... 50
+ * scripts, tools/zui/gen_ime_signs.py) are typed by their Unicode sign
+ * names, without the script's prefix: letters and digits, so digits are
+ * part of the name (ka2, a001, b008) and a candidate is chosen with Space,
+ * the arrows or Enter on the list. A catalogue number alone is a key too
+ * (Linear B a or b008), as is each name of a runic letter (fehu, feoh, f).
+ * zui_ime_for_script gives the engine of an ISO 15924 script, or NULL;
+ * zui_ime_for_locale gives it for the locales written in those scripts. */
+const zui_ime_engine_t *zui_ime_for_script(const char *script);
+/* The input method a locale types with (whole tag, then its language), or 0
+ * when its keyboard layout types it directly. */
+const zui_ime_engine_t *zui_ime_for_locale(const char *tag);
 
 #endif /* ZXV_ZUI_IME_H */

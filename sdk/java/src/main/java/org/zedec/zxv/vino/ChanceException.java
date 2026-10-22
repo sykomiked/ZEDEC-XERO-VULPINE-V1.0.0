@@ -10,7 +10,7 @@ import org.zedec.zxv.ZxvRefusedException;
  * <p>A purchase whose result is decided by chance (a loot box or a paid draw) may not be paid for
  * with live Vino: such a request is refused when it is encoded or decoded. The
  * {@link PaymentRequest#FLAG_CHANCE} flag is allowed on the PLAY lane, where play units are not
- * money. The separate raffle module is not a payment request and is not affected.
+ * money. The separate allotment module is not a payment request and is not affected.
  */
 public class ChanceException extends ZxvRefusedException {
     private static final long serialVersionUID = 1L;

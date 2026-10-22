@@ -150,7 +150,7 @@ jobs:
       fortran_trebago: ${{ steps.p.outputs.fortran_trebago }}
       mumps_myra: ${{ steps.p.outputs.mumps_myra }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: p
@@ -190,8 +190,8 @@ jobs:
       run:
         working-directory: sdk/pillars/${{ matrix.pillar }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: make -C ../../libzxv all
@@ -220,8 +220,8 @@ jobs:
       run:
         working-directory: sdk/pillars/${{ matrix.pillar }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: make -C ../../libzxv all
@@ -250,8 +250,8 @@ jobs:
       run:
         working-directory: sdk/pillars/cobol-sutra
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install GnuCOBOL
@@ -284,8 +284,8 @@ jobs:
       run:
         working-directory: sdk/pillars/fortran-trebago
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install gfortran (Ubuntu)
@@ -338,8 +338,8 @@ jobs:
       run:
         working-directory: sdk/pillars/fortran-trebago
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install gfortran
@@ -380,8 +380,8 @@ jobs:
       run:
         working-directory: sdk/pillars/ada-eve
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install GNAT (Ubuntu)
@@ -419,8 +419,8 @@ jobs:
       run:
         working-directory: sdk/pillars/ada-eve
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install GNAT
@@ -453,7 +453,7 @@ jobs:
       run:
         working-directory: sdk/pillars/ada-eve
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install GNAT
         run: |
           sudo apt-get update
@@ -461,7 +461,8 @@ jobs:
       - name: gnatprove 14.1.1 through Alire 2.0.2
         working-directory: ${{ runner.temp }}
         run: |
-          curl -fsSL -o alr.zip https://github.com/alire-project/alire/releases/download/v2.0.2/alr-2.0.2-bin-x86_64-linux.zip
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 --connect-timeout 30 \
+            -o alr.zip https://github.com/alire-project/alire/releases/download/v2.0.2/alr-2.0.2-bin-x86_64-linux.zip
           unzip -q alr.zip -d alire
           ./alire/bin/alr -n get gnatprove=14.1.1
           echo "$PWD/$(ls -d gnatprove_14.1.1_*)/bin" >> "$GITHUB_PATH"
@@ -487,8 +488,8 @@ jobs:
       run:
         working-directory: sdk/pillars/apl-kron
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: make -C ../../libzxv all
@@ -516,8 +517,8 @@ jobs:
       run:
         working-directory: sdk/pillars/apl-kron
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: make -C ../../libzxv all
@@ -549,23 +550,41 @@ jobs:
       NGNK_COMMIT: b9eeb91e0343ef6029f59d55dd98f82667b9bd59
       GNUAPL_SHA256: 24bbb744fce47e62837234a053bdeecee51b9ea61c82c79f7cc191bc6a54c0a1
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: make -C ../../libzxv all
       - name: Build ngn/k (pinned commit, exported symbols for 2:)
         run: |
           git init -q "$RUNNER_TEMP/ngnk"
-          git -C "$RUNNER_TEMP/ngnk" fetch -q --depth 1 https://codeberg.org/ngn/k "$NGNK_COMMIT"
+          for i in 1 2 3 4 5; do
+            git -C "$RUNNER_TEMP/ngnk" fetch -q --depth 1 https://codeberg.org/ngn/k "$NGNK_COMMIT" && break
+            [ "$i" = 5 ] && exit 1
+            sleep $((i * 10))
+          done
           git -C "$RUNNER_TEMP/ngnk" checkout -q FETCH_HEAD
           make -C "$RUNNER_TEMP/ngnk" a N=k R=k O='-O2' L='-lm -ldl -Wl,-E' CC=clang
           printf '`0:$1+1\n' > "$RUNNER_TEMP/one.k"
           "$RUNNER_TEMP/ngnk/k" "$RUNNER_TEMP/one.k"
+      # The tarball is cached by its checksum, so a slow or down ftp.gnu.org
+      # does not fail the job once it has been fetched once.
+      - name: Cache the GNU APL 2.0 tarball
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/apl-cache
+          key: gnuapl-2.0-${{ env.GNUAPL_SHA256 }}
       - name: Build GNU APL 2.0 (checksum pinned)
         run: |
           cd "$RUNNER_TEMP"
-          curl -fsSL -o apl-2.0.tar.gz https://ftp.gnu.org/gnu/apl/apl-2.0.tar.gz
+          mkdir -p apl-cache
+          if [ ! -f apl-cache/apl-2.0.tar.gz ]; then
+            for url in https://ftp.gnu.org/gnu/apl/apl-2.0.tar.gz https://ftpmirror.gnu.org/gnu/apl/apl-2.0.tar.gz; do
+              curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 --connect-timeout 30 \
+                -o apl-cache/apl-2.0.tar.gz "$url" && break
+            done
+          fi
+          cp apl-cache/apl-2.0.tar.gz apl-2.0.tar.gz
           echo "$GNUAPL_SHA256  apl-2.0.tar.gz" | sha256sum -c -
           tar xzf apl-2.0.tar.gz
           cd apl-2.0
@@ -600,8 +619,8 @@ jobs:
       run:
         working-directory: sdk/pillars/mumps-myra
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: make -C ../../libzxv all
@@ -629,8 +648,8 @@ jobs:
       run:
         working-directory: sdk/pillars/mumps-myra
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: make -C ../../libzxv all
@@ -659,8 +678,8 @@ jobs:
       run:
         working-directory: sdk/pillars/mumps-myra
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install GT.M (Ubuntu's fis-gtm package)

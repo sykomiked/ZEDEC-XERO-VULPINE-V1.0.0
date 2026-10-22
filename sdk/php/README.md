@@ -494,7 +494,7 @@ Concepts:
   canonical 160 bytes, `id()` their SHA-256 (32 bytes), and
   `VinoPaymentRequest::decode()` reads them back. A LIVE request with
   `Vino::FLAG_CHANCE` (a paid chance outcome such as a loot box) is refused
-  (`ChanceRefusedException`, `ZXV_E_CHANCE`); the raffle is a separate
+  (`ChanceRefusedException`, `ZXV_E_CHANCE`); the allotment is a separate
   module, not a payment request. A lane other than `VinoLane::Play`/`Live`
   is a `LaneException` (`ZXV_E_LANE`).
 - **Receipts** are the wallet's ML-DSA-87 signature over 88 bytes

@@ -123,7 +123,7 @@ but is not wired into a shipped product (the Mac app or a kernel image).
 | 12 | Self-contained knowledge + web browsing | kernel/src/browser (tested) | PARTIAL | Browser has no transport bound to net/tls; not in the app |
 | 13 | Integer-only tensor engine, identical on every device | kernel/src/tensor/zt*.c | DONE | SIMD (AVX2/AVX-512/NEON) and threads in hosted builds, bit-identical to the C path (test_zt_simd); speed measured only on synthetic weights on x86, not on a real model or a Mac |
 | 14 | Weights never in git; pinned SHA-256; signed content hash; reproducible converter (tools/zxv_pack) | models.manifest (sha256 + CID format), zxv-model-fetch.sh | PARTIAL | tools/zxv_pack does not exist; no ML-DSA-signed model manifest |
-| 15 | Qwen3 base with one LoRA adapter per agent | zt_model.h (Qwen2/Qwen3/Llama), swarm_evolve.h `adapter` index | PARTIAL | No LoRA loading or application anywhere |
+| 15 | Qwen3 base with one LoRA adapter per agent | zt_model.h (Qwen2/Qwen3/Llama), swarm_evolve.h `adapter` index | PARTIAL | LoRA loading and per-agent application built and tested on tiny models (`zt_lora_load` in zt_model.c, test_zt_lora.c, kernel/arch/hosted/zxv_zt_glue.c); no real adapter run on a real model yet |
 | 16 | ISF maths inside the tensor core | kernel/src/tensor/zt_isf.c, src/surplus | DONE | — |
 | 17 | AI artefacts in tripartite_fs extensions; zxvfs limits lifted for model packs | zxvfs v2 extents (256 files), trispace | PARTIAL | tripartite_fs still fakes CIDs (overview gap 5); model packs not stored in zxvfs |
 | 18 | Bridge COBOL, Fortran and other legacy languages | kernel/src/legacy, bindings/ (C ABI + COBOL/Fortran/Pascal/Ada/RPG/PL-I/BASIC) | DONE | Language examples not in CI |

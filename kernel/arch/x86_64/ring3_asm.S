@@ -163,6 +163,45 @@ EXC_NOERR 31
 
 x86_exc_common:
     /* stack now: [vector][errcode][RIP][CS][RFLAGS]... */
+    /* EXCEPTION FIXUP (msr_safe.h / x86_extable.h). A kernel-mode #GP whose RIP
+     * is a registered fault-safe instruction (RDMSR/WRMSR in msr_safe_asm.S)
+     * resumes at that instruction's recovery label instead of halting. Every
+     * other fault -- other vectors, ring-3 faults, unregistered RIPs -- falls
+     * through to the original path below with all registers intact. */
+    cmpq  $13, 0(%rsp)
+    jne   .Lno_fixup
+    testb $3, 24(%rsp)              /* CS.RPL != 0: not a kernel fault */
+    jnz   .Lno_fixup
+    /* Save the SysV caller-saved GPRs (the C lookup may clobber them). Entry
+     * RSP was 16-aligned before the CPU's 5-quad frame; frame + errcode +
+     * vector = 7 quads, + these 9 = 16 quads, so the call is ABI-aligned. */
+    pushq %rax
+    pushq %rcx
+    pushq %rdx
+    pushq %rsi
+    pushq %rdi
+    pushq %r8
+    pushq %r9
+    pushq %r10
+    pushq %r11
+    movq  88(%rsp), %rdi            /* faulting RIP (72 saved + vector + errcode) */
+    call  x86_extable_fixup
+    testq %rax, %rax
+    jz    1f
+    movq  %rax, 88(%rsp)            /* resume at the fixup */
+1:  popq  %r11
+    popq  %r10
+    popq  %r9
+    popq  %r8
+    popq  %rdi
+    popq  %rsi
+    popq  %rdx
+    popq  %rcx
+    popq  %rax
+    jz    .Lno_fixup                /* ZF still from the testq (pops keep flags) */
+    addq  $16, %rsp                 /* drop [vector][errcode] */
+    iretq
+.Lno_fixup:
     movq $-1, x86_last_exc(%rip)
     /* Recover FIRST if we faulted inside the ring-3 self-test — capture vector+RIP
      * for later reporting but do NO C call here (a re-fault would escalate to #DF). */

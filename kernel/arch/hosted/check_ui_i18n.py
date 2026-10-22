@@ -47,7 +47,7 @@ CODE = {
     '/api/state', '/api/notes', '/api/net', '/api/update', '/api/notes/read', '/api/ask',
     '/api/quit', 'POST',
     # the staple apps and the Playground: element ids, selectors, classes
-    'tab-swarm', 'tab-play', 'swarm', 'play', 'files', 'text', 'photos', 'console', 'dock',
+    'swarm', 'play', 'playground', 'files', 'text', 'photos', 'console', 'dock',
     '#dock button', '.view', 'v-', '.tpl', 'tpl', 'tpls', 'tile', 'row', 'drop', 'split', 'primary',
     'prose', 'edited', 'on ', 'small', 'err', 'go', 'a.go', 'viewer', 'modal', 'span', 'button',
     'option', 'input', 'img', 'a', 'tr', 'ul', 'ol', 'aria-label', 'var(--bad)',
@@ -89,10 +89,10 @@ CODE = {
     'social.group_create', 'call.status', 'call.accept', 'call.hangup', 'call.start',
     'xlate.languages', 'xlate.detect', 'xlate.translate', 'devmesh.status', 'devmesh.devices',
     'devmesh.confirm_sas', 'devmesh.revoke', 'devmesh.invite', 'devmesh.join',
-    # screen time (zxv_screen.h SC1): the method, the note's element id, the
-    # activity events, and the app ids screen.tick counts time under
-    'screen.tick', 'shepherd', 'mousemove', 'pointerdown', 'wheel',
-    'murmuration', 'burrow', 'quillon', 'glint', 'spindle',
+    # screen time for Shepherd (zxv_screen.h SC1): the note's id, the events
+    # that count as use, the method and the app ids it records
+    'shepherd', 'mousemove', 'pointerdown', 'wheel', 'screen.tick', 'murmuration', 'burrow',
+    'quillon', 'glint', 'spindle',
 }
 
 VISIBLE_ATTRS = {'title', 'placeholder', 'alt', 'label', 'aria-label', 'aria-description', 'value'}

@@ -106,7 +106,10 @@ extern void el0_set_scheduler(proc_scheduler_t *ps);
 #include "../src/vbe/vbe.h"          /* framebuffer draw primitives            */
 #include "../src/desktop/zxv_shell.h"/* the ZEDEC pqOS desktop shell           */
 #include "zxv_bootinfo.h"            /* UEFI boot handoff (GOP framebuffer)     */
+#include "../zxv_handoff.h"          /* handoff v2: memory map, ACPI, clock     */
+#include "bootmem_arm64.h"           /* early memory from the firmware map      */
 /* virtio-input driver (arch/arm64/virtio_input.c) — mouse/tablet/keyboard */
+extern uint64_t arm64_timer_get_uptime_ms(void);
 extern bool     virtio_input_probe(void);
 extern void     virtio_input_poll(void);
 extern void     virtio_input_get(int32_t *x, int32_t *y, uint32_t *buttons);
@@ -338,7 +341,9 @@ void kernel_main_arm64(void);
  * =================================================================== */
 static phase_tick_t tick;
 static dlp_projector_t projector;
-static vino_ledger_t vino;
+/* The largest state lives in firmware-usable memory past the kernel
+ * (bootmem_arm64.c), taken in kernel_main_arm64 before first use. */
+static vino_ledger_t *vino;
 static porter_house_t porter_house;
 static mesh_token_t mesh_token;
 static community_chest_t community_chest;
@@ -346,7 +351,7 @@ static ai_engine_t ai_engine;
 static mesh_net_t mesh_net;
 static immigration_t immigration;
 static robin_vault_t robin_vault;
-static prism_break_t prism_break;
+static prism_break_t *prism_break;
 static vbe_state_t *g_desktop_vbe = 0;   /* bound once ramfb is live; drives redraw */
 
 /* ---- double buffering ----
@@ -357,7 +362,7 @@ static vbe_state_t *g_desktop_vbe = 0;   /* bound once ramfb is live; drives red
  * With it, the display only ever holds finished frames. */
 #define ZXV_FB_W ZXV_DISPLAY_MAX_W
 #define ZXV_FB_H ZXV_DISPLAY_MAX_H
-static uint32_t g_scanout[ZXV_FB_W * ZXV_FB_H] __attribute__((aligned(64)));
+static uint32_t *g_scanout; /* ZXV_FB_W x ZXV_FB_H, from bootmem */
 /* The negotiated display mode. Every consumer reads THIS instead of a literal,
  * so one desktop adapts to whatever screen it is given. */
 static zxv_display_t g_disp;
@@ -375,7 +380,7 @@ static const signed char g_sin64[64] = {
  0,10,20,29,38,47,56,63,71,77,83,88,92,96,98,100,100,100,98,96,92,88,83,77,71,63,56,47,38,29,20,10,
  0,-10,-20,-29,-38,-47,-56,-63,-71,-77,-83,-88,-92,-96,-98,-100,-100,-100,-98,-96,-92,-88,-83,-77,-71,-63,-56,-47,-38,-29,-20,-10};
 static int g_holo = 1;                 /* holographic present on/off */
-static int g_holo_k = 10;              /* shift: bigger = subtler (10 ~= 12%, visible) */
+static int g_holo_k = 13; /* shift: bigger = subtler (13 ~= 1.5%: the palette reads true) */
 static uint32_t g_holo_phase = 0;
 
 /* ---- UEFI GOP framebuffer (bare-metal boot via BOOTAA64.EFI) ----
@@ -398,9 +403,18 @@ static int16_t  g_tval[FIELD_CELLS_MAX];   /* per-tile valence,  precomputed per
 static int16_t  g_tdz [FIELD_CELLS_MAX];   /* per-tile depth-z,  precomputed per frame */
 static int      g_depth_k = 36;                /* chromostereopsis strength (0=flat)       */
 
+static void zxv_gop_blit(void);
+
+/* The composed frame is g_disp.w x g_disp.h with pitch g_disp.w (vbe_init_fb
+ * and lattice_dim_render draw at the negotiated width), and so is the scanout
+ * (ramfb_init gets the same geometry). Reading it at the buffers' capacity
+ * (ZXV_FB_W) instead sheared every mode narrower than that into tiles, which
+ * a UEFI GOP at 800x600 showed as three copies of the desktop. */
 static void zxv_present(const uint32_t *back) {
+    const uint32_t W = g_disp.w, H = g_disp.h;
     if (!g_holo) {                                   /* plain copy path */
-        for (uint32_t i = 0; i < ZXV_FB_W * ZXV_FB_H; i++) g_scanout[i] = back[i];
+        for (uint32_t i = 0; i < W * H; i++) g_scanout[i] = back[i];
+        zxv_gop_blit();
         return;
     }
     uint32_t ph = g_holo_phase++;
@@ -417,11 +431,11 @@ static void zxv_present(const uint32_t *back) {
             g_tdz [ti] = (int16_t)(128 - (int32_t)g_fdepth[ti]); /* >0 near, <0 far */
         }
     }
-    for (uint32_t y = 0; y < ZXV_FB_H; y++) {
+    for (uint32_t y = 0; y < H; y++) {
         uint32_t row_ti = (y >> 4) * zxv_shell_field_tx();
-        const uint32_t *br = back + (uint64_t)y * ZXV_FB_W;
-        uint32_t *dr = g_scanout + (uint64_t)y * ZXV_FB_W;
-        for (uint32_t x = 0; x < ZXV_FB_W; x++) {
+        const uint32_t *br = back + (uint64_t) y * W;
+        uint32_t *dr = g_scanout + (uint64_t) y * W;
+        for (uint32_t x = 0; x < W; x++) {
             uint32_t ti = row_ti + (x >> 4);
             int32_t v  = g_tval[ti];                  /* this object's valence  */
             int32_t dz = g_tdz[ti];                   /* this object's depth-z  */
@@ -440,16 +454,22 @@ static void zxv_present(const uint32_t *back) {
             dr[x] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
         }
     }
-    /* Bare-metal UEFI path: also blit the composed frame into the firmware GOP
-     * fb (nearest-neighbour scale to its resolution, R/B swap for GOP fmt 0).
-     * g_gop_fb == 0 on the -kernel path, so this is skipped entirely there. */
-    if (g_gop_fb) {
+    zxv_gop_blit();
+}
+
+/* Bare-metal UEFI path: blit the scanout into the firmware GOP fb
+ * (nearest-neighbour scale to its resolution, R/B swap for GOP fmt 0).
+ * g_gop_fb == 0 on the -kernel path, so this is skipped entirely there. */
+static void zxv_gop_blit(void)
+{
+    const uint32_t W = g_disp.w, H = g_disp.h;
+    if (g_gop_fb && W && H) {
         for (uint32_t gy = 0; gy < g_gop_h; gy++) {
-            uint32_t sy = gy * ZXV_FB_H / g_gop_h;
-            const uint32_t *sr = g_scanout + (uint64_t)sy * ZXV_FB_W;
+            uint32_t sy = gy * H / g_gop_h;
+            const uint32_t *sr = g_scanout + (uint64_t) sy * W;
             uint32_t *dr = g_gop_fb + (uint64_t)gy * g_gop_stride;
             for (uint32_t gx = 0; gx < g_gop_w; gx++) {
-                uint32_t c = sr[gx * ZXV_FB_W / g_gop_w];
+                uint32_t c = sr[gx * W / g_gop_w];
                 if (g_gop_pixfmt == ZXV_PIXFMT_RGB)                 /* swap R<->B */
                     c = (c & 0xFF00FF00u) | ((c >> 16) & 0xFF) | ((c & 0xFF) << 16);
                 dr[gx] = c;
@@ -856,8 +876,43 @@ static void cell_fabric_boot_init(void) {
     }
 }
 
-void kernel_main(void) {
+/* The entry x0 (boot.s): QEMU -kernel's device tree, or anything. */
+static uint64_t g_boot_dtb;
+
+void kernel_main(uint64_t dtb)
+{
+    g_boot_dtb = dtb;
     kernel_main_arm64();
+}
+
+/* No evidence of memory for state the kernel cannot run without: say which,
+ * and stop before anything uses it. */
+static void boot_refused(const char *what)
+{
+    uart_puts("[BOOT_REFUSED] no firmware-usable memory for ");
+    uart_puts(what);
+    uart_puts("\n");
+    for (;;) __asm__ __volatile__("msr daifset, #0xf\n wfi");
+}
+
+/* Handoff v2 (zxv_handoff.h), as on x86_64: the EFI stub's record sits right
+ * after the GOP record. Accepted, damaged (never trusted) or absent (the
+ * QEMU -kernel path, where the device tree describes RAM instead).
+ * bootmem_arm64_init keeps the accepted record (zxv_handoff()). */
+static void handoff_report(void)
+{
+    const zxh_t *h = (const zxh_t *) (uintptr_t) (ZXV_BOOTINFO_ADDR + ZXH_OFFSET);
+    int v = zxh_accept(h);
+    if (v == 0) {
+        boot_msg("[HANDOFF] none (direct kernel boot): no firmware memory map");
+        return;
+    }
+    if (v != 1) {
+        boot_msg("[HANDOFF_BAD] handoff record damaged: ignored");
+        return;
+    }
+    zxh_report(h, uart_puts, uart_put_dec, uart_put_hex);
+    boot_msg("[HANDOFF_OK] handoff v2 accepted: memory map, ACPI, clock, kernel window");
 }
 
 void kernel_main_arm64(void) {
@@ -907,6 +962,12 @@ void kernel_main_arm64(void) {
     boot_msg("[BOOT] MMU/paging...");
     arm64_mmu_init();
     boot_msg("  [DRIVER ONLINE] Identity mapping (1GB, 4KB granule)");
+    handoff_report();
+    bootmem_arm64_init(g_boot_dtb);
+    vino = bootmem_arm64_take(sizeof *vino, "the vino ledger");
+    prism_break = bootmem_arm64_take(sizeof *prism_break, "the PRISM frame buffers");
+    g_scanout = bootmem_arm64_take((uint64_t) ZXV_FB_W * ZXV_FB_H * 4u, "the scanout buffer");
+    if (!vino || !prism_break || !g_scanout) boot_refused("the ledger and display buffers");
 
     /* Phase 3: GIC + Timer */
     boot_msg("[BOOT] GIC interrupt controller (version probed from GICD_PIDR2)...");
@@ -957,11 +1018,12 @@ void kernel_main_arm64(void) {
 
     /* Phase 7: Triple Ledger */
     boot_msg("[BOOT] Nine-capital triple ledger system...");
-    static triple_ledger_t tl;
-    triple_ledger_init(&tl);
-    triple_ledger_create_account(&tl, 1, CAP_FINANCIAL, "Genesis:Financial");
-    triple_ledger_create_account(&tl, 1, CAP_HUMAN, "Genesis:Human");
-    triple_ledger_create_account(&tl, 1, CAP_ECOLOGICAL, "Genesis:Ecological");
+    triple_ledger_t *tl = bootmem_arm64_take(sizeof *tl, "the triple ledger");
+    if (!tl) boot_refused("the triple ledger");
+    triple_ledger_init(tl);
+    triple_ledger_create_account(tl, 1, CAP_FINANCIAL, "Genesis:Financial");
+    triple_ledger_create_account(tl, 1, CAP_HUMAN, "Genesis:Human");
+    triple_ledger_create_account(tl, 1, CAP_ECOLOGICAL, "Genesis:Ecological");
     boot_msg("  [REGISTERED] 9 capital types + floating vouchers + conventional compat");
 
     /* Phase 8: Financial Instruments */
@@ -1038,9 +1100,9 @@ void kernel_main_arm64(void) {
 
     /* Phase 15: Vino Bank */
     boot_msg("[BOOT] Vino decentralized bank node...");
-    vino_init(&vino, 1);
-    vino_create_account(&vino, "ZEDEC:node:arm64:0001", "Genesis Account");
-    vino_set_validator(&vino, true, 1000000);
+    vino_init(vino, 1);
+    vino_create_account(vino, "ZEDEC:node:arm64:0001", "Genesis Account");
+    vino_set_validator(vino, true, 1000000);
     boot_msg("  [INITIALIZED] Triple ledger + nine capital + ISO 20022");
 
     /* Phase 15b: Count House & Stash Buckets -- fractal-reserve
@@ -1103,7 +1165,7 @@ void kernel_main_arm64(void) {
      * Revenue split: developer 70-85%, platform 15-24%, 36N9 20%. */
     boot_msg("[BOOT] Community Chest P2P app store + Vino Floating Vouchers...");
     cc_init(&community_chest, 1, "ZEDEC:community-chest:arm64:0001");
-    cc_link_vino(&community_chest, &vino);
+    cc_link_vino(&community_chest, vino);
     boot_msg("  [REGISTERED] P2P marketplace + Vino voucher clearing (dev 70-85% / platform 15-24% / 36N9 20%)");
 
     /* Phase 15f: AI Integration & Remote Compute — native ZXV AI
@@ -1169,7 +1231,7 @@ void kernel_main_arm64(void) {
     /* Phase 16: Vena Runtime */
     boot_msg("[BOOT] Vena application runtime...");
     static vena_runtime_t vena;
-    vena_init(&vena, &vino);
+    vena_init(&vena, vino);
     vena_set_language(&vena, LANG_M5_AXIOMATIC);
     boot_msg("  [INITIALIZED] M5 Axiomatic app loader + 31 languages");
 
@@ -2063,7 +2125,7 @@ void kernel_main_arm64(void) {
      * touch ripples (expanding wavefronts), chromatic aberration, and
      * vignette. All integer math, no GPU required. */
     boot_msg("[BOOT] Prism Break holographic touchscreen shader...");
-    pb_init(&prism_break, ZXV_FB_W, ZXV_FB_H); /* max scanout; width is 16-aligned (no shear) */
+    pb_init(prism_break, ZXV_FB_W, ZXV_FB_H); /* max scanout; width is 16-aligned (no shear) */
     boot_msg("  [INITIALIZED] 6-layer compositor (prism + scanlines + ripples + aberration)");
 
     /* Phase 17b+: bind a REAL display. Render one frame, then hand its linear
@@ -2071,9 +2133,9 @@ void kernel_main_arm64(void) {
      * device exists on arm64/x86_64/riscv 'virt'. Requires -device ramfb; if it
      * is absent, ramfb_init fails and we stay on the serial console (honest). */
     boot_msg("[BOOT] ramfb display scanout (fw_cfg)...");
-    pb_render_frame(&prism_break);
+    pb_render_frame(prism_break);
     {
-        uint32_t *fb = pb_get_framebuffer(&prism_break);   /* the BACK buffer */
+        uint32_t *fb = pb_get_framebuffer(prism_break); /* the BACK buffer */
         /* UEFI boot? If the EFI stub published a GOP handoff record, adopt the
          * firmware's linear framebuffer and DON'T touch ramfb (the firmware owns
          * the scanout). Otherwise the normal QEMU -kernel ramfb path. */
@@ -2096,6 +2158,10 @@ void kernel_main_arm64(void) {
         }
         int rc = g_gop_fb ? 0 : ramfb_init(g_scanout, g_disp.w, g_disp.h);
         if (rc == 0) {
+            /* PRISM draws its layers at the width the shell composes at. */
+            pb_init(prism_break, g_disp.w, g_disp.h);
+            fb = pb_get_framebuffer(prism_break);
+            pb_render_frame(prism_break);
             /* Compose into the back buffer, then present a complete frame. */
             static vbe_state_t g_vbe;
             vbe_init_fb(&g_vbe, g_disp.w, g_disp.h, 32, (uintptr_t)fb);
@@ -2105,7 +2171,8 @@ void kernel_main_arm64(void) {
             /* Derive tile geometry from the panel that actually negotiated --
              * this is what stops a fixed 80x45 from indexing past the array. */
             (void)zxv_shell_set_field_geometry(g_disp.w, g_disp.h);
-            zxv_shell_frame(&g_shell, &g_vbe, (int)(g_disp.w/2 - 8), (int)(g_disp.h/2), 0, prism_break.frames_rendered, g_fphase, g_fdepth);
+            zxv_shell_frame(&g_shell, &g_vbe, (int) (g_disp.w / 2 - 8), (int) (g_disp.h / 2), 0,
+                            prism_break->frames_rendered, g_fphase, g_fdepth);
             /* Boot INTO the Dimensional Desktop: the 13 lattice spaces as the
              * 0d-13d ladder (13d = the universal container / MegaROM), laid out by
              * the golden angle. This is the live boot image on ramfb. */
@@ -3232,7 +3299,7 @@ void kernel_event_cycle_run(void) {
         if (!reentrant) {
             virtio_bus_poll();   /* drive every registered class driver's poll (input, ...) */
             int32_t key;
-            while ((key = virtio_input_pop_key()) > 0) zxv_shell_key(&g_shell, (int32_t)key);
+            while ((key = virtio_input_pop_key()) >= 0) zxv_shell_key(&g_shell, (int32_t) key);
             /* Latch fast taps EVERY cycle from the driver's exact press counter, not the
              * every-6th-cycle button level (which misses sub-60ms clicks). */
             static uint32_t g_pending_click = 0;
@@ -3247,13 +3314,18 @@ void kernel_event_cycle_run(void) {
                 virtio_input_get(&cx, &cy, &btn);
                 /* Surface any tap that happened since the last frame as a click edge,
                  * even if the button level already returned to 0 between samples. */
-                if (g_pending_click) { btn |= 1u; g_pending_click = 0; }
+                if (g_pending_click) {
+                    if (!(btn & 1u)) btn |= ZXV_SHELL_BTN_TAP;
+                    g_pending_click = 0;
+                }
                 /* Only the base desktop (view 0) shows the prism wallpaper; the lattice
                  * and space planes clear the whole screen themselves, so rendering the
                  * 6-layer prism there is a full-screen pass thrown away. Skip it. */
-                if (g_shell.view == 0) pb_render_frame(&prism_break);
-                zxv_shell_frame(&g_shell, g_desktop_vbe, cx, cy, btn, prism_break.frames_rendered, g_fphase, g_fdepth);
-                zxv_present(pb_get_framebuffer(&prism_break));   /* show a COMPLETE frame */
+                if (g_shell.view == 0) pb_render_frame(prism_break);
+                zxv_shell_set_clock_ms((uint32_t) arm64_timer_get_uptime_ms());
+                zxv_shell_frame(&g_shell, g_desktop_vbe, cx, cy, btn, prism_break->frames_rendered,
+                                g_fphase, g_fdepth);
+                zxv_present(pb_get_framebuffer(prism_break)); /* show a COMPLETE frame */
                 __asm__ __volatile__("msr daif, %0" :: "r"(daif) : "memory");
             }
             g_desktop_busy = 0;
@@ -3268,8 +3340,8 @@ void kernel_event_cycle_run(void) {
         uart_puts("\n");
     }
 
-    if (g_event_cycle % 1000 == 0 && vino.is_validator) {
-        vino_propose_block(&vino);
+    if (g_event_cycle % 1000 == 0 && vino->is_validator) {
+        vino_propose_block(vino);
     }
 
     /* Mirror event time into the classic scheduler registry so
@@ -3376,13 +3448,13 @@ void kernel_stats_report(void) {
     uart_put_dec((uint64_t)robin_vault.total_unlocked);
     uart_puts("\r\n");
 
-    pb_update_coverage(&prism_break);
+    pb_update_coverage(prism_break);
     uart_puts("prism-break: frames=");
-    uart_put_dec((uint64_t)prism_break.frames_rendered);
+    uart_put_dec((uint64_t) prism_break->frames_rendered);
     uart_puts(" ripples=");
-    uart_put_dec((uint64_t)prism_break.num_ripples);
+    uart_put_dec((uint64_t) prism_break->num_ripples);
     uart_puts(" touches=");
-    uart_put_dec((uint64_t)prism_break.touches_processed);
+    uart_put_dec((uint64_t) prism_break->touches_processed);
     uart_puts("\r\n");
 
     uart_puts("event-space: enqueued=");
@@ -3928,10 +4000,18 @@ void kernel_shell_exec(const char *line) {
         return;
     }
     /* run <name> — load a program from ZXVFS and launch it at EL0.
-     * A `.zsp` package is Ed25519-verified against the compiled-in root
-     * key BEFORE any byte is executed (integrity + authenticity). A raw
-     * `.elf` is still accepted for development but flagged UNSIGNED. The
-     * new process is created READY; the preemptive scheduler dispatches
+     *
+     * What the loader knows decides what the program gets (BAREMETAL_OS_GAPS
+     * gap 8), never the file name:
+     *   ZSP2  signature, arch and key-id checked by zsp_verify2. The signed
+     *         caps field is the release signer's grant: nonzero = exactly
+     *         those CAP_* bits (an unknown bit refuses the package: it claims
+     *         an effect this kernel cannot confine); zero = not declared,
+     *         least privilege.
+     *   ZSP1  signature checked, but version, arch and caps are not bound by
+     *         it (NEITHER): runs at least privilege, and says so.
+     *   ELF   no author at all (FALSE): refused (G7).
+     * The new process is created READY; the preemptive scheduler dispatches
      * it on the next tick, alongside the shell. */
     if (line[0]=='r' && line[1]=='u' && line[2]=='n' && line[3]==' ') {
         if (!g_zxvfs_ready) { uart_puts("run: no persistent disk\r\n"); return; }
@@ -3947,22 +4027,46 @@ void kernel_shell_exec(const char *line) {
 
         const uint8_t *image = filebuf;
         uint32_t image_len = (uint32_t)n;
+        uint32_t caps = CAP_APP_DEFAULT;
 
-        /* Detect a signed package by magic and REQUIRE verification. */
-        bool is_zsp = (n >= ZSP_HEADER_LEN &&
-                       filebuf[0]==ZSP_MAGIC0 && filebuf[1]==ZSP_MAGIC1 &&
-                       filebuf[2]==ZSP_MAGIC2 && filebuf[3]==ZSP_MAGIC3);
-        if (is_zsp) {
-            const uint8_t *payload; uint32_t plen;
-            zsp_result_t vr = zsp_verify(filebuf, (uint32_t)n,
-                                         hello_root_pubkey, &payload, &plen);
+        bool is_zsp = (n >= ZSP_HEADER_LEN && filebuf[0] == ZSP_MAGIC0 &&
+                       filebuf[1] == ZSP_MAGIC1 && filebuf[2] == ZSP_MAGIC2);
+        if (is_zsp && filebuf[3] == ZSP2_MAGIC3) {
+            const uint8_t *payload;
+            uint32_t plen;
+            zsp_meta_t meta;
+            zsp_result_t vr = zsp_verify2(filebuf, (uint32_t) n, hello_root_pubkey, 0,
+                                          ZSP_ARCH_ARM64, &meta, &payload, &plen);
             if (vr != ZSP_OK) {
                 uart_puts("run: SIGNATURE REJECTED — ");
                 uart_puts(zsp_strerror(vr));
                 uart_puts(" — refusing to execute\r\n");
                 return;
             }
-            uart_puts("run: signature verified against root key (Ed25519)\r\n");
+            if (meta.caps & ~CAP_TRUSTED_ALL) {
+                uart_puts("run: REFUSED — signed caps name an effect this kernel cannot "
+                          "confine\r\n");
+                return;
+            }
+            if (meta.caps) caps = meta.caps;
+            uart_puts("run: ZSP2 verified (Ed25519, arch, key-id); caps=");
+            uart_put_hex((uint64_t) caps);
+            uart_puts(meta.caps ? " from the signed header\r\n"
+                                : " (none declared: least privilege)\r\n");
+            image = payload;
+            image_len = plen;
+        } else if (is_zsp && filebuf[3] == ZSP_MAGIC3) {
+            const uint8_t *payload;
+            uint32_t plen;
+            zsp_result_t vr = zsp_verify(filebuf, (uint32_t) n, hello_root_pubkey, &payload, &plen);
+            if (vr != ZSP_OK) {
+                uart_puts("run: SIGNATURE REJECTED — ");
+                uart_puts(zsp_strerror(vr));
+                uart_puts(" — refusing to execute\r\n");
+                return;
+            }
+            uart_puts("run: ZSP1 signature verified; version, arch and caps unbound: least "
+                      "privilege\r\n");
             image = payload;
             image_len = plen;
         } else {
@@ -3975,7 +4079,7 @@ void kernel_shell_exec(const char *line) {
         extern proc_scheduler_t *el0_get_scheduler(void);
         proc_scheduler_t *sch = el0_get_scheduler();
         if (!sch) { uart_puts("run: no EL0 scheduler\r\n"); return; }
-        int32_t pid = proc_create_from_elf(sch, name, image, image_len);
+        int32_t pid = proc_create_from_elf_caps(sch, name, image, image_len, caps);
         if (pid < 0) {
             uart_puts("run: load failed\r\n");
         } else {

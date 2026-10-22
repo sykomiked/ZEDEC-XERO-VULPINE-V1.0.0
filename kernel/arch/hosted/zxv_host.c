@@ -121,6 +121,8 @@ typedef int sock_t;
 #    include "zxvd_power.h"     /* power.*: energy per app and agent, budgets */
 #    include "zxvd_pspace.h"    /* pspace.*, hall.*: public spaces, the watch hall */
 #    include "zxvd_phone.h"     /* zxvd: the owner's paired phones (--phone-link) */
+#    include "web4_web2.h"      /* the window's /api/rpc reads the method name */
+#    include "zxvd_irc.h"       /* irc.*: the IRC gateway on 127.0.0.1 over TLS */
 #    include "zxv_journal.h"    /* zxvd: its events kept across restarts */
 #    include "zxv_screen.h"     /* zxvd: screen time for Shepherd */
 #    include "zxv_place.h"      /* zxvd: location and places for Waymark */

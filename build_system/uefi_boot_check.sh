@@ -13,6 +13,11 @@
 # on the disc's ESP by itself. QEMU opens a COPY of the image with snapshot=on,
 # so the disc file is never modified. Same exit and fault-marker rules as
 # ci_boot_check.sh: only a timeout (124) is a normal QEMU exit.
+#
+# UEFI_SCREENSHOT=<file.png> also saves the screen a few seconds before the
+# timeout (qemu_screendump.py over a monitor socket; arm64 gets a ramfb
+# display for it). The serial log stays the evidence; the picture is a
+# courtesy and never fails the check.
 set -u
 
 ARCH=${1:?usage: uefi_boot_check.sh <arm64|x86_64> [image] [seconds] [marker...]}
@@ -20,9 +25,12 @@ IMG=${2:-dist/discs/zxv-${ARCH}-uefi.img}
 SECS=${3:-60}
 shift $(( $# < 3 ? $# : 3 ))
 LOG="uefi_boot_${ARCH}.log"
-# x86_64 discs boot through the stub's handoff v2 (memory map, ACPI, clock,
-# kernel window); the kernel must have accepted it, not merely booted.
-[ "$ARCH" = x86_64 ] && set -- "$@" "[HANDOFF_OK]"
+# Both discs boot through the stub's handoff v2 (memory map, ACPI, clock,
+# kernel window); the kernel must have accepted it, not merely booted. x86_64
+# must also have run its ring-3 processes under the preemptive scheduler, with
+# the deliberately faulting ones ended alone ([SCHED_OK], x86_userspace.c).
+set -- "$@" "[HANDOFF_OK]"
+[ "$ARCH" = x86_64 ] && set -- "$@" "[SCHED_OK]"
 FAULT_RE='\[FAULT\]|\[EL0 FAULT\]|CPU exception vector=|PANIC|[Kk]ernel panic'
 
 firmware(){ for f in "$@"; do [ -f "$f" ] && { echo "$f"; return; }; done; }
@@ -51,12 +59,21 @@ case "$FW" in
   *) FWARGS=(-bios "$FW") ;;
 esac
 
+MON=(-monitor none); SHOT_PID=
+if [ -n "${UEFI_SCREENSHOT:-}" ]; then
+  SOCK="$(mktemp -u)"; MON=(-monitor "unix:$SOCK,server,nowait")
+  [ "$ARCH" = arm64 ] && MON+=(-device ramfb)
+  python3 "$(dirname "$0")/qemu_screendump.py" "$SOCK" "$(( SECS > 8 ? SECS - 5 : SECS / 2 ))" \
+    "$UEFI_SCREENSHOT" & SHOT_PID=$!
+fi
+
 rc=0
 timeout "$SECS" "${QEMU[@]}" "${FWARGS[@]}" \
   -drive "if=none,id=disc,format=raw,snapshot=on,file=$IMG" \
   -device virtio-blk-pci,drive=disc,bootindex=0 \
-  -net none -display none -serial stdio -monitor none \
+  -net none -display none -serial stdio "${MON[@]}" \
   < /dev/null > "$LOG" 2>&1 || rc=$?
+[ -n "$SHOT_PID" ] && { wait "$SHOT_PID" || true; rm -f "$SOCK"; }
 [ -n "${PF:-}" ] && rm -f "$PF"
 cat "$LOG"
 echo "[uefi-boot] $ARCH: QEMU exited $rc after at most ${SECS}s (firmware $FW)"

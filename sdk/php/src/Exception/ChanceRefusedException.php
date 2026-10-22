@@ -10,7 +10,7 @@ namespace Zedec\Zxv\Exception;
 /**
  * ABI 1.6: a LIVE payment request marked as having a paid chance outcome
  * (loot boxes, paid draws) is refused (ZXV_E_CHANCE, REFUSED class). The
- * raffle is a separate module, not a payment request.
+ * allotment is a separate module, not a payment request.
  */
 class ChanceRefusedException extends ZxvRefusedException
 {

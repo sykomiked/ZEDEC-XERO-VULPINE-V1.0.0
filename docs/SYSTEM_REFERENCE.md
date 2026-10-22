@@ -3,7 +3,9 @@
 ZEDEC XERO VULPINE (ZXV) / VOVINA SHAKINA M5 Axiomatic Kernel.
 Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC. Apache-2.0.
 
-This document states what every part of the system does, as the code stands on 2026-10-10. It was
+This document states what every part of the system does, as the code stands on 2026-10-10,
+with 56 further modules added on 2026-10-15 from the architecture audit
+([ARCHITECTURE_AUDIT_2026-10-15.md](ARCHITECTURE_AUDIT_2026-10-15.md)), checked against merge batch #156. It was
 written from a full audit of the source: every module's header and code was read, its tests were
 built and run, and what each module really does was checked against what its comments and docs
 claim. Where a module is a model, an analogy or a placeholder, its entry says so. Problems found
@@ -67,9 +69,11 @@ The product you run today is the **Mac desktop app** (`kernel/arch/hosted`, `mac
 and tensor engine as a native program with a local web UI, built for Apple Silicon and Intel,
 Linux and Windows. It now generates replies through the tensor engine, limited by the
 companion's tokens-per-cycle budget. It links a Vinea node over UDP (off unless the user turns
-networking on; LAN or online), the update checker (on request, or daily while online) and the
-notification bus with an OS bridge. Speech, IPFS file exchange, LAN multicast discovery and the
-social/call/stream stacks are still not linked into it.
+networking on; LAN or online) with LAN multicast discovery, the IPFS node (used by AIPI and the
+update checker), the update checker (on request, or daily while online) and the notification bus
+with an OS bridge. Speech, IPFS file exchange for the user, and the social, call and stream stacks
+are not linked into the desktop app; social, call, xlate and devmesh are linked into the headless
+daemon `zxvd` (its `people.*` methods, `build_zxvd.sh`).
 
 ## Status summary
 
@@ -77,24 +81,30 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 
 | Status | Modules |
 |---|---|
-| WORKING (tested in verify-all) | 143 |
+| WORKING (tested in verify-all) | 200 |
 | PARTIAL | 37 |
 | WORKING (test not in verify-all) | 17 |
 | UNUSED/DEAD | 11 |
 | STUB | 3 |
-| **Total** | **211** |
+| **Total** | **268** |
+
+Nine more modules are on draft pull requests and listed in Part C, not counted here.
 
 | Module | What it is | Status |
 |---|---|---|
 | [abacus](#abacus----smaugs-debt-netting-abacus-multilateral-clearing-of-ious) | Smaug's debt-netting abacus (multilateral clearing of IOUs) | WORKING (tested in verify-all) |
 | [abstraction_layer](#abstraction_layer----multi-language-module-registry-dead) | multi-language module registry (dead) | UNUSED/DEAD |
+| [acct](#acct--accounting-adapters-for-ifrs-us-gaap-and-aaoifi) | accounting adapters for IFRS, US GAAP and AAOIFI | WORKING (tested in verify-all) |
 | [acpi](#acpi----acpi-table-finder-x86) | ACPI table finder (x86) | PARTIAL |
 | [ai_layer](#ai_layer----bookkeeping-for-ai-models-tasks-and-remote-compute-peers) | bookkeeping for AI models, tasks and remote compute peers | WORKING (tested in verify-all) |
+| [aipi](#aipi--content-addressed-ai-functions-over-the-ipfs-node-and-vinea) | content-addressed AI functions over the IPFS node and Vinea | WORKING (tested in verify-all) |
+| [airc](#airc--agent-relay-chat-signed-boards-trust-tiers-and-the-install-decision) | agent relay chat: signed boards, trust tiers and the install decision | WORKING (tested in verify-all) |
 | [alloc](#alloc----shared-resource-pool-and-personal-token-ledger) | shared resource pool and personal-token ledger | WORKING (tested in verify-all) |
 | [app_constellation](#app_constellation----service-deployment-manager-header-only) | service deployment manager (header only) | STUB |
 | [app_fabric](#app_fabric----application-descriptor-and-instance-registry-dead) | application descriptor and instance registry (dead) | UNUSED/DEAD |
 | [appkit](#appkit----text-document-model-for-native-apps-gap-buffer-undo-save) | text document model for native apps (gap buffer, undo, save) | WORKING (tested in verify-all) |
 | [apps](#apps----built-in-shell-editor-network-config-and-other-desktop-apps) | built-in shell, editor, network config and other desktop apps | PARTIAL |
+| [aproto](#aproto--protocol-twins-aftp-file-transfer-the-aham-ham-frame-and-the-audit-chain) | protocol twins: AFTP file transfer, the AHAM ham frame and the audit chain | WORKING (tested in verify-all) |
 | [art_studio](#art_studio----pixel-canvas-and-painting-tools) | pixel canvas and painting tools | WORKING (tested in verify-all) |
 | [ascent](#ascent----ladder-of-ascent-security-practice-checklist-model) | "Ladder of Ascent" security-practice checklist model | WORKING (test not in verify-all) |
 | [ata](#ata----ataide-disk-driver-pio-x86) | ATA/IDE disk driver (PIO, x86) | PARTIAL |
@@ -102,10 +112,12 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 | [audiogenomics_pro](#audiogenomics_pro----dna-to-sound-synthesis-and-symbolic-encodings) | DNA-to-sound synthesis and symbolic encodings | WORKING (test not in verify-all) |
 | [axiom_matrix](#axiom_matrix----sparse-complex-valued-matrix-keyed-by-hash) | sparse complex-valued matrix keyed by hash | WORKING (test not in verify-all) |
 | [battering_ram](#battering_ram----pooled-credit-exchange-that-pays-out-on-a-verified-outcome) | pooled-credit exchange that pays out on a verified outcome | WORKING (tested in verify-all) |
+| [bearer](#bearer--link-table-framing-and-policy-gates-for-ble-lora-serial-modem-and-ham-radio) | link table, framing and policy gates for BLE, LoRa, serial, modem and ham radio | WORKING (tested in verify-all) |
 | [bios](#bios----zbios-staged-signed-boot-chain-model) | ZBIOS staged, signed boot-chain model | PARTIAL |
 | [blockdev](#blockdev----block-device-interface-and-ram-disk) | block device interface and RAM disk | PARTIAL |
 | [bluetooth](#bluetooth----bluetooth-hcil2cap-packet-builders-and-parsers) | Bluetooth HCI/L2CAP packet builders and parsers | WORKING (tested in verify-all) |
 | [bombsquad](#bombsquad----early-warning-monitor-for-invariants-that-are-drifting-toward-failure) | early-warning monitor for invariants that are drifting toward failure | WORKING (tested in verify-all) |
+| [bootattest](#bootattest--measured-boot-event-log-signed-quote-and-golden-manifest) | measured-boot event log, signed quote and golden manifest | WORKING (tested in verify-all) |
 | [bootfeat](#bootfeat----platform-layer-bring-up-at-boot) | platform-layer bring-up at boot | PARTIAL |
 | [bootlegger](#bootlegger----peer-handshake-and-post-quantum-key-exchange) | peer handshake and post-quantum key exchange | WORKING (tested in verify-all) |
 | [bridge](#bridge----one-address-resolver-across-web2-web3-and-web4) | one address resolver across Web2, Web3 and Web4 | WORKING (tested in verify-all) |
@@ -113,6 +125,7 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 | [broker](#broker----peer-to-peer-marketplace-for-content-addressed-information-goods) | peer-to-peer marketplace for content-addressed information goods | WORKING (tested in verify-all) |
 | [browser](#browser----minimal-web-browser-engine-url-http-html-tokenizer-layout) | minimal web browser engine (URL, HTTP, HTML tokenizer, layout) | WORKING (tested in verify-all) |
 | [call](#call----voice-and-video-call-stack-rtp-stun-fec-jitter-buffer-congestion-control) | voice and video call stack (RTP, STUN, FEC, jitter buffer, congestion control) | WORKING (tested in verify-all) |
+| [capctl](#capctl--capital-control-profiles-as-signed-plug-ins-off-by-default) | capital-control profiles as signed plug-ins (off by default) | WORKING (tested in verify-all) |
 | [capmkt](#capmkt----market-for-buying-compute-storage-or-bandwidth-from-other-machines) | market for buying compute, storage or bandwidth from other machines | WORKING (tested in verify-all) |
 | [cardnet](#cardnet----charge-card-network-model-pans-iso-8583-emv-tlv-mobile-push) | charge-card network model (PANs, ISO 8583, EMV TLV, mobile push) | WORKING (tested in verify-all) |
 | [cards](#cards----glyphsigil-cards-loadouts-and-the-zca-card-assembler) | glyph/sigil cards, loadouts and the ZCA card assembler | WORKING (tested in verify-all) |
@@ -130,6 +143,8 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 | [constellation](#constellation----coordinator-for-many-machines-node-registry-routing-failure-detection) | coordinator for many machines (node registry, routing, failure detection) | WORKING (tested in verify-all) |
 | [cotier](#cotier----co-processor-tiers-accelerator-gate-budget-measurement-reconcile) | co-processor tiers (accelerator gate, budget, measurement, reconcile) | WORKING (tested in verify-all) |
 | [count_house](#count_house----stash-bucket-reserves-and-the-floor-price-of-a-nodes-own-currency) | stash-bucket reserves and the floor price of a node's own currency | WORKING (tested in verify-all) |
+| [crash](#crash--crash-records-on-disk-and-boot-modes-normal-safe-recovery) | crash records on disk and boot modes (normal, safe, recovery) | WORKING (tested in verify-all) |
+| [cred](#cred--eigentrust-credibility-from-fulfilled-trades-bounded-unlocks-and-the-player-card) | EigenTrust credibility from fulfilled trades, bounded unlocks and the Player Card | WORKING (tested in verify-all) |
 | [crit168](#crit168----canonical-serialisation-and-integrity-framing-ubh-168) | canonical serialisation and integrity framing (UBH-168) | WORKING (tested in verify-all) |
 | [crown](#crown----credential-office-issues-and-verifies-identity-credentials-never-touches-money) | credential office: issues and verifies identity credentials, never touches money | WORKING (tested in verify-all) |
 | [crypto_wallet](#crypto_wallet----five-key-wallet-file-system-derived-keys-maced-files) | five-key wallet file system (derived keys, MACed files) | WORKING (test not in verify-all) |
@@ -142,14 +157,17 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 | [dharana](#dharana----array-of-112-gates-in-four-classes-symbolic-naming) | array of 112 gates in four classes (symbolic naming) | WORKING (test not in verify-all) |
 | [dharma](#dharma--dharma-scheduler-family-dharma-karma-chakra-tantra-naga_raja-upaah-) | Dharma scheduler family (dharma, karma, chakra, tantra, naga_raja, upaah, ...) | WORKING (test not in verify-all) |
 | [display](#display--display-mode-negotiation-and-ui-scaling) | display mode negotiation and UI scaling | WORKING (tested in verify-all) |
+| [dispute](#dispute--three-level-dispute-funnel-proofs-staked-blind-jury-with-appeals-jurisdiction-gateway) | three-level dispute funnel: proofs, staked blind jury with appeals, jurisdiction gateway | WORKING (tested in verify-all) |
 | [dual_space](#dual_space--paired-positivenegative-artifact-registry) | paired positive/negative artifact registry | WORKING (tested in verify-all) |
 | [dualtrack](#dualtrack--dual-track-design-vs-evidence-gate-pipeline) | dual-track (design vs. evidence) gate pipeline | PARTIAL |
 | [e8](#e8--e8-lattice--icosian-ring-over-zphi) | E8 lattice / icosian ring over Z[phi] | WORKING (tested in verify-all) |
+| [edgeclus](#edgeclus--edge-cluster-scheduler-on-the-swarm-token-budget) | edge cluster scheduler on the swarm token budget | WORKING (tested in verify-all) |
 | [edp_risk](#edp_risk--coverageedp-risk-primitives) | coverage/"EDP" risk primitives | WORKING (tested in verify-all) |
 | [ehop](#ehop--endian-hopping-encrypted-frame-transport) | endian-hopping encrypted frame transport | WORKING (tested in verify-all) |
 | [el0_userspace](#el0_userspace--el0-arm64-user-mode-process-scheduler) | EL0 (ARM64 user mode) process scheduler | WORKING (test not in verify-all) |
 | [emu](#emu--console-emulators-and-game-dimension-layers) | console emulators and game "dimension" layers | PARTIAL |
 | [epu](#epu--emotion-processing-unit-device-model) | "Emotion Processing Unit" device model | WORKING (tested in verify-all) |
+| [estate](#estate--estate-succession-account-recovery-and-faraid-shares) | estate succession, account recovery and faraid shares | WORKING (tested in verify-all) |
 | [event_sched](#event_sched--event-driven-task-scheduler-with-cycle-budgets) | event-driven task scheduler with cycle budgets | WORKING (tested in verify-all) |
 | [event_space](#event_space--event-envelopes-sequencer-self-audit-self-healing) | event envelopes, sequencer, self-audit, self-healing | WORKING (tested in verify-all) |
 | [event_transport](#event_transport--channels-that-carry-event-envelopes-between-nodes) | channels that carry event envelopes between nodes | STUB |
@@ -164,15 +182,22 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 | [freight](#freight--reed-solomon--gf256-erasure-coded-freight-containers) | Reed-Solomon / GF(256) erasure-coded freight containers | WORKING (tested in verify-all) |
 | [fs](#fs--tri-space-file-system-s-s--s0-replicas-transactions-snapshots) | tri-space file system (S+, S-, S0 replicas, transactions, snapshots) | PARTIAL |
 | [fusion](#fusion--capability-contract-fusion-of-tri-space-programs) | capability-contract fusion of Tri-Space programs | WORKING (tested in verify-all) |
+| [fwadapt](#fwadapt--smart-firmware-adapter-which-driver-may-touch-a-device) | smart firmware adapter: which driver may touch a device | WORKING (tested in verify-all) |
+| [fxepoch](#fxepoch--fx-by-uniform-price-batch-epochs-on-pay_ledger) | FX by uniform-price batch epochs on pay_ledger | WORKING (tested in verify-all) |
 | [games](#games--deterministic-lockstep-game-core-with-a-chiglet-companion) | deterministic lockstep game core with a Chiglet companion | WORKING (tested in verify-all) |
 | [gdt](#gdt--x86-global-descriptor-table-setup) | x86 Global Descriptor Table setup | PARTIAL |
 | [gematria](#gematria--letter-value-and-grammar-to-fock-space-mapping) | letter-value and grammar-to-"Fock-space" mapping | PARTIAL |
 | [governance_fabric](#governance_fabric--umbrella-over-legalconcordministrycrownzab-governance) | umbrella over legal/concord/ministry/crown/ZAB governance | UNUSED/DEAD |
+| [grants](#grants--olive-oil-barrel-startup-grants-for-participants-in-good-standing) | Olive Oil Barrel startup grants for participants in good standing | WORKING (tested in verify-all) |
+| [gridlock](#gridlock--exact-gridlock-resolution-for-a-queue-of-payments) | exact gridlock resolution for a queue of payments | WORKING (tested in verify-all) |
 | [hardware](#hardware--dlp-projector-model-and-rtlhdl-device-abstraction) | DLP projector model and RTL/HDL device abstraction | PARTIAL |
 | [harmonic](#harmonic--harmonic-wire-tags-dialgeom-routers-endian-mux-trunk-bank-adapters) | harmonic wire tags, dial/geom routers, endian mux, trunk bank, adapters | WORKING (tested in verify-all) |
 | [hdcm](#hdcm--hyperdimensional-cross-language-construct-matrix) | "hyperdimensional" cross-language construct matrix | PARTIAL |
 | [holodeck](#holodeck--content-addressed-viewing-swarm-inside-a-den) | content-addressed viewing swarm inside a den | WORKING (tested in verify-all) |
 | [holographic](#holographic--36n99n6336m9zedeizedec-holographic-file-formats) | .36n9/.9n63/.36m9/.zedei/.zedec holographic file formats | WORKING (tested in verify-all) |
+| [hwdrv](#hwdrv--standard-class-drivers-nvme-ahci-xhci-with-usb-keyboard-and-storage-e1000-igb-r8169-hda) | standard class drivers: NVMe, AHCI, xHCI with USB keyboard and storage, e1000, igb, r8169, HDA | WORKING (tested in verify-all) |
+| [hwemu](#hwemu--hardware-profiles-the-emulation-matrix-standard-engines-and-signed-hardware-updates) | hardware profiles, the emulation matrix, standard engines and signed hardware updates | WORKING (tested in verify-all) |
+| [hwkey](#hwkey--account-keys-sealed-by-the-tpm-or-secure-enclave) | account keys sealed by the TPM or Secure Enclave | WORKING (tested in verify-all) |
 | [hypercube](#hypercube--n-dimensional-workspace-scene-projected-to-3d2d) | N-dimensional workspace scene projected to 3D/2D | WORKING (tested in verify-all) |
 | [i18n](#i18n--locales-message-catalogue-formatting-enochian-script) | locales, message catalogue, formatting, Enochian script | WORKING (tested in verify-all) |
 | [icon](#icon----vector-icons-for-every-module) | vector icons for every module | WORKING (tested in verify-all) |
@@ -187,12 +212,16 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 | [ipfs_node](#ipfs_node----real-ipfs-cids-unixfs-car-blockstore-ubh-168-wire) | real IPFS CIDs, UnixFS, CAR, blockstore, UBH-168 wire | WORKING (tested in verify-all) |
 | [iphase](#iphase----k4-route-contracts-and-phase-routing) | K4 route contracts and phase routing | WORKING (tested in verify-all) |
 | [iso20022](#iso20022----pacs008--camt053-message-builders) | PACS.008 / CAMT.053 message builders | WORKING (tested in verify-all) |
+| [juris](#juris--jurisdiction-plug-in-abi-and-its-fail-closed-host) | jurisdiction plug-in ABI and its fail-closed host | WORKING (tested in verify-all) |
 | [keyboard](#keyboard----ps2-keyboard-driver-x86) | PS/2 keyboard driver (x86) | PARTIAL |
+| [kycwrap](#kycwrap--minimal-disclosure-kyc-wrapper-with-an-empty-zero-knowledge-slot) | minimal-disclosure KYC wrapper with an empty zero-knowledge slot | WORKING (tested in verify-all) |
 | [lattice](#lattice----lattice-p2p-file-sharing-tables) | "LATTICE-P2P" file-sharing tables | PARTIAL |
+| [launch](#launch--app-launch-screen-sequencing-and-launch-sounds) | app launch screen sequencing and launch sounds | WORKING (tested in verify-all) |
 | [legacy](#legacy----sipsdp-ss7m3uasccptcapmap-isup-map-dtmf-ebcdic-cobol-fortran) | SIP/SDP, SS7/M3UA/SCCP/TCAP/MAP, ISUP map, DTMF, EBCDIC, COBOL, Fortran | WORKING (tested in verify-all) |
 | [legal_engine](#legal_engine----legal-document-generator) | legal document generator | WORKING (tested in verify-all) |
 | [license](#license----licence-text-and-metadata) | licence text and metadata | WORKING (tested in verify-all) |
 | [lightningrod](#lightningrod----cobolfortranc-data-representation-adapters) | COBOL/Fortran/C data-representation adapters | WORKING (tested in verify-all) |
+| [lingua](#lingua--fortran-basic-and-forth-front-ends-on-one-checked-integer-ir) | FORTRAN, BASIC and Forth front-ends on one checked integer IR | WORKING (tested in verify-all) |
 | [loader](#loader----elf64-loader-signed-packages-zsp-v1v2-ab-updates) | ELF64 loader, signed packages (ZSP v1/v2), A/B updates | WORKING (tested in verify-all) |
 | [logistics](#logistics----syndicates-escrow-and-secondary-contracts) | syndicates, escrow and secondary contracts | WORKING (tested in verify-all) |
 | [lpres](#lpres----k3-paraconsistent-presence-attestations) | K3 paraconsistent presence attestations | WORKING (tested in verify-all) |
@@ -204,7 +233,9 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 | [megarom](#megarom----observed-game-dynamics---sutra-schemas) | observed game dynamics -> Sutra schemas | WORKING (tested in verify-all) |
 | [mesh_net](#mesh_net----mesh-network-and-trade-route-bookkeeping) | mesh network and trade-route bookkeeping | WORKING (tested in verify-all) |
 | [mesh_token](#mesh_token----settlement-queue-gated-by-porter-house) | settlement queue gated by Porter House | WORKING (tested in verify-all) |
+| [mfg](#mfg--manufacturing-checks-g-code-toolpaths-guard-banded-inspection-resource-budgets) | manufacturing checks: G-code toolpaths, guard-banded inspection, resource budgets | WORKING (tested in verify-all) |
 | [ministry](#ministry----treasury-pillar-tribute-gratuity) | treasury pillar (tribute, gratuity) | WORKING (tested in verify-all) |
+| [mint](#mint--minting-vino-or-v-bills-against-signed-capacity-claims) | minting Vino or V-Bills against signed capacity claims | WORKING (tested in verify-all) |
 | [mixmat](#mixmat----exact-rational-mixing-matrices) | exact rational mixing matrices | WORKING (test not in verify-all) |
 | [mlkem](#mlkem----ml-kem-768-fips-203-and-sha-3shake) | ML-KEM-768 (FIPS 203) and SHA-3/SHAKE | WORKING (tested in verify-all) |
 | [mm](#mm----x86-pagingheap-model) | x86 paging/heap model | PARTIAL |
@@ -218,25 +249,39 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 | [orbital_elevator](#orbital_elevator----event-schema-translation) | event schema translation | WORKING (tested in verify-all) |
 | [orbital_fabric](#orbital_fabric----compound-orbital-layer) | "compound" orbital layer | PARTIAL |
 | [oseq](#oseq----k1-ordinal-sequencer) | K1 ordinal sequencer | WORKING (tested in verify-all) |
+| [outbox](#outbox--offline-spending-grants-with-once-only-settlement) | offline spending grants with once-only settlement | WORKING (tested in verify-all) |
 | [p2p_caracho](#p2p_caracho----superseded-p2p-transport) | superseded P2P transport | UNUSED/DEAD |
 | [panopticon](#panopticon----connection-watcher-and-vpn-mesh-model) | connection watcher and "VPN mesh" model | PARTIAL |
 | [passport](#passport----log-in-from-any-device-with-no-server) | log in from any device with no server | WORKING (tested in verify-all) |
+| [paradox](#paradox--paradox-engine-paraconsistent-ledger-and-belnap-agents) | paradox engine, paraconsistent ledger and Belnap agents | WORKING (tested in verify-all) |
 | [pay](#pay----payment-ledger-assurance-fee-iso-20022-equity-treasury-farm) | payment ledger, assurance fee, ISO 20022, equity, treasury, farm | WORKING (tested in verify-all) |
-| [peer_audit](#peer_audit----self-audit-and-peer-audit-for-swarm-transitions) | self-audit and peer audit for swarm transitions | WORKING (tested in verify-all) |
+| [pce](#pce--paraconsistent-decision-engines-probability-tactics-strategy-finance) | paraconsistent decision engines: probability, tactics, strategy, finance | WORKING (tested in verify-all) |
 | [pci](#pci----pci-enumeration-x86) | PCI enumeration (x86) | PARTIAL |
+| [peer_audit](#peer_audit----self-audit-and-peer-audit-for-swarm-transitions) | self-audit and peer audit for swarm transitions | WORKING (tested in verify-all) |
 | [phase_coord](#phase_coord----k6-phase-coordinator) | K6 phase coordinator | WORKING (tested in verify-all) |
 | [pic](#pic----8259-pic-x86) | 8259 PIC (x86) | PARTIAL |
 | [pirate_apps](#pirate_apps----thin-uis-over-other-modules) | thin UIs over other modules | WORKING (tested in verify-all) |
 | [pirate_fleet](#pirate_fleet----crew-channels-charter-dao-compute-credit) | crew channels, charter DAO, compute credit | WORKING (tested in verify-all) |
 | [plnp](#plnp----phase-lattice-framing-protocol) | Phase-Lattice framing protocol | WORKING (tested in verify-all) |
+| [pmm](#pmm--four-state-physical-frame-allocator) | four-state physical frame allocator | WORKING (tested in verify-all) |
+| [policy](#policy--zxv_policy-engine-and-contract-dsl) | zxv_policy engine and contract DSL | WORKING (tested in verify-all) |
 | [porter_house](#porter_house--port-firewall-seals-on-network-ports) | port firewall ("seals" on network ports) | WORKING (tested in verify-all) |
+| [power](#power--energy-ledger-per-app-and-agent-battery-state-and-budgets) | energy ledger per app and agent, battery state and budgets | WORKING (tested in verify-all) |
 | [pqsec](#pqsec--post-quantum-signatures-and-kem-ml-dsa-slh-dsa-ml-kem-hqc) | post-quantum signatures and KEM (ML-DSA, SLH-DSA, ML-KEM, HQC) | WORKING (tested in verify-all) |
 | [predictive](#predictive--surplus-trajectory-forecaster) | surplus trajectory forecaster | WORKING (test not in verify-all) |
 | [prism_break](#prism_break--framebuffer-prism-refraction-shader) | framebuffer "prism" refraction shader | WORKING (tested in verify-all) |
+| [privacy](#privacy--exact-differential-privacy-four-valued-access-checks-and-selective-disclosure) | exact differential privacy, four-valued access checks and selective disclosure | WORKING (tested in verify-all) |
+| [provenance](#provenance--canonical-signed-manifest-digest-and-a-test-only-signer) | canonical signed-manifest digest and a test-only signer | WORKING (tested in verify-all) |
 | [provider](#provider--computestoragemodel-provider-marketplace) | compute/storage/model provider marketplace | WORKING (tested in verify-all) |
 | [pterm](#pterm--framebufferserial-terminal-and-multiplexer) | framebuffer/serial terminal and multiplexer | WORKING (tested in verify-all) |
 | [pungent](#pungent--garlic-style-layered-encryption-bundle-model) | garlic-style layered encryption bundle model | WORKING (tested in verify-all) |
+| [qeq](#qeq--exact-equivalence-checker-for-small-quantum-circuits) | exact equivalence checker for small quantum circuits | WORKING (tested in verify-all) |
+| [qnet](#qnet--obligation-netting-by-cycle-cancellation) | obligation netting by cycle cancellation | WORKING (tested in verify-all) |
+| [qnote](#qnote--q-note-quarantine-lots-dutch-auction-and-first-loss-recovery) | Q-Note quarantine lots, Dutch auction and first-loss recovery | WORKING (tested in verify-all) |
+| [qr](#qr--qr-code-encoder-byte-mode-level-m) | QR Code encoder (byte mode, level M) | WORKING (tested in verify-all) |
+| [qsim](#qsim--exact-classical-quantum-circuit-simulator) | exact classical quantum circuit simulator | WORKING (tested in verify-all) |
 | [quantum](#quantum--quantum-and-exotic-matter-device-numeric-model) | "quantum and exotic matter device" numeric model | WORKING (tested in verify-all) |
+| [qubo](#qubo--qubo-and-ising-workbench-with-optimality-certificates) | QUBO and Ising workbench with optimality certificates | WORKING (tested in verify-all) |
 | [quest](#quest--masterycooperation-game-layer-with-badges) | mastery/cooperation game layer with badges | WORKING (tested in verify-all) |
 | [rational](#rational--exact-rational-arithmetic-wyverneye) | exact rational arithmetic (WyvernEye) | WORKING (tested in verify-all) |
 | [rce](#rce--si-units-and-dimensional-analysis) | SI units and dimensional analysis | WORKING (tested in verify-all) |
@@ -247,13 +292,17 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 | [reputation](#reputation--pig-badge-abuse-signal-and-earnable-badges) | "Pig Badge" abuse signal and earnable badges | WORKING (tested in verify-all) |
 | [rmag](#rmag--rational-resource-budgets-rmag-and-resource-tables) | rational resource budgets (RMAG) and resource tables | WORKING (tested in verify-all) |
 | [robin_debanks](#robin_debanks--time-locked-vault-plus-the-shared-crypto-primitives) | time-locked vault plus the shared crypto primitives | WORKING (tested in verify-all) |
+| [royalty](#royalty--ip-royalties-paid-only-from-realised-sales) | IP royalties paid only from realised sales | WORKING (tested in verify-all) |
 | [rur](#rur--root-universal-representation-type-layer) | Root Universal Representation type layer | WORKING (tested in verify-all) |
 | [sched](#sched--round-robin-task-table-legacy-x86-scheduler) | round-robin task table (legacy x86 scheduler) | PARTIAL |
 | [sdk](#sdk--application-sdk-headers-and-template) | application SDK headers and template | STUB |
 | [sdk_bridge](#sdk_bridge--capability-bridge-from-appslanguages-to-kernel-fabrics) | capability bridge from apps/languages to kernel fabrics | PARTIAL |
+| [seats](#seats--people-on-one-device-and-the-login-after-boot) | people on one device and the login after boot | WORKING (tested in verify-all) |
 | [security_fabric](#security_fabric--security-fabric-placeholder-crypto) | "security fabric" (placeholder crypto) | UNUSED/DEAD |
 | [sephirot](#sephirot--13-phase-multi-valued-logic-engine) | 13-phase multi-valued logic engine | WORKING (test not in verify-all) |
+| [settle](#settle--settlement-spine-swarm-money-on-the-ledger-of-record) | settlement spine: swarm money on the ledger of record | WORKING (tested in verify-all) |
 | [shimmer](#shimmer--desktop-background-shimmer-effect) | desktop background shimmer effect | WORKING (tested in verify-all) |
+| [sicily](#sicily--sicily-account-view-player-card-tiers-steward-threshold) | Sicily Account view, Player Card tiers, steward threshold | WORKING (tested in verify-all) |
 | [situation](#situation--all-domain-situationrisk-modeller) | all-domain situation/risk modeller | PARTIAL |
 | [smap](#smap--s-map-reassembly-manifest) | S-Map reassembly manifest | WORKING (tested in verify-all) |
 | [social](#social--feed-groups-posts-buckets-and-desktop-notifications) | feed, groups, posts, buckets and desktop notifications | WORKING (tested in verify-all) |
@@ -266,21 +315,28 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 | [superpos](#superpos--superposition-build-space-coordinator) | "superposition" build-space coordinator | PARTIAL |
 | [surplus](#surplus--interaction-surplus-framework-maths) | Interaction Surplus Framework maths | WORKING (tested in verify-all) |
 | [sutra](#sutra--sutra-transaction-language-lexer-parser-runtime-rails) | SUTRA transaction language (lexer, parser, runtime, rails) | WORKING (tested in verify-all) |
+| [svault](#svault--protocol-solvency-vault) | protocol solvency vault | WORKING (tested in verify-all) |
 | [swarm](#swarm--ai-model-swarm-economy) | AI-model swarm economy | WORKING (tested in verify-all) |
 | [synthesis](#synthesis--synthesis-engine-spec-parser-and-dma-staging) | "synthesis engine" spec parser and DMA staging | PARTIAL |
 | [syscall](#syscall--the-one-shared-zxv-syscall-table-and-capability-check) | the one shared ZXV syscall table and capability check | WORKING (tested in verify-all) |
+| [taxhook](#taxhook--vat-gst-and-sales-tax-hooks-off-by-default) | VAT, GST and sales-tax hooks (off by default) | WORKING (tested in verify-all) |
 | [telemetry](#telemetry--axiom-matrix-self-observation-counters) | "axiom matrix" self-observation counters | WORKING (tested in verify-all) |
 | [tensor](#tensor--integer-tensor-engine-gguf-loader-tokenizer-rope-transformer-model) | integer tensor engine, GGUF loader, tokenizer, RoPE, transformer model | WORKING (tested in verify-all) |
+| [terms](#terms--first-boot-end-user-agreement-gate) | first-boot end-user agreement gate | WORKING (tested in verify-all) |
 | [theme](#theme--palette-tokens-that-every-drawable-resolves-through) | palette tokens that every drawable resolves through | WORKING (tested in verify-all) |
 | [timer](#timer--legacy-x86-pit-82538254-tick-timer) | legacy x86 PIT 8253/8254 tick timer | PARTIAL |
+| [timesvc](#timesvc--wall-clock-time-rtc-sntp-and-time-zones) | wall-clock time (RTC, SNTP) and time zones | WORKING (tested in verify-all) |
 | [tls](#tls--tls-13-client-pieces-chacha20-poly1305-hkdf-x25519-record-layer-handshake) | TLS 1.3 client pieces: ChaCha20-Poly1305, HKDF, X25519, record layer, handshake | PARTIAL |
 | [tolvovina](#tolvovina--tol-vovina-integer-3d-geometry-rasteriser-stereo-and-rom) | TOL VOVINA integer 3D geometry, rasteriser, stereo and ROM | WORKING (test not in verify-all) |
 | [tripartite_fs](#tripartite_fs--index-of-positivenegativeneutral-tripartite-files) | index of positive/negative/neutral tripartite files | WORKING (tested in verify-all) |
 | [trispace](#trispace--the-tri-space-artifact-triad-s-s--s0-and-its-five-hard-requirements) | the Tri-Space artifact triad (S+, S-, S0) and its five hard requirements | WORKING (tested in verify-all) |
 | [ubh](#ubh--ubh-168-framed-envelope-and-multi-format-registry) | UBH-168 framed envelope and multi-format registry | WORKING (tested in verify-all) |
 | [update](#update--signed-software-updates-package-index-consent-fetch-and-verify-upcheck-manifests) | signed software updates: package index, consent, fetch and verify, upcheck manifests | WORKING (tested in verify-all) |
+| [vauction](#vauction--v-bill-issuance-by-descending-uniform-price-auction) | V-Bill issuance by descending uniform-price auction | WORKING (tested in verify-all) |
 | [vbe](#vbe--vbevga-linear-framebuffer-driver-legacy-x86) | VBE/VGA linear framebuffer driver (legacy x86) | PARTIAL |
 | [vblock](#vblock--content-addressed-block-store-over-memory-tiers-ram-pinned-vram-unified) | content-addressed block store over memory tiers (RAM, pinned, VRAM, unified) | WORKING (tested in verify-all) |
+| [vbond](#vbond--v-bonds-fixed-term-locked-v-bill-lots) | V-Bonds: fixed-term locked V-Bill lots | WORKING (tested in verify-all) |
+| [vderiv](#vderiv--v-calls-and-v-perps-on-auction-clearing-velocity) | V-Calls and V-Perps on auction clearing velocity | WORKING (tested in verify-all) |
 | [vena](#vena--contract-and-app-runtime-on-top-of-the-vino-ledger) | contract and app runtime on top of the vino ledger | PARTIAL |
 | [vfs](#vfs--mount-table-over-fat32) | mount table over FAT32 | PARTIAL |
 | [video](#video--software-2d-rasteriser-into-a-caller-framebuffer-plus-ramfb-scanout) | software 2D rasteriser into a caller framebuffer, plus ramfb scanout | WORKING (tested in verify-all) |
@@ -289,15 +345,21 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 | [vino_stores](#vino_stores--vino-floating-voucher-settlement-engine) | Vino floating-voucher settlement engine | WORKING (tested in verify-all) |
 | [virtio](#virtio--virtio-mmio-bus-split-virtqueues-and-virtio-gpu) | virtio-MMIO bus, split virtqueues and virtio-gpu | WORKING (tested in verify-all) |
 | [voice](#voice--deterministic-text-to-phoneme-bridge-with-fail-closed-model-boundaries) | deterministic text-to-phoneme bridge with fail-closed model boundaries | WORKING (tested in verify-all) |
+| [vswap](#vswap--player-card-swap-vino-to-v-bills-lock-tiers-dividend) | Player Card swap: Vino to V-Bills, lock tiers, dividend | WORKING (tested in verify-all) |
 | [web4](#web4--web2-web3-and-agent-bridges-http-json-jwt-oauth-secp256k1-ethbtc-cid) | Web2, Web3 and agent bridges: HTTP, JSON, JWT, OAuth, secp256k1, ETH/BTC, CID | WORKING (tested in verify-all) |
 | [wifi](#wifi--ieee-80211-stationap-subsystem-frames-wpa-handshake-scan) | IEEE 802.11 station/AP subsystem (frames, WPA handshake, scan) | WORKING (tested in verify-all) |
 | [wyrmgate](#wyrmgate--six-fold-tri-space-judgment-gate-for-state-changing-events) | six-fold Tri-Space judgment gate for state-changing events | WORKING (tested in verify-all) |
 | [wyverneye](#wyverneye--intent-forged-into-a-sigil-card-then-judged-by-wyrmgate-before-acting) | intent forged into a sigil card, then judged by Wyrmgate before acting | WORKING (tested in verify-all) |
 | [xedit](#xedit--x-edit-gap-buffer-text-and-code-editor-core) | X-EDIT gap-buffer text and code editor core | WORKING (test not in verify-all) |
 | [xlate](#xlate--language-identification-and-translation-prompt-construction) | language identification and translation prompt construction | WORKING (tested in verify-all) |
+| [xrisk](#xrisk--exact-loss-distributions-for-discrete-portfolios) | exact loss distributions for discrete portfolios | WORKING (tested in verify-all) |
 | [yantra](#yantra--software-defined-hardware-fabric-capability-registry) | software-defined hardware fabric capability registry | WORKING (tested in verify-all) |
 | [zab](#zab--zxv-artifact-bytecode-capability-verifier-vm-and-scopes) | ZXV Artifact Bytecode: capability verifier, VM and scopes | WORKING (tested in verify-all) |
 | [zcapital](#zcapital--capital-form-market-offers-seeks-and-matching) | capital-form market: offers, seeks and matching | WORKING (tested in verify-all) |
+| [zenny](#zenny--zenny-chips-user-built-baskets-with-an-exact-manifest) | Zenny chips: user-built baskets with an exact manifest | WORKING (tested in verify-all) |
+| [zstats](#zstats--public-statistics-feed-over-the-economy-modules) | public statistics feed over the economy modules | WORKING (tested in verify-all) |
+| [ztp](#ztp--zero-touch-provisioning-and-owner-claim-zhp-1-profile) | zero-touch provisioning and owner claim (ZHP-1 profile) | WORKING (tested in verify-all) |
+| [zui](#zui--native-ui-toolkit-renderer-widgets-windows-and-system-screens) | native UI toolkit: renderer, widgets, windows and system screens | WORKING (tested in verify-all) |
 | [zxpkg](#zxpkg--native-package-container-a-compiled-artifact-as-three-on-disk-tri-space-files) | native package container: a compiled artifact as three on-disk Tri-Space files | WORKING (tested in verify-all) |
 | [zxvfs](#zxvfs--persistent-filesystem-with-a-redo-journal-extent-allocator-and-tri-space-store) | persistent filesystem with a redo journal, extent allocator and Tri-Space store | WORKING (tested in verify-all) |
 
@@ -306,11 +368,11 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 
 ### Mac desktop app  —  the ZXV swarm as a native program (kernel/arch/hosted, macos/)
 Status: WORKING (tested in verify-all via `test_hosted.sh`; Mac-only parts untested here)
-What it does: `zxv_host.c` runs the kernel's swarm modules (Fibonacci budget, market, emotions, witness, ledger, DNA, governor) as an ordinary program and serves a small web window on 127.0.0.1 only. The market cycle now stays open between reflexes and the companion's model answers through `zxv_budget_gate.c`: `max_new = min(256, swarm_budget_remaining(companion))`, the tokens generated are charged with `swarm_budget_consume`, and with nothing left `/api/ask` answers "Budget exhausted for this cycle" without running the model (the next cycle, about 1 s, refills it); `/api/state` shows `companion.{allotted,used,remaining,exhausted,last_answer}`. `zxv_net_host.c` runs one Vinea node (`vna_node`) on a non-blocking UDP socket in the same `select()` loop: OFF by default (no socket), LAN (private IPv4 only) or ONLINE via `--net`, `--peer IP:PORT` or the window's Network buttons (`POST /api/net`). The owner trades through the same token-guarded endpoint (U8): `share COMPUTE STORAGE` attaches a sharing agreement (nothing is shared by default), `want compute|storage UNITS MAX_PRICE` states a want, and `sell compute|storage UNITS PRICE NODEID` offers a peer the node has heard from a trade on credit; each sale the buyer countersigns becomes the owner's verified quest contribution (sales below quest's unit, 2^20 tokens or 2^30 bytes, carry over). There is no window control for trading yet. `zxv_update_host.c` runs `zx_upcheck` over a trustless gateway (curl via fork/execvp) only when the user presses Check (`POST /api/update`) or daily while ONLINE. `zx_notify` is the app's event bus: answers, failures and update outcomes become notes (`GET /api/notes`, `POST /api/notes/read`), and `zx_notify_host.c` pushes the important kinds to osascript or notify-send, chosen at run time (none when absent). Every API call needs a per-launch token and a same-origin Host/Origin (`zxv_http_guard.c`). `zxv_model_host.c` memory-maps one GGUF file, checks it with the tensor engine, and loads its tokenizer. New in this audit: `zxv_zt_glue.c` joins it to the forward pass (`zt_model`), so a supported model (Q8_0 etc.) now writes a greedy reply wrapped in the ChatML template. Each answer gets the 64-state tag (`zxv_answer_tag.c`, lpres_hex): the glue records the per-token margin (top-1 minus runner-up logit) and any logit on the Q16 rails without changing the engine; a clean reply is true/manifest with polarity from the margin trend (second half against first, an eighth dead band; entropic means WAIT), and a saturated logit or failed forward pass is forbidden: the reply is withheld and recorded in a SHA-256 hash-chained quarantine log, and a full log (64) stops the model. `/api/state` shows `companion.last_tag`, `quarantined` and `quarantine_ok`. The tag attests the computation, not the truth of the reply. Weight-hash checking before load is not built yet. On a Mac, `macos/ZXVApp.m` is a native AppKit + WKWebView shell that starts the engine as a child process. The swarm's agents are still stand-ins; the model answers on its own.
+What it does: `zxv_host.c` runs the kernel's swarm modules (Fibonacci budget, market, emotions, witness, ledger, DNA, governor) as an ordinary program and serves a small web window on 127.0.0.1 only. The market cycle now stays open between reflexes and the companion's model answers through `zxv_budget_gate.c`: `max_new = min(256, swarm_budget_remaining(companion))`, the tokens generated are charged with `swarm_budget_consume`, and with nothing left `/api/ask` answers "Budget exhausted for this cycle" without running the model (the next cycle, about 1 s, refills it); `/api/state` shows `companion.{allotted,used,remaining,exhausted,last_answer}`. `zxv_net_host.c` runs one Vinea node (`vna_node`) on a non-blocking UDP socket in the same `select()` loop: OFF by default (no socket), LAN (private IPv4 only) or ONLINE via `--net`, `--peer IP:PORT` or the window's Network buttons (`POST /api/net`). The owner trades through the same token-guarded endpoint (U8): `share COMPUTE STORAGE` attaches a sharing agreement (nothing is shared by default), `want compute|storage UNITS MAX_PRICE` states a want, and `sell compute|storage UNITS PRICE NODEID` offers a peer the node has heard from a trade on credit; each sale the buyer countersigns becomes the owner's verified quest contribution (sales below quest's unit, 2^20 tokens or 2^30 bytes, carry over). There is no window control for trading yet. `zxv_update_host.c` runs `zx_upcheck` over a trustless gateway (curl via fork/execvp) only when the user presses Check (`POST /api/update`) or daily while ONLINE. `zx_notify` is the app's event bus: answers, failures and update outcomes become notes (`GET /api/notes`, `POST /api/notes/read`), and `zx_notify_host.c` pushes the important kinds to osascript or notify-send, chosen at run time (none when absent). Every API call needs a per-launch token and a same-origin Host/Origin (`zxv_http_guard.c`). `zxv_model_host.c` memory-maps one GGUF file, checks it with the tensor engine, and loads its tokenizer. New in this audit: `zxv_zt_glue.c` joins it to the forward pass (`zt_model`), so a supported model (Q8_0 etc.) now writes a greedy reply wrapped in the ChatML template. Each answer gets the 64-state tag (`zxv_answer_tag.c`, lpres_hex): the glue records the per-token margin (top-1 minus runner-up logit) and any logit on the Q16 rails without changing the engine; a clean reply is true/manifest with polarity from the margin trend (second half against first, an eighth dead band; entropic means WAIT), and a saturated logit or failed forward pass is forbidden: the reply is withheld and recorded in a SHA-256 hash-chained quarantine log, and a full log (64) stops the model. `/api/state` shows `companion.last_tag`, `quarantined` and `quarantine_ok`. The tag attests the computation, not the truth of the reply. Weight-hash checking before load is not built yet. On a Mac, `macos/ZXVApp.m` is a native AppKit shell that starts the engine as a child process and shows the zui desktop (`kernel/arch/hosted/zxv_desktop.c`) on Metal, with no web view. The swarm's agents are still stand-ins; the model answers on its own.
 Main entry points: `zxv-host` CLI (`--server`, `--port`, `--model`, `--models-dir`, `--exit-with-parent`, `--net`, `--net-port`, `--net-bind`, `--peer`, `--state-dir`, `--no-lan-discovery`, `--notify`, `--update-gateway`); `/api/state`, `/api/ask`, `/api/quit`, `/api/net`, `/api/update`, `/api/notes`, `/api/notes/read`; `zxv_budget_gate`; `zxv_net_*`; `zxv_update_*`; `app_sources.sh` (the one source list); `zxv_model_open/answer/close`; `zxv_zt_generate[_n]`, `zxv_zt_can_run`, `zxv_zt_release`; `zxv_guard_*`.
 Tests: `kernel/arch/hosted/test_hosted.sh` (guard unit test under ASan/UBSan, glue test `test_zxv_zt_glue.c` [16 checks, incl. the verdict], answer tag `test_zxv_answer_tag.c` [12 checks], budget gate `test_zxv_budget_gate.c` [19 checks: budget N, ask for more, exactly N generated, 0 left, refused, refilled next cycle; also on the real engine], two UDP net hosts on 127.0.0.1 `test_zxv_net_host.c` [23 checks: ping, both routing tables, FIND_NODE both ways, OFF/LAN/ONLINE policy], end-to-end socket test `test_host_api.py` twice, and `test_host_net.py` [44 checks: no UDP socket and no update request without the user, two app instances see each other, the Network setting, a sale refused before sharing and refused by a buyer that did not want it, then two compute trades on credit completing on both instances with conserved books and the seller's quest contribution rising while the buyer's does not, a requested update check against a local gateway, the note pushed to a stand-in notify-send]); in verify-all. All pass with gcc 11 and clang 18. `build_system/build_desktop.sh` built macOS x86_64+arm64, Windows and Linux engines with zig 0.13 (pip ziglang) and its end-to-end test passed; no native shell off a Mac.
 Used by: nothing (top-level program). `zx_speech_mac.m` is built by nothing.
-Gaps: no real model ever run; Q5_0/Q5_1 weights refused; `/api/ask` and an update check block the single-threaded server while they run; the Vinea identity and peer cache persist in the per-user folder, LAN multicast discovery (`vna_lan`), basic NAT traversal (reflexive address, hole punching through a shared contact, keepalive) AIPI over Vinea (`zxv_net_attach_aipi`) and public spaces with the synced watch hall (zxvd `pspace.*`/`hall.*`, docs/SPACES.md; control only, video delivery between viewers not built) are built (zxv_net_host.h U9 to U14), but there is no IPv6, no port mapping (NAT-PMP/PCP/UPnP) or relay, and zxvd does not attach an AIPI context yet; update checks are not wired on Windows (no curl spawn) and nothing is installed; osascript notes show as "Script Editor"; no ipfs_node file exchange, call, social or speech glue; ZXVApp.m and ad-hoc signing never run outside the macOS CI job (releases are not notarised, by decision).
+Gaps: real models have run on the engine (Qwen2.5-1.5B, see [GPU_STRATEGY.md](GPU_STRATEGY.md)) but no model ships with the app; `/api/ask` and an update check block the single-threaded server while they run; the Vinea identity and peer cache persist in the per-user folder, LAN multicast discovery (`vna_lan`), basic NAT traversal (reflexive address, hole punching through a shared contact, keepalive) AIPI over Vinea (`zxv_net_attach_aipi`) and public spaces with the synced watch hall (zxvd `pspace.*`/`hall.*`, docs/SPACES.md; control only, video delivery between viewers not built) are built (zxv_net_host.h U9 to U14), but there is no IPv6, no port mapping (NAT-PMP/PCP/UPnP) or relay, and zxvd does not attach an AIPI context yet; update checks are not wired on Windows (no curl spawn) and nothing is installed; osascript notes show as "Script Editor"; no ipfs_node file exchange, call, social or speech glue; ZXVApp.m and ad-hoc signing never run outside the macOS CI job (releases are not notarised, by decision).
 
 ### Bare-metal kernels  —  the ZXV OS booted on emulated hardware (kernel/arch/*, build_system/Makefile.*)
 Status: WORKING (all five boot to `[BOOT_OK]` under QEMU with no fault marker; CI fails closed on each)
@@ -396,6 +458,14 @@ Tests: none.
 Used by: nothing.
 Gaps: does not compile, is not built and has no test. All of it is aspirational.
 
+### acct — accounting adapters for IFRS, US GAAP and AAOIFI
+Status: WORKING (tested in verify-all)
+What it does: turns one economic event (a sale, a voucher, a V-Bill issue, a murabaha, interest, tax, zakah and others) into one balanced journal entry in the captions of the chosen framework, posts it to a book, and builds a balance sheet in that framework's layout. It also reconciles tax at the statutory rate to tax expense, item by item, and under AAOIFI computes the zakah base. Real framework differences are coded (LIFO refused under IFRS, development costs, revaluation, redeemable V-Bills, riba blocked or flagged under AAOIFI). It is designed to follow the frameworks and is not certified by any standard setter.
+Main entry points: acct_translate_transaction, acct_post, acct_record, acct_generate_balance_sheet, acct_bs_json, acct_reconcile_tax_schedule, acct_breakage, acct_allocate, acct_cost_flow, acct_murabaha_schedule, acct_std_from_name / acct_std_name.
+Tests: test_acct.c (431 checks, ASan/UBSan), target test-acct, in verify-all.
+Used by: juris (juris.h includes acct.h; juris_host_standard, rule J7). zxvd links it (app_sources.sh srcs and rpcdeps) but only uses the standard names for jurisdiction.get / jurisdiction.set and their report_standard field. It is also compiled into the desktop app's source list with no caller there.
+Gaps: IPSAS, OHADA, CAS and SAP_INSURER return ACCT_E_UNSUPPORTED. No zxvd method returns a balance sheet or tax schedule, and it is not in libzxv. Nothing feeds real ledger events into it. See [ADAPTERS.md](ADAPTERS.md).
+
 ### acpi  —  ACPI table finder (x86)
 Status: PARTIAL
 What it does: Finds the ACPI root pointer (RSDP) in the BIOS memory area, checks its checksum,
@@ -420,6 +490,22 @@ Used by: arch/arm64/kernel_main_arm64.c. In every kernel image.
 Gaps: the signature covers the model name and provider key but not content_hash, so the model's
 bytes are not bound. The header discloses this.
 Gaps: no real inference.
+
+### aipi — content-addressed AI functions over the IPFS node and Vinea
+Status: WORKING (tested in verify-all)
+What it does: names a function by a CIDv1 of its descriptor (the exact Z-Wasm module, export, contract and how a result is checked), fetches code and data by CID and drops bytes that do not hash to the CID. A remote result is accepted only through a checker, a certificate or a k-of-n quorum, never on trust. Bounties are held in escrow and paid only after verification. aipi_vna.c carries calls, claims and PAID notices as signed Vinea messages.
+Main entry points: aipi_init, aipi_get, aipi_put_blob, aipi_publish_fn, aipi_execute, aipi_submit, aipi_serve, aipi_tick, aipi_fn_cid, aipi_call_cid; aipi_vna_init, aipi_vna_execute, aipi_vna_serve, aipi_vna_announce.
+Tests: test_aipi.c (617 checks, ASan/UBSan, plus a freestanding build for aarch64 and i386) and test_aipi_vna.c (102 checks), both in verify-all. kernel/arch/hosted/test_zxvd_aipi.sh runs in the zxvd.yml CI workflow, not in verify-all.
+Used by: zxvd's aipi.put / aipi.get / aipi.publish / aipi.execute / aipi.status methods (zxvd_aipi.c, opened from zxv_host.c when built with ZXV_HAVE_AIPI, not on Windows), libzxv ABI 1.5 (sdk/libzxv/src/zxv_aipi.c), and the Z-Wasm executor kit sdk/kits/aipi. zxv_net_host.c holds the Vinea glue (zxv_net_attach_aipi), but nothing outside test_zxv_net_host.c calls zxv_net_attach_aipi, so the mesh path is linked but dormant in the app and in zxvd.
+Gaps: zxvd runs one node offline with an in-memory store that is lost on exit. A call or claim is one datagram of about 10 KB, and inputs and outputs are at most 1024 bytes. Modules are one block (up to 1 MiB). The codecs are unregistered private-use codes. A quorum assumes independent executors. No real intents (tensor inference, settlement, routing) are published yet. The strata.txt comment ("AI pinning index; stores model blobs") does not match what the module does. See [AIPI.md](AIPI.md).
+
+### airc — agent relay chat: signed boards, trust tiers and the install decision
+Status: WORKING (tested in verify-all)
+What it does: the protocol core for IRC-shaped boards between nodes. It encodes and checks ML-DSA-87 signed posts, keeps boards with equivocation and flood control, runs a quorum gate with one-time leases for jumbo frames, gives trust tiers computed from cred, and decides whether a shared improvement may be installed (signed offer, trusted publisher and an approving review all required). It moves no bytes and never runs a post's body.
+Main entry points: airc_post_encode / decode / sign / open, airc_board_init, airc_board_accept, airc_trust_init, airc_trust_settle, airc_trust_tier, airc_gate_request / vote / tally, airc_offer_decide.
+Tests: test_airc.c (761 checks), plus a freestanding build for aarch64, i386, armv7a and rv32, target test-airc, in verify-all.
+Used by: no caller outside its tests.
+Gaps: no carrier: posts are not carried over Vinea yet, there is no zxvd airc.* group, and the IRC gateway does not use it. An approved offer still has to go through the normal signed update path, which is not connected. See [AIRC.md](AIRC.md).
 
 ### alloc  —  shared resource pool and personal-token ledger
 Status: WORKING (tested in verify-all)
@@ -487,6 +573,14 @@ Gaps: sysmon CPU and memory figures are fake: (tick*7)%100.
 Gaps: shell_ps prints the wrong PID for ids of 100 or more.
 Gaps: in the kernel Makefile `iso` target, apps.c fails because the zcapital.h include path is
 missing.
+
+### aproto — protocol twins: AFTP file transfer, the AHAM ham frame and the audit chain
+Status: WORKING (tested in verify-all)
+What it does: ap_log.c is a hash-chained audit log with signed checkpoints and an auditor that replays it. aftp.c is a peer-to-peer twin of FTP: signed folder listings with strict path rules, rollback and equivocation detection, and chunk transfers that count a chunk only after its Merkle proof and drop a source that sends a bad one. aham.c builds and checks the one signed cleartext frame allowed on an amateur band. All are pure state machines with no sockets.
+Main entry points: ap_log_init, ap_log_append, ap_log_checkpoint, ap_audit_feed; aftp_init, aftp_dir_sign, aftp_dir_learn, aftp_offer_make, aftp_offer_accept, aftp_get_start; aham_build, aham_open.
+Tests: test_aftp.c (510 checks, ASan/UBSan) covers aftp, aham and ap_log, target test-aproto, in verify-all.
+Used by: no caller outside its tests.
+Gaps: no host binds it to sessions, storage or DHT lookups, and there are no zxvd methods for it. Cross-checking two parties' logs is not automated. A listing holds 32 entries (larger folders need listings of listings). Every other twin in the catalogue is marked Planned. See [P2P_PROTOCOL_TWINS.md](P2P_PROTOCOL_TWINS.md).
 
 ### art_studio  —  pixel canvas and painting tools
 Status: WORKING (tested in verify-all)
@@ -584,6 +678,14 @@ pinned).
 Gaps: the attestation message has no domain or exchange binding.
 Gaps: SR_MUL in swaps is not overflow-checked.
 
+### bearer — link table, framing and policy gates for BLE, LoRa, serial, modem and ham radio
+Status: WORKING (tested in verify-all)
+What it does: describes each kind of link (LAN, BLE, Wi-Fi Direct, LoRa, serial, modem, cellular, ham SDR) with fixed capabilities, refuses messages a link must never carry (ham: signed printable emergency text only; LoRa: small signed records only), picks the best live link from measured latency, loss and cost, and fails over. The br_* files frame bytes for each link: fragmentation, COBS + CRC-32 serial frames, a Hayes AT modem state machine, AX.25 UI frames, LoRa air time and duty cycle, and a devmesh host that sends through this layer.
+Main entry points: br_table_init, br_link_add, br_link_tune, br_link_measure, br_caps, br_policy_check, br_score, br_select, br_send (selection and failover); the framing files br_frag, br_ble, br_lora, br_serial, br_modem, br_ax25, br_ham, br_devmesh.
+Tests: test_bearer.c (143), test_br_ble.c (57), test_br_lora.c (98), test_br_serial.c (37), test_br_modem.c (61), test_br_ax25.c (59), test_br_ham.c (45), test_br_devmesh.c (40), and kernel/arch/hosted/test_bearer_host.c (34, real pseudo-terminal), all under ASan/UBSan in mk/bearer.mk test-bearer, which runs in verify-all.
+Used by: no caller outside its tests. kernel/arch/hosted/bearer_host.c (POSIX serial glue) is built only by the test.
+Gaps: no real radio, cable or modem has been used. The mobile apps do not use it yet. Windows serial ports are not covered. The regulatory rules are designed to follow the cited law but have not been reviewed by a lawyer or regulator. See [retail/BEARERS.md](retail/BEARERS.md).
+
 ### bios  —  ZBIOS staged, signed boot-chain model
 Status: PARTIAL
 What it does: Models a 10-stage boot chain. Each stage is staged, checked against a minimum
@@ -627,6 +729,14 @@ Main entry points: bs_init, bs_watch, bs_tick, bs_state, bs_set_reporter.
 Tests: src/bombsquad/test_bombsquad.c (test_bs), run by verify-all, passes.
 Used by: arch/arm64/kernel_main_arm64.c. In every kernel image.
 Gaps: none found.
+
+### bootattest — measured-boot event log, signed quote and golden manifest
+Status: WORKING (tested in verify-all)
+What it does: extends SHA-256 stage digests into a chain the way a TPM extends a PCR, signs a quote (event log, chain and the verifier's nonce) with ML-DSA-87, and checks it against a golden manifest signed by the release key whose id is a CIDv1. The verifier checks format, signer, signature, rollback, manifest id, nonce and every stage, each with its own error.
+Main entry points: ba_log_init, ba_extend, ba_measure, ba_quote, ba_manifest_build, ba_manifest_verify, ba_verifier_init, ba_verifier_issue, ba_verify_quote, ba_soft_signer.
+Tests: test_ba.c (56 checks) plus a freestanding build, in mk/rot.mk test-rot, which runs in verify-all.
+Used by: ztp (zero-touch provisioning, kernel/src/ztp), which itself has no caller outside its tests.
+Gaps: not wired into the boot path: no EFI stub or kernel image measures anything with it, and the existing boot_evidence hash is not a measured chain. No hardware root: ba_soft_signer keeps the key in ordinary memory. Tested on the host only. See [retail/ROOT_OF_TRUST.md](retail/ROOT_OF_TRUST.md).
 
 ### bootfeat  —  platform-layer bring-up at boot
 Status: PARTIAL
@@ -727,6 +837,14 @@ Tests: src/call/test_call.c, run by verify-all, 67364 checks. A fuzz of every pa
 signalling, FEC, jitter) under ASan/UBSan in this audit was clean.
 Used by: harmonic. Host-tested library.
 Gaps: none found in the parsers.
+
+### capctl — capital-control profiles as signed plug-ins (off by default)
+Status: WORKING (tested in verify-all)
+What it does: holds one signed capital-control profile per country (per-transfer and rolling limits, report thresholds, purpose codes, corridors) and answers ALLOW, ALLOW_WITH_REPORT or DENY with a reason for a proposed cross-border transfer. While disabled, every transfer is ALLOW and nothing is recorded. cp_common.h is the signed manifest format shared with taxhook and kycwrap, and cpk.h is the ML-DSA-87 signer keyring scoped by kind and country.
+Main entry points: capctl_init, capctl_enable, capctl_install, capctl_require, capctl_evaluate, capctl_commit, capctl_encode / decode; cpk_init, cpk_add, cpk_verify.
+Tests: test_capctl.c (123 checks), in mk/compliance.mk test-compliance (with taxhook and kycwrap), which runs in verify-all.
+Used by: taxhook and kycwrap use its cp_common.h manifest and cp_test.h helpers. No runtime caller.
+Gaps: the profiles in the tests are test data, not any real country's rules. No currency conversion; months and years are rolling day windows. Report records are not sent anywhere. It is not connected to zxvd's jurisdiction methods or registered with the juris plug-in host (its header still calls juris unmerged). See [retail/COMPLIANCE_PLUGINS.md](retail/COMPLIANCE_PLUGINS.md).
 
 ### capmkt  —  market for buying compute, storage or bandwidth from other machines
 Status: WORKING (tested in verify-all)
@@ -952,6 +1070,22 @@ Used by: the arm64 kernel_main, finance and mesh_token. In every kernel image.
 Gaps: count_house_mint let the supply counter wrap to 0 and returned the huge amount (fixed).
 Gaps: valuation and the trust weights are model parameters (CH_TRUST_*, a 0.001 floor), not market data.
 
+### crash — crash records on disk and boot modes (normal, safe, recovery)
+Status: WORKING (tested in verify-all)
+What it does: on a fatal fault, captures registers, a backtrace, the last 2 KiB of console output, a reason and a message, seals the record with SHA-256 and writes it to a reserved disk area through raw sectors. The next boot reads, reports and clears it. bootctl counts unconfirmed boots and steps down to SAFE or RECOVERY mode.
+Main entry points: crash_begin, crash_record_fill, crash_backtrace, crash_area_attach, crash_area_save / load / clear, crash_log_puts; bootctl_begin, bootctl_mark_good, bootctl_request, bootctl_load / save.
+Tests: test_crash.c (59 checks, plain and ASan/UBSan) plus a freestanding build for aarch64, i386, armv7a and rv32, target test-crash, in verify-all.
+Used by: the arm64 kernel image (build_system/Makefile.arm64; kernel_main_arm64.c boot_crash_check, arm64_exceptions.c fault handler).
+Gaps: arm64 only: x86_64, RISC-V and ARM32 fault handlers still only print and halt. With no persistent disk (as in CI boots) nothing is kept. Not a full memory dump. A key held at boot to pick safe mode is not wired. See [CRASH_RECOVERY.md](CRASH_RECOVERY.md).
+
+### cred — EigenTrust credibility from fulfilled trades, bounded unlocks and the Player Card
+Status: WORKING (tested in verify-all)
+What it does: scores subjects from fulfilled orders only (log gain per trade, exponential loss per dispute ruling, decay per epoch) and computes EigenTrust global trust in fixed point. The score maps to a shorter escrow hold and a zero-interest credit line, and Player Card tiers come from sicily's sic_tier_eval. Nothing accrues with time or balance.
+Main entry points: cred_init, cred_subject_add, cred_fulfil, cred_fail, cred_decay_epoch, cred_trust_compute, cred_credibility, cred_escrow_hold, cred_credit_line, cred_player_card, cred_card_json, cred_check.
+Tests: test_cred.c (221 checks, ASan/UBSan), target test-cred, in verify-all. test_dispute.c also links it.
+Used by: airc (trust tiers, airc.h includes cred.h). zxvd's player.card does not use cred; it calls sicily directly (zxv_host.c).
+Gaps: no runtime caller outside airc, which itself has none. Sybil resistance holds only as far as the pre-trust rules in cred.h C6. Credit lines are regulated lending and are off by default; the module only computes a number and is not a credit score. No doc of its own (rules are in cred.h).
+
 ### crit168  —  canonical serialisation and integrity framing (UBH-168)
 Status: WORKING (tested in verify-all)
 What it does: Turns kernel data into canonical 168-bit-word frames with a header, a CRC-32 and a
@@ -1111,6 +1245,14 @@ Used by: arch/arm64, desktop, media_fabric. In all images.
 Gaps: a firmware stride smaller than the width was accepted, so the framebuffer was undersized
 (fixed).
 
+### dispute — three-level dispute funnel: proofs, staked blind jury with appeals, jurisdiction gateway
+Status: WORKING (tested in verify-all)
+What it does: level 1 settles a case from signed deterministic proofs through a caller predicate. Level 2 draws a staked jury with a caller-supplied VRF, takes blind commit-reveal binary votes, and allows appeals at 1x, 4x and 16x bonds. Level 3 takes a ruling signed by a jurisdiction gateway key. It moves only bonds on pay_ledger (slashed bonds go to the reserve-floor account) and produces a ruling; it never moves the order's escrow.
+Main entry points: dsp_init, dsp_juror_add, dsp_open, dsp_proof, dsp_escalate, dsp_select, dsp_commit, dsp_reveal, dsp_tally, dsp_finalize, dsp_gateway_rule, dsp_ruling, dsp_ruling_digest, dsp_award_amount, dsp_check.
+Tests: test_dispute.c (309 checks, ASan/UBSan), target test-dispute, in verify-all.
+Used by: no caller outside its tests. (The dsp_ prefix in zui/views/display.c is an unrelated display module.)
+Gaps: there is no real VRF in the tree; the test uses a SHA-256 stand-in that is not a VRF, and production needs one such as ECVRF (RFC 9381). Votes are binary below level 3. Juror bribery is made costly, not prevented. Not connected to the market escrow or to cred_fail by any caller. Needs legal review per jurisdiction. No doc of its own (rules are in dispute.h).
+
 ### dual_space — paired positive/negative artifact registry
 Status: WORKING (tested in verify-all)
 What it does: This registers "pairs" of artifacts, such as a program and its inverse, with
@@ -1144,6 +1286,14 @@ Tests: test_zt_e8 in verify-all (269 checks, 0 failures). src/e8/test_e8.c is no
 passes, and is added to group2_verify_lines.mk.
 Used by: axiom_matrix, tensor, tolvovina, arch/arm64; on CPATH for every verify-all build.
 Gaps: none found.
+
+### edgeclus — edge cluster scheduler on the swarm token budget
+Status: WORKING (tested in verify-all)
+What it does: each node publishes an ML-DSA-87 signed advert (models, measured speeds, free memory, queue depth, price) whose node id is its Vinea NodeID with proof of work. Every node runs the same integer functions over the adverts it heard: split the cycle's token budget with the swarm's Fibonacci allocator under a per-node cap, assign requests, and move a failed node's work. It does no networking itself.
+Main entry points: ec_advert_seal, ec_advert_open, ec_cluster_init, ec_cluster_ingest, ec_cluster_expire, ec_cycle_begin, ec_schedule, ec_failover.
+Tests: test_edgeclus.c (102 checks) plus a clang warning check and a freestanding build, in mk/edge.mk test-edge, which runs in verify-all. test_edge_pkg (47 checks) covers the edge package build, not this module.
+Used by: no caller outside its tests.
+Gaps: not wired into zxvd: a node does not send adverts or take cluster work. zxvd holds one model at a time. Advertised speeds are self-reported. Nothing has run on a real Raspberry Pi 5, Jetson or mini PC (only qemu user mode). See [retail/EDGE_NODES.md](retail/EDGE_NODES.md).
 
 ### edp_risk — coverage/"EDP" risk primitives
 Status: WORKING (tested in verify-all)
@@ -1209,6 +1359,14 @@ epu_recompute_power, epu_verify_coverage.
 Tests: src/epu/test_epu_device.c (verify-all test_epu), pass.
 Used by: no includers; host test only.
 Gaps: it is a double-precision model, so it is no longer linked into the arm64 image (kernel images forbid floating point); a kernel port would need a fixed-point rewrite of the model and its 1e-15 test tolerances.
+
+### estate — estate succession, account recovery and faraid shares
+Status: WORKING (tested in verify-all)
+What it does: estate.c runs succession phases (reported, confirmed by guardians after a wait, ruled by a gateway where required, distributing, closed) with a living veto that refunds the executor bond, an exact-fraction inheritance manifest, contested-share escrow and a time-delayed key release gate. faraid.c computes advisory Islamic inheritance shares for a small set of heirs. recovery.c counts guardian approvals and old-device vetoes for moving an account to a new device and reports staged thaw limits. It is bookkeeping and arithmetic; the ledger moves the money.
+Main entry points: est_init, est_set_manifest, est_report, est_approve, est_confirm, est_rule, est_begin, est_distribute, est_contest, est_resolve, est_stream, est_veto, est_fraud_finding, est_key_release_ok, est_close, est_forced_* (estate.h); est_faraid (faraid.h); rec_init, rec_claim_open, rec_approve, rec_veto, rec_finalize, rec_cancel, rec_device_add / revoke, rec_liquid_allowance, rec_vbill_spendable (recovery.h).
+Tests: test_estate.c (270 checks) and test_recovery.c (160 checks), ASan/UBSan, targets test-estate and test-recovery, in verify-all. kernel/arch/hosted/test_zxvd_estate.sh runs in the zxvd.yml CI workflow, not in verify-all.
+Used by: zxvd estate.* and recovery.* methods (zxvd_estate.c, linked through app_sources.sh groups), behind the "estate" feature switch, which starts off.
+Gaps: zxvd checks signatures with Ed25519 keys while the headers say ML-DSA in production. Guardian notices are counted, not delivered, and recovery moves no account. Faraid covers only spouse, parents, sons and daughters (other relatives are refused). Forced-heirship rows are simplified. Not legal or religious advice. The method list is in [ZXVD.md](ZXVD.md).
 
 ### event_sched — event-driven task scheduler with cycle budgets
 Status: WORKING (tested in verify-all)
@@ -1388,6 +1546,22 @@ Tests: src/fusion/test_fusion.c (verify-all), pass.
 Used by: no includers. In all images.
 Gaps: none found.
 
+### fwadapt — smart firmware adapter: which driver may touch a device
+Status: WORKING (tested in verify-all)
+What it does: collects one claim per source (ACPI, device tree, PCI and USB IDs, probes) per device, joins them with lpres, tags the result with an lpres_hex hexagram and decides: quarantine on a fault, a safe generic driver (flagged for a person) on a conflict, a specific driver on agreed IDs, a class-generic driver only for standard interfaces, defer on stale evidence, otherwise nothing. It never guesses registers. fwa_to_hwp writes the decisions into a hwemu ZHP-1 profile.
+Main entry points: fwa_init, fwa_builtin_table, fwa_claim, fwa_decide, fwa_count, fwa_to_hwp.
+Tests: test_fwadapt.c (274 checks, ASan/UBSan), target test-fwadapt, in verify-all.
+Used by: no caller outside its tests. The x86_64 kernel picks drivers with hwdrv's own hw_drivers[] table and does not call it.
+Gaps: no kernel image feeds it real ACPI, device tree or PCI evidence, and hwdrv binds without it. It cannot make unknown hardware work without a spec or driver. See kernel/src/fwadapt/README.md, [HW_DRIVERS.md](HW_DRIVERS.md) and [TURNKEY_OS_GAPS.md](TURNKEY_OS_GAPS.md).
+
+### fxepoch — FX by uniform-price batch epochs on pay_ledger
+Status: WORKING (tested in verify-all)
+What it does: a batch-auction FX market with one book per currency pair (no vehicle currency). Signed orders collect during an epoch, each book clears at one uniform price inside a band (cooling epochs instead of liquidation), fills settle as one atomic posting per order with the assurance fee, and a multilateral netting report is computed. It is off by default and refuses any leverage.
+Main entry points: fx_config_default, fx_init, fx_add_book, fx_open, fx_order, fx_clear, fx_settle, fx_cancel, fx_net, fx_record, fx_check.
+Tests: test_fxepoch.c (426 checks, including 600 random epochs, ASan/UBSan), target test-fxepoch, in verify-all.
+Used by: no caller outside its tests.
+Gaps: no runtime caller, no zxvd method and no libzxv binding. FX dealing and running an auction are regulated; it needs legal review before any use. A thin book clears badly or not at all. The netting report is arithmetic, not a settlement-finality claim. The verify hook is the caller's. No doc of its own; the design line is in [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ### games — deterministic lockstep game core with a Chiglet companion
 Status: WORKING (tested in verify-all)
 What it does: This is a grid-forager game whose whole state is a pure function of seed, inputs and
@@ -1433,6 +1607,22 @@ Tests: none.
 Used by: headers only (app_constellation, app_fabric, also unbuilt).
 Gaps: does not compile. The header claims "ZK-ABFT consensus" and "cryptographically verifiable
 delegation", and none of it is built.
+
+### grants — Olive Oil Barrel startup grants for participants in good standing
+Status: WORKING (tested in verify-all)
+What it does: judges good standing from deterministic metrics only (uptime, clean peer-audit record, volume, stake), with a signed appeal path. Grants are paid only from a funded pool, never minted, as virtual barrel units on pay_ledger. A lot counts as backed only while an outside underwriter's signed attestation is valid; unbacked units cannot be redeemed or locked.
+Main entry points: grant_init, grant_set_thresholds, grant_pool_credit, grant_epoch_begin, grant_eval, grant_appeal, grant_lot_open, grant_epoch_distribute, grant_attest, grant_dispute, grant_backed, grant_snapshot, grant_rate.
+Tests: test_grants.c (304 checks, ASan/UBSan), target test-grants, in verify-all. test_zstats.c also links it. test_zxvd_estate.sh (zxvd.yml CI) covers the zxvd methods.
+Used by: zxvd grants.* methods (zxvd_estate.c), behind the regulated "grants" feature switch, which starts off, on a sandbox ledger; zstats reads its snapshot.
+Gaps: barrels are software units until an underwriter attests, and an attestation proves who signed, not that any oil exists. Standing metrics are only as true as the reports fed in. zxvd uses Ed25519 keys for signatures. The redemption price comes from the caller. The method list is in [ZXVD.md](ZXVD.md).
+
+### gridlock — exact gridlock resolution for a queue of payments
+Status: WORKING (tested in verify-all)
+What it does: given participants' balances and credit caps and a queue of payments that cannot settle one at a time, it picks the subset that can settle together with the most value (or by priority class first). FIFO mode is solved exactly in polynomial time; free mode uses exact branch and bound seeded by the classical heuristic, with a brute-force reference for tests. Integer only.
+Main entry points: gl_init, gl_set_balance, gl_add_payment, gl_solve, gl_heuristic, gl_brute_force, gl_verify, gl_check.
+Tests: test_gridlock.c (126,375 checks, ASan/UBSan), bench_gridlock.c builds, and a freestanding build, target test-gridlock, in verify-all.
+Used by: no caller outside its tests and the benchmark.
+Gaps: not wired into cbank, settle or any ledger path, and no ISO 20022 import. Not combined with qnet netting. One currency per instance, no partial payments, no incremental re-solve. Free mode is exponential in the worst case and can end at "best + bound". Benchmarks use synthetic queues. See [GRIDLOCK_RESOLUTION.md](GRIDLOCK_RESOLUTION.md).
 
 ### hardware — DLP projector model and RTL/HDL device abstraction
 Status: PARTIAL
@@ -1498,6 +1688,30 @@ Tests: linked by test_tripartite_fs (verify-all), pass. No direct test of its ow
 Used by: tripartite_fs, emu, tolvovina, boot and arch mains. In all images.
 Gaps: deserialised counts were trusted, length sums could wrap on 32-bit, and name copies were
 unbounded (fixed). Deserialise still takes payload_out without a capacity.
+
+### hwdrv — standard class drivers: NVMe, AHCI, xHCI with USB keyboard and storage, e1000, igb, r8169, HDA
+Status: WORKING (tested in verify-all)
+What it does: polled, integer-only bare-metal drivers written against standards, not chips. At boot the x86_64 kernel scans PCI, binds a driver per device with a T/F/B/N verdict, and runs a short self-test per device (disks read the GPT and a file from the EFI partition, NICs get a DHCP offer, keyboards echo keys, audio checks the DMA position). hw_storage.c reads GPT and FAT32 on those disks.
+Main entry points: hwdrv_core.c and hwdrv_probe.c (PCI config, BAR sizing, hw_drivers[] match and bind), the per-driver bind functions, hw_storage_selftest; platform hooks hw_plat_t (kernel/arch/x86_64/hwplat_x86.c).
+Tests: kernel/src/hwdrv/test/ against a register-level fake device: test_ahci (785), test_e1000 (2741), test_hda (745), test_hw_storage (58), test_hwdrv_core (233), test_igb (1219), test_nvme (334), test_r8169 (299), test_xhci (651), ASan/UBSan, target test-hwdrv, in verify-all. build_system/hw_drivers_check.sh boots the UEFI disc in QEMU in the CI uefi-disc job.
+Used by: the x86_64 kernel image (build_system/Makefile.x86_64, kernel_main_x86_64.c).
+Gaps: no interrupts (MSI/MSI-X) and no IOMMU. No USB CDC, USB audio, UVC, Bluetooth HCI or Intel igc. No arm64 platform glue. The Linux driver VM for Wi-Fi and GPUs is not started. r8169 and some e1000/igb device ids have no QEMU model. Nothing has run on a physical machine. See [HW_DRIVERS.md](HW_DRIVERS.md).
+
+### hwemu — hardware profiles, the emulation matrix, standard engines and signed hardware updates
+Status: WORKING (tested in verify-all)
+What it does: hwp.c is the ZHP-1 hardware profile format. hwm.c is a matrix of functions served by HARD, FABRIC, MICRO, PEER, SOFT or REMOTE providers with proof, failover and placement. hwe.c gives standard engines (SHA-256, Keccak, HMAC, GCD, LOGIC64, tensor dot) with SOFT implementations and golden vectors. hwr.c handles reconfiguration images signed with ML-DSA-87 plus SLH-DSA (two slots, probation, rollback, quarantine), and hwa.c is their hash-chained audit log. Only the SOFT engines run real work; hardware is reached through caller callbacks.
+Main entry points: hwp_init, hwp_node_add, hwp_encode / decode, hwp_present, hwp_match; hwm_init, hwm_func_add, hwm_provider_add, hwm_select, hwm_call, hwm_attest; hwe_install; hwr_parse, hwr_region_init, hwr_trust_key, hwr_link, hwr_stage, hwr_trial; hwr_pq_verify, hwr_dual_sign; hwa_init, hwa_append, hwa_verify.
+Tests: test_hwm.c (110), test_hwe.c (43), test_hwp.c (55) and test_hwr.c (122), ASan/UBSan, plus a freestanding no-FP build, target test-hwemu, in verify-all. bench_hwm.c (bench-hwemu) is not in verify-all.
+Used by: libzxv ABI 1.4 (sdk/libzxv/src/zxv_hw.c) and the Python, TypeScript and .NET SDK bindings over it; fwadapt (fwa_to_hwp writes hwp profiles). No kernel image links it.
+Gaps: no real FPGA, microcode or soft-core device backend exists in the tree; regions are driven only through test callbacks. The matrix never beats native code (about 2% overhead on a compute-heavy call in the documented benchmark). See [../sdk/docs/HW_EMULATION.md](../sdk/docs/HW_EMULATION.md) and [../sdk/docs/HW_PROFILE.md](../sdk/docs/HW_PROFILE.md).
+
+### hwkey — account keys sealed by the TPM or Secure Enclave
+Status: WORKING (tested in verify-all)
+What it does: the ML-DSA-87 account seed is sealed to a P-256 key that stays inside the TPM or Secure Enclave (ECIES-shaped: ECDH with a fresh point, SHAKE256 key derivation, keyed MAC over every stored byte). It is opened only for one signature and wiped. hwkey_soft.c is a file-based fallback that reports itself as software so a caller can refuse it. Host providers are in kernel/arch/hosted/hwkey (Linux TPM, Windows, macOS Secure Enclave).
+Main entry points: hwk_keygen, hwk_sign, hwk_check, hwk_require_hardware, hwk_encode / decode, hwk_key_id, hwk_soft_provider.
+Tests: test_hwkey.c (110 checks) and test_outbox.c, targets test-hwkey and test-outbox; test-hwkey-host runs the host providers with the software fallback (20 checks here) and on a swtpm TPM 2.0 simulator when one is installed (skipped here). All are in test-retail, which runs in verify-all.
+Used by: no runtime caller. The outbox module names hwk_sign as its normal signer, but only its test links hwkey. The host providers are not in app_sources.sh or build_zxvd.sh, so neither zxvd nor the desktop app uses them.
+Gaps: the ML-DSA secret is in host memory for each signature. TPM keys use an empty authorisation value and enclave keys have no user-presence check. Not linked into any bare-metal image. The macOS Secure Enclave and Windows providers are not run here (not checked). No doc of its own (rules are in hwkey.h).
 
 ### hypercube — N-dimensional workspace scene projected to 3D/2D
 Status: WORKING (tested in verify-all)
@@ -1621,12 +1835,28 @@ Tests: iso20022/test_iso20022.c — passes.
 Used by: no #include outside the dir (kernel-linked, unreferenced). Kernel: yes.
 Gaps: no parser here (pay/pay_iso_parse.c is the strict inbound parser).
 
+### juris — jurisdiction plug-in ABI and its fail-closed host
+Status: WORKING (tested in verify-all)
+What it does: rules that differ by country (capital controls, tax rates, the reporting framework, whether the open market may run) live in signed plug-ins. The host parses zxvd's jurisdiction settings, registers only plug-ins with a valid signed manifest for the chosen country and no version rollback, asks every loaded plug-in, and combines the 64-state answers so that a missing answer waits and a conflict escalates to a person. juris_vhub.c adapts it to the V-Bill hub's rules.
+Main entry points: juris_settings_parse, juris_host_init, juris_host_apply_settings, juris_host_register, juris_check_transfer, juris_commit_transfer, juris_check_market, juris_host_tax_rate, juris_host_standard; juris_vhub_rule, juris_limit_plugin.
+Tests: test_juris.c (192 checks, ASan/UBSan), target test-juris, in verify-all. test_intent.c also uses juris_vhub.h.
+Used by: zxvd jurisdiction.get / jurisdiction.set (zxvd_rpc.c), and intent (guard G6), which has no runtime caller. Also compiled into the desktop app's source list with no caller there.
+Gaps: zxvd starts the host with no verify hook, so no plug-in can register there (plugins is always 0) and nothing on the payment path asks it. Loading plug-in code is left to the embedding process. capctl, taxhook and kycwrap are not registered with it. The header still says zxvd reports in_effect=false, but zxvd now reports true. Not legal or tax advice. See [ADAPTERS.md](ADAPTERS.md).
+
 ### keyboard  —  PS/2 keyboard driver (x86)
 Status: PARTIAL
 What it does: Port-I/O PS/2 driver with a ring buffer and modifier tracking, for the 32-bit x86 build only (excluded from arm64).
 Main entry points: keyboard_init, keyboard_handler, keyboard_getchar.
 Tests: none. Used by: boot, ../gui, ../init.
 Gaps: no SPDX; no test.
+
+### kycwrap — minimal-disclosure KYC wrapper with an empty zero-knowledge slot
+Status: WORKING (tested in verify-all)
+What it does: one verifier API for proving a fact about a person ("over 18", "KYC'd by issuer X", "resident of country C") without showing who they are. The verifier issues a fresh challenge and a pluggable backend checks the answer. The minimal-disclosure backend is real: issuer-signed single-use tokens (ML-DSA-87 through hooks, SHA-256), weekly expiry, a spent-token set, signed revocation lists and one-time challenges. It is honestly not zero-knowledge. The zero-knowledge backend is an empty slot that returns KYC_E_NOT_AVAILABLE. The verifier is off by default.
+Main entry points: kyc_verifier_init/enable, kyc_request_new, kyc_verify, kyc_md_backend, kyc_md_issue/issue_batch, kyc_md_present, kyc_md_wallet_present, kyc_md_install_revlist, kyc_zk_backend.
+Tests: test_kycwrap.c (83 checks, ASan/UBSan) in mk/compliance.mk test-compliance, which verify-all runs through test-retail (kernel/Makefile:414). Freestanding builds for aarch64 and i386 are checked there too.
+Used by: no caller outside its tests. Not in any kernel image, zxvd or libzxv. It is a separate thing from ident's id_kyc adapter ([IDENTITY_AND_RECOVERY.md](IDENTITY_AND_RECOVERY.md)).
+Gaps: no zero-knowledge library is included, so kyc_zk_backend refuses every call. A colluding issuer can link every presentation to the person. The issuer's identity check and its legal duties sit outside this code. Host-tested only. See [retail/COMPLIANCE_PLUGINS.md](retail/COMPLIANCE_PLUGINS.md).
 
 ### lattice  —  "LATTICE-P2P" file-sharing tables
 Status: PARTIAL
@@ -1635,6 +1865,14 @@ Main entry points: lattice_init, lattice_peer_add/connect, lattice_swarm_create/
 Tests: only tests/test_new_modules.c, which no Makefile builds.
 Used by: nothing. Kernel: yes (linked, unreferenced).
 Gaps: no networking, no hashing of chunks inside the module; untested.
+
+### launch — app launch screen sequencing and launch sounds
+Status: WORKING (tested in verify-all)
+What it does: zxl_launch decides what each app's launch screen shows and when, driven by the app's real loading: a begin cue, one tile and one pitched tick per finished load part, a lit icon, and an end cue only when the app says it is ready. It holds a theme (key, timbre, ambient motion) for every app in the 407-app catalogue (zxl_apps.inc) and sound and motion preferences. zxl_synth synthesises every cue live in integers (48 kHz stereo, 16-bit), with no recorded samples. Drawing is not here; it lives in zui.
+Main entry points: zxl_theme_for/pick, zxl_group_theme, zxl_launch_init, zxl_launch_part, zxl_launch_rest, zxl_launch_next, zxl_launch_finish, zxl_icon_file, zxl_icon_ink, zxl_player_init/play/render.
+Tests: test_zxl_launch.c (3749 checks) and test_zxl_synth.c (199 checks), both in verify-all. zui's test_zui_launch_theme and test_zui_launch_shell, also in verify-all, drive it too.
+Used by: zui_launch_theme and zui_launch_shell, which have no caller outside their own tests. Not in any kernel image, the hosted app or zxvd. tools/launch/launch_catalogue.py generates zxl_apps.inc and zxl_icons.inc.
+Gaps: no desktop session creates a zui_launch_shell yet, so no app opens on these screens today. This is item 1 of "Next" in [APP_LAUNCH_SCREENS.md](APP_LAUNCH_SCREENS.md).
 
 ### legacy  —  SIP/SDP, SS7/M3UA/SCCP/TCAP/MAP, ISUP map, DTMF, EBCDIC, COBOL, Fortran
 Status: WORKING (tested in verify-all)
@@ -1666,6 +1904,14 @@ Main entry points: lr_packed_to_rat, lr_rat_to_packed, lr_zoned_to_rat, lr_scale
 Tests: test_lightningrod.c, test_lightningrod_regress.c — pass. bench/legacy golden rows cover lr_packed_to_rat and lr_zoned_to_rat.
 Used by: orbital_compat. Kernel: yes. Packaged in packages/libzxv-legacy (static library built from these sources; smoke program in verify-all).
 Gaps: lightningrod.c and tests lack SPDX.
+
+### lingua — FORTRAN, BASIC and Forth front-ends on one checked integer IR
+Status: WORKING (tested in verify-all)
+What it does: compiles subsets of FORTRAN 77, Minimal BASIC (ECMA-55) and Forth-2012 core to one small stack-machine IR and runs it on a checked integer runtime with a fuel budget. It traps on overflow, division by zero, inexact division, bounds and depth instead of continuing. Anything outside the supported subset is refused with a line and column. Each language has an "AI twin" canonical spelling that compiles to the same IR. zl_pack and zl_unpack store verified programs as digest-checked "zlir" text. zxlang.c is a command-line front end.
+Main entry points: zl_compile, zl_verify, zl_run, zl_twin, zl_pack, zl_unpack, zl_prog_digest.
+Tests: test-lingua in verify-all: test_zl.c (3972 checks, ASan/UBSan), fuzz_zl (20000 iterations, plus 5000 under ASan/UBSan), a freestanding build check and check_catalogue.sh (104 languages). test-lingua-ref, also in verify-all, compares golden and generated programs with gfortran and gforth; it skips when they are missing unless ZXV_REQUIRE_LINGUA_REF=1, which CI sets. mut_check.sh (test-lingua-mut) is not in verify-all.
+Used by: kernel/src/apps/zxapp_lingua.c (apps with `logic zlir` lines), which is built only by apps/test_zxapp.sh. That script runs from kernel/arch/hosted/zxvd_checks.sh (scripts/verify-local.sh), not from verify-all. Not in any kernel image, zxvd or libzxv.
+Gaps: only three languages run; the other 101 in catalogue.tsv are planned tiers. Integer only. The module README says it is in libzxv, but sdk/libzxv/Makefile does not build it. See [LANGUAGE_CATALOGUE.md](LANGUAGE_CATALOGUE.md) and [kernel/src/lingua/README.md](../kernel/src/lingua/README.md).
 
 ### loader  —  ELF64 loader, signed packages (ZSP v1/v2), A/B updates
 Status: WORKING (tested in verify-all)
@@ -1748,12 +1994,28 @@ Tests: mesh_token/test_mesh_token.c — passes (new reuse test).
 Used by: arch/arm64, financial_fabric. Kernel: yes.
 Gaps: no transport is attached; "settlement" is a state record.
 
+### mfg — manufacturing checks: G-code toolpaths, guard-banded inspection, resource budgets
+Status: WORKING (tested in verify-all)
+What it does: three read-only, advisory checkers. mfg_gcode parses a G-code subset into exact integer micrometres and checks a program against a machine profile (travel envelope, feeds, spindle, fixtures) before a person releases it; unknown words reject the job. mfg_qc makes four-valued, guard-banded pass/reject/hold decisions from gauge readings and their uncertainty. mfg_budget holds per-site hard limits for energy, water, material, waste and emissions fed by meter readings, plus a small machine-time admission queue. Nothing here talks to a machine.
+Main entry points: mfg_gc_check, mfg_gc_profile_check, mfg_gc_parse_um, mfg_qc_gauge/feature/part, mfg_site_init/meter/check/reserve/release, mfg_queue_add/run.
+Tests: test_mfg.c (763 checks, ASan/UBSan) and a freestanding build check, in test-mfg under test-research, which verify-all runs.
+Used by: no caller outside its tests. Not in any kernel image, zxvd or libzxv.
+Gaps: the tool is a point (no cutter compensation, work offsets, canned cycles, R-form arcs or other planes); robot programs are not parsed; RELEASE_OK means "these checks found nothing", not "safe". mfg_qc trusts the caller's uncertainty figures. Meter readings are trusted as given. Only F.2, F.4, F.10 and a minimal F.6 queue are built; the rest of track F is later work. See [MANUFACTURING.md](MANUFACTURING.md).
+
 ### ministry  —  treasury pillar (tribute, gratuity)
 Status: WORKING (tested in verify-all)
 What it does: Measures Ministry-form capital, runs treasury postings through finance/triple_ledger, computes tribute/gratuity, refuses to price Crown forms, and never issues credentials.
 Main entry points: ministry_init, ministry_measure, ministry_tribute, ministry_gratuity, ministry_settle.
 Tests: ministry/test_ministry.c (host and Q32) — passes. Used by: bootfeat, governance_fabric, identity_fabric. Kernel: yes.
 Gaps: none found.
+
+### mint — minting Vino or V-Bills against signed capacity claims
+Status: WORKING (tested in verify-all)
+What it does: issues Vino or V-Bills on pay_ledger only against a capacity claim (electronic warehouse receipt, compute or kWh) signed by a registered attestor. It applies an attestor haircut, then a jurisdiction haircut, and a per-epoch jurisdiction cap. It records every remainder it does not mint and refuses replays. Claims move from LIVE to QUARANTINED (a hand-off to qnote; holders keep their units) or RETIRED (one redemption posting). Every jurisdiction starts disabled. No interest or fees.
+Main entry points: mint_init, mint_juris_set, mint_attestor_set, mint_unit_set, mint_issue, mint_epoch_advance, mint_quarantine, mint_retire, mint_backing, mint_check, mint_zeckendorf.
+Tests: test_mint.c (226 checks, ASan/UBSan) in test-mint under test-econ, which verify-all runs. test_qnote.c also uses it.
+Used by: no caller outside its tests. Not in any kernel image, zxvd or libzxv.
+Gaps: a signature proves who attested, not that the capacity exists or was not attested twice elsewhere. Unit values come from the operator's own price source. The header notes that minted V-Bills are likely securities and that real use needs legal review. No dedicated doc; [ARCHITECTURE.md](ARCHITECTURE.md) lists it as built and host-tested.
 
 ### mixmat  —  exact rational mixing matrices
 Status: WORKING (has a test, not in verify-all)
@@ -1850,6 +2112,14 @@ Main entry points: oseq_registry_init, oseq_register_node, oseq_register_event, 
 Tests: test_oseq.c (make test) and tests/host/test_oseq.c — pass. Used by: arch mains, boot, dharma, vfs. Kernel: yes.
 Gaps: no SPDX on core files.
 
+### outbox — offline spending grants with once-only settlement
+Status: WORKING (tested in verify-all)
+What it does: lets a device pay while offline. While online, an offline grant moves a limit from the holder's pay_ledger account into escrow. Offline, the device signs hash-chained entries against the grant (write-ahead persisted before an entry leaves the device), and a payee can verify them with no network. On reconnect, either side submits entries and the ledger pays each one once out of escrow. Conflicting entries flag the device. An optional rollback guard binds the device state to a monotonic hardware counter so a restored backup cannot sign.
+Main entry points: obx_ledger_init/grant/submit/close/expire/check, obx_device_init/spend/close, obx_device_guard, obx_device_spend_guarded, obx_verify_offline.
+Tests: test_outbox.c (302 checks) in test-outbox, a prerequisite of test-retail, which verify-all runs. kernel/arch/hosted/hwkey/test_hwkey_host.c (test-hwkey-host, also in test-retail) runs a grant with a host key: 20 checks on the software fallback; the TPM 2.0 simulator part skips when swtpm is missing.
+Used by: no caller outside tests. Not in any kernel image, zxvd or libzxv.
+Gaps: without a hardware counter (the Secure Enclave and the Windows Platform Crypto Provider expose none to apps), a device restored from an old backup can sign two entries with the same number; only one is paid and the other payee is left with the conflict evidence. The guard cannot stop someone who controls the chip. No doc in docs/ describes it; the design is in outbox.h.
+
 ### p2p_caracho  —  superseded P2P transport
 Status: UNUSED/DEAD
 Location: kernel/experimental/p2p_caracho/ (moved from kernel/src/). An unbuilt placeholder kept for the design record, not shipped; see kernel/experimental/README.md.
@@ -1871,6 +2141,13 @@ Main entry points: pp_hydrate, pp_seed_from_text, pp_seed_from_passphrase, pp_st
 Tests: passport/test_passport.c — passes (make -C kernel test-passport, also builds freestanding for aarch64 and i386).
 Used by: nothing yet; zxvd and the login screen are the next consumers. Hosted only: not in any kernel image.
 Gaps: no mnemonic word list; the host must wipe its own copies at the end of a café session.
+### paradox — paradox engine, paraconsistent ledger and Belnap agents
+Status: WORKING (tested in verify-all)
+What it does: paradox.c sorts work whose four-valued state is Both or Neither into four kinds (constructive, destructive, neutral, special) and runs a fixed operator for each, with every step appended to a hash-chained log. paradox_graph.c resolves graphs of dependent paradoxes in a fixed order. pdx_ledger.c is a paraconsistent claim ledger with witness votes, merges and horizon finality. pdx_agent.c is a Belnap-Dunn reasoning agent with support sets and no explosion. It never decides which side of a contradiction is true.
+Main entry points: pdx_classify, pdx_classify_answer, pdx_constructive, pdx_destructive, pdx_neutral, pdx_special, pdx_review, pdx_graph_load/pass, pdx_log_append/verify, plg_claim/vote/merge/advance, pag_tell/run/decide.
+Tests: test_paradox.c (256 checks) in test-paradox and test_pdx_ledger.c (284 checks, covers pdx_ledger and pdx_agent) in test-pdx-ledger, both ASan/UBSan with freestanding checks, both in verify-all. fuzz/parsers/fuzz_paradox.c is a fuzz harness.
+Used by: pce (its log), recover (kernel/src/recover), libzxv's paradox group (sdk/libzxv/src/zxv_paradox.c builds paradox.c and paradox_graph.c), and tensor's test_zt_evh. pdx_ledger and pdx_agent have no caller outside test_pdx_ledger. Not in any kernel image or zxvd.
+Gaps: it detects only what its checks look at; signing logs and RepairProofs is the caller's job; a full log halts. Ledger finality depends on the caller's horizon protocol and identical configuration on every node. zxv_api.h still marks the paradox ABI group "reserved until it reaches main". See [PARADOX_ENGINE.md](PARADOX_ENGINE.md) and [PARACONSISTENT_LEDGER.md](PARACONSISTENT_LEDGER.md).
 
 ### pay  —  payment ledger, assurance fee, ISO 20022, equity, treasury, farm
 Status: WORKING (tested in verify-all, under ASan+UBSan)
@@ -1880,6 +2157,20 @@ Tests: pay/test_pay.c — passes. group3 fuzzed both ISO parsers 200k iterations
 Used by: capmkt, devmesh, evolve, market, provider, quest. Hosted only.
 Gaps: not linked in a kernel.
 
+### pce — paraconsistent decision engines: probability, tactics, strategy, finance
+Status: WORKING (tested in verify-all)
+What it does: four exact, integer and rational engines that keep disagreement instead of picking a winner. Probability uses four-valued belief masses (conflict and ignorance kept apart). Tactics is a negamax alpha-beta search scored by several evaluators. Strategy ranks options under interval scenario likelihoods with several decision rules, plus negotiation ranges. Finance reconciles statements and gives NPV and risk findings. Every verdict is a four-valued tag and a hexagram tag. Work touching money, devices or life-safety is advisory only, and runs must name an allowed purpose (weapons targeting is not one). Nothing here moves money or places orders.
+Main entry points: pce_mass_* and pce_bayes (pce_prob.h), pce_tac_search, pce_strat_decide/bounds/zopa, pce_fin_analyse/npv/risk, pce_verdict, pce_log, pce_entries/pce_entry_call (pce_entry.h).
+Tests: test-pce in verify-all: test_pce.c, test_pce_tac.c, test_pce_strat.c, test_pce_fin.c and test_pce_golden.c in one binary (9558 checks, ASan/UBSan), apps/test_zxapp_pce.c (40 checks) and freestanding checks.
+Used by: kernel/src/apps/zxapp_pce.c (the app model's `c` runtime and three blocks), which is built only by that test. Not in any kernel image, zxvd or libzxv. kernel/src/emu/pce.c is the unrelated PC Engine console emulator.
+Gaps: the "witnessed" second implementation of the probability entries in KRON is the next step, not built. Purpose limits are a policy refusal the API makes explicit, not something the logic detects. See [PARACONSISTENT_ENGINES.md](PARACONSISTENT_ENGINES.md).
+
+### pci  —  PCI enumeration (x86)
+Status: PARTIAL
+What it does: Config-space port I/O enumeration of up to 32 devices, x86 only.
+Main entry points: pci_init, pci_config_read, pci_config_write, pci_find_device, pci_find_class.
+Tests: none. Used by: boot, ../init. Gaps: no SPDX, no test.
+
 ### peer_audit  —  self-audit and peer audit for swarm transitions
 Status: WORKING (tested in verify-all, also under ASan+UBSan; freestanding aarch64/i386 build checked)
 What it does: Two layers of checks. (1) Before a node signs a ledger, budget or task transition, pa_precommit_check tests conservation, overflow, token budget, ISF headroom and sizes. On failure nothing is signed and the node enters a contradiction state (value-equal to LPRES_STATE_BOTH). (2) Peers replay each signed record (ML-DSA-65) through the real pay_ledger and swarm_budget code and compare bit for bit. A committee is drawn deterministically from the record hash, with a 2f+1 of 3f+1 signed-vote quorum. Canary challenges use the normal request format. Signed evidence can be re-checked by any third node and isolates the misbehaving peer through a host revoke callback; no funds are ever moved. Evidence that does not verify counts against the accuser. Inference uses commit-and-sample spot checks. See docs/PEER_AUDIT.md.
@@ -1888,12 +2179,6 @@ Tests: peer_audit/test_peer_audit.c — 101 checks pass.
 Signatures are ML-DSA-87, the same scheme as a Vinea node identity.
 Used by: settle (every spine transfer is encoded in pa_runtime's replayable form) and the desktop app, which self-audits and signs every ledger posting through settle's audit hook and reports the state, record count and events in /api/status.
 Gaps: records are not yet carried to peers (vinea); the revoke callback is not yet connected to porter_house or vinea; there is no agreed per-epoch peer list; full GGUF model replay is not tested; state lives in memory only.
-
-### pci  —  PCI enumeration (x86)
-Status: PARTIAL
-What it does: Config-space port I/O enumeration of up to 32 devices, x86 only.
-Main entry points: pci_init, pci_config_read, pci_config_write, pci_find_device, pci_find_class.
-Tests: none. Used by: boot, ../init. Gaps: no SPDX, no test.
 
 ### phase_coord  —  K6 phase coordinator
 Status: WORKING (tested in verify-all)
@@ -1929,6 +2214,22 @@ Main entry points: plnp_conn_create, plnp_conn_set_key, plnp_conn_send, plnp_con
 Tests: plnp/test_plnp.c — passes. Used by: nothing outside tests includes plnp.h. Kernel: yes.
 Gaps: plnp_frame_parser.sv has no SPDX and is unbuilt.
 
+### pmm — four-state physical frame allocator
+Status: WORKING (tested in verify-all)
+What it does: tracks each 4 KB frame in two bits as unusable, free, fenced or owned. A double free or a double claim fences the frame for the life of the allocator and reports BOTH instead of corrupting a free list. Allocation with nothing free returns NEITHER (wait), not a failure. No allocation, no libc; not thread-safe.
+Main entry points: pmm_init, pmm_reserve, pmm_alloc, pmm_free, pmm_claim, pmm_state, pmm_owns_range.
+Tests: test_pmm.c (90 checks, ASan/UBSan) in test-pmm, in verify-all.
+Used by: kernel/arch/arm64/el0_userspace.c, for the 2 MB static user page pool; pmm.c is in build_system/Makefile.arm64. Not used by the x86_64 kernel.
+Gaps: it manages only the arm64 user pool, not all physical RAM, and nothing on x86_64. The kernel_core audit table ([baremetal-gaps/kernel_core.md](baremetal-gaps/kernel_core.md)) still lists the PMM as missing; it predates this module. [BAREMETAL_OS_GAPS.md](BAREMETAL_OS_GAPS.md) records the wave 1 work.
+
+### policy — zxv_policy engine and contract DSL
+Status: WORKING (tested in verify-all)
+What it does: a deterministic policy evaluation engine. A contract's rule layer is a short DSL (Sutra text or a fixed COBOL record) holding only bounded predicates: per-transfer caps, cumulative limits, signature thresholds, validity windows, lockouts, jurisdiction allow and deny tags, and dated payment terms. policy_check answers ALLOW, DENY or FAULT for a transfer before a ledger commit; a contradiction is denied with escalation to a person. policy_lower turns the terms into a zxt treaty with escrow and mediation bundles. zxp_draft fills templates. It gives no legal advice and makes no legal determinations.
+Main entry points: zxp_parse_sutra/emit_sutra, zxp_parse_record/emit_record, zxp_validate, policy_check, policy_commit, policy_terms, policy_lower, policy_bundle_text, policy_pack_init, policy_host_register, CALL 'ZXV_POLICY' (policy_cobol.c).
+Tests: test-policy in verify-all: test_zxp.c (156 checks), test_policy.c (81 checks), fuzz_zxp (300000 cases, plus 30000 under ASan/UBSan) and a freestanding check. test-policy-cobol, also in verify-all, checks COBOL parity and skips when cobc is missing unless ZXV_REQUIRE_COBOL=1. mut_check.sh (test-policy-mut) is not in verify-all.
+Used by: no caller outside its tests. Not in any kernel image, zxvd or libzxv. The zxp_* names in sdk/embedded are an unrelated port layer.
+Gaps: jurisdiction packs are operator configuration and do not state what the law is. The COBOL call is stateless (no packs, limits judged from zero). It shares the zxp_ prefix with provenance's zx_provenance.h (no name clash found). See [kernel/src/policy/README.md](../kernel/src/policy/README.md).
+
 ### porter_house — port firewall ("seals" on network ports)
 Status: WORKING (tested in verify-all)
 What it does: Keeps a table of up to 32 port seals. Each seal is OPEN, TRUSTED (a trust threshold), ALLOWLIST (listed peer ids) or CLOSED. `porter_house_admit` decides whether a peer may reach a port. A port with no seal is admitted (the firewall is opt-in). It also computes a coverage score from admit/reject counts.
@@ -1936,6 +2237,14 @@ Main entry points: porter_house_init, porter_house_seal_port, porter_house_admit
 Tests: src/porter_house/test_porter_house.c (verify-all). A full-seal-table close_port case was added.
 Used by: mesh_net, identity_fabric, immigration, governance_fabric, finance, ai_layer, emu, abstraction_layer, robin_debanks (pointer stored, never used). arm64: yes.
 Gaps: Default-admit for unsealed ports is a policy choice that callers must know about. Fixed in this audit: close_port used to fail OPEN when the table was full.
+
+### power — energy ledger per app and agent, battery state and budgets
+Status: WORKING (tested in verify-all)
+What it does: power_ledger is a pure integer ledger fed by a platform layer. It takes cumulative energy meters (whole device, parts, sub-parts), rejects impossible samples, settles each interval (marking disagreeing meters as a conflict and using the larger figure), and splits the total among apps, agents and the system by metered energy or CPU and GPU time so the figures add up exactly. It also derives battery health, time left and a power posture, and admits work against energy budgets. power_rapl.c converts x86 RAPL MSR readings for bare metal.
+Main entry points: pw_init, pw_meter_add/sample, pw_consumer_add, pw_note_activity/energy, pw_settle, pw_battery_set, pw_posture, pw_budget_set, pw_admit, pw_top, pw_render_json, pw_rapl_to_uj.
+Tests: test-power in verify-all: test_power.c (304 checks), arch/hosted test_zxv_power_host.c (55 checks), mobile/core test_zxv_mobile_power.c (29 checks) and a freestanding check.
+Used by: zxvd's power group (power.status, power.top, power.budget in kernel/arch/hosted/zxvd_power.c, listed in app_sources.sh), the zxpower tool (kernel/arch/hosted/zxpower.c), and the mobile core (mobile/core/zxv_mobile_power.c, build_mobile_core.sh). Not in any kernel image.
+Gaps: power_rapl.c has no caller; RAPL is not wired into a boot image (no fault-safe rdmsr), and bare metal has no ACPI battery, thermal zones, sleep states or frequency scaling. The Brazier power app is not built. Windows reads no battery design capacity. [POWER.md](POWER.md) still says zxvd is wired "on PR #109, not in this PR", but zxvd_power.c is now in the tree.
 
 ### pqsec — post-quantum signatures and KEM (ML-DSA, SLH-DSA, ML-KEM, HQC)
 Status: WORKING (tested in verify-all)
@@ -1955,11 +2264,27 @@ Gaps: Fixed in this audit: predictive_multi never stepped the dynamics, so cost 
 
 ### prism_break — framebuffer "prism" refraction shader
 Status: WORKING (tested in verify-all)
-What it does: Draws a prism/hologram visual effect into a 32-bit ARGB framebuffer for the touchscreen desktop. Width and height are clamped to 1920x1080, and it keeps a back buffer that is copied out each frame.
+What it does: Draws a prism and depth visual effect into a 32-bit ARGB framebuffer for the touchscreen desktop. Width and height are clamped to 1920x1080, and it keeps a back buffer that is copied out each frame.
 Main entry points: prism_break_init, prism_break_render / frame functions (prism_break.h).
 Tests: test_prism_break.c (verify-all).
 Used by: desktop. arm64: yes.
 Gaps: CodeQL cpp/integer-multiplication-cast-to-long at prism_break.c:389 is fixed. The header says "All Rights Reserved" next to an Apache-2.0 SPDX line.
+
+### privacy — exact differential privacy, four-valued access checks and selective disclosure
+Status: WORKING (tested in verify-all)
+What it does: draws discrete Laplace noise with integer arithmetic only (Canonne, Kamath and Steinke 2020) and spends an exact privacy budget before each noisy count. It checks access requests against allow and deny rules with a four-valued answer (no rule never allows; allow and deny together escalate), and refuses special-category data without current consent or records past retention. It checks selectively disclosed claims against an issuer-signed list of salted SHA-256 digests. It is designed to support GDPR- and HIPAA-style controls, not to claim compliance.
+Main entry points: priv_dlap, priv_bern/bern_exp, priv_budget_init/spend, priv_release_count, priv_access, priv_sd_digest, priv_sd_list_msg, priv_sd_check.
+Tests: test_privacy.c (120 checks, ASan/UBSan) in test-privacy under test-adapters, which verify-all runs.
+Used by: no caller outside its tests. Not in any kernel image, zxvd or libzxv. zui_privacy (the sensor in-use indicator) is a separate module.
+Gaps: no zero-knowledge proofs. The noise needs a CSPRNG from the caller, and the sampler's running time depends on the noise drawn. Not in libzxv yet and not wired to zxvd. See [ADAPTERS.md](ADAPTERS.md).
+
+### provenance — canonical signed-manifest digest and a test-only signer
+Status: WORKING (tested in verify-all)
+What it does: zx_provenance.h is a header-only, length-prefixed canonical encoding of (domain, package id, version, architecture, dependencies, content CID), hashed with SHA-256, so a signature covers the whole manifest and not only a CID. Domain tags keep a signature for one module from being accepted by another. test_signer.c/.h derive Ed25519 test keys from fixed public seeds for host tests only; no build trusts them.
+Main entry points: zxp_manifest_digest, zxp_canon_init/u32/u64/bytes, zxp_str, zxp_mem; test_signer_init, test_signer_sign.
+Tests: test_provenance.c (18 checks) in verify-all. test_signer is linked into test_broker, test_abupdate, test_update and test_zxrelease (all in verify-all) and into the zxvd estate and instruments test scripts.
+Used by: update.c (all five kernel images and the hosted app's update checker), broker.c (all five kernel images), zxpkg.c and bootlegger.c (arm64 kernel).
+Gaps: the header names zx_upcheck manifests as a user and defines ZXP_DOMAIN_UPMAN, but zx_upcheck does not include it and nothing uses that domain. No dedicated doc.
 
 ### provider — compute/storage/model provider marketplace
 Status: WORKING (tested in verify-all)
@@ -1985,6 +2310,46 @@ Tests: test_pungent.c (verify-all).
 Used by: decent/bootlegger tests (linked). arm64: yes.
 Gaps: It is a model; there is no transport. The header says so honestly.
 
+### qeq — exact equivalence checker for small quantum circuits
+Status: WORKING (tested in verify-all)
+What it does: decides whether two circuits on the same n qubits (n <= 10) implement the same unitary, exactly, by simulating every basis column with qsim. Modes are strict or up to a global phase; methods are direct comparison or a miter with the adjoint. On a mismatch it returns an exact counterexample. A strict OpenQASM 2.0 subset parser accepts only exact multiples of pi/8. This is classical software on an ordinary CPU, not a quantum computer.
+Main entry points: qeq_check, qeq_opts_default, qeq_circuit_N, qeq_qasm_parse, qeq_qasm_write.
+Tests: test_qeq.c (11829 checks, ASan/UBSan), a bench_qeq build check and a freestanding check, in test-qeq under test-research, which verify-all runs.
+Used by: no caller outside its tests and bench. Not in any kernel image, zxvd or libzxv.
+Gaps: exponential cost; n > 10 is refused. Only the Clifford+T plus pi/8 gate set; arbitrary angles give NEITHER. No ancillas, qubit permutation search, measurement or classical control. See [CIRCUIT_EQUIVALENCE.md](CIRCUIT_EQUIVALENCE.md).
+
+### qnet — obligation netting by cycle cancellation
+Status: WORKING (tested in verify-all)
+What it does: takes a directed graph of integer obligations and finds a circulation that cancels debt around cycles, so every member's net position is unchanged and no new counterparty pairs appear. Three solvers share one output type: a greedy cycle canceller, an exact optimum (min-cost circulation with an independent optimality check), and a "quantum-inspired" annealer that is really classical replica-exchange annealing on a CPU. Every result is verified before it is returned.
+Main entry points: qn_graph_init/add/check, qn_greedy_cycles, qn_exact_optimum, qn_check_optimal, qn_anneal, qn_verify, qn_net_positions.
+Tests: test_qnet.c (9170 checks, ASan/UBSan), a bench_qnet build check and a freestanding check, in test-qnet under test-research, which verify-all runs.
+Used by: no caller outside its tests and bench. Not in any kernel image, zxvd or libzxv.
+Gaps: nothing here is quantum, and the annealer can only tie or lose against the exact solver. Fixed capacity (64 members, 512 obligations), one currency per graph, no persistence, and no combination with the gridlock module. See [QUANTUM_NETTING.md](QUANTUM_NETTING.md).
+
+### qnote — Q-Note quarantine lots, Dutch auction and first-loss recovery
+Status: WORKING (tested in verify-all)
+What it does: for a claim that mint quarantined, opens a lot of Q-Notes (a claim on whatever is later salvaged) and sells them by a descending-price Dutch auction with escrowed bids on pay_ledger. All proceeds go to the reserve. Later salvage pays holders up to the face of their notes, the solvency vault (svault) burns V-Bills as first loss, and closing writes off what remains without seizing anything. Q-Notes never carry interest.
+Main entry points: qnote_init, qnote_lot_open, qnote_bid, qnote_demand, qnote_clear, qnote_settle, qnote_loss, qnote_first_loss, qnote_recover, qnote_close, qnote_check.
+Tests: test_qnote.c (372 checks, ASan/UBSan, also links mint) in test-qnote under test-econ, which verify-all runs.
+Used by: no caller outside its tests. Not in any kernel image, zxvd or libzxv.
+Gaps: a Q-Note is worth only what is actually recovered. The uncovered loss must come from slashed bonds or salvage outside this module. The header notes Q-Notes are likely securities and need legal review before real use. No dedicated doc; [ARCHITECTURE.md](ARCHITECTURE.md) lists it as built and host-tested.
+
+### qr — QR Code encoder (byte mode, level M)
+Status: WORKING (tested in verify-all)
+What it does: encodes bytes into a QR Code module matrix (ISO/IEC 18004), byte mode and error-correction level M only, versions 1 to 10, with Reed-Solomon and automatic or chosen masks, and renders it as text or SVG. It was written for device-claim payloads (ztp). No allocation, no libc, no float.
+Main entry points: qr_encode_bytes, qr_capacity, qr_module, qr_render_text, qr_render_svg.
+Tests: test_qr.c (60 checks) compares whole symbols with fixtures on which python-qrcode and qrcodegen agree (gen_qr_fixtures.py), in mk/rot.mk test-rot, which verify-all runs through test-retail. A freestanding check runs there too.
+Used by: only ztp's test (test_ztp.c); ztp.c itself does not call it. Not in any kernel image, zxvd or libzxv.
+Gaps: no numeric, alphanumeric, Kanji, ECI or structured-append modes, no other error-correction levels, no Micro QR, no raster output. See [retail/ROOT_OF_TRUST.md](retail/ROOT_OF_TRUST.md).
+
+### qsim — exact classical quantum circuit simulator
+Status: WORKING (tested in verify-all)
+What it does: simulates up to 10 qubits exactly on a classical CPU. Every amplitude is an element of a cyclotomic integer ring over one shared power of sqrt(2), so there is no floating point and equal states have identical representations. It supports the Clifford+T gate set, pi/8 phases, CNOT, CZ, SWAP and Toffoli, exact probabilities, caller-chosen measurement and seeded sampling. It is not a quantum computer and gives no speedup.
+Main entry points: qs_init, qs_load, qs_apply, qs_gate, qs_circuit_init/push, qs_run_circuit, qs_circuit_adjoint, qs_state_equal, qs_prob_basis/qubit, qs_prob_cmp, qs_check_unit, qs_measure, qs_sample.
+Tests: test_qsim.c (23422 checks, ASan/UBSan) and a freestanding check, in test-qsim under test-research, which verify-all runs.
+Used by: qeq only. Not in any kernel image, zxvd or libzxv. It is separate from the older quantum module.
+Gaps: exponential state size (10 qubits, a 64 KiB state). int64 coefficients overflow after enough T-type gates, and probability queries then return QS_ERR_OVERFLOW. No arbitrary rotation angles. See [QUANTUM_SIMULATOR.md](QUANTUM_SIMULATOR.md).
+
 ### quantum — "quantum and exotic matter device" numeric model
 Status: WORKING (tested in verify-all)
 What it does: Holds structs and formulas for Casimir cavities, "zero-point energy extraction", a "wormhole throat" and exotic matter, and returns numbers from them. It controls no hardware and extracts no energy.
@@ -1992,6 +2357,14 @@ Main entry points: quantum_device.h (device init/step/readout functions).
 Tests: test_quantum_device.c (verify-all, TEST_HOST only). Line 236 gives an incompatible-pointer warning when built in Q32 mode.
 Used by: no includes outside the directory. arm64: yes.
 Gaps: The physics claims were misleading; a "WHAT THIS IS: a numeric model" note was added to the header. On x86 -m32 it uses libgcc 64-bit division helpers.
+
+### qubo — QUBO and Ising workbench with optimality certificates
+Status: WORKING (tested in verify-all)
+What it does: solves QUBO and Ising problems (the format sent to quantum annealers) on an ordinary CPU and states how good each answer is: every result carries an exact energy, a proven lower bound and a gap, so it is marked optimal, a bounded gap, or heuristic only. Solvers are brute force, branch and bound, replica-exchange annealing and local search. The text parser refuses contradictory or incomplete input instead of guessing. Nothing here is quantum.
+Main entry points: qubo_init/set/add, qubo_parse, qubo_energy, qubo_to_ising/from_ising, qubo_brute_force, qubo_bnb, qubo_anneal, qubo_local_search, qubo_root_bound, qubo_verify.
+Tests: test_qubo.c (295 checks, ASan/UBSan), a bench_qubo build check and a freestanding check, in test-qubo under test-research, which verify-all runs.
+Used by: no caller outside its tests and bench. Not in any kernel image, zxvd or libzxv.
+Gaps: at most 64 variables. The branch-and-bound bound is simple, so dense instances beyond about 30 to 40 variables usually end with a gap, not a proof. No speedup is claimed. See [QUBO_WORKBENCH.md](QUBO_WORKBENCH.md).
 
 ### quest — mastery/cooperation game layer with badges
 Status: WORKING (tested in verify-all)
@@ -2073,6 +2446,14 @@ Tests: test_hmac_fullcover.c (verify-all). test_robin_debanks.c and crypto_valid
 Used by: dozens of modules (ipfs_node, pay, cb_net, freight, ident, chronicle, zsp, ...). arm64: yes (5 files).
 Gaps: Vault claims of PIN/KDF, Porter House gating (the pointer is unused), an audit trail and a ROBIN_MAX_ATTEMPTS lockout have no code behind them, and total_denied is never incremented. crypto_verify.c hard-codes patterned "authority keys". The Makefile KAT loop points at files that do not exist. "All Rights Reserved" sits next to Apache-2.0. ed25519_verify.c.bak is dead.
 
+### royalty — IP royalties paid only from realised sales
+Status: WORKING (tested in verify-all)
+What it does: registers works by content hash with a manifest signed by the first owner (owners and weights, an optional parent work and upstream share, licence terms). On a sale already realised on pay_ledger, it computes the royalty, walks the derivative-work chain upstream, splits each amount exactly among owners by largest remainder, and applies each owner's opt-in giving or investing split. Every payment is shown as a quote first. There are no advances, interest or minimum guarantees, and roy_check proves every split sums exactly.
+Main entry points: roy_init, roy_register, roy_update, roy_split_set, roy_quote, roy_pay, roy_royalty, roy_lrm, roy_grant_cap, roy_check, roy_terms_zxv_hw.
+Tests: test_royalty.c (400 checks, ASan/UBSan) in test-royalty under test-econ, which verify-all runs.
+Used by: no caller outside its tests. Not in any kernel image, zxvd or libzxv.
+Gaps: registering a hash proves who signed a manifest, not who owns the work. Nothing is withheld for tax. A receipt is checked only within the ledger's journal window, and the declared gross is checked only against what that posting received. Collection outside a realised sale is not modelled. No dedicated doc; [ARCHITECTURE.md](ARCHITECTURE.md) lists it as built and host-tested.
+
 ### rur — Root Universal Representation type layer
 Status: WORKING (tested in verify-all)
 What it does: A typed metadata layer that connects source-language front-ends to the ZXV Event IR. It records module and type compatibility and is explicitly not a runtime authority.
@@ -2107,6 +2488,14 @@ Tests: none. It is compile-checked for arm64 and TEST_HOST here.
 Used by: apps. arm64: yes (sdk_bridge.c, sdk_bridge_lang.c). Nothing calls sb_lang_*.
 Gaps: Fixed: the context type confusion that wrote past the struct; a NULL bridge dereference in every op; reads past oc_ir_t.fields[8] (indices up to 94); rat_to_surplus sign and overflow. Not fixed: the ops that need more than 8 IR fields can never run, the callbacks pass placeholder ids of 0xFFFFFFFF, and there are unused-parameter warnings.
 
+### seats — people on one device and the login after boot
+Status: WORKING (tested in verify-all)
+What it does: keeps the roster of people who use one device (roles owner, person, guest) and checks a login. Each seat chooses no lock, a passphrase (stored only as an Argon2id hash from kernel/src/ident with a per-seat salt) or the device's own passkey unlock. Wrong passphrases back off: after 5 free tries each wait doubles from 30 s to at most one hour. There is always at least one owner, and only an owner may add or remove seats. Integer only, freestanding, no allocation; the caller owns the roster array and can grow it.
+Main entry points: seat_roster_init, seat_roster_grow, seat_add, seat_remove, seat_set_lock, seat_unlock, seat_auto_enter, seat_wait_ms; types seat_roster_t, seat_t, seat_env_t.
+Tests: src/seats/test_seats.c (41/41 checks) runs twice in verify-all (the main block and test-orphans). kernel/arch/hosted/test_zxvd_seats.sh tests the zxvd group; it runs in CI through zxvd_checks.sh, not in verify-all.
+Used by: zxvd's seats.* group (kernel/arch/hosted/zxvd_seats.c: seats.list, add, remove, set_lock, set_auto, auto, unlock, lock), which saves the roster in a "seats" file beside the books (written to seats.tmp and renamed) and keeps login sessions in memory only. zui_login.h draws the screen but does not call this module. Not in either kernel image.
+Gaps: a passkey seat opens on the caller's `passkey_ok` flag; zxvd does not check the passkey itself (the header says the host checks it). Login and per-seat terms on screen on bare metal are missing ([BAREMETAL_OS_GAPS.md](BAREMETAL_OS_GAPS.md), row 13). The zxvd group is documented in [ZXVD.md](ZXVD.md#seats-the-people-on-this-device-and-the-login-after-boot).
+
 ### security_fabric — "security fabric" (placeholder crypto)
 Status: UNUSED/DEAD
 Location: kernel/experimental/security_fabric/ (moved from kernel/src/). An unbuilt placeholder kept for the design record, not shipped; see kernel/experimental/README.md.
@@ -2124,6 +2513,14 @@ Tests: src/sephirot/test_sephirot.c passes but is not in verify-all; a recipe is
 Used by: dharma. arm64: yes.
 Gaps: The sephirot files have no SPDX line.
 
+### settle — settlement spine: swarm money on the ledger of record
+Status: WORKING (tested in verify-all)
+What it does: posts every change in the swarm market's Financial capital to a pay_ledger (asset "SWC", swarm credit, never an ISO currency), then reconciles the two books after every cycle. If the market's money is not conserved, or the ledger and the market disagree, the spine halts and refuses every later call; it never edits either book to make them agree. settle_levy charges the 0.08889% assurance fee on the cycle's pot, with a sub-unit carry, into the four fee buckets, and returns last cycle's node-bounty bucket to the pot. An optional peer_audit hook sees each posting before it is applied and the spine checks the resulting state hash.
+Main entry points: settle_init, settle_join, settle_sync, settle_levy, settle_set_audit, settle_reconciled; type settle_spine_t.
+Tests: src/settle/test_settle.c under ASan/UBSan, 89 passed, via test-settle in verify-all.
+Used by: kernel/arch/hosted/zxv_host.c, which is built into both the desktop app (zxv-host) and zxvd (app_sources.sh srcs). It calls settle_init when the swarm is built, settle_join per model, and settle_levy then settle_sync every market cycle; a halted spine stops the market. Not in either kernel image.
+Gaps: the spine's ledger lives in memory and is rebuilt with the swarm; the owner's saved books only get a mirror "swarm earnings" posting ([ZXVD.md](ZXVD.md#swarm-earnings-in-your-books)). What spends the reserve, dividend and regenerative buckets is outside this module.
+
 ### shimmer — desktop background shimmer effect
 Status: WORKING (tested in verify-all)
 What it does: Computes a slow, integer-only caustic interference pattern with occasional gold glints and blends it into the desktop ground colour each frame. With amplitude 0 and glint 255 the effect is fully disabled.
@@ -2131,6 +2528,14 @@ Main entry points: shimmer.h (init, shade, step).
 Tests: test_shimmer.c (verify-all).
 Used by: tolvovina (desktop). arm64: yes.
 Gaps: shimmer.c has no SPDX line.
+
+### sicily — Sicily Account view, Player Card tiers, steward threshold
+Status: WORKING (tested in verify-all)
+What it does: three pieces on pay_ledger. sic_view sums one owner's accounts into assets ("Neo-Roman"), liabilities ("New California") and derived equity ("Sicilian Crown"), and gives Spendable, Pending and Net Worth. sic_tier_eval turns credibility, bond, uptime and giving into one of five earned Player Card tiers (Copper to Platinum); tiers carry perk bits and give no auction priority. The founder tier (Curzi/Admas) acts only through a 3-of-5 steward threshold with a 7-day time lock, and sic_org_* runs organisation card programs (deposit, fee sweep, points award and redeem).
+Main entry points: sic_view, sic_view_compute, sic_tier_table_default, sic_tier_eval, sic_steward_init/propose/approve/cancel/execute/state, sic_org_open/deposit/sweep/join/leave/award/redeem.
+Tests: src/sicily/test_sicily.c, 315 passed, via test-econ in verify-all.
+Used by: zxvd's player.card method (zxv_host.c rpc_player_card, tier evaluation only) and kernel/src/cred (cred.c calls sic_tier_eval). The steward threshold, the organisation programs and sic_view have no caller outside the tests.
+Gaps: player.card feeds only credibility (from quest); bond and giving are reported as 0, so tiers above what credibility alone earns are not reachable today. Signatures go through the caller's verify hook. Described briefly in [ZXVD.md](ZXVD.md#peers-offers-and-the-player-card).
 
 ### situation — all-domain situation/risk modeller
 Status: PARTIAL
@@ -2230,6 +2635,14 @@ Tests: 7 tests (lexer, parser, e2e, capital, chiglet, rails, selfaudit), all in 
 Used by: orbital_compat_sutra, linked by rmag/sutra tests. arm64: yes (8 files; debug_vino.c correctly excluded).
 Gaps: Fixed: coverage used doubles (wrongly approved 2^53 vs 2^53+1/2) and read out of bounds for a bad capital type. Not fixed: EMIT-SWIFT with an unknown subtype emits MT103 text. The output is a local text format only; it implies no SWIFT connectivity.
 
+### svault — protocol solvency vault
+Status: WORKING (tested in verify-all)
+What it does: implements the owner's fee rule on pay_ledger. One third of the reserve share of the 0.08889% assurance fee is swept, with an exact carry, into a vault that buys V-Bills with collected fees only, up to one third of V-Bills outstanding; past the cap the money stays in the reserve. A sweep is refused if it would leave the reserve below the configured solvency floor. Vault V-Bills do not count toward the redemption floor and take a haircut first on a toxic-asset loss (svault_first_loss). Nothing accrues with time.
+Main entry points: svault_init, svault_set_floor, svault_sweep, svault_sweep_split, svault_sweep_fee, svault_buy, svault_first_loss, svault_balances, svault_redemption_floor, svault_verify_solvency, svault_check.
+Tests: src/svault/test_svault.c, 188 passed, via test-econ in verify-all. fuzz/econ/fuzz_econ_svault.c corpus replay and property run also run in verify-all (make -C fuzz replay prop).
+Used by: zxvd's vault.* group (zxvd_econ.c: vault.deposit, buy, first_loss, status, check), stats.* through zstats, and kernel/src/qnote (qnote_first_loss calls svault_first_loss).
+Gaps: the zxvd economy is one in-memory ledger that is not saved and is not the owner's books; nothing is connected to a bank or custodian ([ZXVD.md](ZXVD.md#economy-modules)). The header notes vault V-Bills are likely securities exposure in many jurisdictions.
+
 ### swarm — AI-model swarm economy
 Status: WORKING (tested in verify-all)
 What it does: Budgets, a reserve, a witnessed triple ledger, a market, governor and quality scoring for a swarm of models. A different model witnesses each allotment. It also has hk/enterprise packet formats that pack and unpack bytes.
@@ -2254,6 +2667,14 @@ Tests: src/syscall/test_syscall.c (22 checks) in verify-all.
 Used by: arch/arm64/arm64_exceptions.c and el0_userspace.c, arch/arm, sdk/m5_api.h. Compiled into both kernels.
 Gaps: the "reserved" hole mechanism only allows nr 0 (syscall.c:64), unlike its documentation. x86_64 still implements only part of the ABI (the header says so).
 
+### taxhook — VAT, GST and sales-tax hooks (off by default)
+Status: WORKING (tested in verify-all)
+What it does: computes VAT, GST or US sales tax for an invoice from a signed rate table per country and region (rates in parts per million, date ranges, categories, half-up or half-even rounding, per line or per invoice, reverse charge). A table installs only with a valid signature from a key scoped to that country, inside its validity window, and with a version above the installed one. It starts disabled: taxhook_compute returns TAXHOOK_E_DISABLED until taxhook_enable. taxhook_sample.c ships three SAMPLE tables (GB VAT, DE VAT, US-NY sales tax) that are flagged so every receipt says SAMPLE; they are not tax advice.
+Main entry points: taxhook_init, taxhook_enable, taxhook_encode, taxhook_decode, taxhook_install, taxhook_compute, taxhook_compute_table, taxhook_round_div, taxhook_receipt_text, taxhook_sample_gb_vat/de_vat/us_ny_sales.
+Tests: src/taxhook/test_taxhook.c (98 checks) in kernel/mk/compliance.mk test-compliance, reached from verify-all through test-retail.
+Used by: no caller outside its tests.
+Gaps: not connected to zxvd's jurisdiction.get/set or any settings screen; no adviser-approved table exists; no credit notes, fractional quantities, excise or per-unit taxes, product-to-category mapping or filing; reverse charge is simplified. See [retail/COMPLIANCE_PLUGINS.md](retail/COMPLIANCE_PLUGINS.md).
+
 ### telemetry — "axiom matrix" self-observation counters
 Status: WORKING (tested in verify-all)
 What it does: projects a tick through the axiom matrix into a complex telemetry value, and resolves a choice from its magnitude bounded by a Fibonacci table.
@@ -2270,6 +2691,14 @@ Tests: test_zt, test_zt_gguf, test_zt_q5 (Q5_0/Q5_1, 87 checks, bit-exact agains
 Used by: host tests, swarm (an include), and the arm64 and x86_64 kernel images (all non-test zt*.c). `zt_boot.c` is a known-answer self-test at boot (exact Q8 matvec, RMSNorm, RoPE, softmax, SiLU, exp; hash 0xfbc3385a, same on host and bare metal); it is not a trained model running in the kernel. Also packaged as the standalone static library packages/libzxv-tensor (built from these sources; smoke program in verify-all).
 Gaps: CodeQL multiply-overflow items in test_zt_model.c:333-339 and test_zt_lattice.c:409 are fixed (widened). There is no fuzz test on the GGUF parser; it was reviewed by hand and looked bounds-checked. Speed: measured only with synthetic random weights (bench/tensor/make_synth_model.py) on a shared x86 sandbox, never on a real model or on Apple hardware; NEON, SVE (128- to 2048-bit vectors) and RVV (VLEN 128 to 1024, zt_simd_rvv.c built with -march=rv64gcv) are verified for correctness under qemu, not timed. No SDOT/I8MM path (the activations are 16-bit; see zt_simd_neon.c).
 
+### terms — first-boot end-user agreement gate
+Status: WORKING (tested in verify-all)
+What it does: holds the logic every screen shares for showing the ZXV End-User Agreement at a person's first sign-in. It lays the embedded text out for reading (character cells or pixels with a font measure callback), tracks scroll, page, section jumps and screen-reader progress, and only allows "I agree" once the end has been shown. An acceptance is a per-seat, hash-chained record, and the log status says whether a seat has accepted the current version. The text is agreement/en.txt embedded by tools/terms/embed_terms.py with its SHA-256; a mismatch refuses to show or record the text.
+Main entry points: terms_reader_init/_ex, terms_reader_resize, terms_scroll, terms_page, terms_goto_section, terms_reader_spoke, terms_view, terms_can_accept, terms_accept, terms_decline, terms_record_format/parse, terms_log_verify, terms_log_status.
+Tests: src/terms/test_terms.c under ASan/UBSan, 446 passed, plus a freestanding x86_64 build check, via test-terms in verify-all. src/zui/test_zui_terms.c (132 checks, in verify-all through test_zui_toolkit.sh) tests the screen.
+Used by: src/zui/zui_terms.c (the native screen). Nothing else calls it: no shell opens the screen and nothing writes the acceptance log on a device.
+Gaps: English text only; the README recommends counsel review before the first public release. Login, lock and per-seat terms on screen on bare metal are missing ([BAREMETAL_OS_GAPS.md](BAREMETAL_OS_GAPS.md), row 13). Flow and clauses backed in code: [kernel/src/terms/README.md](../kernel/src/terms/README.md).
+
 ### theme — palette tokens that every drawable resolves through
 Status: WORKING (tested in verify-all)
 What it does: maps THEME_* tokens to RGB values, with overrides, so the UI can be recoloured from one place.
@@ -2285,6 +2714,14 @@ Main entry points: timer_init(hz), timer_interrupt_handler, timer_register_callb
 Tests: none.
 Used by: abstraction_layer/boot_modules.c. x86_64 kernel and legacy kernel/Makefile only (arm uses arch/arm*/timer).
 Gaps: timer_init(0) divided by zero (FIXED: it now defaults to TIMER_DEFAULT_HZ). timer_get_uptime_ms does a 64-bit division (timer.c:60), which needs libgcc on i386. No test.
+
+### timesvc — wall-clock time (RTC, SNTP) and time zones
+Status: WORKING (tested in verify-all)
+What it does: gives a device a trustworthy wall-clock time so TLS can check certificate dates. It takes the battery-backed RTC reading and SNTP samples from several servers, needs at least 2 agreeing servers that are a strict majority, never goes below the build-time floor and refuses a time more than 100 years past it. tz converts UTC to local time from a built-in table of 497 IANA zones (POSIX rules, tzdata 2026c), from TZif files, or from POSIX TZ strings. Freestanding, integer only, no 64-bit division.
+Main entry points: timesvc_init, timesvc_set_min_agree, timesvc_set_rtc, timesvc_add_sample, timesvc_commit, timesvc_now_us, timesvc_now_s; sntp_build_request, sntp_parse_reply; tz_posix_parse/lookup, tz_tzif_parse/lookup, tz_civil.
+Tests: test_timesvc (55 checks) and test_tz (27,462 checks, every built-in zone against Python zoneinfo for 2027 to 2046), both again under ASan/UBSan, plus freestanding builds for aarch64, i386, armv7a and rv32, via test-timesvc in verify-all. fuzz/parsers/fuzz_time.c is in the fuzz replay set.
+Used by: compiled into the arm64, x86_64, arm32, riscv and riscv32 kernel images (build_system/Makefile.*), but no code calls it there or anywhere else outside its tests and fuzzer.
+Gaps: SNTP is unauthenticated (Network Time Security, RFC 8915, not done). Built-in zones are exact only from 2027 on; Asia/Gaza and Asia/Hebron can be an hour off without a TZif file. On bare metal the RTC and SNTP path that lets TLS verify is missing ([BAREMETAL_OS_GAPS.md](BAREMETAL_OS_GAPS.md), row 23). See [TIME.md](TIME.md).
 
 ### tls — TLS 1.3 client pieces: ChaCha20-Poly1305, HKDF, X25519, record layer, handshake
 Status: PARTIAL
@@ -2334,6 +2771,14 @@ Tests: test_update (extended in this audit) and test_zx_upcheck, both in verify-
 Used by: evolve (evo_upd, evo_zxu), bootfeat, boot_modules. update.c is in both kernels.
 Gaps: none in signing: update.c verifies the signature over upd_manifest_digest (canonical id, version, arch, deps, cid; src/provenance/zx_provenance.h) and refuses a re-publish with a version <= the known one; zx_to_catalog attests the same digest. Fixed earlier: consent inheritance on re-publish, and trusting the transport's length. Per the coordinator, the snprintf CodeQL items in test_zx_upcheck.c are handled upstream.
 
+### vauction — V-Bill issuance by descending uniform-price auction
+Status: WORKING (tested in verify-all)
+What it does: issues V-Bills in Dutch auction epochs with one clearing price, "backed only": each epoch issues only what keeps the reserve at or above its floor, under a per-epoch cap. The reserve counts the reserve account plus custodian-signed warehouse receipts valued at the lower median of fresh signed oracle quotes, less a per-custodian haircut; a disputed receipt is quarantined for good. Bids lock their money by ledger transfer; auction money goes to the reserve and refunds go back to bidders. The bid has no tier field, so Player Card tiers give no priority.
+Main entry points: vauc_init, vauc_set_config, vauc_custodian_set, vauc_oracle_add, vauc_feed_add, vauc_quote, vauc_receipt_add, vauc_receipt_dispute, vauc_reserve, vauc_floor_ok, vauc_open, vauc_bid, vauc_clear, vauc_settle, vauc_cancel.
+Tests: src/vauction/test_vauction.c, 353 passed, via test-econ in verify-all; fuzz/econ/fuzz_econ_vauction.c replay and property run in verify-all.
+Used by: zxvd's auction.* group (zxvd_econ.c: auction.configure, open, bid, run, cancel, quote, status, check) and zstats.
+Gaps: in zxvd the verify hook refuses every oracle quote and warehouse receipt, so the reserve is the reserve account alone; the economy is in memory only ([ZXVD.md](ZXVD.md#economy-modules)). The header notes V-Bills are likely securities in many jurisdictions.
+
 ### vbe — VBE/VGA linear framebuffer driver (legacy x86)
 Status: PARTIAL
 What it does: sets a VBE mode from a multiboot-provided framebuffer and does pixel, rect and blit drawing into the LFB.
@@ -2350,6 +2795,22 @@ Tests: test_vblock in verify-all.
 Used by: host tests only.
 Gaps: there is no real GPU backend; vblock_sim stands in for VRAM.
 
+### vbond — V-Bonds: fixed-term locked V-Bill lots
+Status: WORKING (tested in verify-all)
+What it does: a V-Bond locks a lot of V-Bills for a Fibonacci term (default 233, 1,597 or 10,946 ticks) and pays only a share of realised revenue actually in the bond pool; there is no rate field and nothing grows with time. A bond can be handed to another holder by a signed bilateral transfer without releasing the V-Bills early. Issuing, transferring and crediting the pool are off until a jurisdiction manifest signed by the gateway key turns them on; redemption at maturity and distribution of what is already in the pool always work.
+Main entry points: vbond_cfg_default, vbond_init, vbond_enable, vbond_issue, vbond_transfer, vbond_redeem, vbond_premium, vbond_premium_credit, vbond_pool_credit, vbond_distribute, vbond_check.
+Tests: src/vbond/test_vbond.c, 183 passed, via test-econ in verify-all; fuzz/econ/fuzz_econ_vbond.c replay and property run in verify-all. kernel/arch/hosted/test_zxvd_instruments.sh runs in CI through zxvd_checks.sh.
+Used by: zxvd's bonds.* group (zxvd_instruments.c: bonds.setup, switch, issue, transfer, redeem, distribute, fund, credit, status and others) on its own in-memory sandbox ledger, and zstats.
+Gaps: zxvd's state is in memory only and its ticks are unix seconds, so a 233-tick bond matures 233 seconds after issue. The header notes this is likely a regulated instrument. See [ZXVD.md](ZXVD.md#bonds-derivatives-grants-and-estates).
+
+### vderiv — V-Calls and V-Perps on auction clearing velocity
+Status: WORKING (tested in verify-all)
+What it does: exact-rational derivatives whose index is the number of V-Bills issued at each auction epoch, pushed in order with no gaps. A V-Call is a capped call, fully funded at open; a V-Perp is a bilateral perpetual position, fully collateralised with its maximum loss up front. There is no margin, liquidation, borrowing or funding rate, and no order book. The whole module is off until a signed jurisdiction manifest enables it; closing and settling always work.
+Main entry points: vderiv_cfg_default, vderiv_init, vderiv_enable, vderiv_index_push, vderiv_index_at, vderiv_call_payoff, vderiv_perp_variation, vderiv_call_open, vderiv_call_settle, vderiv_perp_open, vderiv_perp_close, vderiv_check.
+Tests: src/vderiv/test_vderiv.c, 208 passed, via test-econ in verify-all; fuzz/econ/fuzz_econ_vderiv.c replay and property run in verify-all; test_zxvd_instruments.sh in CI.
+Used by: zxvd's derivatives.* group (zxvd_instruments.c: derivatives.setup, switch, push, call_open, call_settle, perp_open, perp_close, fund, status and others) on its own sandbox ledger. The index is pushed by the caller (derivatives.push), not read from the auction module.
+Gaps: in-memory state only in zxvd; the header says derivatives are the most heavily regulated class and the module is never enabled by default. See [ZXVD.md](ZXVD.md#bonds-derivatives-grants-and-estates).
+
 ### vena — contract and app runtime on top of the vino ledger
 Status: PARTIAL
 What it does: registers contracts, apps and oracles. Contract execution runs ZAB bytecode under derived and granted capabilities, scoped to the contract itself. Non-ZAB code returns -3 ("not executed").
@@ -2358,14 +2819,6 @@ Tests: none.
 Used by: vena_init is called from arch/arm64 and arch/arm kernel_main, identity_fabric, financial_fabric and boot_modules. vena_register_contract and vena_execute_contract have no callers. Compiled into both kernels.
 Gaps: contract code is stored as a C string (char code[1024]). Real ZAB contains 0x00 bytes, so it is truncated and the ZAB path is effectively unreachable. Unbounded string copies were FIXED. No test.
 
-### vhub — V-Bill hub demo: fiat A to V-Bill to fiat B with signed exact pegs and rule plug-ins
-Status: WORKING (tested in verify-all, under ASan+UBSan). A demo, not a deployment.
-What it does: each registered currency has an issuer, a hub pool account and a V-Bill float account on one pay_ledger. An issuer sets its peg as an exact fraction (num/den V-Bills per unit) by signing "zxv/vhub-peg/v1" || ccy || num || den || epoch; the hub checks the signature through a caller-supplied verifier and only accepts a newer epoch. A swap converts amount -> V-Bills -> output with integer arithmetic and refuses any amount that does not convert exactly (vhub_quote gives the smallest exact step), so no rounding is ever posted. Both currencies' rule plug-ins judge the swap as lpres_hex tags; the worst wins (forbidden > refused > escalate > wait), a forbidden swap is written to the quarantine log and the hub halts when that log is full. An allowed swap is one atomic six-line pay_ledger_post (sender, pool A, float A, float B, pool B, receiver), so a ledger refusal (funds, freeze, bounds) moves nothing. vhub_rule_limit is a sample capital-control plug-in: a per-sender outflow cap per epoch. An exact peg removes rounding only; it does not remove FX risk and holds only while the issuer backs it.
-Main entry points: vhub_init, vhub_add_ccy, vhub_peg_msg, vhub_set_peg, vhub_add_rule, vhub_quote, vhub_swap; vhub_rule_limit, vhub_limit_commit.
-Tests: vhub/test_vhub.c (`make test-vhub`) — 101 checks pass: three test currencies, a round trip, a triangular cross rate, a brute-force check of vhub_quote (19649 cases), a stale or forged peg, the limit plug-in, ledger backing, every rule outcome, quarantine and halt; mutation 94.9%, in the CI gate.
-Used by: nothing outside tests yet. Hosted only.
-Gaps: no real issuer keys (the test verifier is a hash mock; ML-DSA plugs into the same verify hook); no UI; V-Bills are likely securities, so any real use needs legal review.
-
 ### vfs — mount table over FAT32
 Status: PARTIAL
 What it does: a mount table and open-file table that look files up in a mounted FAT32 instance. It also records an LPRES "presence" attestation per path.
@@ -2373,6 +2826,14 @@ Main entry points: vfs_init, vfs_mount, vfs_open, vfs_list_dir, vfs_chdir, vfs_s
 Tests: none.
 Used by: storage_fabric, apps (vfs_stub, notes_app), arch/arm64 and arch/arm kernel_main.
 Gaps: vfs_read and vfs_write are stubs that return 0 bytes. vfs_mkdir returns -1. vfs_close does not free the slot (num_open never decreases). vfs_stat returns size 0. The unbounded path copy into name[32] was FIXED.
+
+### vhub — V-Bill hub demo: fiat A to V-Bill to fiat B with signed exact pegs and rule plug-ins
+Status: WORKING (tested in verify-all, under ASan+UBSan). A demo, not a deployment.
+What it does: each registered currency has an issuer, a hub pool account and a V-Bill float account on one pay_ledger. An issuer sets its peg as an exact fraction (num/den V-Bills per unit) by signing "zxv/vhub-peg/v1" || ccy || num || den || epoch; the hub checks the signature through a caller-supplied verifier and only accepts a newer epoch. A swap converts amount -> V-Bills -> output with integer arithmetic and refuses any amount that does not convert exactly (vhub_quote gives the smallest exact step), so no rounding is ever posted. Both currencies' rule plug-ins judge the swap as lpres_hex tags; the worst wins (forbidden > refused > escalate > wait), a forbidden swap is written to the quarantine log and the hub halts when that log is full. An allowed swap is one atomic six-line pay_ledger_post (sender, pool A, float A, float B, pool B, receiver), so a ledger refusal (funds, freeze, bounds) moves nothing. vhub_rule_limit is a sample capital-control plug-in: a per-sender outflow cap per epoch. An exact peg removes rounding only; it does not remove FX risk and holds only while the issuer backs it.
+Main entry points: vhub_init, vhub_add_ccy, vhub_peg_msg, vhub_set_peg, vhub_add_rule, vhub_quote, vhub_swap; vhub_rule_limit, vhub_limit_commit.
+Tests: vhub/test_vhub.c (`make test-vhub`) — 101 checks pass: three test currencies, a round trip, a triangular cross rate, a brute-force check of vhub_quote (19649 cases), a stale or forged peg, the limit plug-in, ledger backing, every rule outcome, quarantine and halt; mutation 94.9%, in the CI gate.
+Used by: nothing outside tests yet. Hosted only.
+Gaps: no real issuer keys (the test verifier is a hash mock; ML-DSA plugs into the same verify hook); no UI; V-Bills are likely securities, so any real use needs legal review.
 
 ### video — software 2D rasteriser into a caller framebuffer, plus ramfb scanout
 Status: WORKING (tested in verify-all)
@@ -2421,6 +2882,14 @@ Main entry points: voice_init, voice_text_to_phonemes, voice_speak/voice_listen 
 Tests: test_voice in verify-all.
 Used by: speech_session, desktop/zxv_shell, wyverneye. Compiled into both kernels.
 Gaps: no real speech engine (stated honestly in the header).
+
+### vswap — Player Card swap: Vino to V-Bills, lock tiers, dividend
+Status: WORKING (tested in verify-all)
+What it does: lets a holder swap idle Vino into V-Bills at the exact reserve ratio R/B (or par when either is zero), and back out at R/B. Positions can sit in deeper lock tiers for a larger dividend weight; the dividend is a share of realised fee surplus actually in the dividend pool, never a fixed rate. Swapping in, locking and the dividend are off until a signed jurisdiction manifest enables them; swap-out, exit notice and unlock always work. Vault-held V-Bills are excluded from the redemption base.
+Main entry points: vswap_cfg_default, vswap_init, vswap_enable, vswap_rate, vswap_quote_in, vswap_quote_out, vswap_swap_in, vswap_swap_out, vswap_lock, vswap_notice, vswap_unlock, vswap_dividend, vswap_epoch_check.
+Tests: src/vswap/test_vswap.c, 196 passed, via test-econ in verify-all; fuzz/econ/fuzz_econ_vswap.c replay and property run in verify-all.
+Used by: zxvd's swap.* group (zxvd_econ.c: swap.deposit, withdraw, enable, in, out, lock, unlock, notice, dividend, quote, status, check) and zstats.
+Gaps: in zxvd, swap.enable is signed by zxvd itself with a stand-in hook (SHA-256 over a fixed tag), which proves only that zxvd made the call; the economy is in memory only and not connected to any bank ([ZXVD.md](ZXVD.md#economy-modules)). The header notes a redeemable revenue-share instrument is likely regulated.
 
 ### web4 — Web2, Web3 and agent bridges: HTTP, JSON, JWT, OAuth, secp256k1, ETH/BTC, CID
 Status: WORKING (tested in verify-all)
@@ -2471,6 +2940,14 @@ Tests: test_xlate in verify-all.
 Used by: speech_session (an include). Host tests only.
 Gaps: the out-of-bounds read of cps[n] at xlate_langid.c:263 was FIXED (UBSan found it).
 
+### xrisk — exact loss distributions for discrete portfolios
+Status: WORKING (tested in verify-all)
+What it does: computes the whole loss distribution of up to 256 independent exposures exactly, by dynamic programming over loss units with fixed-width big integers (4096 bits by default), so every probability is an exact fraction with one shared denominator. From it come P(L = k), the CDF, tails, expected loss, VaR and expected shortfall, all exact. Correlation is a finite mixture of up to 16 weighted scenarios. Several probability sources per exposure can be fused with the four lpres values, and a conflict is shown rather than averaged. Inputs that would overflow are refused, never rounded.
+Main entry points: xrisk_model_init, xrisk_model_set_loss/weight/p/sources, xrisk_model_conflicts, xrisk_fuse, xrisk_compute, xrisk_pmf, xrisk_cdf, xrisk_tail, xrisk_expected_loss, xrisk_var, xrisk_es, xrisk_rat_*.
+Tests: src/xrisk/test_xrisk.c, 28,670 checks, built twice (normal and XRISK_SOFT_DIV), plus a bench_xrisk build and a freestanding aarch64/i386 check, via test-research in verify-all.
+Used by: no caller outside its tests and bench_xrisk.c.
+Gaps: discrete models only (continuous severities must be discretised by the caller); capped at 256 exposures, 4096 loss units and 16 scenarios; an xrisk_dist_t is about 4.3 MB. Not built yet: a report generator, per-exposure VaR/ES contributions, more scenarios. See [EXACT_RISK.md](EXACT_RISK.md).
+
 ### yantra — software-defined hardware fabric capability registry
 Status: WORKING (tested in verify-all)
 What it does: tracks hardware capabilities through maturity states, from MODEL_ONLY up to CERTIFIED. It refuses to report a state beyond what has been recorded.
@@ -2495,6 +2972,46 @@ Tests: test_zcapital (plain and q32 variants) in verify-all. Anchors 8-10 were a
 Used by: ministry, bootfeat, boot_modules, pay, cardnet and others (header users). Compiled into both kernels.
 Gaps: the over-fill, wash-pair blocking and book exhaustion bugs are FIXED. There is no partial-order cancellation API.
 
+### zenny — Zenny chips: user-built baskets with an exact manifest
+Status: WORKING (tested in verify-all)
+What it does: a Zenny chip is a basket with a mandatory V-Bill leg plus weighted fiat, commodity and compute voucher legs, recorded in a hash-chained (WORM) manifest. The chip's claim must equal the deposited value exactly at mint and at every rebalance; leverage and credit claims are refused, commodity legs need a custodian attestation, and bilateral chips need both minters' signatures. Partial decompression (tap-to-pay) pays exact amounts per leg with the 0.08889% fee and writes a disposal receipt. Posting the leg movements on a ledger is the caller's job. A credit hook adapts an allotment's basket-value payout to a top-up.
+Main entry points: zenny_init, zenny_mint, zenny_rebalance, zenny_decompress, zenny_topup, zenny_attest, zenny_verify_chain, zenny_check, zenny_find, zenny_receipt_get/ack, zenny_mint_digest.
+Tests: src/zenny/test_zenny.c, 236 passed, via test-econ in verify-all; fuzz/econ/fuzz_econ_zenny.c replay and property run in verify-all.
+Used by: zxvd's zenny.* group (zxvd_econ.c: zenny.mint, decompress, quote, receipts, status, check) and zstats.
+Gaps: in zxvd, zenny.mint is signed with zxvd's stand-in hook, and co-minter signatures and custodian attestations never verify, so bilateral chips and commodity legs are refused there. "Zenny" has had no trademark check. The header says a chip's legal class needs review. See [kernel/src/zenny/README.md](../kernel/src/zenny/README.md) and [ZXVD.md](ZXVD.md#economy-modules).
+
+### zstats — public statistics feed over the economy modules
+Status: WORKING (tested in verify-all)
+What it does: builds per-epoch snapshots of aggregate economy figures only (no per-account data): reserve against Vino claims and the floor, vault holdings against V-Bills outstanding, lock tiers, the auction, an allotment section, and the grants barrel figures with G_rate. Snapshots have a fixed binary encoding, a digest, a signature message and a hash chain, and can be printed as JSON. It reads the other modules; it changes nothing.
+Main entry points: zstats_sources_default, zstats_collect, zstats_check, zstats_encode, zstats_decode, zstats_digest, zstats_sign_msg, zstats_chain_init, zstats_verify, zstats_json.
+Tests: src/zstats/test_zstats.c, 411 passed (linked with grants, svault, vswap, vauction, vbond and zenny), via test-econ in verify-all.
+Used by: zxvd's stats.* group (zxvd_econ.c: stats.snapshot, stats.status); kernel/arch/hosted/test_zxvd_econ.c covers it in CI.
+Gaps: the allotment section is a plain input the caller fills (that module is not on this branch); in zxvd the snapshots are hash-chained but not signed, and the figures are only as good as the in-memory ledger behind them.
+
+### ztp — zero-touch provisioning and owner claim (ZHP-1 profile)
+Status: WORKING (tested in verify-all)
+What it does: lets a device get an owner without a cloud account. On first boot the device makes an ML-DSA-87 key pair and a one-time claim secret; the maker signs a ZHP-1 provisioning profile with a commitment to that secret; the device or box shows a QR code ("ZTP1:" plus base32 of device id and secret). The first valid claim (MAC'd with the secret and signed by the new owner) wins and wipes the secret. Transfer and factory reset need the current owner's signature; every message carries an ownership epoch so old messages cannot be replayed. A physical-presence reset exists but is compiled out by default.
+Main entry points: ztp_device_init, ztp_first_boot, ztp_device_id, ztp_qr_text, ztp_profile_build, ztp_profile_verify, ztp_qr_parse, ztp_qr_check, ztp_msg_build, ztp_device_accept, ztp_reset_physical, ztp_commit.
+Tests: src/ztp/test_ztp.c (51 checks) and the ZTP_PHYSICAL_RESET=1 build (52 checks) under ASan/UBSan, plus freestanding aarch64/i386 checks, in kernel/mk/rot.mk test-rot, reached from verify-all through test-retail.
+Used by: no caller outside its tests.
+Gaps: not wired into the boot path or any owner app; no hardware root of trust yet (the software signer keeps keys in ordinary memory); not tested on real hardware; whoever scans the QR code first can claim the device. See [retail/ROOT_OF_TRUST.md](retail/ROOT_OF_TRUST.md).
+
+### zui — native UI toolkit: renderer, widgets, windows and system screens
+Status: WORKING (tested in verify-all)
+What it does: the native user interface in integer C with no allocation, meant to run the same hosted and on bare metal. About 44 source files and 8 app screens. Parts:
+- Drawing: zui_canvas (surface, shapes, text through src/font/truetype), zui_layout (responsive pane plans), zui_vec (vector renderer and the ZXVG format), zui_image (PNG), zui_tokens and zui_palette (design tokens, three switchable colour schemes), zui_brand (system marks as ZXVG), zui_depth and zui_pxl (a depth effect and a paraconsistent per-pixel depth filter), zui_logic (paraconsistent rules for how things look), zui_space (places).
+- Widgets and input: zui_widget (retained widget tree, roles and names), zui_input (keyboard, pointer, touch as one stream), zui_keymap, zui_ime, zui_osk (on-screen keyboard), zui_gesture (touchpad), zui_kinetic (animated vector icons), zui_motion (reduced motion and comfort settings), zui_progress (loading bar and launch screen).
+- Windows and shell: zui_wm (windows and switching), zui_dock, zui_workspace (saved window sets and preferences), zui_settings (typed settings store), zui_launch_theme and zui_launch_shell (app launch screens), zui_notice (notification center), zui_share (share sheet), zui_cliphist (clipboard history), zui_capture (screenshots and recording), zui_privacy (camera, mic, screen and location indicators).
+- Sign-in screens: zui_login (the people row and lock entry; checks live in seats), zui_lock (lock screen and idle lock), zui_terms (the agreement card over src/terms).
+- Accessibility and language: zui_reader (screen reader through a speech callback), zui_magnifier, zui_switch (switch access), zui_voicectl (voice control), zui_caption (live captions), zui_bidi (UAX #9), zui_shape (Arabic joining, Brahmic reordering), zui_locale (language and region formats).
+- Companion: zui_chiglet (the companion drawn from its DNA), zui_emote (morphing status faces).
+- Present: zui_present_fb (framebuffer); host back ends live in kernel/arch/hosted (zui_present_x11, _vulkan, _d3d11, _metal).
+- views/: zv (shared app shell) and the screens for Burrow, Glint, Quillon, Spindle, Murmuration, Circuit, Display settings and autoview (apps built without C).
+Main entry points: zui_canvas.h, zui_widget.h, zui_input.h, zui_wm.h, zui_login.h, zui_terms.h, zui_present.h, zui_vec.h, views/zv.h.
+Tests: in verify-all: test_zui, test_zui_widget, test_zui_wm, test_zui_launch_theme, test_zui_image, test_zui_launch_shell, and src/zui/test_zui_toolkit.sh (28 tests including views/test_display_view, for example test_zui_keymap 4,304 checks, test_zui_shape 2,622, test_zui_locale 1,387). Only in CI, not verify-all: views/test_views.sh (the app screens) through zxvd_checks.sh and zxvd.yml, and kernel/arch/hosted/test_zui_present.sh (X11 and Vulkan under Xvfb, Direct3D 11 cross-built) in zxvd.yml.
+Used by: no shipped program. tools/zui/zui_window.c (opens a real window through a present back end) and tools/zui/zui_mockup.c (review mockups) link it; the hosted present back ends wrap it. It is not linked into the desktop app, zxvd or either kernel image.
+Gaps: the session spine (zui in both images, one event loop, damage-only present) is missing ([BAREMETAL_OS_GAPS.md](BAREMETAL_OS_GAPS.md), row 12), as are login and lock on screen on bare metal (row 13). zui_present_metal.m is not built by any script or CI job. Every word table except English is a machine translation awaiting native review (tools/zui/locales/REVIEW.md). How apps use it: [APP_MODEL.md](APP_MODEL.md), [APP_LAUNCH_SCREENS.md](APP_LAUNCH_SCREENS.md), [SPOKEN_LANGUAGES.md](SPOKEN_LANGUAGES.md).
+
 ### zxpkg — native package container: a compiled artifact as three on-disk Tri-Space files
 Status: WORKING (tested in verify-all)
 What it does: wraps real build output (kernel, app, driver) into self-describing S+, S- and S0 files with digests bound by trispace, and verifies releases: a ZSP v2 envelope (caller floor and arch) whose signed identity is the canonical manifest digest of (triad id, version, arch, seal).
@@ -2511,3 +3028,79 @@ Tests: test_zxvfs, test_zxvfs_tri (54) and test_zxvfs_fuzz (5 checks, 3000 itera
 Used by: fs/fs.c, chronicle_persist, tolvovina ROM. Compiled into both kernels.
 Gaps: none found. It was reviewed, and the fuzz test covers journal replay.
 
+
+## Part C: modules on draft branches
+
+These modules are built and tested on a draft pull request that has not merged. They are listed so the reference is complete; their status is the branch's, not main's.
+
+### evolve/evo_comm — community-maintained updates: contract, audits, consent gate, rollback
+Status: WORKING (tested in verify-all) on draft PR #155, not merged
+What it does: adds four pieces on top of evolve so anyone can publish an OS change and installs stay compatible. A compatibility contract pins the wire-format descriptors and conformance bits every build must keep, and a new contract may only extend the old one. Auditors sign PASS/FAIL attestations for a lineage record. The install gate allows a record only if it is in the person's lineage DAG, keeps the contract, has k distinct passing auditors from the person's own list (default 2, never its author), no listed auditor failed it, nothing is blocked, and the person consented to that exact record before the consent expired. A journal runs each install as a trial and rolls back to the last kept build on a failed or missing health check.
+Main entry points: evo_contract_init/add/encode/decode/cid/check/extends, evo_audit_encode/decode/open, evo_audit_policy_init/add, evo_community_gate, evo_journal_init/install/confirm/rollback/tick/in_trial.
+Tests: src/evolve/test_evo_comm.c (461 passed when run from the branch, ML-DSA-65-signed audits and a 20,000-step random journal check) under ASan/UBSan in verify-all on the branch, plus a freestanding aarch64/riscv32 check.
+Used by: no caller outside its tests on the branch.
+Gaps: no zxvd RPC drives the gate; the launch contract itself (the list of wire formats) is not pinned yet; two auditor keys held by one person count as two. See docs/USER_EVOLVED_OS.md on the branch.
+
+### chiglet/chg_bond — private on-device habit model for the companion
+Status: WORKING (tested in verify-all) on draft PR #155, not merged
+What it does: a small frequency model of one person's habits, not a neural network. Three experts (hour of week, app in front, previous action) each keep a weight row over the person's own actions, updated by the ISF open-system rule with decay, and are combined by how independent their evidence is (the ISF u parameter in integers). It offers a suggestion only when the top action has a clear share and was seen more than once, and every suggestion waits for the person to accept it. Bound to the owner's key; the owner can pause, inspect and forget; export needs the owner's opt-in and is integrity-checked, not encrypted.
+Main entry points: chgb_init, chgb_observe, chgb_suggest, chgb_feedback, chgb_decay_all, chgb_forget_action/app/all, chgb_set_learning, chgb_export, chgb_import, chgb_interaction.
+Tests: src/chiglet/test_chg_bond.c (658 passed when run from the branch, including a 60,000-step random run) under ASan/UBSan in verify-all on the branch, plus the freestanding check.
+Used by: no caller outside its tests on the branch.
+Gaps: tracks 32 actions and 48 apps (least used evicted); bond data does not yet feed the companion's mood or suggestions in the shell; no zxvd RPC.
+
+### chiglet/chg_kin — companion digital DNA, hobbies and visits
+Status: WORKING (tested in verify-all) on draft PR #155, not merged
+What it does: gives each companion a fixed DNA record (owner, species, lineage, parent hash, seed and the 8 genes swarm_dna grows) with a SHA3-256 id that is unique within a registry. It picks 3 to 5 hobbies from a 144-item catalogue; hobby time comes only from idle growth tokens, hobbies only break ties between equal proposals, and drift past a cap resets them. Two companions may "visit" inside a grant both owners sign (topics, depth, time window, revocable, accepted once); only claims and verdicts with an evidence hash pass, logged in both hash chains, and experience is scaled by genome difference and divided by how often the pair has met.
+Main entry points: chgk_registry_init, chgk_dna_birth/encode/decode/distance, chgk_hobbies_for, chgk_hobby_step/drift/budget/tiebreak, chgk_grant_encode/decode/verify, chgk_grantbook_init, chgk_revoke, chgk_visit_open/receive/close, chgk_xp_init, chgk_log_step.
+Tests: src/chiglet/test_chg_kin.c (4,080 passed when run from the branch) under ASan/UBSan in verify-all on the branch, plus the freestanding check.
+Used by: no caller outside its tests on the branch.
+Gaps: uniqueness is per registry, not global; the ISF surplus scores genome difference, not the claims; grants and claims are not yet carried over Web 4 envelopes on Vinea; no zxvd RPC; the on-screen visit is not built.
+
+### pay/pay_bounty — community bounties paid in Vino Floating Vouchers
+Status: WORKING (tested in verify-all) on draft PR #154, not merged
+What it does: anyone posts a bug, security, improvement or docs bounty for free; the price comes from the operator's schedule (base per kind times a Fibonacci tier), never from the poster. A fixer signs a delivery; the operator's audit callback runs; on PASS a review panel is drawn by a SHA3 stream from a beacon, never including the poster or fixer. The four-valued verdict holds the bounty on any dissent until an arbiter rules, and the paid tier is the lowest any approver named. Approved bounties mint VFV at epoch close within an epoch cap and a per-fixer share, in one pay_ledger posting with the 0.08889% fee split into the four buckets; what does not fit carries to the next epoch. A fraud finding reopens an unpaid bounty, never claws back a paid one, and strikes the fixer and approvers.
+Main entry points: pay_bounty_cfg_default, pay_bounty_init, pay_bounty_add_reviewer, pay_bounty_post, pay_bounty_withdraw, pay_bounty_deliver, pay_bounty_audit, pay_bounty_vote, pay_bounty_verdict, pay_bounty_rule, pay_bounty_fraud, pay_bounty_close_epoch, pay_bounty_check, pay_bounty_value.
+Tests: src/pay/test_pay_bounty.c (1,587 passed when run from the branch) under ASan/UBSan in verify-all on the branch; also added to tests/harness/tiers.py and the mutation targets.
+Used by: no caller outside its tests on the branch.
+Gaps: q colluding reviewers can mint a fake fix; no quorum timeout; reviewers are not paid; the schedule and epoch cap default to zero, so nothing can be posted until the operator sets them; the legal and tax status of VFV and bounty payments is pending counsel. See docs/BOUNTIES.md on the branch.
+
+### speech/speech_zt_tts — on-device voice (OuteTTS on the integer engine)
+Status: WORKING (tested in verify-all) on draft PR #153, not merged
+What it does: joins tensor/zt_tts (prompt, audio-code tokens, WavTokenizer decoder) into one call that turns a sentence into 16 kHz PCM on the device, behind speech_session's speech-out boundary. It respells known words first (for example "Chiglet" as "chig lett"), uses a fixed seed so the same sentence gives the same audio, and refuses any language other than English rather than read it badly. Buffers are the caller's and bounded.
+Main entry points: speech_zt_tts_defaults, speech_zt_tts_ready, speech_zt_tts_need, speech_zt_tts_has_lang, speech_zt_respell, speech_zt_tts_say, speech_zt_tts_synthesize, speech_zt_tts_ops.
+Tests: src/speech/test_speech_zt_tts.c (77/77 when run from the branch), plain and ASan/UBSan, in verify-all on the branch. The tests replace the code-generation step (codes_fn) because there is no 500M model in CI.
+Used by: no code caller on the branch; zui_chgvoice expects the host to bind it as the speaker.
+Gaps: English only; the OuteTTS-0.3-500M and WavTokenizer weights are fetched outside git and are not exercised end to end in the tests.
+
+### speech/speech_zt_stt — on-device speech recognition (Whisper on the integer engine)
+Status: WORKING (tested in verify-all) on draft PR #153, not merged
+What it does: turns one captured 16 kHz utterance into UTF-8 text with tensor/zt_whisper (log-mel, encoder, greedy decoder) for speech_session. Audio longer than 30 s is cut into windows and joined. A language hint picks Whisper's language, otherwise it is detected. Quiet audio, or a window where the no-speech token wins, gives empty text instead of Whisper's invented words.
+Main entry points: speech_zt_stt_defaults, speech_zt_stt_ready, speech_zt_stt_transcribe, speech_zt_stt_ops, speech_zt_stt_level.
+Tests: src/speech/test_speech_zt_stt.c (54/54 when run from the branch) on a tiny Whisper fixture, plain and ASan/UBSan, in verify-all on the branch; with ZXV_STT_MODEL and ZXV_STT_WAV set it also transcribes real speech (not run in CI, not checked).
+Used by: no code caller on the branch; zui_hear expects the host's speech session to use it.
+Gaps: no overlap between 30 s windows, so a word on the edge can be split; whisper-base weights are fetched and converted outside git.
+
+### speech/speech_tidy — text rewritten for reading aloud
+Status: WORKING (tested in verify-all) on draft PR #153, not merged
+What it does: rewrites on-screen text before it goes to a voice, so read-aloud sounds like a person. Hashes, UUIDs, random ids, codes and very long numbers are named ("a hash", "3 hashes") rather than spelled; links become "a link to" the site; paths become "the file" plus its last part; code blocks become one sentence; markdown marks are silent. speech_spell gives the exact form on request, grouped in fours. All spoken words come from a per-language table.
+Main entry points: speech_tidy, speech_spell, speech_tidy_kind, speech_tidy_fn.
+Tests: src/speech/test_speech_tidy.c (121/121 when run from the branch), plain and ASan/UBSan, in verify-all on the branch.
+Used by: zui_chgvoice on the branch (it calls speech_tidy), and zui_reader gains an optional tidy hook that a host can set to speech_tidy_fn.
+Gaps: only the English word table is built in (not checked for others).
+
+### zui/zui_chgvoice — the companion speaks when asked
+Status: WORKING (tested in verify-all) on draft PR #153, not merged
+What it does: decides what the companion says, when, and how it looks while saying it. Speech starts only from the person's own act (tap, hold, status, read, push-to-talk words), never from a timer or notification. Status is built from facts the caller gives; text is spoken one sentence at a time and shown in a speech bubble at the same time; it waits while another voice speaks; a refused chunk is shown as words, never spoken in the wrong language's voice. It rises from its corner with an ease (no travel under reduced motion), moves its mouth with the speech level, and never flashes.
+Main entry points: zui_cv_init, zui_cv_tap, zui_cv_hold, zui_cv_status, zui_cv_read, zui_cv_stop, zui_cv_resume, zui_cv_repeat, zui_cv_spell, zui_cv_hear, zui_cv_spoken, zui_cv_level, zui_cv_tick, zui_cv_draw, zui_cv_hit, zui_cv_status_text, zui_cv_call, zui_cv_visit.
+Tests: src/zui/test_zui_chgvoice.c (475/475 when run from the branch with the ASCW Golden Latin font present) through test_zui_toolkit.sh in verify-all on the branch.
+Used by: zui_hear on the branch. Like the rest of zui, no shipped program links it.
+Gaps: the speaker is whatever the host binds; no host binds speech_zt_tts yet (not checked beyond a search of the branch).
+
+### zui/zui_hear — routing what the person says
+Status: WORKING (tested in verify-all) on draft PR #153, not merged
+What it does: decides who gets a transcript from the speech session. With dictation on, voice control types it; otherwise a phrase starting with the companion's name goes to the companion, then the companion's own phrases unless a text field has focus, then voice control. Speaking over the companion stops it, the microphone state is exposed for a status mark, and an empty or lossy transcript does nothing.
+Main entry points: zui_hear_init, zui_hear_set_facts, zui_hear_tick, zui_hear_text, zui_hear_start, zui_hear_end, zui_hear_on_event.
+Tests: src/zui/test_zui_hear.c (36/36 when run from the branch) through test_zui_toolkit.sh in verify-all on the branch.
+Used by: no caller outside its tests on the branch.
+Gaps: no host wires the speech session and speech_zt_stt to it yet.

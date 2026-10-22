@@ -139,7 +139,7 @@ grant_status_t grant_pool_credit(grant_t *g, uint32_t from, uint64_t amount, uin
     r.lines[0] = (pay_line_t){from, -(int64_t) amount, 0};
     r.lines[1] = (pay_line_t){g->pool, (int64_t) amount, 0};
     r.n_lines = 2;
-    if (post(g, &r, PAY_KIND_TRANSFER, "raffle slice to grant pool", tick) != PAY_OK)
+    if (post(g, &r, PAY_KIND_TRANSFER, "allotment slice to grant pool", tick) != PAY_OK)
         return GRANT_ERR_LEDGER;
     e->inflow = in;
     g->pool_seen += amount; /* <= the pool balance, which fits */

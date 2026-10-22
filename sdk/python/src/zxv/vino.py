@@ -46,7 +46,7 @@ Requests and receipts (both lanes)
     (:meth:`Receipt.message`). A receipt for an expired request, or one
     approved after expiry, is :class:`~zxv.RequestExpiredError`. A LIVE
     request marked as a paid chance outcome (loot boxes, paid draws) is
-    refused (:class:`~zxv.ChanceOutcomeError`). The raffle is a separate
+    refused (:class:`~zxv.ChanceOutcomeError`). The allotment is a separate
     module, not a payment request.
 
 Daily cap

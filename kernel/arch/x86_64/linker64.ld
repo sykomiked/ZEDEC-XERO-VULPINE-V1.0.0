@@ -54,6 +54,18 @@ SECTIONS
         KEEP(*(.rodata.zxv_decl))
         __zxv_decl_end = .;
 
+        /* EXCEPTION-FIXUP TABLE (kernel/arch/x86_64/x86_extable.h): pairs of
+         * {faulting insn, recovery addr} emitted by msr_safe_asm.S and read by
+         * the #GP path in ring3_asm.S. Same explicit markers + KEEP() as the
+         * declarations above, for the same reasons -- and here KEEP() is load-
+         * bearing: this link DOES pass --gc-sections, and nothing references
+         * the entries by symbol, so without it the table would be collected
+         * and every safe RDMSR/WRMSR fault would halt. */
+        . = ALIGN(8);
+        __zxv_extable_start = .;
+        KEEP(*(.rodata.zxv_extable))
+        __zxv_extable_end = .;
+
         *(.rodata)
         *(.rodata.*)
     } :text
