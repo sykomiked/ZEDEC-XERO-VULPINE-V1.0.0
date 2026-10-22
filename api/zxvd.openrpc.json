@@ -29299,7 +29299,7 @@
     },
     {
       "name": "power.status",
-      "summary": "The power ledger as integer JSON (docs/POWER.md): device and host, the last interval's total energy and power and where it came from, the battery, the posture and its token scale, the meters and every consumer (system, apps, agents). Always on (feature \"power\").",
+      "summary": "The power ledger as integer JSON (docs/POWER.md): device and host, the last interval's total energy and power and where it came from, the battery, the posture and its token scale, the meters and every consumer (system, apps, agents). Always on (feature \"power\"). Apps ask for it with the power.read capability (sys.read also covers it, for compatibility).",
       "params": [],
       "result": {
         "name": "ledger",
@@ -29371,7 +29371,7 @@
     },
     {
       "name": "power.top",
-      "summary": "Consumers ranked by energy, highest first (ties: lower id). Idle and shared energy stays with the system consumer. Always on (feature \"power\").",
+      "summary": "Consumers ranked by energy, highest first (ties: lower id): the per-engine view. An app is every process of one executable on this machine; an agent is a model engine inside zxvd (parent: zxvd's app). Figures come only from measurement (docs/POWER.md, 'How a figure is made'): a meter's energy for the interval (RAPL, the battery's drain, or macOS per-process energy: 'metered') split by CPU and GPU time ('attributed'). Idle and shared energy stays with the system consumer. With no meter, state is 'neither' and uj and mw are null, never an estimate. Always on (feature \"power\"); apps ask for it with the power.read capability.",
       "params": [
         {
           "name": "kind",
@@ -29433,14 +29433,20 @@
                 "description": "the app an agent runs under; null for none"
               },
               "uj": {
-                "type": "integer",
+                "type": [
+                  "integer",
+                  "null"
+                ],
                 "minimum": 0,
-                "description": "microjoules in the last settled interval"
+                "description": "microjoules in the last settled interval; null when state is neither or false"
               },
               "mw": {
-                "type": "integer",
+                "type": [
+                  "integer",
+                  "null"
+                ],
                 "minimum": 0,
-                "description": "its average power in milliwatts"
+                "description": "its average power in milliwatts; null when state is neither or false"
               },
               "source": {
                 "type": "string",
@@ -29452,9 +29458,20 @@
                   "fault"
                 ]
               },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "true",
+                  "false",
+                  "both",
+                  "neither"
+                ],
+                "description": "the source as a four-valued state: true (metered or attributed), both (meters disagreed; the larger reading is used), neither (no meter), false (the reading was rejected)"
+              },
               "lifetime_uj": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "description": "the measured intervals only"
               },
               "cpu_ns": {
                 "type": "integer",
@@ -29535,6 +29552,232 @@
           }
         }
       }
+    },
+    {
+      "name": "thermal.read",
+      "summary": "This machine's temperature sensors, read afresh on each call (zxv_thermal_host.h T1-T7): Linux hwmon and thermal zones; macOS HID temperature services (Apple silicon) or SMC keys (Intel). Each reading is classed cpu, gpu, case (board, chassis, chipset) or other, in integer millidegrees C with its source, driver, label and path. A value that is not a strict integer or lies outside -50..+150 C is refused per reading (state false, mdeg null). state is the four-valued knowledge join over the readings: neither (no sensor: readings empty, reason says why; never a made-up number), true, false or both. Always on (feature \"power\"); answers whether or not power tracking runs. Apps ask for it with the power.read capability.",
+      "params": [],
+      "result": {
+        "name": "thermal",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false",
+                "both",
+                "neither"
+              ]
+            },
+            "host": {
+              "type": "string",
+              "enum": [
+                "linux",
+                "macos",
+                "windows",
+                "other"
+              ],
+              "description": "which reader answered"
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "why there is no reading; null otherwise"
+            },
+            "classes": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "true",
+                        "false",
+                        "both",
+                        "neither"
+                      ]
+                    },
+                    "n": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "accepted readings"
+                    },
+                    "max_mdeg": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "description": "the highest accepted reading; null when n is 0"
+                    }
+                  }
+                },
+                "gpu": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "true",
+                        "false",
+                        "both",
+                        "neither"
+                      ]
+                    },
+                    "n": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "accepted readings"
+                    },
+                    "max_mdeg": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "description": "the highest accepted reading; null when n is 0"
+                    }
+                  }
+                },
+                "case": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "true",
+                        "false",
+                        "both",
+                        "neither"
+                      ]
+                    },
+                    "n": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "accepted readings"
+                    },
+                    "max_mdeg": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "description": "the highest accepted reading; null when n is 0"
+                    }
+                  }
+                },
+                "other": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "true",
+                        "false",
+                        "both",
+                        "neither"
+                      ]
+                    },
+                    "n": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "accepted readings"
+                    },
+                    "max_mdeg": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "description": "the highest accepted reading; null when n is 0"
+                    }
+                  }
+                }
+              }
+            },
+            "readings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "class": {
+                    "type": "string",
+                    "enum": [
+                      "cpu",
+                      "gpu",
+                      "case",
+                      "other"
+                    ]
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false"
+                    ],
+                    "description": "true: accepted; false: refused (reason says why, mdeg is null)"
+                  },
+                  "mdeg": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": -50000,
+                    "maximum": 150000,
+                    "description": "millidegrees Celsius"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "hwmon",
+                      "thermal_zone",
+                      "iohid",
+                      "smc"
+                    ]
+                  },
+                  "driver": {
+                    "type": "string",
+                    "description": "hwmon device name or thermal zone type; '' when the device gives none"
+                  },
+                  "label": {
+                    "type": "string",
+                    "description": "the sensor's own label; '' when none or not printable ASCII"
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "where it was read, e.g. /sys/class/hwmon/hwmon3/temp1_input"
+                  },
+                  "reason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      null,
+                      "out of range",
+                      "not an integer",
+                      "too long",
+                      "unreadable"
+                    ]
+                  }
+                }
+              }
+            },
+            "rejected": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "dropped": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "readings past the 128 kept"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
     },
     {
       "name": "irc.status",

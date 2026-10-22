@@ -571,7 +571,7 @@ static const char *const CAPS[] = {
     "backup",                        /* backups and versions (backup.*) */
     "journal",                       /* zxvd's event history (journal.*, log.tail) */
     "screen.time",                   /* screen time and its limits (screen.*) */
-    "sys.read",                      /* the machine's facts (sys.*) */
+    "sys.read",                      /* the machine's facts (sys.*; power.status too, R3) */
     "search",                        /* the Hoard's index (search.*) */
     "swarm",                         /* the local swarm (swarm.*) */
     "ai.ask",                        /* the swarm's answers (swarm.ask) */
@@ -582,6 +582,7 @@ static const char *const CAPS[] = {
     "schedule",                      /* timers the app registers (schedule.*) */
     "proc",                          /* the machine's processes, read (proc.list) */
     "proc.control",                  /* stop and restart them (proc.signal, .restart) */
+    "power.read",                    /* energy and heat (power.status, power.top, thermal.read) */
 };
 
 /* R3b: exact method names first, then a group ("files.") */
@@ -620,6 +621,8 @@ static const struct {
     {"proc.signal", "proc.control"},
     {"proc.restart", "proc.control"},
     {"proc.", "proc"},
+    {"power.", "power.read"},
+    {"thermal.read", "power.read"},
     {"dns.", "net"},
     {"net.", "net"},
     {"peer.", "peers"},
@@ -642,7 +645,12 @@ const char *zxapp_method_cap(const char *method)
 bool zxapp_gate(void *app, const char *method)
 {
     const char *cap = zxapp_method_cap(method);
-    return !cap || (app && zxapp_needs((const zxapp_t *) app, cap, NULL));
+    if (!cap) return true;
+    if (!app) return false;
+    /* R3: sys.read still covers power.status for the apps written before power.read */
+    if (seq(method, "power.status") && zxapp_needs((const zxapp_t *) app, "sys.read", NULL))
+        return true;
+    return zxapp_needs((const zxapp_t *) app, cap, NULL);
 }
 
 const char *const *zxapp_caps(uint32_t *n)

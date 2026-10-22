@@ -1901,6 +1901,9 @@ static void test_registry_fields(void)
         {"search.query", "search"},
         {"net.command", "net"},
         {"peer.ask", "peers"},
+        {"power.status", "power.read"},
+        {"power.top", "power.read"},
+        {"thermal.read", "power.read"},
     };
     for (unsigned i = 0; i < sizeof MC / sizeof MC[0]; i++) {
         const char *c = zxapp_method_cap(MC[i][0]);
@@ -1925,6 +1928,24 @@ static void test_registry_fields(void)
               zxapp_gate(&A, "shell.run") && zxapp_gate(&A, "caps.check") &&
               zxapp_gate(&A, "notify.send"),
           "with them: %s", A.err);
+    /* R3: the power and heat capability, beside sys.read */
+    CHECK(zxapp_cap_known("power.read") && zxapp_cap_known("sys.read") &&
+              !zxapp_cap_known("power") && !zxapp_cap_known("power.write") &&
+              !zxapp_cap_known("thermal.read"),
+          "power.read is a capability; thermal.read is a method, not one");
+    bool listed = false;
+    for (uint32_t i = 0; i < nc; i++) listed |= !strcmp(caps[i], "power.read");
+    CHECK(listed, "zxapp_caps lists power.read");
+    CHECK(parse("zxapp 1\nid brz\nneeds power.read\nneeds sys.read\n") == ZXAPP_OK &&
+              zxapp_needs(&A, "power.read", NULL),
+          "an app may ask for power.read: %s", A.err);
+    CHECK(zxapp_gate(&A, "power.status") && zxapp_gate(&A, "power.top") &&
+              zxapp_gate(&A, "thermal.read"),
+          "R3b: power.read reaches power.status, power.top and thermal.read");
+    CHECK(parse("zxapp 1\nid old\nneeds sys.read\n") == ZXAPP_OK &&
+              zxapp_gate(&A, "power.status") && !zxapp_gate(&A, "power.top") &&
+              !zxapp_gate(&A, "thermal.read"),
+          "R3: sys.read still reaches power.status, and only that: %s", A.err);
 }
 
 /* ---- wave 0: the built-in apps' own manifests, read from disk ----------------

@@ -56,7 +56,7 @@ case "$($CC -dumpmachine 2>/dev/null)" in
     # later install_name_tool -add_rpath.
     *darwin*|*apple*)
         LIBF=libzxv.dylib
-        OSLIBS="-framework IOKit -framework CoreFoundation" # power.* (zxv_power_host.c)
+        OSLIBS="-framework IOKit -framework CoreFoundation" # power.*, thermal.read (zxv_power_host.c, zxv_thermal_host.c)
         RP='-Wl,-rpath,@loader_path,-rpath,@executable_path/../Frameworks,-headerpad_max_install_names' ;;
     *)                LIBF=libzxv.so;    RP='-Wl,-rpath,$ORIGIN' ;;
 esac

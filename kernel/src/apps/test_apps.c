@@ -42,6 +42,8 @@
 #include "test_fake_device.h"
 #include "zxvd_log.h"
 #include "zxv_journal.h"
+#include "zxvd_groups.h"
+#include "zxvd_power.h"
 #include "zxv_screen.h"
 #include "zxv_place.h"
 #include "sha256.h"
@@ -3287,6 +3289,103 @@ typedef struct {
 #endif
 static const apps_test_t *const APPS_TESTS[] = {APPS_TESTS_ROWS 0};
 
+/* ---- power.status, power.top and thermal.read, as an app calls them ----------
+ * The power group (zxvd_power.c) behind the same in-process dispatcher, read
+ * from a Linux-style fixture: Brazier and its neighbours ask these with the
+ * power.read capability (zxapp.h R3). */
+
+static void put_file(const char *root, const char *rel, const char *text)
+{
+    char p[1024];
+    snprintf(p, sizeof p, "%s/%s", root, rel);
+    for (char *s = p + strlen(root) + 1; (s = strchr(s, '/')) != NULL; s++) {
+        *s = 0;
+        mkdir(p, 0700);
+        *s = '/';
+    }
+    FILE *f = fopen(p, "wb");
+    if (!f) {
+        printf("cannot write %s\n", p);
+        exit(2);
+    }
+    fputs(text, f);
+    fclose(f);
+}
+
+static void test_power(const char *scratch)
+{
+    char root[512], s[64];
+    int64_t v;
+    snprintf(root, sizeof root, "%s/power-fixture", scratch);
+    mkdir(root, 0700);
+    put_file(root, "proc/cpuinfo", "processor\t: 0\n");
+    put_file(root, "proc/self/comm", "zxvd\n");
+    put_file(root, "sys/class/power_supply/AC/type", "Mains\n");
+    put_file(root, "sys/class/power_supply/AC/online", "1\n");
+    put_file(root, "sys/class/power_supply/BAT0/type", "Battery\n");
+    put_file(root, "sys/class/power_supply/BAT0/status", "Charging\n");
+    put_file(root, "sys/class/power_supply/BAT0/energy_now", "30000000\n");
+    put_file(root, "sys/class/power_supply/BAT0/energy_full", "40000000\n");
+    put_file(root, "sys/class/power_supply/BAT0/voltage_now", "12000000\n");
+    put_file(root, "sys/class/hwmon/hwmon0/name", "coretemp\n");
+    put_file(root, "sys/class/hwmon/hwmon0/temp1_label", "Package id 0\n");
+    put_file(root, "sys/class/hwmon/hwmon0/temp1_input", "51000\n");
+    put_file(root, "sys/class/hwmon/hwmon1/name", "nouveau\n");
+    put_file(root, "sys/class/hwmon/hwmon1/temp1_input", "44000\n");
+    put_file(root, "sys/class/thermal/thermal_zone0/type", "acpitz\n");
+    put_file(root, "sys/class/thermal/thermal_zone0/temp", "-60000\n"); /* absurd: refused */
+
+    CHECK(zxvd_rpc_add_group(zxvd_power_group()) == 0, "the power group joins the dispatcher");
+    zxvd_power_set_thermal_root(root);
+    /* thermal.read answers before power tracking is open */
+    zxm_begin(&LINK, "thermal.read");
+    CHECK(zxm_call(&LINK) == ZXM_OK, "thermal.read: %s", LINK.err);
+    int32_t cls = zxm_get(&LINK, LINK.result, "classes");
+    int32_t cpu = cls >= 0 ? zxm_get(&LINK, cls, "cpu") : -1;
+    int32_t gpu = cls >= 0 ? zxm_get(&LINK, cls, "gpu") : -1;
+    int32_t cas = cls >= 0 ? zxm_get(&LINK, cls, "case") : -1;
+    CHECK(zxm_get_str(&LINK, LINK.result, "state", s, sizeof s) == ZXM_OK && !strcmp(s, "both"),
+          "thermal.read: state %s", s);
+    CHECK(cpu >= 0 && zxm_get_i64(&LINK, cpu, "max_mdeg", &v) == ZXM_OK && v == 51000,
+          "the CPU's package temperature");
+    CHECK(gpu >= 0 && zxm_get_i64(&LINK, gpu, "max_mdeg", &v) == ZXM_OK && v == 44000,
+          "the GPU's temperature");
+    CHECK(cas >= 0 && zxm_get_str(&LINK, cas, "state", s, sizeof s) == ZXM_OK &&
+              !strcmp(s, "false") && zxm_get_i64(&LINK, cas, "max_mdeg", &v) != ZXM_OK,
+          "the refused board value is no number: %s", s);
+    int32_t rd = zxm_get(&LINK, LINK.result, "readings");
+    int32_t r0 = rd >= 0 && zxm_len(&LINK, rd) == 3 ? zxm_at(&LINK, rd, 0) : -1;
+    CHECK(r0 >= 0 && zxm_get_str(&LINK, r0, "label", s, sizeof s) == ZXM_OK &&
+              !strcmp(s, "Package id 0"),
+          "each reading carries its label: %s", s);
+    /* power.status and power.top: not running yet, then on the fixture */
+    zxm_begin(&LINK, "power.status");
+    CHECK(zxm_call(&LINK) == ZXM_E_REMOTE && LINK.err_code == -32095, "power.status: closed");
+    CHECK(zxvd_power_open(root) == 0, "power on the fixture");
+    zxm_begin(&LINK, "power.status");
+    CHECK(zxm_call(&LINK) == ZXM_OK, "power.status: %s", LINK.err);
+    CHECK(zxm_get_str(&LINK, LINK.result, "host", s, sizeof s) == ZXM_OK && !strcmp(s, "linux"),
+          "power.status: host %s", s);
+    CHECK(zxm_get_str(&LINK, LINK.result, "device", s, sizeof s) == ZXM_OK && !strcmp(s, "laptop"),
+          "power.status: a battery makes a laptop (%s)", s);
+    CHECK(zxm_get_i64(&LINK, LINK.result, "token_scale_permille", &v) == ZXM_OK && v == 1000,
+          "power.status: on mains, x1");
+    int32_t bat = zxm_get(&LINK, LINK.result, "battery");
+    CHECK(bat >= 0 && zxm_get_i64(&LINK, bat, "permille", &v) == ZXM_OK && v == 750,
+          "power.status: the battery at 75%% (%lld)", (long long) v);
+    zxm_begin(&LINK, "power.top");
+    zxm_p_str(&LINK, "kind", "app");
+    CHECK(zxm_call(&LINK) == ZXM_OK && zxm_len(&LINK, LINK.result) == 1 &&
+              zxm_get_str(&LINK, zxm_at(&LINK, LINK.result, 0), "name", s, sizeof s) == ZXM_OK &&
+              !strcmp(s, "zxvd"),
+          "power.top: zxvd is the one app (%s)", s);
+    zxvd_rpc_remove_group(zxvd_power_group());
+    zxvd_power_close();
+    zxvd_power_set_thermal_root(NULL);
+    zxm_begin(&LINK, "thermal.read");
+    CHECK(zxm_call(&LINK) == ZXM_E_REMOTE && LINK.err_code == -32601, "gone with its group");
+}
+
 int main(void)
 {
     char root[256];
@@ -3327,6 +3426,7 @@ int main(void)
     }
     for (uint32_t i = 0; i < NW0; i++)
         if (!w0bad[i]) printf("  ran model %s\n", W0[i]);
+    test_power(root);
     test_open(root);
     for (uint32_t i = 0; APPS_TESTS[i]; i++) {
         int before = checks;

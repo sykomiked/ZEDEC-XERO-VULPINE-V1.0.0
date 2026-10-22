@@ -5,7 +5,8 @@
 # test_apps.sh — build libzxv (incrementally) and run test_apps.c: the app
 # models (the Banker, Quillon, Glint, Spindle, Murmuration, the utilities, Scent,
 # Platen, Keepsake, Wake, Shepherd, Waymark) against zxvd's dispatcher in
-# process. Exits 3 when only the build failed.
+# process, with the power group (power.status, power.top, thermal.read) on a
+# Linux-style fixture. Exits 3 when only the build failed.
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"
 K="$(cd "$HERE/../.." && pwd)"
@@ -44,12 +45,17 @@ for f in fab/fab.c fab/fab_send.c ipfs_node/ipfsn_multiformats.c ipfs_node/ipfsn
     # shellcheck disable=SC2086 # FINC is a list
     "$CC" -std=c11 -O1 -Wall -Wextra $RPCINC $FINC -c "$K/src/$f" -o "$T/fab$i.o" || exit 3
 done
+# power.* and thermal.read (zxvd_power.c): the power reader uses IOKit on macOS
+OSLIBS=""
+case "$($CC -dumpmachine 2>/dev/null)" in
+    *darwin*|*apple*) OSLIBS="-framework IOKit -framework CoreFoundation" ;;
+esac
 # shellcheck disable=SC2086 # MODELS is a list of paths without spaces
-"$CC" -std=c11 -O1 -Wall -Wextra -Werror ${CFLAGS:-} -DAPPS_TESTS_INDEX="\"$T/apps_tests.inc\"" -I"$HERE" -I"$H" -I"$K/src/web4" -I"$K/src/robin_debanks" -I"$K/src/mlkem" -I"$K/include" -I"$K/src/modbind" -I"$K/src/e8" -I"$K/src/event_space" -I"$K/src/surplus" -I"$K/src/swarm" -I"$K/src/lpres" -I"$K/src/fab" -I"$R/sdk/libzxv/include" \
+"$CC" -std=c11 -O1 -Wall -Wextra -Werror ${CFLAGS:-} -DAPPS_TESTS_INDEX="\"$T/apps_tests.inc\"" -I"$HERE" -I"$H" -I"$K/src/web4" -I"$K/src/robin_debanks" -I"$K/src/mlkem" -I"$K/include" -I"$K/src/modbind" -I"$K/src/e8" -I"$K/src/event_space" -I"$K/src/surplus" -I"$K/src/swarm" -I"$K/src/power" -I"$K/src/lpres" -I"$K/src/fab" -I"$R/sdk/libzxv/include" \
     "$HERE/test_apps.c" "$HERE/zxm.c" "$HERE/zxm_open.c" "$HERE/burrow_model.c" "$HERE/quillon_model.c" "$HERE/glint_model.c" "$HERE/spindle_model.c" \
     "$HERE/murmuration_model.c" "$HERE/almanac_model.c" "$HERE/wake_model.c" "$HERE/tidewatch_model.c" "$HERE/sounding_model.c" "$HERE/scent_model.c" \
     "$HERE/platen_model.c" "$HERE/keepsake_model.c" "$HERE/shepherd_model.c" "$HERE/waymark_model.c" $MODELS "$K/src/swarm/swarm_emotion.c" "$K/src/swarm/swarm_budget.c" \
-    "$H/zxvd_rpc.c" "$H/zxvd_fab.c" "$H/zxv_http_guard.c" "$T"/fab*.o $RPCINC $RPCDEPS "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" \
+    "$H/zxvd_rpc.c" "$H/zxvd_fab.c" "$H/zxvd_power.c" "$H/zxv_power_host.c" "$H/zxv_thermal_host.c" "$K/src/power/power_ledger.c" "$H/zxv_http_guard.c" "$T"/fab*.o $RPCINC $RPCDEPS "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" \
     "$K/src/mlkem/keccak.c" "$K/src/robin_debanks/sha256.c" \
-    "$MODA" -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm -o "$T/test_apps" || exit 3
+    "$MODA" -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm $OSLIBS -o "$T/test_apps" || exit 3
 "$T/test_apps"

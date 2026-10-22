@@ -2392,7 +2392,14 @@ test-power:
 	gcc $(POWER_FLAGS) -Isrc/power -Isrc/lpres -Isrc/event_space src/power/test_power.c src/power/power_ledger.c src/power/power_rapl.c -o $(ZXV_TMP)/test_power && $(ZXV_TMP)/test_power > $(ZXV_TMP)/test_power.log 2>&1 && echo "[PASS] test_power ($$(tail -1 $(ZXV_TMP)/test_power.log))" || { cat $(ZXV_TMP)/test_power.log; echo "[FAIL] test_power"; exit 1; }
 	gcc $(POWER_FLAGS) -Isrc/power -Iarch/hosted arch/hosted/test_zxv_power_host.c arch/hosted/zxv_power_host.c src/power/power_ledger.c -o $(ZXV_TMP)/test_zxv_power_host && $(ZXV_TMP)/test_zxv_power_host > $(ZXV_TMP)/test_zxv_power_host.log 2>&1 && echo "[PASS] test_zxv_power_host ($$(tail -1 $(ZXV_TMP)/test_zxv_power_host.log))" || { cat $(ZXV_TMP)/test_zxv_power_host.log; echo "[FAIL] test_zxv_power_host"; exit 1; }
 	gcc $(POWER_FLAGS) -Isrc/power -I../mobile/core ../mobile/core/test_zxv_mobile_power.c ../mobile/core/zxv_mobile_power.c src/power/power_ledger.c -o $(ZXV_TMP)/test_zxv_mobile_power && $(ZXV_TMP)/test_zxv_mobile_power > $(ZXV_TMP)/test_zxv_mobile_power.log 2>&1 && echo "[PASS] test_zxv_mobile_power ($$(tail -1 $(ZXV_TMP)/test_zxv_mobile_power.log))" || { cat $(ZXV_TMP)/test_zxv_mobile_power.log; echo "[FAIL] test_zxv_mobile_power"; exit 1; }
+	$(MAKE) --no-print-directory test-thermal
 	@for t in aarch64-none-elf x86_64-none-elf; do for f in src/power/power_ledger.c src/power/power_rapl.c; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/power -c $$f -o $(ZXV_TMP)/power_free.o || { echo "[FAIL] power freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/power_free.o | grep -vE ' pw_[a-z0-9_]+$$' | grep -q .; then nm -u $(ZXV_TMP)/power_free.o; echo "[FAIL] power freestanding: libc in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] power freestanding (aarch64 and x86_64: no libc)"
+
+# The hosted temperature reader behind zxvd's thermal.read (arch/hosted/zxv_thermal_host.c):
+# classes, labels, hostile values, bounds and a host with no sensor, on a Linux sysfs fixture.
+.PHONY: test-thermal
+test-thermal:
+	gcc $(POWER_FLAGS) -Iarch/hosted -Isrc/lpres -Isrc/event_space -Iinclude -Isrc/modbind arch/hosted/test_zxv_thermal_host.c arch/hosted/zxv_thermal_host.c src/lpres/lpres.c -o $(ZXV_TMP)/test_zxv_thermal_host && $(ZXV_TMP)/test_zxv_thermal_host > $(ZXV_TMP)/test_zxv_thermal_host.log 2>&1 && echo "[PASS] test_zxv_thermal_host ($$(tail -1 $(ZXV_TMP)/test_zxv_thermal_host.log))" || { cat $(ZXV_TMP)/test_zxv_thermal_host.log; echo "[FAIL] test_zxv_thermal_host"; exit 1; }
 
 .PHONY: test-engine
 test-engine:

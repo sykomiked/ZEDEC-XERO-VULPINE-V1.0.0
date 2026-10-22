@@ -1277,9 +1277,9 @@ the companion does not step, and a run can go many growths without one. The
 step can change the home feeling and specialty with a gene. The companion's
 DNA is not saved: each start grows a new one from that run's instance seed
 (taken from the clock), at generation 0.
-## Power: energy per app and agent, battery and budgets
+## Power: energy per app and agent, battery, budgets and temperatures
 
-`power.*` (`kernel/arch/hosted/zxvd_power.c`, rules W1-W8 in
+`power.*` and `thermal.read` (`kernel/arch/hosted/zxvd_power.c`, rules W1-W9 in
 `zxvd_power.h`) serves the power ledger (`kernel/src/power`), fed from this
 machine by `zxv_power_host.c`. What each OS can and cannot measure is in
 `docs/POWER.md`; nothing is invented, and a host with no meter reports
@@ -1292,11 +1292,32 @@ ecological limit, not a payment).
   battery, the posture and its token scale, the meters and every consumer.
 - `power.top` (always on): `kind` (`app`, `agent` or `all`), `lifetime`
   and `n` (1..64, default 10): consumers by energy, highest first, each with
-  `id`, `kind`, `name`, `parent`, `uj`, `mw`, `source`, `lifetime_uj` and
-  `cpu_ns`. Idle and shared energy stays with the `system` consumer.
+  `id`, `kind`, `name`, `parent`, `uj`, `mw`, `source`, `state`,
+  `lifetime_uj` and `cpu_ns`. Idle and shared energy stays with the
+  `system` consumer. This is the per-engine view: an `app` is every process
+  of one executable, an `agent` is a model engine inside zxvd (its `parent`
+  is zxvd's app). Figures come only from measurement: a meter's energy for
+  the interval (RAPL, the battery's drain, or macOS per-process energy:
+  `metered`) split by CPU and GPU time (`attributed`). `state` is the
+  source as a four-valued state: `true` (metered or attributed), `both`
+  (meters disagreed; the larger reading is used), `neither` (no meter) or
+  `false` (the reading was rejected). For `neither` and `false`, `uj` and
+  `mw` are null, never an estimate. `lifetime_uj` sums measured intervals
+  only.
 - `power.budget` (switch on): `target` `device`, `app` (with `app`, the
   executable name) or `agent` (with `agent`, its id), `window_ms` (0
   clears), `max_uj` and `strict`. Sets an energy budget per rolling window.
+- `thermal.read` (always on, W9): this machine's temperature sensors, read
+  on each call (`zxv_thermal_host.h` T1-T7): `state` (`true`, `false`,
+  `both` or `neither`), `host`, `reason` (why there is no reading, else
+  null), `classes` (`cpu`, `gpu`, `case`, `other`, each with `state`, `n`
+  and `max_mdeg`), `readings` (each with `class`, `state`, `mdeg` in
+  millidegrees C or null when refused, `source`, `driver`, `label`, `path`
+  and `reason`), `rejected` and `dropped`. It answers whether or not power
+  tracking runs. A host with no readable sensor answers `neither` with the
+  reason, never a number. Linux reads hwmon and thermal zones; the macOS
+  readers are not compiled or tested in CI. See docs/POWER.md,
+  "Temperatures".
 
 zxvd samples the host and settles the ledger at most once a second. It is
 an app named after its own executable, and the companion is an agent under

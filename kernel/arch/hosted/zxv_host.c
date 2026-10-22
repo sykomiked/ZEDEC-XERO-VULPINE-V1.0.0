@@ -140,7 +140,7 @@ _Static_assert(ZXV_TIAMAT_SLOTS <= ZXV_SLOTS, "every Tiamat slot is a model slot
 #    include "zxvd_pay.h"       /* zxvd: ISO 20022, cards, netting, passkeys, escrow */
 #    include "zxvd_groups.h"    /* netting, cards, ...: method groups behind switches */
 #    include "zxvd_companion.h" /* companion.*: the Chiglet's DNA, generation, mood */
-#    include "zxvd_power.h"     /* power.*: energy per app and agent, budgets */
+#    include "zxvd_power.h"     /* power.*, thermal.read: energy, budgets, heat */
 #    include "zxvd_pspace.h"    /* pspace.*, hall.*: public spaces, the watch hall */
 #    include "zxvd_phone.h"     /* zxvd: the owner's paired phones (--phone-link) */
 #    include "web4_web2.h"      /* the window's /api/rpc reads the method name */
