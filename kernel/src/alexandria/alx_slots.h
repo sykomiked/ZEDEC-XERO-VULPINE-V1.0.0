@@ -209,7 +209,8 @@
 #define ALX_SLOT_LOGIC_SEALWAX_FIELD_RECORD_OK   201u /* 490.94 sealwax.field_record_ok */
 #define ALX_SLOT_NUM_SEALWAX_FILL_ORDER          202u /* 590.97 sealwax.fill_order */
 #define ALX_SLOT_LOGIC_SEALWAX_SIGN_READY        203u /* 490.95 sealwax.sign_ready */
-#define ALX_SLOT__COUNT 203u
+#define ALX_SLOT_LOGIC_CELLAR_REPAIR_SAFE_OK     204u /* 490.96 cellar.repair_safe_ok */
+#define ALX_SLOT__COUNT 204u
 /* clang-format on */
 
 #endif

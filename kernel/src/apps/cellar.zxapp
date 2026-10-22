@@ -1,0 +1,69 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Cellar, the disk utility: layer 19 of the matrix. The volume holding the
+# Hoard (sys.disk: total, free, avail), space by folder (files.list,
+# walked), the Trash's items and bytes (files.list on .Trash) and emptying
+# it with the owner's yes (files.empty_trash), and a check of the Hoard
+# (sys.info's clock against every date, every name against the Hoard's
+# path rules) with advice on whether a repair is safe now
+# (cellar_model.h CM1-CM5).
+#
+# Reuse, nearer the core: how full the volume is, and each folder's and
+# the Trash's share of it, is used_share.used_x100 (used_of_capacity);
+# each folder's share of what the Hoard holds is banker.share
+# (share_of_whole), which is the Banker's own KRON and C++ (WebAssembly)
+# witnessed pair; the Trash's total and the Hoard's are banker.total, the
+# Banker's exact Trebago sum. The task asks for folder shares in KRON and
+# C++ "as the Banker's share" and the Trash total in Trebago: those are
+# the Banker's entries already, and the spec's one-owner rule forbids
+# writing them again under another name, so they are used, not copied.
+#
+#   repair_safe_ok  safe to repair the Hoard now (CR4), Eve and KRON as the
+#                   task asks (Eve owns limits): room above the scratch a
+#                   repair keeps free, the volume at most 95.00% full, and
+#                   the owner's yes. Eve checks each field against its own
+#                   range, so the free bytes come as their margin (room).
+#                   Eve's record holds room to 18 digits, KRON reads any
+#                   room above 0: past 18 digits they disagree and the
+#                   answer is held. The model's C (cellar_rules.h) is the
+#                   third witness.
+#
+# Advisory and owner-confirmed: nothing is removed without the owner's yes,
+# and the model repairs nothing itself. zxvd has no method to list every
+# volume, to check or repair the Hoard's structure, to give a folder's
+# bytes in one call, or to make, open or check a disc image; none is
+# invented (cellar_model.h). Defaults taken: 1 GiB of scratch kept free
+# for a repair, 95.00% the fullest volume a repair runs on, a day of clock
+# drift allowed on a date. Nothing later leans on this layer
+# (MATRIX_ORDER.tsv), and repair_safe_ok is Cellar's own rule, so no
+# concept is registered for it.
+zxapp 1
+id     cellar
+name   Cellar
+version 1.0.0
+slot   19
+layer  L1
+matrix 19
+icon   icons/l1/019-cellar.svg
+budget 233
+needs  sys.read
+needs  fs.read
+needs  fs.write
+model  apps/cellar_model.c
+use    used_share 1   # @num.used_x100
+use    banker 1       # @num.banker_share @num.banker_total
+
+# Safe to repair the Hoard now (CR4), Eve and KRON.
+provides repair_safe_ok truth room fill approved
+logic    eve  repair_safe_ok apps/blocks/cellar/repair.eve
+logic    kron repair_safe_ok apps/blocks/cellar/repair.kron
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check repair_safe_ok room=1,999999999999999999,0,-5,5,5,5,5,5 fill=0,9500,0,0,9501,-1,0,0,0 approved=1,1,1,1,1,1,0,2,1 = true,true,false,false,false,false,false,false,true
+check repair_safe_ok room=5,1000000000000000000 fill=0,0 approved=1,1 = both
+check used_share.used_x100 total=1000,1000,1000,3 left=1000,400,0,2 = 0,6000,10000,3333
+check used_share.used_x100 total=1000,1000 left=0,1001 = both
+check banker.share size=150,300,7 total=457 = 3282,6564,153
+check banker.share size=5,11 total=10 = both
+check banker.total size=150,300,7 = 457

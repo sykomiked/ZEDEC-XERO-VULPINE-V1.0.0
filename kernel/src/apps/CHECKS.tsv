@@ -66,6 +66,13 @@ caravan	check ship_ok ship=1,1 carrier=1,1 mass=500,500 charged=1200,1200 status
 caravan	check pce_strat.decide payoff=-24,-72,-48,-240 nopt=2 lo=0,0 hi=1,1 den=1 = true
 caravan	check pce_strat.leader payoff=-48,-240,-24,-72 nopt=2 lo=0,0 hi=1,1 den=1 = 1
 caravan	check pce_strat.leader payoff=-24,-72,-48,-240,-4,-80 nopt=3 lo=0,0 hi=1,1 den=1 = 0
+cellar	check repair_safe_ok room=1,999999999999999999,0,-5,5,5,5,5,5 fill=0,9500,0,0,9501,-1,0,0,0 approved=1,1,1,1,1,1,0,2,1 = true,true,false,false,false,false,false,false,true
+cellar	check repair_safe_ok room=5,1000000000000000000 fill=0,0 approved=1,1 = both
+cellar	check used_share.used_x100 total=1000,1000,1000,3 left=1000,400,0,2 = 0,6000,10000,3333
+cellar	check used_share.used_x100 total=1000,1000 left=0,1001 = both
+cellar	check banker.share size=150,300,7 total=457 = 3282,6564,153
+cellar	check banker.share size=5,11 total=10 = both
+cellar	check banker.total size=150,300,7 = 457
 coffer	check balance before=0,100,-50,999999999999999998 moved=0,-100,25,1 = 0,0,-25,999999999999999999
 coffer	check balance before=1,1000000000000000000 moved=0,0 = both
 coffer	check transfer_ok amount=1,9007199254740991,0,5,5,5 after=0,0,0,-1,0,0 room=0,0,0,0,-1,0 gap=0,0,0,0,0,1 = true,true,false,false,false,false

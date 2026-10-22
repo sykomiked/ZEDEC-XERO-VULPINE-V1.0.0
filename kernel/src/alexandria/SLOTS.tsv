@@ -238,3 +238,4 @@
 201	logic.sealwax_field_record_ok	490.94	sealwax.field_record_ok	base
 202	num.sealwax_fill_order	590.97	sealwax.fill_order	base
 203	logic.sealwax_sign_ready	490.95	sealwax.sign_ready	base
+204	logic.cellar_repair_safe_ok	490.96	cellar.repair_safe_ok	base

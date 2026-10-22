@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Safe to repair the Hoard (cellar_rules.h CR4), in Eve: the one record
+# that fits is room (what this user may still write less the scratch a
+# repair keeps free) of 1 .. 18 digits, the volume at most 95.00% full
+# (fill, x100) and the owner's yes (approved, exactly 1). Eve checks each
+# field against its own range, which is why the free bytes come as their
+# margin over the scratch. Anything else does not fit: not safe. Advisory:
+# the owner confirms every repair.
+eve cellar
+repair_room = 1 .. 999999999999999999
+repair_fill = 0 .. 9500
+owner_yes = 1 .. 1
+
+repair_safe {
+  room: repair_room
+  fill: repair_fill
+  approved: owner_yes
+}
