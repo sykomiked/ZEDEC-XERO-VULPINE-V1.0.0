@@ -1,0 +1,22 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a switch and eye control profile may say (pivot_rules.h PV2), in
+# Eve, each field against its own range: the dwell time 200 to 5000 ms,
+# the scan step 300 to 10000 ms, the smallest target side 44 to 16384
+# pixels, one or two switches, and the scan order (0 one item after
+# another, 1 row then column).
+eve pivot
+dwell_ms = 200 .. 5000
+step_ms = 300 .. 10000
+side_px = 44 .. 16384
+switch_count = 1 .. 2
+scan_order = 0 .. 1
+
+control_limits {
+  dwell: dwell_ms
+  step: step_ms
+  side: side_px
+  switches: switch_count
+  order: scan_order
+}

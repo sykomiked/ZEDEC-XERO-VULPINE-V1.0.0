@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Dwell to select (pivot_rules.h PV1), in Eve. Eve checks each field
+# against its own range, so the rule comes as margins: edge, the least
+# distance in pixels of any gaze sample of the run from the target's edge
+# (0 to 8191, the deepest point of a 16384-pixel target; below 0, a sample
+# fell outside); over, how long the run lasted past the dwell time in ms
+# (0 to a day; below 0, not long enough yet); and the dwell time itself,
+# 200 to 5000 ms. dwell.kron reads any margin at or above 0 as met, so a
+# margin past its range (no measurement) is held.
+eve pivot
+edge_px = 0 .. 8191
+over_ms = 0 .. 86400000
+dwell_ms = 200 .. 5000
+
+dwell_run {
+  edge: edge_px
+  over: over_ms
+  dwell: dwell_ms
+}

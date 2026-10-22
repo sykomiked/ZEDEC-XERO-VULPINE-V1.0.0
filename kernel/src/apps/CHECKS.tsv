@@ -982,6 +982,16 @@ pinhole	check furrow.range_total pos=4,4 lo=9,9 hi=9,9 cell=5,6 = 0
 pinhole	check furrow.range_total pos=1,1,1 lo=1,1,1 hi=1,1,1 cell=9223372036854775807,1,-1 = both
 pinhole	check gatehouse.use_ok asked=1,1,1,1 granted=1,0,1,0 revoked=0,0,1,1 = true,false,false,false
 pinhole	check gatehouse.use_ok asked=1,1 granted=1,2 revoked=0,0 = both
+pivot	check dwell_select edge=0,8191,-1,0,0,5 over=0,86400000,0,-1,0,5 dwell=200,5000,1000,1000,199,5001 = true,true,false,false,false,false
+pivot	check dwell_select edge=0,8192 over=0,0 dwell=1000,1000 = both
+pivot	check dwell_select edge=3,3 over=0,86400001 dwell=1000,1000 = both
+pivot	check control_limits_ok dwell=200,5000,199,5001,1000,1000,1000,1000,1000,1000 step=300,10000,1000,1000,299,10001,1000,1000,1000,1000 side=44,16384,44,44,44,44,43,16385,44,44 switches=1,2,1,1,1,1,1,1,0,3 order=0,1,0,0,0,0,0,0,0,2 = true,true,false,false,false,false,false,false,false,false
+pivot	check control_profile_ok profile=99,1,-99,100,1 switches=9,1,-9,1,1 dwell=9999,1000,-9999,1000,1000 step=99999,1000,-99999,1000,1000 order=9,0,-9,0,0 side=99999,44,-99999,44,100000 = true,true,true,false,false
+pivot	check dwell_fires held=0,0,1,1,2,9 confirm=0,1,0,1,1,1 = true,true,false,true,false,false
+pivot	check dwell_fires held=1,1 confirm=1,2 = both
+pivot	check dwell_fires held=0,-1 confirm=0,0 = both
+pivot	check scan_item elapsed=0,999,1000,5999,6000,999999999,299,300,640000 step=1000,1000,1000,1000,1000,1000,300,300,10000 items=6,6,6,6,6,6,1,64,64 = 0,0,1,5,0,3,0,1,0
+pivot	check scan_item elapsed=1000,1000 step=1000,200 items=6,6 = both
 platen	check sheets pages=3,4,1 sides=2,2,1 copies=1,3,1 = 2,6,1
 platen	check sheets pages=1 sides=1 copies=10000 = both
 platen	check copies_ok copies=0,1,99,100 most=99,99,99,99 = false,true,true,false

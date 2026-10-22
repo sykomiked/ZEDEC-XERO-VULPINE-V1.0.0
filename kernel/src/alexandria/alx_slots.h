@@ -508,7 +508,12 @@
 #define ALX_SLOT_LOGIC_NUTSHELL_FLASH_REVIEW_OK  500u /* 492.43 nutshell.flash_review_ok */
 #define ALX_SLOT_NUM_NUTSHELL_LEITNER_DUE_DAY    501u /* 592.51 nutshell.leitner_due_day */
 #define ALX_SLOT_NUM_NUTSHELL_LEITNER_NEXT_BOX   502u /* 592.52 nutshell.leitner_next_box */
-#define ALX_SLOT__COUNT 502u
+#define ALX_SLOT_LOGIC_PIVOT_CONTROL_LIMITS_OK   503u /* 492.44 pivot.control_limits_ok */
+#define ALX_SLOT_LOGIC_PIVOT_CONTROL_PROFILE_OK  504u /* 492.45 pivot.control_profile_ok */
+#define ALX_SLOT_LOGIC_PIVOT_DWELL_FIRES         505u /* 492.46 pivot.dwell_fires */
+#define ALX_SLOT_LOGIC_PIVOT_DWELL_SELECT        506u /* 492.47 pivot.dwell_select */
+#define ALX_SLOT_NUM_PIVOT_SCAN_ITEM             507u /* 592.53 pivot.scan_item */
+#define ALX_SLOT__COUNT 507u
 /* clang-format on */
 
 #endif

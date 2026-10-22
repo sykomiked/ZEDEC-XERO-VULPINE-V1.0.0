@@ -537,3 +537,8 @@
 500	logic.nutshell_flash_review_ok	492.43	nutshell.flash_review_ok	base
 501	num.nutshell_leitner_due_day	592.51	nutshell.leitner_due_day	base
 502	num.nutshell_leitner_next_box	592.52	nutshell.leitner_next_box	base
+503	logic.pivot_control_limits_ok	492.44	pivot.control_limits_ok	base
+504	logic.pivot_control_profile_ok	492.45	pivot.control_profile_ok	base
+505	logic.pivot_dwell_fires	492.46	pivot.dwell_fires	base
+506	logic.pivot_dwell_select	492.47	pivot.dwell_select	base
+507	num.pivot_scan_item	592.53	pivot.scan_item	base

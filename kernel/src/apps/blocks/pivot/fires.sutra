@@ -1,0 +1,13 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether a select fires its action (pivot_rules.h PV4), in Sutra. A plain
+# action (held 0) fires on its select. A held action (held 1: pay, grant,
+# trash) fires only when a second select on the confirm target followed
+# (confirm 1); its first select never fires it. Both are one-digit flags:
+# 2 to 9 is no flag and never yes, and a negative does not fit: refused.
+record dwell-fires
+  held: 9
+  confirm: 9
+procedure
+  answer held = 0 or held = 1 and confirm = 1

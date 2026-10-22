@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Pivot files a control profile in MYRA (pivot_rules.h PV3): its
+; number, how many switches, the dwell time and scan step in ms, the scan
+; order and the smallest target side in pixels. limits.eve says what the
+; values may mean; this says whether they make a record.
+^ZXPIVOT(profile:i2) = switches:i1! ^ dwell:i4! ^ step:i5! ^ order:i1! ^ side:i5!

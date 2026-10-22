@@ -1,0 +1,99 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pivot, switch and eye control: layer 136 of the matrix. The machine is
+# driven with one or two switches (scanning) or with the eyes (dwell to
+# click). Each entry is a general rule a later layer can call:
+#
+#   dwell_select       a target is selected by the eyes when every gaze
+#                      sample of the run lies inside it and the run lasted
+#                      at least the dwell time (PV1). The task asks for Eve
+#                      and KRON witnessed; Eve checks each field against its
+#                      own range only, so the rule comes as margins the
+#                      model measures over the samples (pivot_model.c): the
+#                      least distance of any sample from the target's edge,
+#                      and how long the run lasted past the dwell. KRON reads
+#                      any margin at or above 0 as met, Eve also holds each
+#                      margin inside its range: a margin past it is held.
+#   control_limits_ok  the limits (PV2) in Eve: dwell 200..5000 ms, scan step
+#                      300..10000 ms, the smallest target 44..16384 px, and
+#                      beside them one or two switches and the scan order.
+#   control_profile_ok a profile's record, ^ZXPIVOT, in MYRA (PV3).
+#   dwell_fires        whether a select fires its action (PV4): a dwell
+#                      never confirms a held action (pay, grant, trash),
+#                      which needs a second select on a confirm target. It
+#                      relates two fields ("held 0, or held 1 and confirm
+#                      1"), which Eve cannot say, so Sutra and KRON witness
+#                      it (as Stillwater's let_through is): a confirm of 2
+#                      is no flag to Sutra and a yes to KRON: held.
+#   scan_item          the item a scan lights at a moment (PV5): floor(
+#                      elapsed / step) mod items, in KRON and Rust (wasm).
+#                      Rust refuses a step or count outside the limits, KRON
+#                      divides any: held. Two switches step by hand, the
+#                      same rule at k * step after k presses.
+#
+# Used, never written again (CONCEPTS.tsv):
+#   pinhole.camera_ready    the eyes are tracked only while the camera is
+#                           ready: a sensor, the mode supported and the
+#                           frame fitting the buffer (Eve and KRON).
+#   hollow.tile_cols, hollow.tile_rows
+#                           a row then column scan lays its items out in
+#                           Hollow's near-square grid (KRON and C++ wasm).
+#
+# Kept in C, since no runnable language owns it: measuring the margins
+# over a run of samples (a reduction over a ring), and which target the
+# eyes are on. zxvd has no input-device, switch, gaze or camera-frame
+# method (api/zxvd.openrpc.json lists none), so the view hands the model
+# each switch press and gaze sample with what the camera reported; the
+# model reads zxvd's clock (sys.info time_ms) to start a scan and time a
+# press. The profile is held in the model, set only on the owner's word:
+# zxvd has no method that keeps it. Nothing is invented.
+#
+# Planned languages: Mojo owns numeric kernels and stands for the scan's
+# arithmetic (scan_item). R owns statistics and OCaml typed transforms and
+# parsing; Pivot has no entry of either kind, so neither is pending.
+zxapp 1
+id     pivot
+name   Pivot
+version 1.0.0
+slot   136
+layer  L1
+matrix 136
+icon   icons/l1/136-pivot.svg
+budget 233
+needs  camera
+needs  sys.read
+model  apps/pivot_model.c
+use    pinhole 1    # @logic.pinhole_camera_ready
+use    hollow 1     # @num.hollow_tile_cols @num.hollow_tile_rows
+
+provides dwell_select truth edge over dwell
+logic    eve  dwell_select apps/blocks/pivot/dwell.eve
+logic    kron dwell_select apps/blocks/pivot/dwell.kron
+
+provides control_limits_ok truth dwell step side switches order
+logic    eve control_limits_ok apps/blocks/pivot/limits.eve
+
+provides control_profile_ok truth profile switches dwell step order side
+logic    myra control_profile_ok apps/blocks/pivot/profile.myra
+
+provides dwell_fires truth held confirm
+logic    sutra dwell_fires apps/blocks/pivot/fires.sutra
+logic    kron  dwell_fires apps/blocks/pivot/fires.kron
+
+provides scan_item num elapsed step items
+logic    kron scan_item apps/blocks/pivot/scan.kron
+logic    wasm scan_item apps/blocks/pivot/scan.wasm
+pending  Mojo scan_item
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check dwell_select edge=0,8191,-1,0,0,5 over=0,86400000,0,-1,0,5 dwell=200,5000,1000,1000,199,5001 = true,true,false,false,false,false
+check dwell_select edge=0,8192 over=0,0 dwell=1000,1000 = both
+check dwell_select edge=3,3 over=0,86400001 dwell=1000,1000 = both
+check control_limits_ok dwell=200,5000,199,5001,1000,1000,1000,1000,1000,1000 step=300,10000,1000,1000,299,10001,1000,1000,1000,1000 side=44,16384,44,44,44,44,43,16385,44,44 switches=1,2,1,1,1,1,1,1,0,3 order=0,1,0,0,0,0,0,0,0,2 = true,true,false,false,false,false,false,false,false,false
+check control_profile_ok profile=99,1,-99,100,1 switches=9,1,-9,1,1 dwell=9999,1000,-9999,1000,1000 step=99999,1000,-99999,1000,1000 order=9,0,-9,0,0 side=99999,44,-99999,44,100000 = true,true,true,false,false
+check dwell_fires held=0,0,1,1,2,9 confirm=0,1,0,1,1,1 = true,true,false,true,false,false
+check dwell_fires held=1,1 confirm=1,2 = both
+check dwell_fires held=0,-1 confirm=0,0 = both
+check scan_item elapsed=0,999,1000,5999,6000,999999999,299,300,640000 step=1000,1000,1000,1000,1000,1000,300,300,10000 items=6,6,6,6,6,6,1,64,64 = 0,0,1,5,0,3,0,1,0
+check scan_item elapsed=1000,1000 step=1000,200 items=6,6 = both
