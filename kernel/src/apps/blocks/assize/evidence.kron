@@ -1,0 +1,3 @@
+s:+/1-1&abs ((4*claim)+says)-\:(4*claim)+1
+c:+/1-1&abs ((4*claim)+says)-\:(4*claim)+2
+(1&s)+2*1&c

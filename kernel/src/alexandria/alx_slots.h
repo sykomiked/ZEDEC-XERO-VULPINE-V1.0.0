@@ -474,7 +474,12 @@
 #define ALX_SLOT_NUM_GLIMPSE_CAPTURE_ORIGIN      466u /* 592.30 glimpse.capture_origin */
 #define ALX_SLOT_NUM_GLIMPSE_FIRST_FREE_N        467u /* 592.31 glimpse.first_free_n */
 #define ALX_SLOT_NUM_GLIMPSE_RECORDING_BYTES     468u /* 592.32 glimpse.recording_bytes */
-#define ALX_SLOT__COUNT 468u
+#define ALX_SLOT_NUM_ASSIZE_CLAIM_EVIDENCE_STATE 469u /* 592.33 assize.claim_evidence_state */
+#define ALX_SLOT_LOGIC_ASSIZE_DISPUTE_NODE_OK    470u /* 492.30 assize.dispute_node_ok */
+#define ALX_SLOT_NUM_ASSIZE_DOCKET_NUMBER        471u /* 592.34 assize.docket_number */
+#define ALX_SLOT_LOGIC_ASSIZE_FILING_ACCEPTED    472u /* 492.31 assize.filing_accepted */
+#define ALX_SLOT_NUM_ASSIZE_RESPONSE_DAYS_LEFT   473u /* 592.35 assize.response_days_left */
+#define ALX_SLOT__COUNT 473u
 /* clang-format on */
 
 #endif

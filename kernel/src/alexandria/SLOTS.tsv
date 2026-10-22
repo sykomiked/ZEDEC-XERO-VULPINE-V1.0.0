@@ -503,3 +503,8 @@
 466	num.glimpse_capture_origin	592.30	glimpse.capture_origin	base
 467	num.glimpse_first_free_n	592.31	glimpse.first_free_n	base
 468	num.glimpse_recording_bytes	592.32	glimpse.recording_bytes	base
+469	num.assize_claim_evidence_state	592.33	assize.claim_evidence_state	base
+470	logic.assize_dispute_node_ok	492.30	assize.dispute_node_ok	base
+471	num.assize_docket_number	592.34	assize.docket_number	base
+472	logic.assize_filing_accepted	492.31	assize.filing_accepted	base
+473	num.assize_response_days_left	592.35	assize.response_days_left	base

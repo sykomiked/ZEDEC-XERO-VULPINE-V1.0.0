@@ -1,0 +1,22 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Is a filing accepted onto the case's docket (assize_rules.h AR1), in
+# Eve: made by a party to the case (party 1), inside the deadline (left,
+# response_days_left, 0..9999 days: 0 is the last day, and no tribunal
+# sets a deadline more than 9999 days out) and within the procedural
+# limits (1..250 pages, 0..99 exhibits). Each is held to its own range;
+# accept.kron compares the same four. The tribunal still decides the
+# case: this only says whether the paper may be lodged.
+eve assize
+case_party = 1 .. 1
+days_to_deadline = 0 .. 9999
+filing_pages = 1 .. 250
+filing_exhibits = 0 .. 99
+
+case_filing {
+  party: case_party
+  left: days_to_deadline
+  pages: filing_pages
+  exhibits: filing_exhibits
+}

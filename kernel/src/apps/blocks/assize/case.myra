@@ -1,0 +1,10 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Assize files a line in its case tree, in MYRA (assize_rules.h AR5):
+; the case, then the line's place on its docket, holding the line's kind
+; (1 opened, 2 filing, 3 evidence, 4 hearing, 5 ruling, 6 annotation), the
+; party that lodged it, the day it was filed (days since 1970) and the
+; claim it bears on. The model asks whether the numbers fit before it
+; writes the case file.
+^ZXASSIZE(caseno:i6, seq:i4) = kind:i1! ^ party:i2! ^ filed:i6! ^ claim:i4!

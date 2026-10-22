@@ -40,6 +40,33 @@ assay	check pce_prob.verdict m=3,1,0,0 th=1,2,1,4 = true
 assay	check pce_prob.verdict m=1,3,0,0 th=1,2,1,4 = false
 assay	check pce_prob.verdict m=0,0,0,0 th=1,2,1,4 = neither
 assay	check pce_prob.join a=1,0,0,0 b=0,1,0,0 = 0,0,1,0
+assize	check filing_accepted party=1,1,1,0,2,1,1,1,1,1 left=0,9999,-1,5,5,5,5,5,5,5 pages=1,250,1,1,1,0,251,1,1,1 exhibits=0,99,0,0,0,0,0,-1,100,3 = true,true,false,false,false,false,false,false,false,true
+assize	check filing_accepted party=1,1 left=5,10000 pages=1,1 exhibits=0,0 = both
+assize	check response_days_left deadline=20030,20000,0,999999,20000 today=20000,20030,0,0,20000 = 30,-30,0,999999,0
+assize	check response_days_left deadline=20030,1000000 today=20000,0 = both
+assize	check response_days_left deadline=20030,20030 today=20000,-1 = both
+assize	check docket_number caseno=1 seq=1 = 10001
+assize	check docket_number caseno=999999 seq=9999 = 9999999999
+assize	check docket_number caseno=178 seq=42 = 1780042
+assize	check docket_number caseno=178 seq=0 = both
+assize	check claim_evidence_state claim=1,1,2,1,3,2,4 says=1,2,1,0,0,2,0 = 3,3,3,3,0,3,0
+assize	check claim_evidence_state claim=7,7,9,9999 says=1,1,2,0 = 1,1,2,0
+assize	check dispute_node_ok caseno=1,999999,1000000,1,1,1,1 seq=1,9999,1,10000,1,1,1 kind=1,6,1,1,10,1,1 party=1,99,1,1,1,100,1 filed=20000,999999,1,1,1,1,1 claim=0,9999,0,0,0,0,10000 = true,true,false,false,false,false,false
+assize	check witness.audit_ok seq=1,1000000000000000000 prev=0,0 kind=1,1 stamp=1700000000000,0 = true,false
+assize	check witness.chain_ok seq=1,2,3,3 prev=0,1,2,1 last=0,1,2,2 = true,true,true,false
+assize	check witness.chain_ok seq=2,-1 prev=1,1 last=1,1 = both
+assize	check witness.kind_count kind=3,3,1,0,3 want=3 = 3
+assize	check witness.kind_count kind=1,2 want=1,1 = both
+assize	check broadsheet.well_formed header=1,1,0,1 off=0,268435455,0,5000 room=1,1,5000,0 = true,true,false,false
+assize	check broadsheet.well_formed header=1,2 off=0,0 room=10,10 = both
+assize	check broadsheet.note_ok note=1,9999,10000,1,1,1 page=1,999999,1,1000000,1,1 x=0,99999,0,0,100000,0 y=0,99999,0,0,0,0 kind=1,3,1,1,1,2 stamp=0,999999999999999,0,0,0,1700000000000 = true,true,false,false,false,true
+assize	check broadsheet.note_ok note=1,1 page=1,1 x=0,0 y=0,0 kind=1,4 stamp=0,0 = both
+assize	check sealwax.sign_ready fields=1,32,33,0,5 missing=0,0,0,0,1 outside=0,0,0,0,0 = true,true,false,false,false
+assize	check sealwax.sign_ready fields=5,5 missing=0,-1 outside=0,0 = both
+assize	check sealwax.field_record_ok form=1,999999999,1000000000,1,1,1 field=1,99,1,100,1,1 kind=1,3,2,1,10,2 required=1,0,1,0,1,1 lo=0,-999999999999999,0,0,0,0 hi=120,999999999999999,1,1,1,1000000000000000 len=0,999,1,1,1,1 = true,true,false,false,false,false
+assize	check twelvefold.lp_entail_kept premise=3,3,1,1,2 conclusion=1,2,1,2,2 = true,false,true,false,true
+assize	check twelvefold.lp_entail_kept premise=1,4 conclusion=1,1 = both
+assize	check tallystick.next_doc_number last=0,1,41,9998 = 1,2,42,9999
 banker	check share size=0,5,10 total=10 = 0,5000,10000
 banker	check share size=11 total=10 = both
 banker	check total size=1,2,3 = 6

@@ -1,0 +1,1 @@
+(party=1)&(left>-1)&(pages>0)&(pages<251)&(exhibits>-1)&exhibits<100

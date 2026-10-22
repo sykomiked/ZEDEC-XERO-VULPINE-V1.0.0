@@ -1,0 +1,144 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Assize, dispute cases: L2, slot 178. It runs a case's docket: the case
+# opened between two parties with a deadline to respond, filings and
+# evidence lodged by the parties, hearings set, annotations on the
+# evidence and the arbiter's rulings recorded, each case one file in the
+# Hoard (files.read, files.write, files.mkdir; files.stat for a lodged
+# document's size), every line stamped with the journal's newest seq
+# (journal.query) and the trail proven against it (journal.verify). See
+# assize_model.h AM1-AM8 and assize_rules.h AR1-AR6.
+#
+# Rulings are the arbiter's, a person's: Assize never decides a case. It
+# records the ruling the owner enters on the arbiter's word, and says,
+# as advice only, whether the finding follows from the evidence. Every
+# change to a case (opened, a filing, a hearing, an annotation, a ruling)
+# takes the owner's confirmed word. zxvd has no notification method, so
+# the model composes the notice's text (notify).
+#
+# Composed, not written again (five uses of ZXAPP_USES 8; its own 8 logic
+# lines and its parts' are inside ZXAPP_LOGIC_MAX 128, the test counts
+# them): each docket line is witness.audit_ok as a record and the docket
+# is linked by witness.chain_ok; lines are counted by kind, and claims by
+# their four values (the assignments per value), with witness.kind_count;
+# a lodged PDF is broadsheet.well_formed and an annotation on evidence is
+# broadsheet.note_ok; a form (opening a case, a filing) is
+# sealwax.sign_ready and its field definitions sealwax.field_record_ok;
+# whether the arbiter's finding follows from a claim's state is
+# twelvefold.lp_entail_kept. The next seq on a case's docket, never
+# reused, is tallystick.next_doc_number (Tallystick owns the next number
+# of a document sequence), so Tallystick is used too, as Silt does.
+#
+# The task's slot 178 is no matrix layer (zxapp.c M1: 0..144); an L2 app
+# sits on the layer of its L1 part that is outermost in MATRIX_ORDER.tsv:
+# Sealwax (place 76, layer 47), past Broadsheet (71), Tallystick (47),
+# Twelvefold (34) and Witness (16).
+#
+# Nine later apps lean on this one, so each new entry is general and
+# registered in CONCEPTS.tsv with Assize as owner. The procedural limits
+# (250 pages, 99 exhibits a filing, a deadline at most 9999 days out) are
+# Assize's defaults; the task names none. Kept in C: text (paths, the
+# case file's lines), zxvd's answers, and the four-valued join of where
+# two witnesses place one event (lpres_kjoin, AR6), the same state the
+# evidence matrix gives.
+#
+# Planned (no runtime yet): Prolog owns rules, so it waits on
+# filing_accepted; ML owns types and proofs, so it waits on docket_number.
+zxapp 1
+id     assize
+name   Assize
+version 1.0.0
+slot   178
+layer  L2
+matrix 47
+icon   icons/l2/178-assize.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  journal
+needs  notify
+model  apps/assize_model.c
+use    witness 1      # @logic.witness_chain_ok @logic.witness_audit_ok @num.witness_kind_count
+use    broadsheet 1   # @logic.broadsheet_well_formed @logic.broadsheet_note_ok
+use    sealwax 1      # @logic.sealwax_sign_ready @logic.sealwax_field_record_ok
+use    twelvefold 1   # @logic.twelvefold_lp_entail_kept
+use    tallystick 1   # @num.tallystick_next_doc_number
+# what it exports, so apps built from it can use them too (C1)
+provides witness.chain_ok truth seq prev last
+provides witness.audit_ok truth seq prev kind stamp
+provides witness.kind_count num kind want
+provides broadsheet.well_formed truth header off room
+provides broadsheet.note_ok truth note page x y kind stamp
+provides sealwax.sign_ready truth fields missing outside
+provides sealwax.field_record_ok truth form field kind required lo hi len
+provides twelvefold.lp_entail_kept truth premise conclusion
+provides tallystick.next_doc_number num last
+
+# Is a filing accepted (AR1, critical): by a party to the case AND inside
+# the deadline AND within the procedural limits. Ada as Eve holds each
+# field to its range, APL as KRON compares; a left past 9999 days is held
+# (Eve refuses it, KRON reads only left >= 0).
+provides filing_accepted truth party left pages exhibits
+logic    eve  filing_accepted apps/blocks/assize/accept.eve
+logic    kron filing_accepted apps/blocks/assize/accept.kron
+pending  Prolog filing_accepted
+
+# Days left to respond (AR2, critical): deadline day minus today. FORTRAN
+# as Trebago, APL as KRON; a day outside 0..999999 is held (Trebago
+# refuses, KRON answers).
+provides response_days_left num deadline today
+logic    trebago response_days_left apps/blocks/assize/respond.tb
+logic    kron    response_days_left apps/blocks/assize/respond.kron
+
+# The case docket (AR3): caseno * 10000 + seq, never reused. COBOL as
+# Sutra, and a proof of its domain in ALGOL 60; case 0 or filing 0 fits
+# Sutra's pictures but names nothing: held.
+provides docket_number num caseno seq
+logic    sutra   docket_number apps/blocks/assize/docket.sutra
+# ALGOL 60, twin Rootwyrm
+logic    algol60 docket_number apps/blocks/assize/docket.alg
+pending  ML docket_number
+
+# The evidence matrix (AR4): evidence by claim, four values. APL as KRON.
+provides claim_evidence_state num claim says
+logic    kron claim_evidence_state apps/blocks/assize/evidence.kron
+
+# The case tree (AR5): ^ZXASSIZE(caseno, seq) = kind ^ party ^ filed ^
+# claim. MUMPS as MYRA.
+provides dispute_node_ok truth caseno seq kind party filed claim
+logic    myra dispute_node_ok apps/blocks/assize/case.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check filing_accepted party=1,1,1,0,2,1,1,1,1,1 left=0,9999,-1,5,5,5,5,5,5,5 pages=1,250,1,1,1,0,251,1,1,1 exhibits=0,99,0,0,0,0,0,-1,100,3 = true,true,false,false,false,false,false,false,false,true
+check filing_accepted party=1,1 left=5,10000 pages=1,1 exhibits=0,0 = both
+check response_days_left deadline=20030,20000,0,999999,20000 today=20000,20030,0,0,20000 = 30,-30,0,999999,0
+check response_days_left deadline=20030,1000000 today=20000,0 = both
+check response_days_left deadline=20030,20030 today=20000,-1 = both
+check docket_number caseno=1 seq=1 = 10001
+check docket_number caseno=999999 seq=9999 = 9999999999
+check docket_number caseno=178 seq=42 = 1780042
+check docket_number caseno=178 seq=0 = both
+check claim_evidence_state claim=1,1,2,1,3,2,4 says=1,2,1,0,0,2,0 = 3,3,3,3,0,3,0
+check claim_evidence_state claim=7,7,9,9999 says=1,1,2,0 = 1,1,2,0
+check dispute_node_ok caseno=1,999999,1000000,1,1,1,1 seq=1,9999,1,10000,1,1,1 kind=1,6,1,1,10,1,1 party=1,99,1,1,1,100,1 filed=20000,999999,1,1,1,1,1 claim=0,9999,0,0,0,0,10000 = true,true,false,false,false,false,false
+# A docket line as a record, and the docket's chain
+check witness.audit_ok seq=1,1000000000000000000 prev=0,0 kind=1,1 stamp=1700000000000,0 = true,false
+check witness.chain_ok seq=1,2,3,3 prev=0,1,2,1 last=0,1,2,2 = true,true,true,false
+check witness.chain_ok seq=2,-1 prev=1,1 last=1,1 = both
+# Lines by kind, and claims by their four values
+check witness.kind_count kind=3,3,1,0,3 want=3 = 3
+check witness.kind_count kind=1,2 want=1,1 = both
+# A lodged PDF, and an annotation on a page of evidence
+check broadsheet.well_formed header=1,1,0,1 off=0,268435455,0,5000 room=1,1,5000,0 = true,true,false,false
+check broadsheet.well_formed header=1,2 off=0,0 room=10,10 = both
+check broadsheet.note_ok note=1,9999,10000,1,1,1 page=1,999999,1,1000000,1,1 x=0,99999,0,0,100000,0 y=0,99999,0,0,0,0 kind=1,3,1,1,1,2 stamp=0,999999999999999,0,0,0,1700000000000 = true,true,false,false,false,true
+check broadsheet.note_ok note=1,1 page=1,1 x=0,0 y=0,0 kind=1,4 stamp=0,0 = both
+# A form ready to sign, and its field definitions
+check sealwax.sign_ready fields=1,32,33,0,5 missing=0,0,0,0,1 outside=0,0,0,0,0 = true,true,false,false,false
+check sealwax.sign_ready fields=5,5 missing=0,-1 outside=0,0 = both
+check sealwax.field_record_ok form=1,999999999,1000000000,1,1,1 field=1,99,1,100,1,1 kind=1,3,2,1,10,2 required=1,0,1,0,1,1 lo=0,-999999999999999,0,0,0,0 hi=120,999999999999999,1,1,1,1000000000000000 len=0,999,1,1,1,1 = true,true,false,false,false,false
+# Whether a finding follows from a claim's state, and the docket's next seq
+check twelvefold.lp_entail_kept premise=3,3,1,1,2 conclusion=1,2,1,2,2 = true,false,true,false,true
+check twelvefold.lp_entail_kept premise=1,4 conclusion=1,1 = both
+check tallystick.next_doc_number last=0,1,41,9998 = 1,2,42,9999

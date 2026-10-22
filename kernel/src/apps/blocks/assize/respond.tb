@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Days left to respond (assize_rules.h AR2), in Trebago: the deadline
+! day less today, both days since 1970; below 0 the deadline has passed,
+! never clamped. For integers min(1, max(0, m + 1)) is 1 exactly when
+! m >= 0, so ok is 1 when both days are 0..999999, else 0, and the answer
+! is divided by it: a day outside is a division by zero, refused, where
+! respond.kron answers: held.
+trebago respond
+  in  deadline(n), today(n)
+  out left(n)
+  var ok(n)
+  ok(i) = min(1, max(0, deadline(i) + 1)) * min(1, max(0, 999999 - deadline(i) + 1)) &
+        * min(1, max(0, today(i) + 1)) * min(1, max(0, 999999 - today(i) + 1))
+  left(i) = (deadline(i) - today(i)) / ok(i)
+end

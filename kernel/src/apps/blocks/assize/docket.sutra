@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A filing's docket number (assize_rules.h AR3), in Sutra: a docket line
+# is a fixed business record, the case number in 9(6) and the filing's
+# place on that case's docket in 9(4), and its number is
+# caseno * 10000 + seq in 9(10). A negative value, or one with more digits
+# (a case past 9999 filings), is a size error: refused, never wrapped.
+record docket-line
+  caseno: 9(6)
+  seq: 9(4)
+  docket: 9(10)
+procedure
+  compute docket = caseno * 10000 + seq
+  answer docket
