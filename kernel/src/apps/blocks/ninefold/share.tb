@@ -1,0 +1,18 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! One form's share of the priced whole, in hundredths of a percent, in
+! Trebago (ninefold_model.h NF3). Trebago is exact and has no floor, so
+! the floor is counted, as talisman's reach.tb does: of the steps k = 1 to
+! 10000, those with k * whole <= 10000 * held, each counted as
+! min(1, max(0, 10000 * held - k * whole + 1)). That is
+! floor(10000 * held / whole) for 0 <= held <= whole and whole above 0.
+! A state-reserved form (4 .. 7) is multiplied by 0: never priced. Where
+! Sutra refuses (a whole of 0, held past whole, a form past 8) Trebago
+! still answers: held.
+trebago share
+  in  form(n), held(n), whole(n)
+  out share(n)
+  share(i) = (1 - min(1, max(0, form(i) - 3)) * min(1, max(0, 8 - form(i)))) &
+           * sum(k = 1:10000, min(1, max(0, 10000 * held(i) - k * whole(i) + 1)))
+end

@@ -1,0 +1,14 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! What one form of capital shows as held, in minor units, in Trebago
+! (ninefold_model.h NF2): minor for a priceable form, 0 for a
+! state-reserved one (4 .. 7). For integers min(1, max(0, form - 3)) *
+! min(1, max(0, 8 - form)) is 1 exactly when 4 <= form <= 7. Trebago is
+! exact and answers any form and any sum that fits 64 bits, where Sutra
+! refuses a form past 8, a negative, or a sum past 18 digits: held.
+trebago holding
+  in  form(n), minor(n)
+  out holding(n)
+  holding(i) = minor(i) * (1 - min(1, max(0, form(i) - 3)) * min(1, max(0, 8 - form(i))))
+end

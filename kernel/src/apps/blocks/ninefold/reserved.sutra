@@ -1,0 +1,13 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A state-reserved form of capital, as a truth, in Sutra
+# (ninefold_model.h NF1): 4 <= form <= 7. form fits 9(1) and form + 1 must
+# too, so a negative form, or one past 8, is not one of the nine and is
+# refused, where Eve answers FALSE: held.
+record reserved-form
+  form: 9(1)
+  edge: 9(1)
+procedure
+  compute edge = form + 1
+  answer form >= 4 and form <= 7

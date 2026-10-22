@@ -202,7 +202,11 @@
 #define ALX_SLOT_NUM_BROADSHEET_FORM_FAULT       194u /* 590.93 broadsheet.form_fault */
 #define ALX_SLOT_LOGIC_BROADSHEET_NOTE_OK        195u /* 490.91 broadsheet.note_ok */
 #define ALX_SLOT_LOGIC_BROADSHEET_WELL_FORMED    196u /* 490.92 broadsheet.well_formed */
-#define ALX_SLOT__COUNT 196u
+#define ALX_SLOT_NUM_NINEFOLD_FORM_HOLDING       197u /* 590.94 ninefold.form_holding */
+#define ALX_SLOT_NUM_NINEFOLD_FORM_SHARE_X100    198u /* 590.95 ninefold.form_share_x100 */
+#define ALX_SLOT_LOGIC_NINEFOLD_STATE_RESERVED   199u /* 490.93 ninefold.state_reserved */
+#define ALX_SLOT_NUM_NINEFOLD_STATE_RESERVED_N   200u /* 590.96 ninefold.state_reserved_n */
+#define ALX_SLOT__COUNT 200u
 /* clang-format on */
 
 #endif

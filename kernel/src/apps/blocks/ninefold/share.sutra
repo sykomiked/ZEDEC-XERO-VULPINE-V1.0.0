@@ -1,0 +1,25 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One form's share of the priced whole, in hundredths of a percent, never
+# rounded up, in Sutra (ninefold_model.h NF3): floor(10000 * held / whole)
+# for a priceable form, 0 for a state-reserved one (4 .. 7), which is
+# never part of a priced whole. held and whole fit 9(14); held more than
+# whole leaves a negative spare, a size error; a whole of 0 is a division
+# Sutra refuses; a form past 8 does not fit edge. share.tb says the same
+# in Trebago, which answers where Sutra refuses: held.
+record form-share
+  form: 9(1)
+  held: 9(14)
+  whole: 9(14)
+  edge: 9(1)
+  spare: 9(14)
+  share: 9(5)
+procedure
+  compute edge = form + 1
+  compute spare = whole - held
+  compute share = held * 10000 / whole
+  if form >= 4 and form <= 7
+    answer 0
+  end-if
+  answer share

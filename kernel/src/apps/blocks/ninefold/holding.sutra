@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What one form of capital shows as held, in minor units, in Sutra
+# (ninefold_model.h NF2): the form's holder balances summed (minor) when
+# the form is priceable (0 .. 3 and 8), and 0 for a state-reserved form
+# (4 .. 7: social, natural, cultural, spiritual), which is never priced.
+# form fits 9(1) and form + 1 must too, so a form past 8 is a size error,
+# refused; minor fits 9(18), so a negative or a sum past 18 digits is
+# refused. holding.tb says the same in Trebago, which answers both.
+record form-holding
+  form: 9(1)
+  minor: 9(18)
+  edge: 9(1)
+procedure
+  compute edge = form + 1
+  if form >= 4 and form <= 7
+    answer 0
+  end-if
+  answer minor

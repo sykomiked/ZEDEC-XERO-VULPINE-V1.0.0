@@ -1,0 +1,93 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Ninefold, the nine forms of capital: what the owner holds in each of the
+# nine forms (finance/capital_forms.h, zcapital/zcap_forms.h), read from
+# the owner's books (ledger.accounts and ledger.balance, through Coffer's
+# coffer_load) and the swarm's earnings account (swarm.earnings). Read
+# only: it posts nothing, prices nothing state-reserved, and every figure
+# is advice for the owner. Money is integer minor units, never a float.
+#
+# zxvd has no method that reports holdings by form, and an account has no
+# form field. Default taken (ninefold_model.h NF4), stated, not guessed
+# silently: an account whose name starts with a form's canonical name and
+# a colon ("manufactured: lathe", any case) is in that form; the swarm
+# earnings account (swarm.earnings owner_account) and every other holder
+# account are Financial, since the books hold money. Issuer accounts are
+# an outside party's side of the books and are left out.
+#
+# A foundation of the matrix: 13 later layers lean on this one, so each
+# entry is a general capital-form rule registered in CONCEPTS.tsv with
+# Ninefold as its owner. Coffer (73, built before) owns what one holds in
+# a currency: a form's holding is coffer.holdings over that form's holder
+# balances, never written again. used_share.used_x100 and banker.share
+# know nothing of forms; a state-reserved form's share is 0 here, never
+# a part of the priced whole. Tally (109), Toolchest (126) and Vintner
+# (91, built out of order) come after this layer in the build order and
+# Murmuration's entries are swarm cycles, not capital, so none is used.
+#
+# The task pairs the state-reserved truth in Eve and Trebago. A witnessed
+# pair must answer one kind (zxapp.c run_one B3): Eve answers truths only
+# and Trebago numbers only, so it is split as Talisman's earned and
+# earned_n are: the truth in Eve and Sutra, the number to count with in
+# Trebago and Sutra; both mean 4 <= form <= 7.
+zxapp 1
+id     ninefold
+name   Ninefold
+version 1.0.0
+slot   80
+layer  L1
+matrix 80
+icon   icons/l1/080-ninefold.svg
+budget 233
+needs  ledger.read
+needs  swarm
+model  apps/ninefold_model.c
+
+use    coffer 1   # @num.coffer_holdings
+
+# What a form shows as held, minor units: the form's holder balances
+# summed (coffer.holdings) when it is priceable, 0 when state-reserved.
+# Sutra refuses a form past 8, a negative or a sum past 18 digits, where
+# Trebago answers: held.
+provides form_holding num form minor
+logic    sutra   form_holding apps/blocks/ninefold/holding.sutra
+logic    trebago form_holding apps/blocks/ninefold/holding.tb
+
+# A form's share of the priced whole, x100 (10000 = all of it), floored;
+# 0 for a state-reserved form. Held 0 .. whole, whole 1 .. 14 digits.
+provides form_share_x100 num form held whole
+logic    trebago form_share_x100 apps/blocks/ninefold/share.tb
+logic    sutra   form_share_x100 apps/blocks/ninefold/share.sutra
+
+# A state-reserved form (social, natural, cultural, spiritual): never
+# priced, never a derivative underlying. Eve declares 4 .. 7; Sutra
+# refuses a value that is not one of the nine forms, where Eve says FALSE.
+provides state_reserved truth form
+logic    eve   state_reserved apps/blocks/ninefold/reserved.eve
+logic    sutra state_reserved apps/blocks/ninefold/reserved.sutra
+# Eiffel (contracts) and Solidity (contract rules) own this rule; neither
+# runs yet, so Eve and Sutra stand in.
+pending  Eiffel state_reserved
+pending  Solidity state_reserved
+
+# The same rule as a number to count with: 1 state-reserved, 0 not.
+provides state_reserved_n num form
+logic    trebago state_reserved_n apps/blocks/ninefold/reserved_n.tb
+logic    sutra   state_reserved_n apps/blocks/ninefold/reserved_n.sutra
+
+# PostScript (layout) is planned too; Ninefold draws no page, so no entry
+# fits it and none is invented.
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check form_holding form=0,3,4,7,8 minor=0,250000,999,5,999999999999999999 = 0,250000,0,0,999999999999999999
+check form_holding form=0,9 minor=1,1 = both
+check form_holding form=0,0 minor=1,1000000000000000000 = both
+check form_share_x100 form=0,0,8,4,0,1,2 held=0,1,1,5,3,2,99999999999999 whole=1,3,3,10,3,3,99999999999999 = 0,3333,3333,0,10000,6666,10000
+check form_share_x100 form=0,0 held=1,1 whole=1,0 = both
+check form_share_x100 form=0,0 held=1,4 whole=1,3 = both
+check state_reserved form=0,3,4,5,6,7,8 = false,false,true,true,true,true,false
+check state_reserved form=0,9 = both
+check state_reserved_n form=0,3,4,5,6,7,8 = 0,0,1,1,1,1,0
+check state_reserved_n form=0,-1 = both
+check coffer.holdings balance=100,250,0 = 350

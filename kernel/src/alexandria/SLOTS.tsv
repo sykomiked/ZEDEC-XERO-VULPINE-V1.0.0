@@ -231,3 +231,7 @@
 194	num.broadsheet_form_fault	590.93	broadsheet.form_fault	base
 195	logic.broadsheet_note_ok	490.91	broadsheet.note_ok	base
 196	logic.broadsheet_well_formed	490.92	broadsheet.well_formed	base
+197	num.ninefold_form_holding	590.94	ninefold.form_holding	base
+198	num.ninefold_form_share_x100	590.95	ninefold.form_share_x100	base
+199	logic.ninefold_state_reserved	490.93	ninefold.state_reserved	base
+200	num.ninefold_state_reserved_n	590.96	ninefold.state_reserved_n	base

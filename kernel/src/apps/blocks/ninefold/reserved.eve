@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A state-reserved form of capital (finance/capital_forms.h
+# capital_is_state_reserved, zcap_forms.h zcap_form_is_crown): social 4,
+# natural 5, cultural 6 and spiritual 7, inalienable, never priced and
+# never a derivative underlying. Eve declares the range; any other value
+# is not a state-reserved form.
+eve ninefold
+crown_form = 4 .. 7
+
+state_reserved {
+  form: crown_form
+}

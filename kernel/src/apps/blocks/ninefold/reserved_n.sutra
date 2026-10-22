@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A state-reserved form of capital, as a number to count with, in Sutra
+# (ninefold_model.h NF1): 1 when 4 <= form <= 7, else 0. A negative form,
+# or one past 8, is not one of the nine: refused (edge does not fit 9(1)),
+# where Trebago answers 0: held.
+record reserved-count
+  form: 9(1)
+  edge: 9(1)
+procedure
+  compute edge = form + 1
+  if form >= 4 and form <= 7
+    answer 1
+  end-if
+  answer 0
