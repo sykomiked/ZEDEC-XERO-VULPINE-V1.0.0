@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One callout claim (fell_rules.h FR6), in Sutra, minor units: a crew
+# member's whole hours on the callout at an hourly rate, and the miles
+# driven at a rate a mile, hours * rate + miles * permile. A claim is a
+# record for the owner to check and settle; Fell pays nothing. hours fits
+# 9(3), rate 9(6), miles and permile 9(4), and the claim 9(9): a negative
+# figure, a figure past its picture or a claim past 999999999 does not fit
+# and is refused, never wrapped or rounded.
+record callout-claim
+  hours: 9(3)
+  rate: 9(6)
+  miles: 9(4)
+  permile: 9(4)
+  claim: 9(9)
+procedure
+  compute claim = hours * rate + miles * permile
+  answer claim

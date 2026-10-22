@@ -1,0 +1,31 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Each sector's search priority (fell_rules.h FR1), in Trebago, exact: a
+! suggestion for the incident commander, never an order. poa(i) is the
+! sector's probability of area and cov(i) its searched coverage (the
+! probability the searches so far would have found the subject there),
+! both in hundredths of a percent, 0 .. 10000. The weight left in a
+! sector is w(i) = poa(i) * (10000 - cov(i)); with c(i) the running sum
+! of the weights to sector i and t their total, the sector's priority is
+! floor(10000 * c(i) / t) - floor(10000 * (c(i) - w(i)) / t), so the
+! priorities sum to exactly 10000 and each is within one of its exact
+! share. Trebago has no floor, so each floor is counted: of the steps
+! k = 1 .. 10000, those with k * t <= 10000 * c, each counted as
+! min(1, max(0, 10000 * c - k * t + 1)), 1 or 0 for integers. ok is 0, and
+! the answer divided by it refused, for a poa or cov outside 0 .. 10000
+! or a total weight of 0 (every sector searched through, or none
+! likely); priority.kron divides as it is: held.
+trebago sector_priority
+  in  poa(n), cov(n)
+  out pr(n)
+  var w(n), c(n), ok, t
+  w(i) = poa(i) * (10000 - cov(i))
+  c(i) = scan(w(i))
+  t = sum(j, w(j))
+  ok = min(1, max(0, t)) * (1 - min(1, sum(j, min(1, max(0, 0 - poa(j))) &
+     + min(1, max(0, poa(j) - 10000)) + min(1, max(0, 0 - cov(j))) &
+     + min(1, max(0, cov(j) - 10000)))))
+  pr(i) = (sum(k = 1:10000, min(1, max(0, 10000 * c(i) - k * t + 1))) &
+        - sum(k = 1:10000, min(1, max(0, 10000 * (c(i) - w(i)) - k * t + 1)))) / ok
+end

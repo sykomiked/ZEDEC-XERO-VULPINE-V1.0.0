@@ -607,3 +607,10 @@
 570	logic.forage_claim_fits	492.83	forage.claim_fits	base
 571	num.forage_net_after_fee	592.81	forage.net_after_fee	base
 572	num.forage_rate_rank	592.82	forage.rate_rank	base
+573	num.fell_callout_claim	592.83	fell.callout_claim	base
+574	logic.fell_casualty_record_ok	492.84	fell.casualty_record_ok	base
+575	logic.fell_crew_shift_safe	492.85	fell.crew_shift_safe	base
+576	num.fell_search_grid_sector	592.84	fell.search_grid_sector	base
+577	num.fell_sector_priority	592.85	fell.sector_priority	base
+578	logic.fell_sector_unsearched	492.86	fell.sector_unsearched	base
+579	num.fell_sightings_between	592.86	fell.sightings_between	base

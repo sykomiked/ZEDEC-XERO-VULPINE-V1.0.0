@@ -578,7 +578,14 @@
 #define ALX_SLOT_LOGIC_FORAGE_CLAIM_FITS         570u /* 492.83 forage.claim_fits */
 #define ALX_SLOT_NUM_FORAGE_NET_AFTER_FEE        571u /* 592.81 forage.net_after_fee */
 #define ALX_SLOT_NUM_FORAGE_RATE_RANK            572u /* 592.82 forage.rate_rank */
-#define ALX_SLOT__COUNT 572u
+#define ALX_SLOT_NUM_FELL_CALLOUT_CLAIM          573u /* 592.83 fell.callout_claim */
+#define ALX_SLOT_LOGIC_FELL_CASUALTY_RECORD_OK   574u /* 492.84 fell.casualty_record_ok */
+#define ALX_SLOT_LOGIC_FELL_CREW_SHIFT_SAFE      575u /* 492.85 fell.crew_shift_safe */
+#define ALX_SLOT_NUM_FELL_SEARCH_GRID_SECTOR     576u /* 592.84 fell.search_grid_sector */
+#define ALX_SLOT_NUM_FELL_SECTOR_PRIORITY        577u /* 592.85 fell.sector_priority */
+#define ALX_SLOT_LOGIC_FELL_SECTOR_UNSEARCHED    578u /* 492.86 fell.sector_unsearched */
+#define ALX_SLOT_NUM_FELL_SIGHTINGS_BETWEEN      579u /* 592.86 fell.sightings_between */
+#define ALX_SLOT__COUNT 579u
 /* clang-format on */
 
 #endif

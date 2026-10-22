@@ -1,0 +1,11 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Fell files one casualty of an incident in MYRA (fell_rules.h FR7):
+; a sparse record under the incident and the casualty's number, with the
+; search sector they were found in, their triage category as the team
+; recorded it (1 immediate, 2 delayed, 3 minor, 4 deceased, 0 not yet
+; triaged; Fell infers nothing clinical) and when they were found (ms
+; since 1970). The model asks whether the numbers fit before it keeps
+; the casualty or writes it to the Hoard.
+^ZXFELL(incident:i6, casualty:i3) = sector:i4! ^ triage:i1! ^ stamp:i13!

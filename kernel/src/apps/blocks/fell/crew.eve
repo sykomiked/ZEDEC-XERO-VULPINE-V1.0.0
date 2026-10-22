@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One crew safe (fell_rules.h FR2), in Eve: the crew's shift so far
+# (worked, minutes since it started) is at most 12 hours, 0 .. 720, and
+# its last check-in (since, minutes ago) is at most 60 minutes old,
+# 0 .. 60. A crew that is not safe is overdue, and the overdue is raised
+# for the incident commander, who decides; Fell calls nobody by itself.
+# Eve checks each field against its own range, so the rule is written as
+# the safety it negates. A minute count below 0 is no count (a clock gone
+# back): Eve refuses it, crew.kron reads it as safe, so such a row is held.
+eve fell
+shift_minutes = 0 .. 720
+checkin_minutes = 0 .. 60
+
+crew_safe {
+  worked: shift_minutes
+  since: checkin_minutes
+}

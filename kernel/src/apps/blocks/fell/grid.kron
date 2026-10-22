@@ -1,0 +1,4 @@
+c:_east%cell
+r:_north%cell
+ok:(0|1&1+east)*(0|1&1+north)*(0|1&cell)*0|1&cols-c
+(1+c+cols*r)%ok
