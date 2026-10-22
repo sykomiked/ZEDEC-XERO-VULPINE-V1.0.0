@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A letter's size limits (rookery_rules.h KR2), in Eve, each field against
+# its own range: the subject 0..200 bytes and the body 0..1837 bytes, so
+# that "Subject: " + subject + "\n\n" + body never passes web4.post's 2048.
+eve rookery
+subject_bytes = 0 .. 200
+body_bytes = 0 .. 1837
+
+letter_limits {
+  subject: subject_bytes
+  content: body_bytes
+}

@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# May this letter be sent (rookery_rules.h KR1), in Eve. Eve checks each
+# field against its own range, so each part comes as one count: verified,
+# web4.card_verify's answer for the recipient's card, exactly 1; room,
+# 2048 (web4.post's payload) minus the payload's bytes, 0..2048; and
+# consentgap, the scopes the letter needs (personal data, money) that the
+# owner has not consented to, exactly 0. send.kron says the same in KRON,
+# which reads any verified above 0 as yes: a flag of 2 is held.
+eve rookery
+card_check = 1 .. 1
+payload_room = 0 .. 2048
+consent_gap = 0 .. 0
+
+send_rule {
+  verified: card_check
+  room: payload_room
+  consentgap: consent_gap
+}

@@ -265,3 +265,7 @@
 228	num.pinhole_camera_ready_n	591.06	pinhole.camera_ready_n	base
 229	logic.pinhole_exposure_ok	491.14	pinhole.exposure_ok	base
 230	logic.pinhole_photo_record_ok	491.15	pinhole.photo_record_ok	base
+231	logic.rookery_letter_record_ok	491.16	rookery.letter_record_ok	base
+232	logic.rookery_letter_send_ok	491.17	rookery.letter_send_ok	base
+233	logic.rookery_letter_size_ok	491.18	rookery.letter_size_ok	base
+234	num.rookery_mail_addr_fault	591.07	rookery.mail_addr_fault	base

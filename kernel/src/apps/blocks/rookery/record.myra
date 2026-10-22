@@ -1,0 +1,11 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Rookery indexes one letter by folder and thread in MYRA
+; (rookery_rules.h KR4): its folder (0 inbox, 1 drafts, 2 sent, 3 held for
+; consent, 4 trash), its thread (the feed id of the letter that began it,
+; at most 4294967295, 10 digits), the letter itself (its feed id, or its
+; place in a folder of the Hoard), its size in bytes (4 digits: a payload
+; is at most 2048) and when it was written, in seconds since 1970 (12
+; digits). Rookery asks whether the numbers fit before it keeps them.
+^ZXROOKERY(folder:i1, thread:i10, letter:i10) = size:i4! ^ stamp:i12!

@@ -1,0 +1,12 @@
+fa:(0|1&3-size)|0|1&size-254
+fb:(0|1&1-ats)|0|1&ats-1
+fc:(0|1&1-local)|0|1&local-64
+fd:(0|1&1-domain)|0|1&domain-253
+fe:(0|1&1-shortest)|0|1&longest-63
+ff:0|1&bad
+rf:6*ff
+re:rf+fe*5-rf
+rd:re+fd*4-re
+rc:rd+fc*3-rd
+rb:rc+fb*2-rc
+rb+fa*1-rb

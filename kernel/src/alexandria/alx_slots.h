@@ -236,7 +236,11 @@
 #define ALX_SLOT_NUM_PINHOLE_CAMERA_READY_N      228u /* 591.06 pinhole.camera_ready_n */
 #define ALX_SLOT_LOGIC_PINHOLE_EXPOSURE_OK       229u /* 491.14 pinhole.exposure_ok */
 #define ALX_SLOT_LOGIC_PINHOLE_PHOTO_RECORD_OK   230u /* 491.15 pinhole.photo_record_ok */
-#define ALX_SLOT__COUNT 230u
+#define ALX_SLOT_LOGIC_ROOKERY_LETTER_RECORD_OK  231u /* 491.16 rookery.letter_record_ok */
+#define ALX_SLOT_LOGIC_ROOKERY_LETTER_SEND_OK    232u /* 491.17 rookery.letter_send_ok */
+#define ALX_SLOT_LOGIC_ROOKERY_LETTER_SIZE_OK    233u /* 491.18 rookery.letter_size_ok */
+#define ALX_SLOT_NUM_ROOKERY_MAIL_ADDR_FAULT     234u /* 591.07 rookery.mail_addr_fault */
+#define ALX_SLOT__COUNT 234u
 /* clang-format on */
 
 #endif
