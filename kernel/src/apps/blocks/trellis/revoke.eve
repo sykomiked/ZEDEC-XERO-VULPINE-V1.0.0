@@ -1,0 +1,23 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# May this device revoke one of the mesh (trellis_rules.h TL1), in Eve:
+# the only record that fits is an admin session (sessionadmin exactly 1),
+# a device that is not this one (isself exactly 0) and still active
+# (isactive exactly 1), and 1 to 8 active admins left once it is gone
+# (adminsleft; 8 is devmesh.h's DM_MAX_DEVICES). Eve checks each field
+# against its own range alone, so "not the last admin" comes as that
+# margin, worked out by the model from the roster. A flag that is no flag
+# (2, -1) does not fit; revoke.kron reads past the flags: held.
+eve trellis
+admin_session = 1 .. 1
+other_device = 0 .. 0
+active_device = 1 .. 1
+admins_after = 1 .. 8
+
+revoke_allowed {
+  sessionadmin: admin_session
+  isself: other_device
+  isactive: active_device
+  adminsleft: admins_after
+}

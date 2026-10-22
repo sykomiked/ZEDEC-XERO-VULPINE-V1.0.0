@@ -1,0 +1,10 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Trellis files one device of the owner's mesh in MYRA
+; (trellis_rules.h TL4): its place in the roster (0..7, devmesh.h's
+; DM_MAX_DEVICES), its state (TRELLIS_ACTIVE, TRELLIS_REVOKED), its role
+; (trellis_model.h TRELLIS_ROLE_*), its admin and held flags, and the
+; roster version it has held since. The rules say what the values may
+; mean; this says whether they make a record.
+^ZXTRELLIS(peer:i1) = state:i1! ^ role:i1! ^ admin:i1! ^ held:i1! ^ since:i18!

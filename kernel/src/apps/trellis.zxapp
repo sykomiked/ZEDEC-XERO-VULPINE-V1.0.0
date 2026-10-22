@@ -1,0 +1,106 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Trellis, peers and mesh links: layer 29 of the matrix. The owner's
+# device mesh (devmesh.status, devmesh.devices), pairing a device
+# (devmesh.invite, devmesh.join, devmesh.confirm_sas) and revoking one
+# (devmesh.revoke), the paired phones (phone.list, phone.pair,
+# phone.revoke), and the peer network's contacts and mode (net.peers,
+# net.command off, lan or online). Every method is zxvd's; none is
+# invented.
+#
+# A revocation can never be undone (a tombstone in the signed roster, a
+# pairing deleted), so the owner confirms it twice before Trellis sends it
+# (trellis_model.h TM4). What may be revoked is advice; zxvd still decides
+# (devmesh.h: only an admin signs a roster, and never one without an
+# admin). A phone's right to move money or change the network is zxvd's
+# (PH_POST); Trellis only says whether it would be allowed.
+#
+# 8 later layers lean on this one, so its entries are general rules owned
+# here (CONCEPTS.tsv): whether a device may be revoked, an invitation's
+# minutes left, how many peers are in one state, and a peer's record. Of
+# the layers the task names, Coffer (73), Caravan (90) and Toolchest (126)
+# are built before this one, but Trellis moves no money, ships nothing and
+# installs no kit, so none is used; Murmuration (61) holds a swarm's
+# shares, which Trellis does not decide; Fairground (79) comes after it
+# and Trellis needs nothing from it. Witness (18) owns a count of one
+# kind, but it comes after this layer in the build order
+# (MATRIX_ORDER.tsv), so it is not used: peers_in_state is a different
+# rule (the want given on every row, and a state outside 1..3 refused).
+# Signpost (34) owns seconds until a lapse, also later: an invitation's
+# minutes left round up, so a live one never shows 0. Gatehouse (8) is
+# built before this one and owns whether a capability's use is allowed:
+# a phone posting (asked, allowed by its pairing, not revoked) is that
+# rule, used as it is (gatehouse.use_ok).
+#
+# Witness pairs are of one kind (zxapp.c run_one B3). Eve and KRON witness
+# revoke_allowed, a truth: Eve checks each field against its own range
+# alone, so "not the last admin" comes as its margin, adminsleft, worked
+# out by the model from the roster. KRON and Trebago witness
+# peers_in_state, a number. KRON alone gives an invitation's minutes, MYRA
+# the peer record. The model's C (trellis_rules.h) is the third witness of
+# each.
+#
+# Planned (no runtime yet): Elixir owns messaging and faults, and counting
+# the mesh's peers by state (active, revoked, waiting) is how a supervisor
+# sees its faults: pending on peers_in_state. Elm owns views and types,
+# and a peer's record is Trellis's type: pending on peer_record_ok. Go is
+# on the task's planned line but runs now (LANGUAGE_FIT.tsv, go); it owns
+# concurrency and messaging, and Trellis sends no message of its own (every
+# pairing frame is zxvd's), so it has no Go block.
+#
+# Defaults taken (trellis_model.h): an invitation's clock starts when
+# zxvd answers it, at the time the caller gives (zxvd has no clock method
+# Trellis needs); a waiting pairing counts as one waiting peer; phones
+# count as active peers until revoked.
+zxapp 1
+id     trellis
+name   Trellis
+version 1.0.0
+slot   29
+layer  L1
+matrix 29
+icon   icons/l1/029-trellis.svg
+budget 233
+needs  peers
+needs  net
+needs  notify
+model  apps/trellis_model.c
+use    gatehouse 1   # @logic.gatehouse_use_ok
+
+# May this device revoke one of the mesh (TL1): an admin session, not this
+# device, still active, at least one admin left. Eve holds each to its
+# range; KRON reads past the flags: a 2, a -1 or 9 admins is held.
+provides revoke_allowed truth sessionadmin isself isactive adminsleft
+logic    eve  revoke_allowed apps/blocks/trellis/revoke.eve
+logic    kron revoke_allowed apps/blocks/trellis/revoke.kron
+
+# An invitation's whole minutes left, rounded up (TL2).
+provides invite_minutes_left num issued ttl now
+logic    kron invite_minutes_left apps/blocks/trellis/invite.kron
+
+# How many peers are in one state (TL3): 1 active, 2 revoked, 3 waiting.
+# Trebago refuses a state outside 1..3; KRON counts it: held.
+provides peers_in_state num state want
+logic    kron    peers_in_state apps/blocks/trellis/state.kron
+logic    trebago peers_in_state apps/blocks/trellis/state.tb
+pending  Elixir peers_in_state
+
+# A peer fits its record (TL4): ^ZXTRELLIS's digits.
+provides peer_record_ok truth peer state role admin held since
+logic    myra peer_record_ok apps/blocks/trellis/peer.myra
+pending  Elm peer_record_ok
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check revoke_allowed sessionadmin=1,0,1,1,1,1 isself=0,0,1,0,0,0 isactive=1,1,1,0,1,1 adminsleft=1,1,1,1,0,8 = true,false,false,false,false,true
+check revoke_allowed sessionadmin=1,2 isself=0,0 isactive=1,1 adminsleft=1,1 = both
+check revoke_allowed sessionadmin=1,1 isself=0,-1 isactive=1,1 adminsleft=1,1 = both
+check revoke_allowed sessionadmin=1,1 isself=0,0 isactive=1,1 adminsleft=1,9 = both
+check invite_minutes_left issued=0,0,0,0,1000,5000 ttl=600000,600000,600000,600000,0,600000 now=0,1,540000,600000,5000,545001 = 10,10,1,0,0,1
+check peers_in_state state=1,1,2,3,1 want=1,1,1,1,1 = 3
+check peers_in_state state=1,2,3,3 want=3,3,3,3 = 2
+check peers_in_state state=1,4 want=1,1 = both
+check peers_in_state state=1,1 want=0,0 = both
+check peer_record_ok peer=0,9,10,0,0,-3 state=1,2,1,10,1,1 role=1,3,1,1,1,1 admin=0,1,0,0,0,0 held=1,0,1,1,1,1 since=1,999999999999999999,1,1,1000000000000000000,-5 = true,true,false,false,false,true
+# A phone may post (TL5): asked, allowed by its pairing, not revoked
+check gatehouse.use_ok asked=1,1,1,0 granted=1,0,1,1 revoked=0,0,1,0 = true,false,false,false

@@ -1,0 +1,1 @@
+(sessionadmin>0)&(isself<1)&(isactive>0)&adminsleft>0

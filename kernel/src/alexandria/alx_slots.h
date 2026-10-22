@@ -240,7 +240,11 @@
 #define ALX_SLOT_LOGIC_ROOKERY_LETTER_SEND_OK    232u /* 491.17 rookery.letter_send_ok */
 #define ALX_SLOT_LOGIC_ROOKERY_LETTER_SIZE_OK    233u /* 491.18 rookery.letter_size_ok */
 #define ALX_SLOT_NUM_ROOKERY_MAIL_ADDR_FAULT     234u /* 591.07 rookery.mail_addr_fault */
-#define ALX_SLOT__COUNT 234u
+#define ALX_SLOT_NUM_TRELLIS_INVITE_MINUTES_LEFT 235u /* 591.08 trellis.invite_minutes_left */
+#define ALX_SLOT_LOGIC_TRELLIS_PEER_RECORD_OK    236u /* 491.19 trellis.peer_record_ok */
+#define ALX_SLOT_NUM_TRELLIS_PEERS_IN_STATE      237u /* 591.09 trellis.peers_in_state */
+#define ALX_SLOT_LOGIC_TRELLIS_REVOKE_ALLOWED    238u /* 491.20 trellis.revoke_allowed */
+#define ALX_SLOT__COUNT 238u
 /* clang-format on */
 
 #endif

@@ -493,6 +493,17 @@ treadle	check next_run start=480,480 period=60,60 now=481,1440 = both
 treadle	check budget_ok cost=0,999999999,10,10,-1 left=0,999999999,-1,0,0 = true,true,false,true,false
 treadle	check budget_ok cost=10,1000000000 left=0,0 = both
 treadle	check task_ok task=1,999,1000,1 kind=0,9,0,10 start=480,9999,0,0 period=60,9999,1,1 cost=500,999999999,1,1 approved=0,1,0,0 = true,true,false,false
+trellis	check revoke_allowed sessionadmin=1,0,1,1,1,1 isself=0,0,1,0,0,0 isactive=1,1,1,0,1,1 adminsleft=1,1,1,1,0,8 = true,false,false,false,false,true
+trellis	check revoke_allowed sessionadmin=1,2 isself=0,0 isactive=1,1 adminsleft=1,1 = both
+trellis	check revoke_allowed sessionadmin=1,1 isself=0,-1 isactive=1,1 adminsleft=1,1 = both
+trellis	check revoke_allowed sessionadmin=1,1 isself=0,0 isactive=1,1 adminsleft=1,9 = both
+trellis	check invite_minutes_left issued=0,0,0,0,1000,5000 ttl=600000,600000,600000,600000,0,600000 now=0,1,540000,600000,5000,545001 = 10,10,1,0,0,1
+trellis	check peers_in_state state=1,1,2,3,1 want=1,1,1,1,1 = 3
+trellis	check peers_in_state state=1,2,3,3 want=3,3,3,3 = 2
+trellis	check peers_in_state state=1,4 want=1,1 = both
+trellis	check peers_in_state state=1,1 want=0,0 = both
+trellis	check peer_record_ok peer=0,9,10,0,0,-3 state=1,2,1,10,1,1 role=1,3,1,1,1,1 admin=0,1,0,0,0,0 held=1,0,1,1,1,1 since=1,999999999999999999,1,1,1000000000000000000,-5 = true,true,false,false,false,true
+trellis	check gatehouse.use_ok asked=1,1,1,0 granted=1,0,1,1 revoked=0,0,1,0 = true,false,false,false
 twelvefold	check lp_entail_kept premise=0,0,1,1,1,1,2,3,3,3 conclusion=0,2,0,1,2,3,0,0,2,3 = true,true,false,true,false,true,true,false,false,true
 twelvefold	check lp_entail_kept premise=1,4 conclusion=1,1 = both
 twelvefold	check lp_entail_kept premise=1,-1 conclusion=1,0 = both

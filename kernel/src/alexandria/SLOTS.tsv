@@ -269,3 +269,7 @@
 232	logic.rookery_letter_send_ok	491.17	rookery.letter_send_ok	base
 233	logic.rookery_letter_size_ok	491.18	rookery.letter_size_ok	base
 234	num.rookery_mail_addr_fault	591.07	rookery.mail_addr_fault	base
+235	num.trellis_invite_minutes_left	591.08	trellis.invite_minutes_left	base
+236	logic.trellis_peer_record_ok	491.19	trellis.peer_record_ok	base
+237	num.trellis_peers_in_state	591.09	trellis.peers_in_state	base
+238	logic.trellis_revoke_allowed	491.20	trellis.revoke_allowed	base
