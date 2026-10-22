@@ -1,0 +1,10 @@
+w:7 res day+3
+m:skip+128*skip
+d0:100*2 res _m%2 pow w
+d1:1+100*2 res _m%2 pow w+1
+d2:2+100*2 res _m%2 pow w+2
+d3:3+100*2 res _m%2 pow w+3
+d4:4+100*2 res _m%2 pow w+4
+d5:5+100*2 res _m%2 pow w+5
+d6:6+100*2 res _m%2 pow w+6
+day+d0&d1&d2&d3&d4&d5&d6

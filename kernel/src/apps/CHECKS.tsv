@@ -42,6 +42,20 @@ birdsong	check clip_ms samples=-441 rate=44100 = -10
 birdsong	check rec_ok rate=7999,8000,48000,48001,16000,16000 channels=1,1,2,2,0,3 frames=0,0,480000,0,10,10 = false,true,true,false,false,false
 birdsong	check rec_ok rate=16000,16000 channels=1,1 frames=-1,480001 = false,false
 birdsong	check memo_ok memo=999999999,1 rate=99999,8000 channels=9,1 frames=999999999,0 mtime=999999999999,1000000000000 = true,false
+bowline	check unskipped_day day=0 skip=0 = 0
+bowline	check unskipped_day day=0 skip=8 = 1
+bowline	check unskipped_day day=2 skip=96 = 4
+bowline	check unskipped_day day=0 skip=126 = 4
+bowline	check unskipped_day day=20750 skip=31 = 20750
+bowline	check unskipped_day day=2932896 skip=0 = 2932896
+bowline	check unskipped_day day=0 skip=127 = both
+bowline	check overdue late=1,0,2932896,5,-3,7 open=1,1,1,0,1,1 = true,false,true,false,false,true
+bowline	check overdue late=1,2932897 open=1,1 = both
+bowline	check task_record_ok task=1,999999999,1000000000,1,1,1 list=1,999,1,1000,1,1 start=0,9999999,0,0,0,0 due=0,9999999,0,0,0,0 every=0,9999,0,0,10000,0 unit=1,7,1,1,1,1 skip=0,126,0,0,0,0 done=0,1,0,0,0,10 = true,true,false,false,false,false
+bowline	check solstice.next_occurrence start=100,100,100,100,0 every=7,7,7,7,1 today=50,100,101,107,2932896 = 100,100,107,107,2932896
+bowline	check solstice.next_occurrence start=100,100 every=7,7 today=101,2932897 = both
+bowline	check witness.kind_count kind=1,2,2,5,3 want=2 = 2
+bowline	check witness.kind_count kind=1,2 want=1,1 = both
 brazier	check minutes_left charge=0,1000,999999999,90000 draw=1000,1000,1,14090 = 0,60,59999999940,383
 brazier	check minutes_left charge=1,1000000000 draw=1,1 = both
 brazier	check heat_ok temp=-1,0,450,451,-2732 = false,true,true,false,false

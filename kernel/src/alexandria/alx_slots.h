@@ -250,7 +250,10 @@
 #define ALX_SLOT_NUM_RETORT_MODEL_SCORE_TOTAL    242u /* 591.13 retort.model_score_total */
 #define ALX_SLOT_LOGIC_RETORT_RUN_LIMITS_OK      243u /* 491.21 retort.run_limits_ok */
 #define ALX_SLOT_LOGIC_RETORT_RUN_RECORD_OK      244u /* 491.22 retort.run_record_ok */
-#define ALX_SLOT__COUNT 244u
+#define ALX_SLOT_LOGIC_BOWLINE_OVERDUE           245u /* 491.23 bowline.overdue */
+#define ALX_SLOT_LOGIC_BOWLINE_TASK_RECORD_OK    246u /* 491.24 bowline.task_record_ok */
+#define ALX_SLOT_NUM_BOWLINE_UNSKIPPED_DAY       247u /* 591.14 bowline.unskipped_day */
+#define ALX_SLOT__COUNT 247u
 /* clang-format on */
 
 #endif

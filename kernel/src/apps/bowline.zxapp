@@ -1,0 +1,87 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Bowline, tasks and reminders: layer 45 of the matrix. Tasks are files in
+# the Hoard, one each (Bowline/<n>.task), listed with files.list, read
+# with files.read and written with files.write (a new one with exclusive
+# set, so no task is written over); the notices already posted are read
+# with notes.list (bowline_model.h BM1-BM6). The model says when each
+# repeating task is next due, which tasks are overdue, how many each list
+# holds and which reminders are due.
+#
+# zxvd has no method to post a notice, and none is invented: the model
+# composes the reminder text and counts the unread notices whose source is
+# Bowline; the notify capability is declared for the reminder once zxvd
+# has a method for it. Days are kept in UTC, as Solstice keeps them.
+#
+# An anchor of the matrix: its layer leans on no other layer's code yet.
+# Two ideas nearer the core are used, never written again: when a
+# repeating task next falls is Solstice's next occurrence (a week is seven
+# days), and how many tasks a list holds is Witness's count of a kind.
+# What is new here is the day moved past the weekdays a task skips and
+# whether a task is overdue, general rules a later layer takes with "use
+# bowline 1", each a concept with Bowline as its owner (CONCEPTS.tsv). The
+# task record is Bowline's own.
+#
+# Witness pairs are of one kind, since a witnessed call compares answers
+# exactly. Eve answers truths only and checks each field against its own
+# range, so a task's lateness is given as a margin (the model works out
+# today minus its due day), and Eve and KRON witness overdue.
+#
+# LISP, twin Coilwyrm, owns lists, and the task names it for the tasks in
+# a list; it is not written: that count is Witness's (above), and Lingua's
+# LISP front-end reads no input (no read, no READ *: zl_lisp.c refuses
+# read), so a LISP block could not take the call's arguments. Reported.
+# Planned languages with no entry of their kind here: TRAC (text) and TeX
+# (typesetting). Bowline processes no macro text in a block and typesets
+# nothing (the view draws the list), so there is no pending line.
+zxapp 1
+id     bowline
+name   Bowline
+version 1.0.0
+slot   45
+layer  L1
+matrix 45
+icon   icons/l1/045-bowline.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  notify
+model  apps/bowline_model.c
+use    solstice 1   # @num.solstice_next_occurrence
+use    witness 1    # @num.witness_kind_count
+
+# The day a task is due, moved past the weekdays it skips (BW1), days since
+# 1970, skip a mask (bit 0 Monday .. bit 6 Sunday). BASIC, twin Hatchling,
+# and KRON. A Lingua block reads one row per call (zxapp_lingua.c L1), so
+# each check line has one row. A mask of every day leaves no day: BASIC
+# refuses it, KRON answers a day 100 on: held.
+provides unskipped_day num day skip
+logic    basic unskipped_day apps/blocks/bowline/unskipped_day.bas
+logic    kron  unskipped_day apps/blocks/bowline/unskipped_day.kron
+
+# A task is overdue (BW2): Eve holds the days late to 9999-12-31, KRON
+# reads any margin above 0: one past it is held.
+provides overdue truth late open
+logic    eve  overdue apps/blocks/bowline/overdue.eve
+logic    kron overdue apps/blocks/bowline/overdue.kron
+
+# A task makes a ^ZXTASK record (BW3), in MYRA.
+provides task_record_ok truth task list start due every unit skip done
+logic    myra task_record_ok apps/blocks/bowline/task.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check unskipped_day day=0 skip=0 = 0
+check unskipped_day day=0 skip=8 = 1
+check unskipped_day day=2 skip=96 = 4
+check unskipped_day day=0 skip=126 = 4
+check unskipped_day day=20750 skip=31 = 20750
+check unskipped_day day=2932896 skip=0 = 2932896
+check unskipped_day day=0 skip=127 = both
+check overdue late=1,0,2932896,5,-3,7 open=1,1,1,0,1,1 = true,false,true,false,false,true
+check overdue late=1,2932897 open=1,1 = both
+check task_record_ok task=1,999999999,1000000000,1,1,1 list=1,999,1,1000,1,1 start=0,9999999,0,0,0,0 due=0,9999999,0,0,0,0 every=0,9999,0,0,10000,0 unit=1,7,1,1,1,1 skip=0,126,0,0,0,0 done=0,1,0,0,0,10 = true,true,false,false,false,false
+check solstice.next_occurrence start=100,100,100,100,0 every=7,7,7,7,1 today=50,100,101,107,2932896 = 100,100,107,107,2932896
+check solstice.next_occurrence start=100,100 every=7,7 today=101,2932897 = both
+check witness.kind_count kind=1,2,2,5,3 want=2 = 2
+check witness.kind_count kind=1,2 want=1,1 = both

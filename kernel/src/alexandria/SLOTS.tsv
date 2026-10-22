@@ -279,3 +279,6 @@
 242	num.retort_model_score_total	591.13	retort.model_score_total	base
 243	logic.retort_run_limits_ok	491.21	retort.run_limits_ok	base
 244	logic.retort_run_record_ok	491.22	retort.run_record_ok	base
+245	logic.bowline_overdue	491.23	bowline.overdue	base
+246	logic.bowline_task_record_ok	491.24	bowline.task_record_ok	base
+247	num.bowline_unskipped_day	591.14	bowline.unskipped_day	base

@@ -1,0 +1,11 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Bowline files a task in MYRA: its number, its list, the day its
+; repeats count from and the day it is due (days since 1970: seven digits
+; reach 9999-12-31), how many days or weeks apart it repeats (0: once),
+; its unit (1 days, 7 weeks), the weekdays it skips as a mask (bit 0
+; Monday .. bit 6 Sunday) and whether it is done (1) or open (0). The
+; rules say what the values may mean (bowline_rules.h BW3); this says
+; whether they make a record.
+^ZXTASK(task:i9) = list:i3! ^ start:i7! ^ due:i7! ^ every:i4! ^ unit:i1! ^ skip:i3! ^ done:i1!

@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A task is overdue (bowline_rules.h BW2), in Eve. Eve checks each field
+# against its own range, so the task comes as its margin, late = today
+# minus its due day (the model works it out), and open, 1 while the task
+# is not done. It is overdue when it is at least a day late and still
+# open. Every day is 0 .. 2932896 (9999-12-31, in days since 1970), so a
+# margin past that is no measurement: Eve refuses it, while overdue.kron
+# reads any margin above 0 as late, and the call is held.
+eve bowline
+days_late = 1 .. 2932896
+still_open = 1 .. 1
+
+overdue {
+  late: days_late
+  open: still_open
+}
