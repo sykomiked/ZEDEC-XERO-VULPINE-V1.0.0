@@ -280,7 +280,12 @@
 #define ALX_SLOT_NUM_TALLYSTICK_NEXT_DOC_NUMBER  272u /* 591.28 tallystick.next_doc_number */
 #define ALX_SLOT_LOGIC_TALLYSTICK_PAID_IN_FULL   273u /* 491.36 tallystick.paid_in_full */
 #define ALX_SLOT_NUM_TALLYSTICK_TAXED_LINE_TOTAL 274u /* 591.29 tallystick.taxed_line_total */
-#define ALX_SLOT__COUNT 274u
+#define ALX_SLOT_LOGIC_GNOMON_FIGURE_RECORD_OK   275u /* 491.37 gnomon.figure_record_ok */
+#define ALX_SLOT_NUM_GNOMON_POLYGON_AREA         276u /* 591.30 gnomon.polygon_area */
+#define ALX_SLOT_NUM_GNOMON_POLYGON_AREA2        277u /* 591.31 gnomon.polygon_area2 */
+#define ALX_SLOT_NUM_GNOMON_SIDE_LEN_SQ          278u /* 591.32 gnomon.side_len_sq */
+#define ALX_SLOT_NUM_GNOMON_TRIANGLE_AREA2       279u /* 591.33 gnomon.triangle_area2 */
+#define ALX_SLOT__COUNT 279u
 /* clang-format on */
 
 #endif

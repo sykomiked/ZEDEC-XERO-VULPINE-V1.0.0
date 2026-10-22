@@ -213,6 +213,21 @@ gleaner	check leave_ok personal=1,-1 consent=1,1 = both
 gleaner	check witness.kind_count kind=1,2,2,5,3 want=2 = 2
 gleaner	check witness.kind_count kind=1,2 want=1,1 = both
 glint	check item_ok folder=1 seq=1,2 kind=3,1000 size=5 = true,false
+gnomon	check polygon_area2 x=0,4,4,0 y=0,0,3,3 = 24
+gnomon	check polygon_area2 x=0,0,4,4 y=0,3,3,0 = -24
+gnomon	check polygon_area2 x=1000000,-1000000,-1000000,1000000 y=1000000,1000000,-1000000,-1000000 = 8000000000000
+gnomon	check polygon_area2 x=0,2,4 y=0,2,4 = 0
+gnomon	check polygon_area2 x=0,1000001,0 y=0,0,1 = both
+gnomon	check polygon_area2 x=0,4 y=0,3 = both
+gnomon	check polygon_area x=0,1,0 y=0,0,1 = 1/2
+gnomon	check polygon_area x=0,4,4,0 y=0,0,3,3 = 12
+gnomon	check polygon_area x=0,0,3 y=0,3,0 = -9/2
+gnomon	check polygon_area x=0,1,0 y=0,0,-1000001 = both
+gnomon	check triangle_area2 ax=0,0,0,-1000000,5 ay=0,0,0,-1000000,5 bx=1,0,2,1000000,5 by=0,1,2,-1000000,5 cx=0,1,4,1000000,5 cy=1,0,4,1000000,5 = 1,-1,0,4000000000000,0
+gnomon	check triangle_area2 ax=0,1000001 ay=0,0 bx=1,0 by=0,0 cx=0,0 cy=1,1 = both
+gnomon	check side_len_sq ax=0,0,-1000000,7 ay=0,0,-1000000,7 bx=3,0,1000000,7 by=4,0,1000000,7 = 25,0,8000000000000,0
+gnomon	check side_len_sq ax=0,0 ay=0,-1000001 bx=3,0 by=4,0 = both
+gnomon	check figure_record_ok figure=999999999,1000000000,0,0,0,-999999999 vertices=1024,1,10000,1,1,9999 kind=1,0,0,10,0,-9 mtime=999999999999,1,1,1,1000000000000,-1 = true,false,false,false,false,true
 halloo	check quiet_left opens=1320,1320,1320,1320,420,600,0,0 closes=420,420,420,420,1320,600,1,0 now=1320,1400,419,420,900,600,1,1439 = 540,460,1,0,420,1440,0,1
 halloo	check quiet_left opens=1320,1320 closes=420,420 now=0,-1 = both
 halloo	check quiet_left opens=1320,1440 closes=420,420 now=0,0 = both

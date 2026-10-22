@@ -309,3 +309,8 @@
 272	num.tallystick_next_doc_number	591.28	tallystick.next_doc_number	base
 273	logic.tallystick_paid_in_full	491.36	tallystick.paid_in_full	base
 274	num.tallystick_taxed_line_total	591.29	tallystick.taxed_line_total	base
+275	logic.gnomon_figure_record_ok	491.37	gnomon.figure_record_ok	base
+276	num.gnomon_polygon_area	591.30	gnomon.polygon_area	base
+277	num.gnomon_polygon_area2	591.31	gnomon.polygon_area2	base
+278	num.gnomon_side_len_sq	591.32	gnomon.side_len_sq	base
+279	num.gnomon_triangle_area2	591.33	gnomon.triangle_area2	base

@@ -1,0 +1,19 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A polygon's signed area (gnomon_rules.h GR2), in Trebago: the shoelace
+! sum of area2.tb halved, an exact reduced fraction (a triangle of legs 1
+! and 1 is 1/2), never rounded. The vertices come one to a row, in order
+! round the polygon, the last joining the first; counter-clockwise is
+! positive. The same domain as area2.tb: every coordinate -1000000 ..
+! 1000000 and 3 .. 1024 vertices, anything else a division by zero,
+! refused.
+trebago polygon_area
+  in  x(n), y(n)
+  out area
+  var bad(n)
+  bad(i) = min(1, max(0, 0 - x(i) - 1000000)) + min(1, max(0, x(i) - 1000000)) &
+         + min(1, max(0, 0 - y(i) - 1000000)) + min(1, max(0, y(i) - 1000000))
+  area = (sum(i = 1:n - 1, x(i) * y(i + 1) - x(i + 1) * y(i)) + x(n) * y(1) - x(1) * y(n)) &
+       / 2 / (1 - min(1, sum(i, bad(i)) + max(0, 3 - n) + max(0, n - 1024)))
+end

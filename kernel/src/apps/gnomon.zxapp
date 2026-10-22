@@ -1,0 +1,94 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Gnomon, the geometry and maths explorer: layer 107 of the matrix. A
+# figure is a polygon drawn point by point or a path walked by a turtle in
+# quarter turns, measured exactly (gnomon_model.h GM1-GM5): twice its area
+# and its area, each side's squared length, the turn at each vertex,
+# whether it is convex and each side's slope as a reduced fraction. It is
+# kept as a text file in the Banker (files.read, files.write). Coordinates
+# are integers in one unit, -1000000..1000000 (gnomon_rules.h).
+#
+# Its layer leans on no other layer's code yet, but three later apps name
+# it (Scree, Cirque and Copse: the shoelace area, twice a polygon's area,
+# reduced fractions), so its entries are general rules owned here
+# (CONCEPTS.tsv): polygon_twice_area, polygon_area, triangle_twice_area,
+# squared_distance and figure_record.
+#
+# Witness pairs, and why they differ from the task's (defaults taken):
+# - The task pairs the shoelace area with KRON and C++ as WebAssembly. A
+#   wasm entry runs once per row (zxapp_wasm.c W2), so it cannot sum a
+#   polygon's rows. The whole polygon is KRON and Trebago (FORTRAN, which
+#   owns exact sums in LANGUAGE_FIT.tsv); KRON and C++ witness the
+#   triangle (three corners on a row), which is the shoelace for three
+#   vertices and the turn at a vertex. Trebago refuses a coordinate past
+#   the range or fewer than 3 vertices, where KRON answers: held.
+# - Squared side lengths are KRON and C++ (as WebAssembly), one side a row:
+#   the C++ traps on a coordinate past the range, KRON answers: held.
+# - Fractions: the task says "use number_classics 1". The per-app harness
+#   (test_zxapp.c app_tests_run) registers only used_share, swarm_shares
+#   and the pce blocks, so an app that uses number_classics never loads
+#   there (Tally met the same). The area halves exactly in its own blocks
+#   (KRON's % and Trebago's / are exact and reduced), and the model reduces
+#   a slope with kernel/src/rational (rat_make), as Tally does. Reported.
+# - Turtle paths stay in C (gnomon_model.c GM3). Lingua's Logo (twin
+#   Kiteling) runs now, but it reads no input (zl_logo.c refuses readword
+#   and readlist) and turtle graphics are outside its subset, so a Logo
+#   block could not take the call's arguments: there is no logo line.
+#   Reported.
+#
+# Planned languages: F# and Python already have runtimes (dotnet, python
+# in LANGUAGE_FIT.tsv), so they are not pending.
+zxapp 1
+id     gnomon
+name   Gnomon
+version 1.0.0
+slot   107
+layer  L1
+matrix 107
+icon   icons/l1/107-gnomon.svg
+budget 233
+needs  fs.read
+needs  fs.write
+model  apps/gnomon_model.c
+
+# GR1: twice a polygon's signed area, the vertices one to a row in order.
+provides polygon_area2 num x y
+logic    kron    polygon_area2 apps/blocks/gnomon/area2.kron
+logic    trebago polygon_area2 apps/blocks/gnomon/area2.tb
+
+# GR2: the area itself, an exact reduced fraction.
+provides polygon_area num x y
+logic    kron    polygon_area apps/blocks/gnomon/area.kron
+logic    trebago polygon_area apps/blocks/gnomon/area.tb
+
+# GR3: twice a triangle's signed area, one triangle a row (the turn at b).
+provides triangle_area2 num ax ay bx by cx cy
+logic    kron triangle_area2 apps/blocks/gnomon/triangle.kron
+logic    wasm triangle_area2 apps/blocks/gnomon/triangle.wasm
+
+# GR4: a side's squared length, one side a row.
+provides side_len_sq num ax ay bx by
+logic    kron side_len_sq apps/blocks/gnomon/side_sq.kron
+logic    wasm side_len_sq apps/blocks/gnomon/side_sq.wasm
+
+# GR5: a saved figure fits its record.
+provides figure_record_ok truth figure vertices kind mtime
+logic    myra figure_record_ok apps/blocks/gnomon/figure.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check polygon_area2 x=0,4,4,0 y=0,0,3,3 = 24
+check polygon_area2 x=0,0,4,4 y=0,3,3,0 = -24
+check polygon_area2 x=1000000,-1000000,-1000000,1000000 y=1000000,1000000,-1000000,-1000000 = 8000000000000
+check polygon_area2 x=0,2,4 y=0,2,4 = 0
+check polygon_area2 x=0,1000001,0 y=0,0,1 = both
+check polygon_area2 x=0,4 y=0,3 = both
+check polygon_area x=0,1,0 y=0,0,1 = 1/2
+check polygon_area x=0,4,4,0 y=0,0,3,3 = 12
+check polygon_area x=0,0,3 y=0,3,0 = -9/2
+check polygon_area x=0,1,0 y=0,0,-1000001 = both
+check triangle_area2 ax=0,0,0,-1000000,5 ay=0,0,0,-1000000,5 bx=1,0,2,1000000,5 by=0,1,2,-1000000,5 cx=0,1,4,1000000,5 cy=1,0,4,1000000,5 = 1,-1,0,4000000000000,0
+check triangle_area2 ax=0,1000001 ay=0,0 bx=1,0 by=0,0 cx=0,0 cy=1,1 = both
+check side_len_sq ax=0,0,-1000000,7 ay=0,0,-1000000,7 bx=3,0,1000000,7 by=4,0,1000000,7 = 25,0,8000000000000,0
+check side_len_sq ax=0,0 ay=0,-1000001 bx=3,0 by=4,0 = both
+check figure_record_ok figure=999999999,1000000000,0,0,0,-999999999 vertices=1024,1,10000,1,1,9999 kind=1,0,0,10,0,-9 mtime=999999999999,1,1,1,1000000000000,-1 = true,false,false,false,false,true

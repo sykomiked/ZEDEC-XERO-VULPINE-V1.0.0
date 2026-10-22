@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Gnomon files a saved figure, in MYRA (gnomon_rules.h GR5): the
+; figure's number, how many vertices it holds, its kind (0 a polygon drawn
+; point by point, 1 a turtle path) and when it was saved (Unix seconds).
+; Gnomon asks whether the numbers fit before it lists them.
+^ZXGNOMON(figure:i9) = vertices:i4! ^ kind:i1! ^ mtime:i12!
