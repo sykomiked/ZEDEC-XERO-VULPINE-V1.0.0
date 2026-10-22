@@ -326,3 +326,6 @@
 289	num.gesso_pixel_bright	591.37	gesso.pixel_bright	base
 290	num.gesso_pixel_contrast	591.38	gesso.pixel_contrast	base
 291	num.gesso_pixel_range_count	591.39	gesso.pixel_range_count	base
+292	logic.margins_note_size_ok	491.44	margins.note_size_ok	base
+293	logic.margins_note_tag_row_ok	491.45	margins.note_tag_row_ok	base
+294	num.margins_pinned_recent_key	591.40	margins.pinned_recent_key	base

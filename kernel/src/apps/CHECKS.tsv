@@ -373,6 +373,20 @@ lodestone	check witness.kind_count kind=1,1,2,3,1 want=1 = 3
 lodestone	check witness.kind_count kind=1,2 want=1,1 = both
 lodestone	check retort.latency_fastest_ms fastest=3600000,120,95 ms=120,95,300 = 120,95,95
 lodestone	check retort.latency_slowest_ms slowest=0,120,120 ms=120,95,300 = 120,120,300
+margins	check note_size_ok title=1,120,0,121,10,10,10,10,999 content=0,8000,0,0,8001,9999,0,0,0 tags=0,16,0,0,0,0,17,99,0 = true,true,false,false,false,false,false,false,false
+margins	check note_size_ok title=10,10 content=0,-1 tags=0,0 = both
+margins	check note_size_ok title=10,10 content=0,10000 tags=0,0 = both
+margins	check note_size_ok title=10,1000 content=0,0 tags=0,0 = both
+margins	check pinned_recent_key pinned=0,1,0,1,0,1 stamp=0,0,1760000000,1760000000,253402300799,253402300799 = 0,253402300800,1760000000,255162300800,253402300799,506804601599
+margins	check pinned_recent_key pinned=0,2 stamp=1,1 = both
+margins	check pinned_recent_key pinned=0,0 stamp=1,-1 = both
+margins	check pinned_recent_key pinned=0,0 stamp=1,253402300800 = both
+margins	check note_tag_row_ok tag=1,9999,10000,1,1,-9999 note=1,9999,1,10000,1,1 stamp=1760000000,999999999999,1,1,1000000000000,1 = true,true,false,false,false,true
+margins	check assay.score_rank score=255162300800,1760000500,255162300900,1760000000 = 2,3,1,4
+margins	check witness.kind_count kind=1,2,2,3 want=2 = 2
+margins	check witness.kind_count kind=1,0,1 want=1 = 2
+margins	check lockbox.days_left expires=1762592000,1762592000 now=1760000000,1762592000 = 30,0
+margins	check used_share.used_x100 total=8000,8000,8000,8000 left=8000,4000,0,7999 = 0,5000,10000,1
 mockingbird	check boot_passed rom=0,1,0,0,255 loader=0,-1,0,0,-1 kernel=0,-1,3,0,-1 drivers=0,-1,-1,0,-1 apps=0,-1,-1,5,-1 = true,false,false,false,false
 mockingbird	check boot_passed rom=0,0 loader=0,0 kernel=0,-1 drivers=0,0 apps=0,0 = both
 mockingbird	check region_overlaps base=0,4096,8192 size=4096,4096,4096 = 0

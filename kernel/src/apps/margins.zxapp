@@ -1,0 +1,95 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Margins, the notes: layer 38 of the matrix. Each note is a plain text
+# file in the Hoard's Notes folder, Notes/<title>.txt, listed with
+# files.list, read with files.read, written whole with files.write, renamed
+# with files.rename and put in the Trash with files.trash; notes are found
+# by their words with search.query. Pins and the Trash's log are Margins'
+# own small files under Margins/ (margins_model.h MM1-MM7). It builds on
+# notes_app.c, the kernel's one-file list of short entries: here each note
+# is a file of its own, so the Hoard's other apps and search see it.
+#
+# Advisory and owner-confirmed: a note in the Trash is offered for removal
+# after 30 days, never removed but on the owner's confirmed word.
+#
+# Built on what is nearer the core. The list's order is assay's
+# score_rank (best first, ties sharing a place) over each note's order
+# key, so the rank is not written again; the key (pinned first, then the
+# most recent) is new. How many notes carry a tag, and how many are
+# pinned, are witness's kind_count over the tag index and the pin flags.
+# The days a note in the Trash has left are Lockbox's days_left (30 days
+# from when it was put there, as Rookery keeps its letters), and how full
+# a note is, of its 8000 bytes, is used_share.used_x100. Coffer, on the
+# task's matrix line, holds money; a note has none, so it is not used.
+#
+# Later layers keep notes, captions and pinned lists too, so the three
+# new entries are general rules registered in CONCEPTS.tsv with Margins as
+# owner. Witness pairs are of one kind: note_size_ok is a truth whose
+# parts each come as one count on its own range, Eve's (as the task asks),
+# witnessed by Sutra, whose pictures refuse a count past them where Eve
+# answers false: held. pinned_recent_key is a number, KRON's (the task's
+# pinned and recent order), witnessed by Trebago, which refuses a pin flag
+# outside 0..1 or a stamp past the year 9999 where KRON answers: held. The
+# tag index is MYRA's, as the task asks.
+#
+# Kept in C, since no runnable language owns it: text work (a note's
+# words, its lines, the #tags read out of it, a title checked as a file
+# name) and reading zxvd's answers. SNOBOL (text, pattern) owns that work
+# but has no runtime, and Margins has no entry of its kind, so it has no
+# pending line; TeX (typesetting) and PostScript (page layout) neither:
+# Margins sets no type and lays out no page.
+zxapp 1
+id     margins
+name   Margins
+version 1.0.0
+slot   38
+layer  L1
+matrix 38
+icon   icons/l1/038-margins.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  search
+model  apps/margins_model.c
+use    assay 1        # @num.assay_score_rank
+use    witness 1      # @num.witness_kind_count
+use    lockbox 1      # @num.lockbox_days_left
+use    used_share 1   # @num.used_x100
+
+# A note's size limits (MR1): title 1..120 bytes, content (the body)
+# 0..8000, tags 0..16, each on its own range. Eve, witnessed by Sutra
+# ("body" is an Ada reserved word, so the input is content).
+provides note_size_ok truth title content tags
+logic    eve   note_size_ok apps/blocks/margins/size.eve
+logic    sutra note_size_ok apps/blocks/margins/size.sutra
+
+# A note's order key (MR2): pinned * 253402300800 + stamp. KRON,
+# witnessed by Trebago; ranked by assay.score_rank it is the list's order.
+provides pinned_recent_key num pinned stamp
+logic    kron    pinned_recent_key apps/blocks/margins/key.kron
+logic    trebago pinned_recent_key apps/blocks/margins/key.tb
+
+# The tag index (MR4), a ^ZXMARGINS record in MYRA.
+provides note_tag_row_ok truth tag note stamp
+logic    myra note_tag_row_ok apps/blocks/margins/tags.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check note_size_ok title=1,120,0,121,10,10,10,10,999 content=0,8000,0,0,8001,9999,0,0,0 tags=0,16,0,0,0,0,17,99,0 = true,true,false,false,false,false,false,false,false
+check note_size_ok title=10,10 content=0,-1 tags=0,0 = both
+check note_size_ok title=10,10 content=0,10000 tags=0,0 = both
+check note_size_ok title=10,1000 content=0,0 tags=0,0 = both
+check pinned_recent_key pinned=0,1,0,1,0,1 stamp=0,0,1760000000,1760000000,253402300799,253402300799 = 0,253402300800,1760000000,255162300800,253402300799,506804601599
+check pinned_recent_key pinned=0,2 stamp=1,1 = both
+check pinned_recent_key pinned=0,0 stamp=1,-1 = both
+check pinned_recent_key pinned=0,0 stamp=1,253402300800 = both
+check note_tag_row_ok tag=1,9999,10000,1,1,-9999 note=1,9999,1,10000,1,1 stamp=1760000000,999999999999,1,1,1000000000000,1 = true,true,false,false,false,true
+# The order: two pinned notes first, the later of them first, then the rest newest first
+check assay.score_rank score=255162300800,1760000500,255162300900,1760000000 = 2,3,1,4
+# Notes carrying tag 2 in a tag index of four rows; two pinned of three
+check witness.kind_count kind=1,2,2,3 want=2 = 2
+check witness.kind_count kind=1,0,1 want=1 = 2
+# The Trash, Lockbox's: 30 days from 1760000000, seen then and when they are up
+check lockbox.days_left expires=1762592000,1762592000 now=1760000000,1762592000 = 30,0
+# How full a note is of its 8000 bytes
+check used_share.used_x100 total=8000,8000,8000,8000 left=8000,4000,0,7999 = 0,5000,10000,1

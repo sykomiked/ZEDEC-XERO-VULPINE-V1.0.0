@@ -1,0 +1,19 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A note's order key, pinned first and then the most recent, in Trebago
+! (margins_rules.h MR2): pinned * 253402300800 + stamp, so every pinned
+! note's key is above every unpinned one's and, among the pinned or the
+! unpinned, a later stamp (seconds since 1970) is a larger key; ranked by
+! assay.score_rank (best first) the keys give the list's order. ok is 1
+! for pinned 0..1 and stamp 0..253402300799 (the last second of year
+! 9999), else 0, and the key is divided by it: anything else is a
+! division by zero, refused, where key.kron answers: held.
+trebago pinned_recent_key
+  in  pinned(n), stamp(n)
+  out key(n)
+  var ok(n)
+  ok(i) = min(1, max(0, pinned(i) + 1)) * min(1, max(0, 1 - pinned(i) + 1)) &
+        * min(1, max(0, stamp(i) + 1)) * min(1, max(0, 253402300799 - stamp(i) + 1))
+  key(i) = (pinned(i) * 253402300800 + stamp(i)) / ok(i)
+end

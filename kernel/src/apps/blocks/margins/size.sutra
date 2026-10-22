@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A note's size limits (margins_rules.h MR1), in Sutra: title 1..120
+# bytes, content (the body) 0..8000 bytes, tags 0..16. Each count fits
+# its picture, title 9(3), content 9(4) and tags 9(2): a negative count,
+# or one past its picture, is no count Margins keeps, so it is refused
+# where size.eve answers false: held.
+record note-size
+  title: 9(3)
+  content: 9(4)
+  tags: 9(2)
+procedure
+  answer title >= 1 and title <= 120 and content <= 8000 and tags <= 16

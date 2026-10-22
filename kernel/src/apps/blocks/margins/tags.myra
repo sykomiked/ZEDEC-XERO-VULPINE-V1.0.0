@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; Margins' tag index in MYRA (margins_rules.h MR4): the notes by tag, then
+; note, with when the note was last written (its mtime, seconds since
+; 1970). tag is the tag's number in the tag table (1.. in the order first
+; seen), note the note's number in the Notes folder's listing; listing the
+; notes of one tag walks ^ZXMARGINS(tag) in order ($ORDER).
+^ZXMARGINS(tag:i4, note:i4) = stamp:i12!

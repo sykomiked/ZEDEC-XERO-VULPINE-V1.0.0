@@ -297,7 +297,10 @@
 #define ALX_SLOT_NUM_GESSO_PIXEL_BRIGHT          289u /* 591.37 gesso.pixel_bright */
 #define ALX_SLOT_NUM_GESSO_PIXEL_CONTRAST        290u /* 591.38 gesso.pixel_contrast */
 #define ALX_SLOT_NUM_GESSO_PIXEL_RANGE_COUNT     291u /* 591.39 gesso.pixel_range_count */
-#define ALX_SLOT__COUNT 291u
+#define ALX_SLOT_LOGIC_MARGINS_NOTE_SIZE_OK      292u /* 491.44 margins.note_size_ok */
+#define ALX_SLOT_LOGIC_MARGINS_NOTE_TAG_ROW_OK   293u /* 491.45 margins.note_tag_row_ok */
+#define ALX_SLOT_NUM_MARGINS_PINNED_RECENT_KEY   294u /* 591.40 margins.pinned_recent_key */
+#define ALX_SLOT__COUNT 294u
 /* clang-format on */
 
 #endif

@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A note's size limits (margins_rules.h MR1), in Eve: the title, which is
+# the note's file name, 1 to 120 bytes; the body (content, since body is
+# an Ada reserved word) 0 to 8000 bytes, so one files.write request
+# carries it whole inside zxvd's 16384-byte request line even with every
+# byte escaped; and 0 to 16 tags. Each count is held to its own range;
+# size.sutra says the same, and nothing relates them.
+eve margins
+title_bytes = 1 .. 120
+body_bytes = 0 .. 8000
+note_tags = 0 .. 16
+
+note_size {
+  title: title_bytes
+  content: body_bytes
+  tags: note_tags
+}
