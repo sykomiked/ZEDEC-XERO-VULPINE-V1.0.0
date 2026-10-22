@@ -251,7 +251,7 @@ hw_verdict_t vscsi_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t
     }
     if (get_le32(c + 20) != SENSE_SIZE || get_le32(c + 24) != CDB_SIZE) {
         /* writable in the device configuration; the defaults are these */
-        uint8_t w[8];
+        uint8_t w[8] = {0};
         for (uint32_t i = 0; i < 4; i++) {
             w[i] = (uint8_t) (SENSE_SIZE >> (8 * i));
             w[4 + i] = (uint8_t) (CDB_SIZE >> (8 * i));

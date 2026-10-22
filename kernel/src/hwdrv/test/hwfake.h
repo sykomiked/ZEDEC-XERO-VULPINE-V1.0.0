@@ -34,6 +34,7 @@ typedef struct fake_plat {
     uint64_t now_us;
     uint32_t dma_bytes;
     uint32_t dma_fail_after; /* 0 = never fail; else fail the Nth allocation */
+    uint32_t dma_fail_one;   /* 0 = never; else fail only the Nth allocation */
     uint32_t dma_calls;
     char log[64][160];
     uint32_t nlog;
