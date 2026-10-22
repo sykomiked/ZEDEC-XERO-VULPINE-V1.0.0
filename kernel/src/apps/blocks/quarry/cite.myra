@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Quarry files one held citation, in MYRA (quarry_rules.h QR3): its
+; number (4 digits), the topic it was found under (3), its kind (1 a Hoard
+; file, 2 a Web4 envelope), when its source was written in seconds since
+; 1970 (12 digits) and the bytes of its excerpt (5). Quarry asks whether
+; the numbers fit before it holds a citation.
+^ZXQUARRY(cite:i4) = topic:i3! ^ kind:i1! ^ stamp:i12! ^ quote:i5!

@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# This claim has a source (quarry_rules.h QR1), in Eve: the only record
+# that fits is a claim naming a citation number of four digits (cite
+# 1..9999) that exactly one held citation carries (held exactly 1). Eve
+# holds each field to its own range alone; two citations under one number
+# (held 2) do not fit here, where claim.kron reads past it: held.
+eve quarry
+cite_number = 1 .. 9999
+one_held = 1 .. 1
+
+claim_source {
+  cite: cite_number
+  held: one_held
+}

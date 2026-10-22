@@ -380,7 +380,10 @@
 #define ALX_SLOT_LOGIC_PAWPRINT_DEBUG_LIMITS_OK  372u /* 491.84 pawprint.debug_limits_ok */
 #define ALX_SLOT_LOGIC_PAWPRINT_MAY_ATTACH       373u /* 491.85 pawprint.may_attach */
 #define ALX_SLOT_NUM_PAWPRINT_STEPPED_INSNS      374u /* 591.80 pawprint.stepped_insns */
-#define ALX_SLOT__COUNT 374u
+#define ALX_SLOT_LOGIC_QUARRY_CITE_RECORD_OK     375u /* 491.86 quarry.cite_record_ok */
+#define ALX_SLOT_LOGIC_QUARRY_CLAIM_SOURCED      376u /* 491.87 quarry.claim_sourced */
+#define ALX_SLOT_LOGIC_QUARRY_SUMMARY_LENGTH_OK  377u /* 491.88 quarry.summary_length_ok */
+#define ALX_SLOT__COUNT 377u
 /* clang-format on */
 
 #endif

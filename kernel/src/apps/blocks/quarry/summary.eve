@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a summary asked of the companion may be (quarry_rules.h QR2), in
+# Eve: 25..500 words long, drawn from 1..32 held sources, each on its own
+# range. Quarry asks nothing outside them.
+eve quarry
+summary_words = 25 .. 500
+summary_sources = 1 .. 32
+
+summary_ask {
+  words: summary_words
+  sources: summary_sources
+}

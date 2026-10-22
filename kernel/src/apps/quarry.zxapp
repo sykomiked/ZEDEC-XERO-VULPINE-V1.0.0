@@ -1,0 +1,83 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Quarry, research: layer 69 of the matrix. A topic is searched for in the
+# Hoard (search.query), a hit's text is read for its excerpt (files.read)
+# and the owner's Web4 feed is read for signed envelopes (web4.feed); what
+# the owner chooses is held as a numbered citation under its topic. The
+# owner writes claims that each name a citation, and asks the companion
+# (swarm.ask) for a summary of one topic's citations that cites them by
+# number. Advisory and owner-confirmed: the summary is held until the
+# owner accepts it (zxm.h M3), a bracketed number in it that names no
+# citation of the topic is counted and shown, and a citation is dropped
+# only on the owner's confirmed word.
+#
+# zxvd has no method to search the web, so Quarry searches only the Hoard
+# and the Web4 feed; none is invented. An envelope marked pii is listed
+# but never cited (the default taken: personal data stays out of a
+# summary sent to the companion).
+#
+# Built on what is nearer the core. How many citations a topic holds,
+# and how many carry one number, are witness's kind_count (KRON witnessed
+# by Trebago) over the citations' topic and number columns, used as it
+# is: the task's "sources per topic in KRON + Trebago" is that rule. The
+# three new entries are general (any layer that writes claims, asks for
+# a summary or keeps citations), so they are concepts in CONCEPTS.tsv
+# with Quarry as owner.
+#
+# Witness pairs are of one kind: claim_sourced is a truth whose two
+# fields each have their own range, Eve's (as the task asks), witnessed
+# by KRON, which reads any positive held count as held where Eve takes
+# exactly one: two citations under one number are held (BOTH) for the
+# owner, never settled by a machine. The summary's length limits are
+# Eve's and the citation record MYRA's, as the task asks.
+#
+# Kept in C, since no runnable language owns it: text work (an excerpt
+# cut on a character boundary, the prompt laid out, the bracketed numbers
+# and words of an answer counted) and reading zxvd's answers.
+#
+# Planned languages: dBase (records, query) waits for a runtime and takes
+# the citation record (pending below). Python already has a runtime
+# (python) and owns scripting and ai; Quarry has no entry of that kind
+# (the summary is the companion's, through swarm.ask), so no pending line.
+zxapp 1
+id     quarry
+name   Quarry
+version 1.0.0
+slot   69
+layer  L1
+matrix 69
+icon   icons/l1/069-quarry.svg
+budget 233
+needs  search
+needs  fs.read
+needs  ai.ask
+needs  net
+model  apps/quarry_model.c
+use    witness 1      # @num.witness_kind_count
+
+# This claim has a source (QR1): cite 1..9999 carried by exactly one held
+# citation (held, witness.kind_count over the numbers). Eve, witnessed by
+# KRON.
+provides claim_sourced truth cite held
+logic    eve  claim_sourced apps/blocks/quarry/claim.eve
+logic    kron claim_sourced apps/blocks/quarry/claim.kron
+
+# A summary's length limits (QR2): 25..500 words from 1..32 sources. Eve.
+provides summary_length_ok truth words sources
+logic    eve summary_length_ok apps/blocks/quarry/summary.eve
+
+# The citation record (QR3), a ^ZXQUARRY record in MYRA.
+provides cite_record_ok truth cite topic kind stamp quote
+logic    myra cite_record_ok apps/blocks/quarry/cite.myra
+pending  dBase cite_record_ok
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check claim_sourced cite=1,9999,0,10000,5,5,-1 held=1,1,1,1,0,1,1 = true,true,false,false,false,true,false
+check claim_sourced cite=5,5 held=1,2 = both
+check claim_sourced cite=5,5 held=1,3 = both
+check summary_length_ok words=25,500,24,501,100,100,100 sources=1,32,1,1,0,33,-1 = true,true,false,false,false,false,false
+check cite_record_ok cite=1,9999,10000,1,1,1,1,-9999 topic=1,999,1,1000,1,1,1,1 kind=1,9,1,1,10,1,1,1 stamp=1760000000,999999999999,1,1,1,1000000000000,1,1 quote=0,99999,0,0,0,0,100000,0 = true,true,false,false,false,false,false,true
+# Sources per topic: the citations of topic 1 among five, and the citations carrying number 7
+check witness.kind_count kind=1,2,2,1,1 want=1 = 3
+check witness.kind_count kind=3,7,9 want=7 = 1

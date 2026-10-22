@@ -409,3 +409,6 @@
 372	logic.pawprint_debug_limits_ok	491.84	pawprint.debug_limits_ok	base
 373	logic.pawprint_may_attach	491.85	pawprint.may_attach	base
 374	num.pawprint_stepped_insns	591.80	pawprint.stepped_insns	base
+375	logic.quarry_cite_record_ok	491.86	quarry.cite_record_ok	base
+376	logic.quarry_claim_sourced	491.87	quarry.claim_sourced	base
+377	logic.quarry_summary_length_ok	491.88	quarry.summary_length_ok	base
