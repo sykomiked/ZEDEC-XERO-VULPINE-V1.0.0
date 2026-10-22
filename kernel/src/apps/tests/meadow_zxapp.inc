@@ -150,7 +150,8 @@ APP_TEST(meadow, 12, 86)
         static const char CID[] = "bafkreie26lgim2eakycklw4igbbblffbzqt3lsd6drxydsankm3mr73hiy";
         CHECK(seedbank_cid_ok(CID, (uint32_t) strlen(CID)), "Meadow: a CID text fits SR2");
         for (uint32_t i = 0; i < WAVE_ROWS; i++) {
-            a[i] = i < 59u ? (int64_t) i : wrand(0, 58);
+            /* a position must lie inside its own length: row 63 is 58 long */
+            a[i] = i < 59u ? (int64_t) i : wrand(0, i == 63u ? 57 : 58);
             b[i] = i < 59u ? (unsigned char) CID[i] : wrand(32, 126);
             c[i] = i == 63u ? 58 : 59;
             want[i] = seedbank_cid_byte(a[i], b[i], c[i]);
