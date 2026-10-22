@@ -34,7 +34,7 @@ async function main()
     const {url, sock} = z;
     let browser = null;
     try {
-        check(/^http:\/\/127\.0\.0\.1:\d+\/web\/#token=[0-9a-f]{64}$/.test(url), `zxvd prints the browser link (${url.replace(/token=.*/, 'token=...')})`);
+        check(/^http:\/\/127\.0\.0\.1:\d+\/web\/boot\.html#token=[0-9a-f]{64}$/.test(url), `zxvd prints the browser link (${url.replace(/token=.*/, 'token=...')})`);
         const info = (await rpcSocket(sock, 'model.info')).result;
         check(info.can_generate, `zxvd has a model that can answer: ${info.status}`);
 

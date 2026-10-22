@@ -2973,7 +2973,7 @@ int main(int argc, char **argv)
                "then open the ZXV-URL below (keep the #token part private)\n",
                port, port);
     printf("ZXV-URL: %s\n", url_tok);
-    if (WEB_ROOT[0]) printf("ZXV-WEB: %sweb/#token=%s\n", url, G.token);
+    if (WEB_ROOT[0]) printf("ZXV-WEB: %sweb/boot.html#token=%s\n", url, G.token);
 #if defined(ZXVD)
     if (zxvd_phone_port())
         printf("ZXVD-PHONE: TCP %u (pair a phone with phone.pair)\n", (unsigned) zxvd_phone_port());

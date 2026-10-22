@@ -218,7 +218,7 @@ void pp_kdf_v1(id_kdf_params_t *kp)
     kp->p = PP_KDF_P;
 }
 
-static const char B32[32] = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+static const char B32[] = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 /* Crockford value of one character, -1 for a separator, -2 for invalid. */
 static int b32_val(char ch)

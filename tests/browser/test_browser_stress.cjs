@@ -341,7 +341,7 @@ async function partBoot(browser, z, root)
         await page.goto(z.url);
         const why = await bootWhy(page, 20000);
         await page.waitForTimeout(2500);
-        check(atBoot.test(why) && /\/web\/$/.test(page.url()),
+        check(atBoot.test(why) && /\/web\/boot\.html$/.test(page.url()),
               `boot: ${what} stops the boot in words: "${why}"`);
         const p2 = await ctx.newPage();
         await p2.goto(sessionUrl);

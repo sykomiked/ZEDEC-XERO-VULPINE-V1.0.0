@@ -84,7 +84,7 @@ async function startZxvd(zxvd, models, root, opts)
     const proc = spawn(zxvd, args.concat(o.args || []), {env, stdio : [ 'pipe', 'pipe', 'pipe' ]});
     proc.stderr.on('data', () => {}); // refusals are logged there; the tests read the replies
     const url = await waitLine(proc, 'ZXV-WEB: ', 30000);
-    const m = /^(http:\/\/127\.0\.0\.1:(\d+))\/web\/#token=([0-9a-f]{64})$/.exec(url);
+    const m = /^(http:\/\/127\.0\.0\.1:(\d+))\/web\/boot\.html#token=([0-9a-f]{64})$/.exec(url);
     return {
         proc,
         url,
