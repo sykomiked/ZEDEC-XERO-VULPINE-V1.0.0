@@ -30,7 +30,10 @@ ARCH = os.environ.get("ZXV_ARCH", "arm64")
 # the line the console prints once it reads input
 CONSOLE = {"arm64": "P-TERM/EL0", "x86_64": "[CONSOLE]"}[ARCH]
 # what the loader prints when the kernel cannot have its memory
-TOO_SMALL = {"arm64": "[BOOT_FAIL] this kernel needs RAM", "x86_64": "[BOOT_REFUSED]"}[ARCH]
+# arm64: the loader's RAM check ([BOOT_FAIL]) or, when the RAM covers the
+# window but the firmware keeps part of it, handoff v2's refusal.
+TOO_SMALL = {"arm64": (b"[BOOT_FAIL] this kernel needs RAM", b"[BOOT_REFUSED]"),
+             "x86_64": (b"[BOOT_REFUSED]",)}[ARCH]
 
 
 class Console:
@@ -245,8 +248,9 @@ def toosmall(c, seed, did, digest, question):
     # stack, so the loader must say so and stop, never hand off into memory
     # that is not there; on x86_64 no room for the kernel's ledgers, so the
     # kernel must say so and stop before [BOOT_OK].
-    if c.wait_for(TOO_SMALL, 0) < 0:
-        c.fail("too little RAM for the kernel, and the boot did not say so")
+    while not any(m in c.buf for m in TOO_SMALL):
+        if time.monotonic() >= c.deadline or not c.pump():
+            c.fail("too little RAM for the kernel, and the boot did not say so")
     end = time.monotonic() + 5
     while time.monotonic() < end and c.pump():
         pass

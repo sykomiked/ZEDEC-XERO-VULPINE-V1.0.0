@@ -21,8 +21,9 @@
 #   nomodel   the plain disc (no model): login works, ask says so, never answers
 #   lowmem    256 MB, just above the kernel's own floor: the boot reaches the
 #             shell and says why the AI is off if it is
-#   toosmall  128 MB, below the kernel's image + BSS: the loader says so
-#             ([BOOT_FAIL]) and stops instead of handing off
+#   toosmall  128 MB, too little for the kernel: the loader says so
+#             ([BOOT_FAIL], or [BOOT_REFUSED] when the firmware keeps part of
+#             the window) and stops instead of handing off
 #   keyboard  x86_64 only: the session typed on the PS/2 keyboard (QEMU's
 #             QMP send-key), not on the serial line
 #
