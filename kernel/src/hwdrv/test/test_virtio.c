@@ -37,6 +37,7 @@ typedef struct fblk {
     uint32_t reqs, reads, writes, maxlen;
     uint64_t last_sector;
     int ioerr;
+    int no_status; /* complete requests without writing the status byte */
 } fblk_t;
 
 static int32_t blk_serve(fvirtio_t *f, uint32_t q, fv_desc_t *d, uint32_t n)
@@ -52,10 +53,12 @@ static int32_t blk_serve(fvirtio_t *f, uint32_t q, fv_desc_t *d, uint32_t n)
     b->last_sector = sector;
     if (d[1].len > b->maxlen) b->maxlen = d[1].len;
     if (d[1].len % 512 || d[1].w != (type == 0)) f->strict++;
+    if (fk_rd32(d[0].p + 4)) f->strict++; /* reserved */
     if (b->ioerr) {
         d[2].p[0] = 1;
         return 1;
     }
+    if (b->no_status) return 0;
     for (uint32_t i = 0; i < d[1].len; i++) {
         uint8_t *at = &b->disk[(sector * 512 + i) % sizeof b->disk];
         if (type == 0)
@@ -91,11 +94,27 @@ static fblk_t *add_blk(fake_plat_t *fp, uint64_t features, uint16_t qmax, uint64
     return b;
 }
 
+/* Every disk a driver registers is named prefix + one digit, the digit one
+ * past the previous disk's (mod 10), across the whole run. */
+static void name_next(const char *name, const char *prefix, int *last)
+{
+    size_t n = strlen(prefix);
+    CHECK(strncmp(name, prefix, n) == 0 && strlen(name) == n + 1);
+    int dgt = name[n] - '0';
+    CHECK(dgt >= 0 && dgt <= 9);
+    if (*last >= 0) CHECK(dgt == (*last + 1) % 10);
+    *last = dgt;
+}
+
+static int g_blk_last = -1, g_vsd_last = -1;
+
 static hw_verdict_t bind_blk(fake_plat_t *fp, hw_registry_t *r, hw_line_t *note)
 {
     memset(r, 0, sizeof *r);
     hw_line_init(note);
-    return vblk_bind(&fp->plat, scan_first(fp), r, note);
+    hw_verdict_t v = vblk_bind(&fp->plat, scan_first(fp), r, note);
+    if (v == HW_T) name_next(r->blk[0]->name, "vblk", &g_blk_last);
+    return v;
 }
 
 static void test_blk_happy(void)
@@ -348,6 +367,70 @@ static void test_transport_faults(void)
     free(b);
 }
 
+static void test_blk_more(void)
+{
+    hw_registry_t r;
+    hw_line_t note;
+    uint8_t buf[512];
+    fake_plat_t fp;
+    /* every byte of the header's sector field reaches the device */
+    fake_plat_init(&fp);
+    fblk_t *b = add_blk(&fp, 0, 64, 1ull << 40, 0);
+    CHECK(bind_blk(&fp, &r, &note) == HW_T);
+    CHECK(r.blk[0]->read(r.blk[0], 0x0123456789ull, 1, buf) == 0 &&
+          b->last_sector == 0x0123456789ull);
+    CHECK(r.blk[0]->write(r.blk[0], 0xFEDCBA9876ull, 1, buf) == 0 &&
+          b->last_sector == 0xFEDCBA9876ull);
+    CHECK(r.blk[0]->read(r.blk[0], (1ull << 40) - 1, 1, buf) == 0);
+    CHECK(r.blk[0]->read(r.blk[0], 1ull << 40, 0, buf) == -1);
+    CHECK(b->f->strict == 0);
+    fake_plat_free(&fp);
+    free(b->f);
+    free(b);
+    /* a capacity whose top byte is set: held */
+    fake_plat_init(&fp);
+    b = add_blk(&fp, 0, 64, 0x0100000000000000ull, 0);
+    CHECK(bind_blk(&fp, &r, &note) == HW_B);
+    fake_plat_free(&fp);
+    free(b->f);
+    free(b);
+    /* 200 sectors: 64 KB then the rest, with no SIZE_MAX and with sizes whose
+     * upper bytes are set (each still above the bounce buffer) */
+    const uint32_t sm[3][2] = {{0, 0}, {1u << 1, 0x00010200}, {1u << 1, 0x01000200}};
+    for (uint32_t i = 0; i < 3; i++) {
+        fake_plat_init(&fp);
+        b = add_blk(&fp, sm[i][0], 64, 1024, sm[i][1]);
+        CHECK(bind_blk(&fp, &r, &note) == HW_T);
+        static uint8_t big[200 * 512];
+        CHECK(r.blk[0]->read(r.blk[0], 3, 200, big) == 0);
+        CHECK(b->reqs == 2 && b->maxlen == 65536);
+        CHECK(memcmp(big, b->disk + 3 * 512, 61 * 512) == 0);
+        fake_plat_free(&fp);
+        free(b->f);
+        free(b);
+    }
+    /* a device that completes without writing the status byte */
+    fake_plat_init(&fp);
+    b = add_blk(&fp, 0, 64, BLOCKS, 0);
+    CHECK(bind_blk(&fp, &r, &note) == HW_T);
+    b->no_status = 1;
+    CHECK(r.blk[0]->read(r.blk[0], 1, 1, buf) == -1);
+    fake_plat_free(&fp);
+    free(b->f);
+    free(b);
+    /* each of the driver's own allocations failing alone, before any queue */
+    for (uint32_t n = 1; n <= 4; n++) {
+        fake_plat_init(&fp);
+        b = add_blk(&fp, 0, 64, BLOCKS, 0);
+        fp.dma_fail_one = n;
+        CHECK(bind_blk(&fp, &r, &note) == HW_F && strcmp(note.b, "out of DMA memory") == 0);
+        CHECK(b->f->q[0].enable == 0 && r.n_blk == 0);
+        fake_plat_free(&fp);
+        free(b->f);
+        free(b);
+    }
+}
+
 /* The transport API directly, and the shapes a device may come in. */
 static void test_transport_shapes(void)
 {
@@ -490,7 +573,13 @@ typedef struct fscsi {
     uint8_t last_op;
     uint64_t last_lba;
     uint32_t last_count;
-    int fail_io, bad_response, resid, fixed_cdb, desc_sense, busy_ua;
+    int fail_io, bad_response, fixed_cdb, desc_sense;
+    uint32_t resid; /* residual reported on every good read/write */
+    int fail_op;    /* this opcode fails with CHECK CONDITION, fail_key */
+    uint8_t fail_key;
+    uint8_t status_all; /* nonzero: every command ends with this SCSI status */
+    uint8_t sense_rc;   /* nonzero: the sense response code (else 0x70/0x72) */
+    uint32_t sense_len; /* nonzero: the sense length reported (else 18) */
 } fscsi_t;
 
 static void scsi_resp(uint8_t *resp, uint8_t status, uint8_t response, uint32_t resid, uint8_t key,
@@ -510,6 +599,61 @@ static void scsi_resp(uint8_t *resp, uint8_t status, uint8_t response, uint32_t 
             resp[14] = key;
         }
     }
+}
+
+/* CHECK CONDITION with sense key `key`, in the format the knobs ask for. */
+static void scsi_check(const fscsi_t *s, uint8_t *resp, uint8_t key)
+{
+    scsi_resp(resp, 2, 0, 0, 0, 0);
+    fk_wr32(resp, s->sense_len ? s->sense_len : 18);
+    uint8_t rc = s->sense_rc ? s->sense_rc : s->desc_sense ? 0x72 : 0x70;
+    resp[12] = rc;
+    if ((rc & 0x7E) == 0x72)
+        resp[13] = key;
+    else
+        resp[14] = key;
+}
+
+/* Bytes a CDB must leave zero (reserved, control, and for INQUIRY the
+ * EVPD/page fields): 1 = must be zero. */
+static int cdb_dirty(const uint8_t *cdb)
+{
+    static const uint8_t inq[6] = {0, 1, 1, 1, 0, 1}, tur[6] = {0, 1, 1, 1, 1, 1},
+                         rc10[10] = {0, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+                         rw10[10] = {0, 1, 0, 0, 0, 0, 1, 0, 0, 1},
+                         rc16[16] = {0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1},
+                         rw16[16] = {0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1};
+    const uint8_t *m = 0;
+    uint32_t n = 0;
+    switch (cdb[0]) {
+    case 0x12:
+        m = inq, n = 6;
+        break;
+    case 0x00:
+        m = tur, n = 6;
+        break;
+    case 0x25:
+        m = rc10, n = 10;
+        break;
+    case 0x28:
+    case 0x2A:
+        m = rw10, n = 10;
+        break;
+    case 0x9E:
+        m = rc16, n = 16;
+        break;
+    case 0x88:
+    case 0x8A:
+        m = rw16, n = 16;
+        break;
+    default:
+        return 0;
+    }
+    for (uint32_t i = 0; i < n; i++)
+        if (m[i] && cdb[i]) return 1;
+    for (uint32_t i = n; i < 32; i++) /* nothing past the CDB's own length */
+        if (cdb[i]) return 1;
+    return 0;
 }
 
 static uint32_t be(const uint8_t *b, uint32_t n)
@@ -551,7 +695,11 @@ static int32_t scsi_serve(fvirtio_t *f, uint32_t q, fv_desc_t *d, uint32_t n)
     }
     s->cmds++;
     if (cdb_op(req) == 0x12) s->inquiries++;
-    if (req[0] != 1 || (req[2] & 0xC0) != 0x40 || req[3] != 0) f->strict++;
+    if (req[0] != 1 || req[2] != 0x40 || req[3] != 0) f->strict++; /* LUN 0, flat */
+    for (uint32_t i = 4; i < 8; i++)
+        if (req[i]) f->strict++;
+    if (req[16] || req[17] || req[18]) f->strict++; /* task attr, prio, crn */
+    if (cdb_dirty(cdb)) f->strict++;
     uint32_t t = req[1];
     if (t >= NT || s->type[t] == 0xFF) {
         scsi_resp(resp, 0, 3, 0, 0, 0);
@@ -562,9 +710,17 @@ static int32_t scsi_serve(fvirtio_t *f, uint32_t q, fv_desc_t *d, uint32_t n)
         return 108;
     }
     uint8_t op = cdb[0];
+    if (s->status_all) {
+        scsi_resp(resp, s->status_all, 0, 0, 0, 0);
+        return 108;
+    }
     if (op != 0x12 && s->ua[t]) {
         s->ua[t]--;
-        scsi_resp(resp, 2, 0, 0, 6, s->desc_sense);
+        scsi_check(s, resp, 6);
+        return 108;
+    }
+    if (op == s->fail_op) {
+        scsi_check(s, resp, s->fail_key);
         return 108;
     }
     switch (op) {
@@ -574,7 +730,7 @@ static int32_t scsi_serve(fvirtio_t *f, uint32_t q, fv_desc_t *d, uint32_t n)
         inq[4] = 31;
         memcpy(inq + 8, "ZXV     FAKE SCSI DISK  ", 24);
         uint32_t k = cdb[4] < 36 ? cdb[4] : 36;
-        if (!data_in || dlen < k)
+        if (!data_in || dlen != cdb[4])
             f->strict++;
         else
             memcpy(data, inq, k);
@@ -585,7 +741,7 @@ static int32_t scsi_serve(fvirtio_t *f, uint32_t q, fv_desc_t *d, uint32_t n)
         if (data) f->strict++;
         if (s->not_ready) {
             s->not_ready--;
-            scsi_resp(resp, 2, 0, 0, 2, s->desc_sense);
+            scsi_check(s, resp, 2);
         } else {
             scsi_resp(resp, 0, 0, 0, 0, 0);
         }
@@ -635,7 +791,7 @@ static int32_t scsi_serve(fvirtio_t *f, uint32_t q, fv_desc_t *d, uint32_t n)
             return 108;
         }
         if (s->fail_io) {
-            scsi_resp(resp, 2, 0, 0, 3, s->desc_sense);
+            scsi_check(s, resp, 3);
             return 108;
         }
         for (uint32_t i = 0; i < bytes; i++) {
@@ -649,7 +805,7 @@ static int32_t scsi_serve(fvirtio_t *f, uint32_t q, fv_desc_t *d, uint32_t n)
             s->writes++;
         else
             s->reads++;
-        scsi_resp(resp, 0, 0, s->resid ? 1 : 0, 0, 0);
+        scsi_resp(resp, 0, 0, s->resid, 0, 0);
         return (int32_t) (108 + (wr ? 0 : bytes));
     }
     }
@@ -686,6 +842,7 @@ static fscsi_t *add_scsi(fake_plat_t *fp, uint16_t device)
     const uint16_t qm[FV_QN] = {16, 16, 16, 0};
     fscsi_t *s = (fscsi_t *) calloc(1, sizeof *s);
     s->f = fv_new(fp, HW_BDF(0, 5, 0), device, 0x01, 0x00, 0, qm, scsi_tick);
+    s->fail_op = -1;
     s->f->serve = scsi_serve;
     s->f->dev_state = s;
     memset(s->type, 0xFF, sizeof s->type);
@@ -701,7 +858,10 @@ static hw_verdict_t bind_scsi(fake_plat_t *fp, hw_registry_t *r, hw_line_t *note
 {
     memset(r, 0, sizeof *r);
     hw_line_init(note);
-    return vscsi_bind(&fp->plat, scan_first(fp), r, note);
+    hw_verdict_t v = vscsi_bind(&fp->plat, scan_first(fp), r, note);
+    for (uint32_t i = 0; v == HW_T && i < r->n_blk; i++)
+        name_next(r->blk[i]->name, "vsd", &g_vsd_last);
+    return v;
 }
 
 static void free_scsi(fake_plat_t *fp, fscsi_t *s)
@@ -778,7 +938,9 @@ static void test_scsi_happy(void)
     CHECK(a->read(a, 1, 1, buf) == -1 && s->cmds - c0 == 1);
     CHECK(a->write(a, 1, 1, buf) == -1);
     s->fail_io = 0;
-    s->resid = 1; /* a short transfer is an error */
+    s->resid = 0x01000000; /* a short transfer is an error, however large */
+    CHECK(a->read(a, 1, 1, buf) == -1);
+    s->resid = 1;
     CHECK(a->read(a, 1, 1, buf) == -1);
     s->resid = 0;
     s->bad_response = 1;
@@ -969,11 +1131,167 @@ static void test_scsi_faults(void)
     free_scsi(&fp, s);
 }
 
+static void test_scsi_more(void)
+{
+    hw_registry_t r;
+    hw_line_t note;
+    fake_plat_t fp;
+    fscsi_t *s;
+    uint8_t buf[512];
+    static uint8_t big[200 * 512];
+    /* every byte of LBAs and capacities, both CDB sizes */
+    fake_plat_init(&fp);
+    s = add_scsi(&fp, 0x1048);
+    s->blocks[0] = 0x123456800ull;
+    s->bs[0] = 512;
+    CHECK(bind_scsi(&fp, &r, &note) == HW_T && r.blk[0]->blocks == 0x123456800ull);
+    CHECK(r.blk[0]->read(r.blk[0], 0x12345678ull, 1, buf) == 0);
+    CHECK(s->last_op == 0x28 && s->last_lba == 0x12345678ull);
+    CHECK(r.blk[0]->write(r.blk[0], 0x123456789ull, 1, buf) == 0);
+    CHECK(s->last_op == 0x8A && s->last_lba == 0x123456789ull);
+    CHECK(r.blk[0]->read(r.blk[0], 0x123456800ull, 0, buf) == -1);
+    CHECK(s->f->strict == 0);
+    free_scsi(&fp, s);
+    fake_plat_init(&fp);
+    s = add_scsi(&fp, 0x1048);
+    s->blocks[0] = 0x12345679ull;
+    s->bs[0] = 4096;
+    CHECK(bind_scsi(&fp, &r, &note) == HW_T);
+    CHECK(r.blk[0]->blocks == 0x12345679ull && r.blk[0]->block_size == 4096 && s->rc16 == 0);
+    free_scsi(&fp, s);
+    /* a READ (10) of 128 blocks: the count's high byte is 0 */
+    fake_plat_init(&fp);
+    s = add_scsi(&fp, 0x1048);
+    s->blocks[0] = 1024;
+    CHECK(bind_scsi(&fp, &r, &note) == HW_T);
+    uint32_t c0 = s->cmds;
+    CHECK(r.blk[0]->read(r.blk[0], 0, 128, big) == 0 && s->cmds - c0 == 1 && s->last_count == 128);
+    CHECK(r.blk[0]->read(r.blk[0], 0, 200, big) == 0 && s->cmds - c0 == 3 && s->maxlen == 65536);
+    CHECK(s->f->strict == 0);
+    free_scsi(&fp, s);
+    /* max_sectors 0 (no limit stated), 0xFFFF, 128 and 127 */
+    const uint32_t ms[4][2] = {{0, 65536}, {0xFFFF, 65536}, {128, 65536}, {127, 65024}};
+    for (uint32_t i = 0; i < 4; i++) {
+        fake_plat_init(&fp);
+        s = add_scsi(&fp, 0x1048);
+        s->blocks[0] = 1024;
+        scsi_cfg(s, 1, ms[i][0], 255);
+        CHECK(bind_scsi(&fp, &r, &note) == HW_T);
+        c0 = s->cmds;
+        CHECK(r.blk[0]->read(r.blk[0], 0, 200, big) == 0 && s->cmds - c0 == 2);
+        CHECK(s->maxlen == ms[i][1]);
+        free_scsi(&fp, s);
+    }
+    /* a 4 KB disk whose controller moves exactly 4 KB a command */
+    fake_plat_init(&fp);
+    s = add_scsi(&fp, 0x1048);
+    s->bs[0] = 4096, s->blocks[0] = 8;
+    scsi_cfg(s, 1, 8, 255);
+    CHECK(bind_scsi(&fp, &r, &note) == HW_T && r.blk[0]->block_size == 4096);
+    free_scsi(&fp, s);
+    /* each step of the probe failing outright (no retry): no disk */
+    const struct {
+        int op;
+        uint8_t key;
+        uint64_t blocks;
+        uint32_t cmds;
+    } pf[] = {{0x12, 5, BLOCKS, 8},
+              {0x00, 3, BLOCKS, 9},
+              {0x25, 5, BLOCKS, 10},
+              {0x9E, 5, 0x100000010ull, 11}};
+    for (uint32_t i = 0; i < sizeof pf / sizeof pf[0]; i++) {
+        fake_plat_init(&fp);
+        s = add_scsi(&fp, 0x1048);
+        s->fail_op = pf[i].op, s->fail_key = pf[i].key, s->blocks[0] = pf[i].blocks;
+        CHECK(bind_scsi(&fp, &r, &note) == HW_N && r.n_blk == 0);
+        CHECK(strcmp(note.b, "no disk on the bus") == 0);
+        CHECK(s->cmds == pf[i].cmds);
+        free_scsi(&fp, s);
+    }
+    /* a capacity of zero blocks: READ CAPACITY (16) says all ones, no disk */
+    fake_plat_init(&fp);
+    s = add_scsi(&fp, 0x1048);
+    s->blocks[0] = 0;
+    CHECK(bind_scsi(&fp, &r, &note) == HW_N && s->rc16 == 1);
+    free_scsi(&fp, s);
+    /* BUSY on every command is a failed controller, not an empty bus */
+    fake_plat_init(&fp);
+    s = add_scsi(&fp, 0x1048);
+    s->status_all = 0x08;
+    CHECK(bind_scsi(&fp, &r, &note) == HW_F);
+    CHECK(strcmp(note.b, "a command to target 0 failed or timed out") == 0);
+    free_scsi(&fp, s);
+    /* sense formats: which ones a unit attention is recognised in */
+    const struct {
+        int desc;
+        uint8_t rc;
+        uint32_t len;
+        int ok;
+    } sf[] = {{0, 0, 3, 1},    {0, 0, 2, 0},    {1, 0, 2, 1},    {1, 0, 1, 0},
+              {0, 0x71, 0, 1}, {1, 0x73, 0, 1}, {0, 0x01, 0, 0}, {0, 0x7F, 0, 0}};
+    for (uint32_t i = 0; i < sizeof sf / sizeof sf[0]; i++) {
+        fake_plat_init(&fp);
+        s = add_scsi(&fp, 0x1048);
+        CHECK(bind_scsi(&fp, &r, &note) == HW_T);
+        s->desc_sense = sf[i].desc, s->sense_rc = sf[i].rc, s->sense_len = sf[i].len;
+        s->ua[0] = 1;
+        c0 = s->cmds;
+        uint64_t t0 = fp.now_us;
+        int rr = r.blk[0]->read(r.blk[0], 1, 1, buf);
+        if ((rr == 0) != sf[i].ok) printf("  sense case %u: read %d\n", i, rr);
+        CHECK((rr == 0) == sf[i].ok);
+        CHECK(s->cmds - c0 == (sf[i].ok ? 2u : 1u));
+        if (sf[i].ok) CHECK(fp.now_us - t0 == 1020); /* 10 us, 1 ms pause, 10 us */
+        free_scsi(&fp, s);
+    }
+    /* a medium error in descriptor format is not retried either */
+    fake_plat_init(&fp);
+    s = add_scsi(&fp, 0x1048);
+    CHECK(bind_scsi(&fp, &r, &note) == HW_T);
+    s->desc_sense = 1, s->fail_io = 1;
+    c0 = s->cmds;
+    CHECK(r.blk[0]->read(r.blk[0], 1, 1, buf) == -1 && s->cmds - c0 == 1);
+    free_scsi(&fp, s);
+    /* features the device offers (INOUT, HOTPLUG, CHANGE, T10_PI): none taken */
+    fake_plat_init(&fp);
+    s = add_scsi(&fp, 0x1048);
+    s->f->offered |= 0xF;
+    CHECK(bind_scsi(&fp, &r, &note) == HW_T && s->f->taken == (1ull << 32));
+    free_scsi(&fp, s);
+    /* queue counts with only a high byte set are still queues */
+    const uint32_t nq[3] = {0x100, 0x10000, 0x1000000};
+    for (uint32_t i = 0; i < 3; i++) {
+        fake_plat_init(&fp);
+        s = add_scsi(&fp, 0x1048);
+        scsi_cfg(s, nq[i], 0xFFFF, 255);
+        CHECK(bind_scsi(&fp, &r, &note) == HW_T);
+        free_scsi(&fp, s);
+    }
+    /* sizes past one byte are rewritten whole */
+    fake_plat_init(&fp);
+    s = add_scsi(&fp, 0x1048);
+    fk_wr32(s->f->r + FV_DEVCFG + 20, 0x1FC);
+    fk_wr32(s->f->r + FV_DEVCFG + 24, 0x01000020);
+    CHECK(bind_scsi(&fp, &r, &note) == HW_T);
+    CHECK(fk_rd32(s->f->r + FV_DEVCFG + 20) == 96 && fk_rd32(s->f->r + FV_DEVCFG + 24) == 32);
+    free_scsi(&fp, s);
+    /* each of the driver's own allocations failing alone, before any queue */
+    for (uint32_t n = 1; n <= 4; n++) {
+        fake_plat_init(&fp);
+        s = add_scsi(&fp, 0x1048);
+        fp.dma_fail_one = n;
+        CHECK(bind_scsi(&fp, &r, &note) == HW_F && strcmp(note.b, "out of DMA memory") == 0);
+        CHECK(s->f->q[2].enable == 0);
+        free_scsi(&fp, s);
+    }
+}
+
 /* ===================================================================== net */
 typedef struct fnet {
     fvirtio_t *f;
     peer_t peer;
     uint32_t tx, rx, hdr_bad;
+    int over; /* report the next frame one byte longer than its buffer */
 } fnet_t;
 
 static int32_t net_serve(fvirtio_t *f, uint32_t q, fv_desc_t *d, uint32_t n)
@@ -1006,6 +1324,10 @@ static int32_t net_serve(fvirtio_t *f, uint32_t q, fv_desc_t *d, uint32_t n)
     memcpy(d[0].p + 12, fr->b, fr->len);
     uint32_t len = fr->len;
     if (fr->err) len = 5; /* a runt the driver must drop */
+    if (e->over) {
+        e->over = 0;
+        len = d[0].len - 12 + 1;
+    }
     peer_pop(&e->peer);
     e->rx++;
     return (int32_t) (len + 12);
@@ -1215,6 +1537,69 @@ static void test_net_shapes(void)
     free_net(&fp, e);
 }
 
+static void test_net_more(void)
+{
+    hw_registry_t r;
+    hw_line_t note;
+    fake_plat_t fp;
+    uint8_t f[2048], g[2048];
+    fake_plat_init(&fp);
+    fnet_t *e = add_net(&fp, F_MAC | F_STATUS, 64, 1);
+    CHECK(bind_net(&fp, &r, &note) == HW_T);
+    hw_nic_t *n = r.nic[0];
+    /* a call with no room takes nothing: the frame waits for the next one */
+    peer_mk(f, mac0, peer_mac, 80, 7);
+    peer_push(&e->peer, f, 80, 0);
+    fp.plat.delay_us(fp.plat.ctx, 1);
+    CHECK(n->recv(n, g, 0) == 0);
+    CHECK(n->recv(n, 0, sizeof g) == 0);
+    CHECK(n->recv(n, g, sizeof g) == 80 && memcmp(g, f, 80) == 0);
+    /* the shortest frame, and one byte under it */
+    peer_mk(f, mac0, peer_mac, 14, 1);
+    peer_push(&e->peer, f, 13, 0);
+    peer_push(&e->peer, f, 14, 0);
+    fp.plat.delay_us(fp.plat.ctx, 1);
+    CHECK(n->recv(n, g, sizeof g) == 14);
+    /* a frame filling its buffer exactly, and one the device says is longer */
+    peer_mk(f, mac0, peer_mac, 2036, 2);
+    peer_push(&e->peer, f, 2036, 0);
+    fp.plat.delay_us(fp.plat.ctx, 1);
+    CHECK(n->recv(n, g, sizeof g) == 2036 && memcmp(g, f, 2036) == 0);
+    e->over = 1;
+    peer_push(&e->peer, f, 100, 0);
+    peer_push(&e->peer, f, 60, 0);
+    fp.plat.delay_us(fp.plat.ctx, 1);
+    CHECK(n->recv(n, g, sizeof g) == 60);
+    /* room for a little more than the frame: the frame's length, no more */
+    peer_mk(f, mac0, peer_mac, 100, 3);
+    peer_push(&e->peer, f, 100, 0);
+    fp.plat.delay_us(fp.plat.ctx, 1);
+    CHECK(n->recv(n, g, 105) == 100);
+    CHECK(e->f->strict == 0);
+    /* phy_off itself: MAC stopped, no PHY to power down */
+    CHECK(n->phy_off(n) == 1 && n->link_up == 0 && e->f->status == 0);
+    free_net(&fp, e);
+    /* a device that never takes frames: each send times out, and once every
+     * transmit descriptor is stuck with the device, sends are refused */
+    fake_plat_init(&fp);
+    e = add_net(&fp, F_MAC, 64, 1);
+    CHECK(bind_net(&fp, &r, &note) == HW_T);
+    e->f->deaf = 1;
+    peer_mk(f, peer_mac, mac0, 64, 1);
+    for (int i = 0; i < 64; i++) CHECK(r.nic[0]->send(r.nic[0], f, 64) == -1);
+    CHECK(r.nic[0]->send(r.nic[0], f, 64) == -2);
+    free_net(&fp, e);
+    /* each of the driver's own allocations failing alone, before any queue */
+    for (uint32_t k = 1; k <= 3; k++) {
+        fake_plat_init(&fp);
+        e = add_net(&fp, F_MAC, 64, 1);
+        fp.dma_fail_one = k;
+        CHECK(bind_net(&fp, &r, &note) == HW_F && strcmp(note.b, "out of DMA memory") == 0);
+        CHECK(e->f->q[0].enable == 0 && r.n_nic == 0);
+        free_net(&fp, e);
+    }
+}
+
 /* ==================================================================== probe */
 static void test_probe(void)
 {
@@ -1271,13 +1656,16 @@ int main(void)
 {
     test_blk_happy();
     test_blk_shapes();
+    test_blk_more();
     test_transport_faults();
     test_transport_shapes();
     test_scsi_happy();
     test_scsi_big();
     test_scsi_faults();
+    test_scsi_more();
     test_net_happy();
     test_net_shapes();
+    test_net_more();
     test_probe();
     printf("test_virtio: %d checks, %d failures\n", fk_checks, fk_failures);
     return fk_failures ? 1 : 0;

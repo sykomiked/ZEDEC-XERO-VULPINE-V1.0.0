@@ -40,13 +40,13 @@ typedef struct vnet {
 
 const hw_id_t vnet_ids[] = {{VPCI_VENDOR, 0x1000}, {VPCI_VENDOR, 0x1041}, {0, 0}};
 
-static int post_rx(vnet_t *e, uint32_t i)
+/* Post receive buffer i. The queue always has room: it holds at least RXN
+ * descriptors and each buffer is posted again only after its own descriptor
+ * came back. */
+static void post_rx(vnet_t *e, uint32_t i)
 {
     vring_buf_t b = {e->rx[i], BUF, true};
-    int32_t head = vring_add(&e->v.q[Q_RX].vr, &b, 1);
-    if (head < 0) return -1;
-    e->rx_of[head] = (uint8_t) i;
-    return 0;
+    e->rx_of[vring_add(&e->v.q[Q_RX].vr, &b, 1)] = (uint8_t) i;
 }
 
 static int vnet_recv(hw_nic_t *n, void *buf, uint32_t max)
@@ -62,7 +62,7 @@ static int vnet_recv(hw_nic_t *n, void *buf, uint32_t max)
             got = len - HDR < max ? len - HDR : max;
             hw_memcpy(buf, e->rx[i] + HDR, got);
         }
-        post_rx(e, i); /* cannot fail: its own descriptor just came back */
+        post_rx(e, i);
         vpci_kick(&e->v, Q_RX);
         if (got) return (int) got;
     }
