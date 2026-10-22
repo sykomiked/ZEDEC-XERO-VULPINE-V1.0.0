@@ -11,7 +11,7 @@
  *      refused, so dm_b32_encode(decode(s)) == upper(s); and for any bytes,
  *      decode(encode(x)) == x
  *      (-DFZ_LAX_CANON skips only this canonical-text check)
- *   1  dm_caps_decode: field ranges (nmodels <= DM_MAX_MODELS, net, battery,
+ *   1  dm_caps_decode: field ranges (nmodels <= DM_MAX_MODELS, net <= DM_NET_MAX, battery,
  *      model class, NUL-terminated names); byte-exact re-encode
  *   2  dm_money_decode: kind, rail 555/777/888, currency "VFV", memo
  *      terminated, 0 < amount <= DM_MONEY_AMOUNT_MAX (0 and anything above
@@ -83,7 +83,7 @@ static void mode_caps(const uint8_t *p, size_t n)
     uint8_t *b = fz_dup(p, n);
     dm_caps_t c;
     if (dm_caps_decode(&c, b, (uint32_t) n) == DM_OK) {
-        if (c.nmodels > DM_MAX_MODELS || c.net > DM_NET_METERED) abort();
+        if (c.nmodels > DM_MAX_MODELS || c.net > DM_NET_MAX) abort();
         if (c.battery_pct > 100u && c.battery_pct != 255u) abort();
         for (uint32_t i = 0; i < c.nmodels; i++) {
             if (c.models[i].name[DM_MODEL_NAME - 1] != 0) abort();
