@@ -2557,7 +2557,7 @@ What it does: three pieces on pay_ledger. sic_view sums one owner's accounts int
 Main entry points: sic_view, sic_view_compute, sic_tier_table_default, sic_tier_eval, sic_steward_init/propose/approve/cancel/execute/state, sic_org_open/deposit/sweep/join/leave/award/redeem.
 Tests: src/sicily/test_sicily.c, 315 passed, via test-econ in verify-all.
 Used by: zxvd's player.card method (zxv_host.c rpc_player_card, tier evaluation only) and kernel/src/cred (cred.c calls sic_tier_eval). The steward threshold, the organisation programs and sic_view have no caller outside the tests.
-Gaps: player.card feeds only credibility (from quest); bond and giving are reported as 0, so tiers above what credibility alone earns are not reachable today. Signatures go through the caller's verify hook. Described briefly in [ZXVD.md](ZXVD.md#peers-offers-and-the-player-card).
+Gaps: player.card feeds only credibility (from quest); uptime is not measured, and bond and giving have no real ledger on the node (the V-Bonds and grants desks run on practice units), so they are reported as 0 with that reason and tiers above what credibility alone earns are not reachable today. The card shows the live practice V-Bonds under `practice`, never as a tier input. Signatures go through the caller's verify hook. Described briefly in [ZXVD.md](ZXVD.md#peers-offers-and-the-player-card).
 
 ### situation — all-domain situation/risk modeller
 Status: PARTIAL

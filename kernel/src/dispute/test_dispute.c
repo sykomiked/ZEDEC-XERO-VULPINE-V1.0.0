@@ -2,16 +2,18 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* test_dispute.c — the three-level dispute funnel (dispute.h D1-D10) on a
  * real pay_ledger: level-1 proofs decided by a deterministic predicate,
- * level-2 juries drawn by stake from a VRF output (a deterministic SHA-256
- * STAND-IN here, not a real VRF), blind commit-reveal, slashing to the
- * reserve-floor account, 1x/4x/16x appeals, ties, the level-3 gateway, and
- * the loser recorded in kernel/src/cred through cred_fail. Conservation is
- * audited after every step. Integer only: no floating point anywhere. */
+ * level-2 juries drawn by stake from a VRF output (the real ECVRF of
+ * src/vrf, RFC 9381, through vrf_dsp_verify), blind commit-reveal,
+ * slashing to the reserve-floor account, 1x/4x/16x appeals, ties, the
+ * level-3 gateway, and the loser recorded in kernel/src/cred through
+ * cred_fail. Conservation is audited after every step. Integer only: no
+ * floating point anywhere. */
 #include <stdio.h>
 #include <string.h>
 #include "dispute.h"
 #include "../cred/cred.h"
 #include "../robin_debanks/sha256.h"
+#include "../vrf/vrf.h"
 
 static int pass, fail;
 #define CHECK(c, msg)                                                                              \
@@ -28,7 +30,6 @@ static int pass, fail;
 #define BUYER  1u
 #define SELLER 2u
 #define GW     77u
-#define VRFK   55u
 
 static pay_ledger_t L;
 static dsp_t D;
@@ -59,28 +60,27 @@ static bool verify(void *ctx, uint32_t signer, const uint8_t *m, uint32_t len, c
     sign(signer, m, len, s);
     return memcmp(s, sig, 32) == 0;
 }
-/* VRF STAND-IN: out = SHA-256("test-vrf" || key || seed), proof = key (4 bytes).
- * Deterministic and checkable, but anyone can compute it: NOT a VRF. */
-static void vrf_eval(uint32_t key, const uint8_t seed[32], uint8_t out[32], uint8_t proof[4])
+/* VRF: the real ECVRF-EDWARDS25519-SHA512-TAI (src/vrf, RFC 9381) through
+ * its dispute adapter vrf_dsp_verify: alpha = the 32-byte dispute seed,
+ * proof = pi (80 bytes), out = beta[0..31]. VCTX carries the jury VRF key's
+ * public half (verify and pred ignore ctx); OSK is a second key whose
+ * proofs must be refused. */
+static uint8_t VSK[VRF_SK_LEN], OSK[VRF_SK_LEN];
+static vrf_dsp_ctx_t VCTX;
+static void vrf_keys(void)
 {
-    uint8_t m[8 + 4 + 32];
-    memcpy(m, "test-vrf", 8);
-    memcpy(m + 8, &key, 4);
-    memcpy(m + 12, seed, 32);
-    sha256(m, sizeof m, out);
-    memcpy(proof, &key, 4);
+    uint8_t s[32], opk[VRF_PK_LEN];
+    for (int i = 0; i < 32; i++) s[i] = (uint8_t) (i * 11 + 5);
+    vrf_keypair(s, VCTX.pk, VSK);
+    s[0] ^= 1;
+    vrf_keypair(s, opk, OSK);
 }
-static bool vrf_verify(void *ctx, const uint8_t seed[32], const uint8_t *proof, uint32_t plen,
-                       const uint8_t out[32])
+static void vrf_eval(const uint8_t seed[32], uint8_t out[32], uint8_t proof[VRF_PROOF_LEN])
 {
-    uint8_t o[32], p[4];
-    uint32_t key;
-    (void) ctx;
-    if (plen != 4 || !proof) return false;
-    memcpy(&key, proof, 4);
-    if (key != VRFK) return false;
-    vrf_eval(key, seed, o, p);
-    return memcmp(o, out, 32) == 0;
+    if (!vrf_dsp_out(VSK, seed, proof, out)) {
+        fail++;
+        printf("FAIL vrf_dsp_out\n");
+    }
 }
 /* level-1 predicate: kind 1 (delivery proof) matching the terms -> seller;
  * kind 2 (carrier non-delivery attestation) matching -> buyer; else none. */
@@ -158,7 +158,7 @@ static void ledger_setup(void)
 static void setup(const dsp_config_t *cfg, uint32_t njurors)
 {
     ledger_setup();
-    CHECK(dsp_init(&D, &L, cfg, escrow, reserve, GW, verify, vrf_verify, pred, NULL, SEED) ==
+    CHECK(dsp_init(&D, &L, cfg, escrow, reserve, GW, verify, vrf_dsp_verify, pred, &VCTX, SEED) ==
               DSP_OK,
           "init");
     for (uint32_t k = 0; k < njurors; k++) dsp_juror_add(&D, 100 + k, jacct[k], 10 + k * 3);
@@ -192,10 +192,10 @@ static dsp_status_t proof(uint32_t id, uint8_t party, uint8_t kind, const uint8_
 
 static dsp_status_t do_select(uint32_t id, uint64_t tick)
 {
-    uint8_t seed[32], out[32], pr[4];
+    uint8_t seed[32], out[32], pr[VRF_PROOF_LEN];
     dsp_vrf_seed(&D, id, seed);
-    vrf_eval(VRFK, seed, out, pr);
-    return dsp_select(&D, id, pr, 4, out, tick);
+    vrf_eval(seed, out, pr);
+    return dsp_select(&D, id, pr, VRF_PROOF_LEN, out, tick);
 }
 
 static void salt_of(uint32_t juror, uint32_t id, uint8_t salt[32])
@@ -337,43 +337,43 @@ static void test_init_pool(void)
     ledger_setup();
     dsp_config_t f;
     dsp_config_default(&f);
-    CHECK(dsp_init(NULL, &L, NULL, escrow, reserve, GW, verify, vrf_verify, pred, NULL, SEED) ==
+    CHECK(dsp_init(NULL, &L, NULL, escrow, reserve, GW, verify, vrf_dsp_verify, pred, &VCTX,
+                   SEED) == DSP_ERR_ARG &&
+              dsp_init(&D, NULL, NULL, escrow, reserve, GW, verify, vrf_dsp_verify, pred, &VCTX,
+                       SEED) == DSP_ERR_ARG &&
+              dsp_init(&D, &L, NULL, escrow, reserve, GW, NULL, vrf_dsp_verify, pred, &VCTX,
+                       SEED) == DSP_ERR_ARG &&
+              dsp_init(&D, &L, NULL, escrow, reserve, GW, verify, NULL, pred, &VCTX, SEED) ==
                   DSP_ERR_ARG &&
-              dsp_init(&D, NULL, NULL, escrow, reserve, GW, verify, vrf_verify, pred, NULL, SEED) ==
-                  DSP_ERR_ARG &&
-              dsp_init(&D, &L, NULL, escrow, reserve, GW, NULL, vrf_verify, pred, NULL, SEED) ==
-                  DSP_ERR_ARG &&
-              dsp_init(&D, &L, NULL, escrow, reserve, GW, verify, NULL, pred, NULL, SEED) ==
-                  DSP_ERR_ARG &&
-              dsp_init(&D, &L, NULL, escrow, reserve, GW, verify, vrf_verify, pred, NULL, NULL) ==
-                  DSP_ERR_ARG,
+              dsp_init(&D, &L, NULL, escrow, reserve, GW, verify, vrf_dsp_verify, pred, NULL,
+                       NULL) == DSP_ERR_ARG,
           "NULL args");
     f.jury[0] = 2;
-    CHECK(dsp_init(&D, &L, &f, escrow, reserve, GW, verify, vrf_verify, pred, NULL, SEED) ==
+    CHECK(dsp_init(&D, &L, &f, escrow, reserve, GW, verify, vrf_dsp_verify, pred, &VCTX, SEED) ==
               DSP_ERR_ARG,
           "bad cfg");
-    CHECK(dsp_init(&D, &L, NULL, escrow, escrow, GW, verify, vrf_verify, pred, NULL, SEED) ==
+    CHECK(dsp_init(&D, &L, NULL, escrow, escrow, GW, verify, vrf_dsp_verify, pred, &VCTX, SEED) ==
               DSP_ERR_ARG,
           "escrow == reserve");
-    CHECK(dsp_init(&D, &L, NULL, L.n_accounts, reserve, GW, verify, vrf_verify, pred, NULL, SEED) ==
-                  DSP_ERR_ARG &&
-              dsp_init(&D, &L, NULL, escrow, L.n_accounts, GW, verify, vrf_verify, pred, NULL,
+    CHECK(dsp_init(&D, &L, NULL, L.n_accounts, reserve, GW, verify, vrf_dsp_verify, pred, &VCTX,
+                   SEED) == DSP_ERR_ARG &&
+              dsp_init(&D, &L, NULL, escrow, L.n_accounts, GW, verify, vrf_dsp_verify, pred, &VCTX,
                        SEED) == DSP_ERR_ARG,
           "missing account");
-    CHECK(dsp_init(&D, &L, NULL, escrow, eacct, GW, verify, vrf_verify, pred, NULL, SEED) ==
+    CHECK(dsp_init(&D, &L, NULL, escrow, eacct, GW, verify, vrf_dsp_verify, pred, &VCTX, SEED) ==
               DSP_ERR_ARG,
           "asset mismatch");
     CHECK(!D.ready && !dsp_check(&D), "refused init leaves no usable module");
-    CHECK(dsp_init(&D, &L, NULL, iss, reserve, GW, verify, vrf_verify, pred, NULL, SEED) ==
+    CHECK(dsp_init(&D, &L, NULL, iss, reserve, GW, verify, vrf_dsp_verify, pred, &VCTX, SEED) ==
               DSP_ERR_ARG,
           "issuer escrow");
-    CHECK(dsp_init(&D, &L, NULL, spare, iss, GW, verify, vrf_verify, pred, NULL, SEED) ==
+    CHECK(dsp_init(&D, &L, NULL, spare, iss, GW, verify, vrf_dsp_verify, pred, &VCTX, SEED) ==
               DSP_ERR_ARG,
           "issuer reserve");
-    CHECK(dsp_init(&D, &L, NULL, bacct, reserve, GW, verify, vrf_verify, pred, NULL, SEED) ==
+    CHECK(dsp_init(&D, &L, NULL, bacct, reserve, GW, verify, vrf_dsp_verify, pred, &VCTX, SEED) ==
               DSP_ERR_STATE,
           "escrow not empty");
-    CHECK(dsp_init(&D, &L, NULL, escrow, reserve, GW, verify, vrf_verify, NULL, NULL, SEED) ==
+    CHECK(dsp_init(&D, &L, NULL, escrow, reserve, GW, verify, vrf_dsp_verify, NULL, &VCTX, SEED) ==
                   DSP_OK &&
               D.ready && D.next_id == 1 && D.asset == usd && D.cfg.jury[2] == 15 &&
               D.pred == NULL && memcmp(D.seed, SEED, 32) == 0 && D.gateway == GW,
@@ -577,18 +577,26 @@ static void test_level2_flow(void)
     CHECK(dsp_escalate(&D, id, DSP_SELLER, 10) == DSP_ERR_STATE, "no double escalation");
     CHECK(proof(id, DSP_SELLER, 1, TERMS) == DSP_ERR_STATE, "no proofs at level 2");
     /* VRF */
-    uint8_t seed[32], out[32], pr[4];
+    uint8_t seed[32], out[32], pr[VRF_PROOF_LEN];
     dsp_vrf_seed(&D, id, seed);
-    vrf_eval(VRFK, seed, out, pr);
-    CHECK(dsp_select(&D, id, pr, 4, NULL, 11) == DSP_ERR_ARG, "NULL out");
-    CHECK(dsp_select(&D, 99, pr, 4, out, 11) == DSP_ERR_UNKNOWN, "unknown");
+    vrf_eval(seed, out, pr);
+    CHECK(dsp_select(&D, id, pr, VRF_PROOF_LEN, NULL, 11) == DSP_ERR_ARG, "NULL out");
+    CHECK(dsp_select(&D, 99, pr, VRF_PROOF_LEN, out, 11) == DSP_ERR_UNKNOWN, "unknown");
     out[0] ^= 1;
-    CHECK(dsp_select(&D, id, pr, 4, out, 11) == DSP_ERR_VRF, "wrong VRF output refused");
+    CHECK(dsp_select(&D, id, pr, VRF_PROOF_LEN, out, 11) == DSP_ERR_VRF,
+          "wrong VRF output refused");
     out[0] ^= 1;
-    uint8_t pk[4] = {1, 2, 3, 4};
-    CHECK(dsp_select(&D, id, pk, 4, out, 11) == DSP_ERR_VRF, "wrong VRF key refused");
-    CHECK(dsp_select(&D, id, pr, 3, out, 11) == DSP_ERR_VRF, "short proof refused");
-    CHECK(dsp_select(&D, id, pr, 4, out, UINT64_MAX - 5) == DSP_ERR_OVERFLOW, "deadline overflow");
+    uint8_t opr[VRF_PROOF_LEN], oout[32];
+    CHECK(vrf_dsp_out(OSK, seed, opr, oout), "other key proves");
+    CHECK(dsp_select(&D, id, opr, VRF_PROOF_LEN, oout, 11) == DSP_ERR_VRF, "wrong VRF key refused");
+    CHECK(dsp_select(&D, id, opr, VRF_PROOF_LEN, out, 11) == DSP_ERR_VRF,
+          "other key's proof with the right output refused");
+    CHECK(dsp_select(&D, id, pr, VRF_PROOF_LEN - 1, out, 11) == DSP_ERR_VRF, "short proof refused");
+    pr[60] ^= 1;
+    CHECK(dsp_select(&D, id, pr, VRF_PROOF_LEN, out, 11) == DSP_ERR_VRF, "tampered proof refused");
+    pr[60] ^= 1;
+    CHECK(dsp_select(&D, id, pr, VRF_PROOF_LEN, out, UINT64_MAX - 5) == DSP_ERR_OVERFLOW,
+          "deadline overflow");
     CHECK(c->state == DSP_ST_SELECT && D.locked_total == 1000, "refused selects left nothing");
     /* reference draw */
     uint64_t w[DSP_MAX_POOL];
@@ -599,7 +607,7 @@ static void test_level2_flow(void)
     }
     uint8_t seat[DSP_MAX_JURY];
     ref_select(out, w, el, D.n_pool, 3, seat);
-    CHECK(dsp_select(&D, id, pr, 4, out, 100) == DSP_OK && c->state == DSP_ST_VOTE &&
+    CHECK(dsp_select(&D, id, pr, VRF_PROOF_LEN, out, 100) == DSP_OK && c->state == DSP_ST_VOTE &&
               c->n_jury == 3,
           "jury of 3 drawn");
     CHECK(memcmp(seat, c->seat, 3) == 0, "draw matches the reference");
@@ -609,7 +617,7 @@ static void test_level2_flow(void)
               audit(),
           "juror bonds locked");
     CHECK(c->used == ((1u << seat[0]) | (1u << seat[1]) | (1u << seat[2])), "used mask");
-    CHECK(dsp_select(&D, id, pr, 4, out, 100) == DSP_ERR_STATE, "no second select");
+    CHECK(dsp_select(&D, id, pr, VRF_PROOF_LEN, out, 100) == DSP_ERR_STATE, "no second select");
     uint32_t j0 = seat_id(id, 0), j1 = seat_id(id, 1), j2 = seat_id(id, 2);
     /* commits */
     uint8_t cm[32], sig[32], m[DSP_COMMIT_MSG], salt[32];
@@ -993,7 +1001,7 @@ static void test_more(void)
         f.jury[1] = 15;
         f.jury[2] = 1;
         ledger_setup();
-        dsp_init(&D, &L, NULL, escrow, reserve, GW, verify, vrf_verify, pred, NULL, SEED);
+        dsp_init(&D, &L, NULL, escrow, reserve, GW, verify, vrf_dsp_verify, pred, &VCTX, SEED);
         D.cfg.jury[0] = 15;
         uint32_t nj = pass_ ? 16 : NJ;
         for (uint32_t k = 0; k < nj; k++)
@@ -1001,7 +1009,7 @@ static void test_more(void)
         for (uint32_t n = 0; n < 40; n++) {
             uint32_t g = open_case(100 + n, 0);
             dsp_escalate(&D, g, DSP_BUYER, 0);
-            uint8_t seed[32], out[32], pr[4], seat[DSP_MAX_JURY];
+            uint8_t seed[32], out[32], pr[VRF_PROOF_LEN], seat[DSP_MAX_JURY];
             uint64_t w[DSP_MAX_POOL];
             bool el[DSP_MAX_POOL];
             for (uint32_t k = 0; k < nj; k++) {
@@ -1009,10 +1017,10 @@ static void test_more(void)
                 el[k] = true;
             }
             dsp_vrf_seed(&D, g, seed);
-            vrf_eval(VRFK, seed, out, pr);
+            vrf_eval(seed, out, pr);
             uint32_t ctr = ref_select(out, w, el, nj, 15, seat);
             rejected += ctr > 15;
-            dsp_status_t st = dsp_select(&D, g, pr, 4, out, 0);
+            dsp_status_t st = dsp_select(&D, g, pr, VRF_PROOF_LEN, out, 0);
             bad += st != DSP_OK || memcmp(seat, dsp_case(&D, g)->seat, 15) != 0;
             dsp_case_t *w2 = (dsp_case_t *) dsp_case(&D, g);
             for (uint32_t d = 0; d < 15; d++) w2->revealed[d] = false;
@@ -1181,7 +1189,7 @@ static void test_random(void)
             if (c->state == DSP_ST_SELECT) {
                 uint64_t w[DSP_MAX_POOL];
                 bool el[DSP_MAX_POOL];
-                uint8_t seed[32], out[32], pr[4], seat[DSP_MAX_JURY];
+                uint8_t seed[32], out[32], pr[VRF_PROOF_LEN], seat[DSP_MAX_JURY];
                 uint32_t cnt = 0;
                 for (uint32_t k = 0; k < D.n_pool; k++) {
                     const dsp_juror_t *j = &D.pool[k];
@@ -1192,9 +1200,9 @@ static void test_random(void)
                     cnt += el[k];
                 }
                 dsp_vrf_seed(&D, id, seed);
-                vrf_eval(VRFK, seed, out, pr);
+                vrf_eval(seed, out, pr);
                 uint32_t J = f.jury[c->round - 1];
-                dsp_status_t st = dsp_select(&D, id, pr, 4, out, tick);
+                dsp_status_t st = dsp_select(&D, id, pr, VRF_PROOF_LEN, out, tick);
                 if (cnt < J) {
                     bad_sel += st != DSP_ERR_POOL;
                     break;
@@ -1315,6 +1323,7 @@ static void test_check(void)
 
 int main(void)
 {
+    vrf_keys();
     test_config();
     test_init_pool();
     test_open();

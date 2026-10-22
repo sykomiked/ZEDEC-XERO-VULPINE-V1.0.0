@@ -32,7 +32,7 @@
 
 #include "zxvd_rpc.h"
 #include "zxvd_ext.h"
-#include "juris.h"
+#include "juris_cp.h"
 #include "zxv_api.h"
 #include "sha256.h"
 #include "web4_web2.h"
@@ -556,7 +556,8 @@ static void test_host_methods(void)
            "\"update.check\",\"currency.enable\","
            "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
            "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"mesh.books\","
-           "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\",\"aipi.put\",\"aipi.get\","
+           "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\",\"jurisdiction.install\","
+           "\"jurisdiction.check\",\"jurisdiction.tax_rate\",\"aipi.put\",\"aipi.get\","
            "\"aipi.publish\",\"aipi.execute\",\"aipi.status\",\"features.get\",\"features.set\","
            "\"files.root\",\"files.list\","
            "\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\","
@@ -2235,7 +2236,8 @@ static void test_views(void)
 
 #define JU_LIST                                                                                    \
     "\"standards\":[\"IFRS\",\"US_GAAP\",\"IPSAS\",\"AAOIFI\",\"OHADA\",\"CAS\",\"SAP_INSURER\"]," \
-    "\"in_effect\":true,\"plugins\":0,\"report_standard\":\"\"}"
+    "\"in_effect\":true,\"plugins\":0,\"report_standard\":\"\",\"gateway_key\":null,"              \
+    "\"installed\":[]}"
 
 /* J5: the result as kernel/src/juris reads it */
 static bool ju_parse(const char *req, juris_settings_t *s)
@@ -2469,12 +2471,12 @@ static void test_jurisdiction(void)
         OK("9", "{\"market\":\"closed\",\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"," JU_LIST));
     /* J5: the jurisdiction host follows the settings, across a restart */
     EXPECT(REQ("9", "jurisdiction.set", ",\"params\":{\"standard\":\"IFRS\",\"country\":\"KE\"}"),
-           OK("9",
-              "{\"market\":\"closed\",\"standard\":\"IFRS\",\"country\":\"KE\","
-              "\"standards\":[\"IFRS\",\"US_GAAP\",\"IPSAS\",\"AAOIFI\",\"OHADA\",\"CAS\","
-              "\"SAP_INSURER\"],\"in_effect\":true,\"plugins\":0,\"report_standard\":\"IFRS\"}"));
+           OK("9", "{\"market\":\"closed\",\"standard\":\"IFRS\",\"country\":\"KE\","
+                   "\"standards\":[\"IFRS\",\"US_GAAP\",\"IPSAS\",\"AAOIFI\",\"OHADA\",\"CAS\","
+                   "\"SAP_INSURER\"],\"in_effect\":true,\"plugins\":0,\"report_standard\":\"IFRS\","
+                   "\"gateway_key\":null,\"installed\":[]}"));
     reopen();
-    CHECK(has(REQ("9", "jurisdiction.get", ""), "\"report_standard\":\"IFRS\"}"),
+    CHECK(has(REQ("9", "jurisdiction.get", ""), "\"report_standard\":\"IFRS\","),
           "J5: the host has the replayed settings");
     juris_settings_t js;
     CHECK(ju_parse(REQ("9", "jurisdiction.get", ""), &js) && js.market == JURIS_MARKET_CLOSED &&
@@ -2482,15 +2484,15 @@ static void test_jurisdiction(void)
           "J5: kernel/src/juris reads the result");
     CHECK(
         has(REQ("9", "jurisdiction.set", ",\"params\":{\"standard\":\"AAOIFI\",\"country\":\"\"}"),
-            "\"report_standard\":\"\"}"),
+            "\"report_standard\":\"\","),
         "J5: no country, no report standard");
     CHECK(has(REQ("9", "jurisdiction.set", ",\"params\":{\"country\":\"MY\",\"market\":\"open\"}"),
-              "\"report_standard\":\"AAOIFI\"}") &&
+              "\"report_standard\":\"AAOIFI\",") &&
               ju_parse(REQ("9", "jurisdiction.get", ""), &js) && js.market == JURIS_MARKET_OPEN &&
               js.standard == ACCT_STD_AAOIFI,
           "J5: AAOIFI with a country");
     CHECK(has(REQ("9", "jurisdiction.set", ",\"params\":{\"standard\":\"IPSAS\"}"),
-              "\"report_standard\":\"\"}"),
+              "\"report_standard\":\"\","),
           "J5: a standard with no adapter gives none");
     EXPECT(
         REQ("9", "jurisdiction.set",
@@ -2534,6 +2536,636 @@ static void test_jurisdiction(void)
               has(REQ("11", "jurisdiction.get", ""), "{\"market\":\"closed\""),
           "and is gone after a restart");
     unlink(path);
+    rmdir(tmpl);
+}
+
+/* ---------------- the gateway key and compliance plug-ins (J6-J9) ---------------- */
+
+typedef struct {
+    uint8_t pk[JURIS_GW_PK_LEN], sk[JURIS_GW_SK_LEN];
+} ju_keys_t;
+static ju_keys_t JK1, JK2;
+static char JREQ[ZXVD_RPC_MAX_LINE + 64];
+#define JB64(n) (((n) + 2) / 3 * 4 + 1)
+
+static void ju_b64(const uint8_t *d, size_t n, char *out)
+{
+    static const char A[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    size_t o = 0;
+    for (size_t i = 0; i < n; i += 3) {
+        uint32_t v = (uint32_t) d[i] << 16 | (i + 1 < n ? (uint32_t) d[i + 1] << 8 : 0) |
+                     (i + 2 < n ? d[i + 2] : 0);
+        out[o++] = A[v >> 18 & 63];
+        out[o++] = A[v >> 12 & 63];
+        out[o++] = i + 1 < n ? A[v >> 6 & 63] : '=';
+        out[o++] = i + 2 < n ? A[v & 63] : '=';
+    }
+    out[o] = 0;
+}
+
+static const char *ju_set_key(const uint8_t *pk, size_t n)
+{
+    int k = snprintf(JREQ, sizeof JREQ,
+                     "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"jurisdiction.set\","
+                     "\"params\":{\"gateway_key\":\"");
+    for (size_t i = 0; i < n; i++) k += snprintf(JREQ + k, sizeof JREQ - (size_t) k, "%02x", pk[i]);
+    snprintf(JREQ + k, sizeof JREQ - (size_t) k, "\"}}");
+    return rpc(JREQ);
+}
+
+/* a manifest the test signs: m (the compliance manifest, signed under cpk's
+ * context by csk) and the J3 plug-in manifest over it signed by gsk with
+ * the given hook mask and version (gsk NULL: under cpk's context instead) */
+static uint8_t JM[CAPCTL_MANIFEST_MAX + TAXHOOK_MANIFEST_MAX];
+static size_t JML;
+static uint8_t JSIG[CPK_SIG_LEN], JGSIG[JURIS_GW_SIG_LEN];
+
+static void ju_sign(const juris_plugin_t *p, uint32_t hooks, uint64_t version, const ju_keys_t *ck,
+                    const ju_keys_t *gk, bool gw_ctx)
+{
+    uint8_t msg[CP_MSG_LEN];
+    cp_manifest_msg(JM, JML, msg);
+    cpk_sign(ck->sk, msg, sizeof msg, NULL, JSIG);
+    juris_plugin_t q = *p;
+    q.hooks = hooks;
+    juris_manifest_t m;
+    juris_cp_manifest(&q, version, JM, JML, JGSIG, JURIS_GW_SIG_LEN, &m);
+    uint8_t jm[JURIS_MANIFEST_MSG];
+    juris_manifest_msg(&m, jm);
+    if (gw_ctx)
+        juris_gw_sign(gk->sk, jm, sizeof jm, NULL, JGSIG);
+    else
+        cpk_sign(gk->sk, jm, sizeof jm, NULL, JGSIG);
+}
+
+static const char *ju_install_req(size_t mlen, size_t slen, size_t glen)
+{
+    static char m[JB64(sizeof JM)], sg[JB64(CPK_SIG_LEN)], gs[JB64(JURIS_GW_SIG_LEN)];
+    ju_b64(JM, mlen, m);
+    ju_b64(JSIG, slen, sg);
+    ju_b64(JGSIG, glen, gs);
+    snprintf(JREQ, sizeof JREQ,
+             "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"jurisdiction.install\",\"params\":{"
+             "\"manifest\":\"%s\",\"sig\":\"%s\",\"gateway_sig\":\"%s\"}}",
+             m, sg, gs);
+    return rpc(JREQ);
+}
+
+static const char *ju_install_now(void)
+{
+    return ju_install_req(JML, CPK_SIG_LEN, JURIS_GW_SIG_LEN);
+}
+
+static uint64_t ju_now(void)
+{
+    return (uint64_t) time(NULL);
+}
+
+static void ju_profile(capctl_profile_t *p, const char *cc, uint32_t version, const ju_keys_t *k)
+{
+    memset(p, 0, sizeof *p);
+    p->hdr.kind = CP_KIND_CAPCTL;
+    memcpy(p->hdr.country, cc, 2);
+    p->hdr.version = version;
+    /* +-10 days: an install time or a clock off by 0.1% (20 days) falls outside */
+    p->hdr.not_before = ju_now() - 10 * 86400ull;
+    p->hdr.not_after = ju_now() + 10 * 86400ull;
+    cpk_key_id(k->pk, p->hdr.key_id);
+    p->ccy = 404; /* KES */
+    p->flags = CAPCTL_F_OUTBOUND | CAPCTL_F_INBOUND | CAPCTL_F_DEFAULT_ALLOW;
+    p->per_tx_limit = 1000;
+    p->report_single = 500;
+    JML = capctl_encode(p, JM, sizeof JM);
+}
+
+static void ju_table(taxhook_table_t *t, const char *cc, uint8_t kind, uint32_t ppm,
+                     uint32_t version, const ju_keys_t *k)
+{
+    memset(t, 0, sizeof *t);
+    t->hdr.kind = CP_KIND_TAXTABLE;
+    memcpy(t->hdr.country, cc, 2);
+    t->hdr.version = version;
+    t->hdr.not_before = ju_now() - 10 * 86400ull;
+    t->hdr.not_after = ju_now() + 10 * 86400ull;
+    cpk_key_id(k->pk, t->hdr.key_id);
+    t->kind = kind;
+    t->ccy = 404;
+    t->rounding = TAXHOOK_HALF_UP;
+    t->level = TAXHOOK_PER_LINE;
+    memcpy(t->label, "TEST", 4);
+    t->rate[0].category = TAXHOOK_STANDARD;
+    t->rate[0].rate_ppm = ppm;
+    t->rate[0].from = 20000101;
+    t->n_rates = 1;
+    JML = taxhook_encode(t, JM, sizeof JM);
+}
+
+static juris_plugin_t JP_CAP, JP_VAT, JP_GST;
+
+/* a VAT table for one region of KE, signed for its own plug-in id */
+static const char *ju_region_install(const char *region, uint32_t version, const ju_keys_t *k)
+{
+    static taxhook_t th;
+    static juris_cp_tax_t ta;
+    juris_plugin_t p;
+    taxhook_table_t t;
+    char reg[CP_REGION_LEN] = {0};
+    memcpy(reg, region, strlen(region));
+    juris_cp_tax_plugin(&p, &ta, &th, "KE", reg, TAXHOOK_VAT, NULL, NULL);
+    ju_table(&t, "KE", TAXHOOK_VAT, 160000, version, k);
+    memcpy(t.hdr.region, reg, CP_REGION_LEN);
+    JML = taxhook_encode(&t, JM, sizeof JM);
+    ju_sign(&p, p.hooks, version, k, k, true);
+    return ju_install_now();
+}
+
+static void ju_plugins(void)
+{
+    static capctl_t cc;
+    static juris_cp_capctl_t ca;
+    static taxhook_t th;
+    static juris_cp_tax_t ta, tg;
+    static const char nat[CP_REGION_LEN] = {0};
+    capctl_init(&cc, NULL, NULL, NULL, 0);
+    juris_cp_capctl_plugin(&JP_CAP, &ca, &cc, "KE", NULL, NULL, NULL);
+    juris_cp_tax_plugin(&JP_VAT, &ta, &th, "KE", nat, TAXHOOK_VAT, NULL, NULL);
+    juris_cp_tax_plugin(&JP_GST, &tg, &th, "KE", nat, TAXHOOK_GST, NULL, NULL);
+}
+
+static void test_juris_plugins(void)
+{
+    char tmpl[] = "/tmp/zxvdjplug.XXXXXX", path[200], req[400];
+    uint8_t seed[32];
+    memset(seed, 1, sizeof seed);
+    pqm_mldsa87_keygen(seed, JK1.pk, JK1.sk);
+    memset(seed, 2, sizeof seed);
+    pqm_mldsa87_keygen(seed, JK2.pk, JK2.sk);
+    ju_plugins();
+    CHECK(mkdtemp(tmpl) != NULL, "temp dir");
+    snprintf(path, sizeof path, "%s/books.zxvb", tmpl);
+    zxvd_rpc_books_close();
+    EXPECT(REQ("1", "jurisdiction.install", ",\"params\":{}"),
+           ERR("1", "-32603", "the books are not open"));
+    EXPECT(REQ("1", "jurisdiction.check", ",\"params\":{}"),
+           ERR("1", "-32603", "the books are not open"));
+    EXPECT(REQ("1", "jurisdiction.tax_rate", ",\"params\":{}"),
+           ERR("1", "-32603", "the books are not open"));
+    CHECK(zxvd_rpc_books_file(path) == 0 && zxvd_rpc_books_open() == 0, "books open on a file");
+    char rc0[40], rc1[40], rc2[40], rc3[40];
+    {
+        const char *q = strstr(rpc(REQ("1", "books.file", "")), "\"records\":\"");
+        unsigned long r0 = q ? strtoul(q + 11, NULL, 10) : 0;
+        snprintf(rc0, sizeof rc0, "\"records\":\"%lu\"", r0);
+        snprintf(rc1, sizeof rc1, "\"records\":\"%lu\"", r0 + 1);
+        snprintf(rc2, sizeof rc2, "\"records\":\"%lu\"", r0 + 2);
+        snprintf(rc3, sizeof rc3, "\"records\":\"%lu\"", r0 + 3);
+    }
+    capctl_profile_t pr;
+    ju_profile(&pr, "KE", 2, &JK1);
+    ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+    /* J7: refused while no key is set, and nothing is written */
+    CHECK(has(REQ("2", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":10}"),
+              "\"base\":\"neither\",\"action\":\"wait\",\"proceed\":false,\"reports\":0}"),
+          "J9: no plug-in, no country: wait");
+    CHECK(strstr(ju_install_now(), "{\"code\":-32097,\"message\":\"no gateway key is set"),
+          "J7: no gateway key: refused: %s", OUT.p);
+    /* J6: the key, by hex, checked */
+    CHECK(has(REQ("3", "jurisdiction.set", ",\"params\":{\"gateway_key\":\"abc\"}"),
+              "\"code\":-32602,\"message\":\"\\\"gateway_key\\\" must be \\\"\\\" or an ML-DSA-87 "
+              "public key in hex (5184 digits)"),
+          "J6: odd hex refused");
+    CHECK(strstr(ju_set_key(JK1.pk, JURIS_GW_PK_LEN - 1), "-32602"), "J6: a short key refused");
+    JREQ[strlen(JREQ) - 4] = 'g';
+    CHECK(strstr(rpc(JREQ), "-32602"), "J6: a non-hex digit refused");
+    CHECK(has(REQ("3", "jurisdiction.set", ",\"params\":{\"gateway_key\":7}"), "-32602"),
+          "J6: a number refused");
+    CHECK(has(REQ("3", "books.file", ""), rc0), "nothing written");
+    CHECK(has(REQ("3", "jurisdiction.set", ",\"params\":{\"gateway_key\":\"\"}"),
+              "\"gateway_key\":null") &&
+              has(REQ("3", "books.file", ""), rc0),
+          "J6: clearing an unset key writes nothing");
+    uint8_t kid[32];
+    char kidx[65], want[200];
+    juris_gw_key_id(JK1.pk, kid);
+    for (int i = 0; i < 32; i++) snprintf(kidx + 2 * i, 3, "%02x", kid[i]);
+    snprintf(want, sizeof want, "\"gateway_key\":\"%s\",\"installed\":[]}", kidx);
+    const char *r = ju_set_key(JK1.pk, JURIS_GW_PK_LEN);
+    CHECK(strstr(r, want) && strlen(r) < 600, "J6: get shows the key id, never the key: %s", r);
+    CHECK(has(REQ("3", "books.file", ""), rc1), "J6: one record");
+    ju_set_key(JK1.pk, JURIS_GW_PK_LEN);
+    CHECK(has(REQ("3", "books.file", ""), rc1), "J6: the same key writes nothing");
+    CHECK(strstr(ju_install_now(), "-32097,\"message\":\"no country is set\""),
+          "J7: no country: refused");
+    rpc(REQ("4", "jurisdiction.set", ",\"params\":{\"country\":\"KE\"}"));
+    CHECK(has(REQ("4", "books.file", ""), rc2), "country saved");
+    /* every refusal changes nothing */
+    struct {
+        const char *what, *why;
+        int how;
+    } bad[] = {
+        {"another gateway key", "the gateway signature does not verify", 0},
+        {"the gateway key under ZXV-COMPLIANCE", "the gateway signature does not verify", 1},
+        {"a hook mask other than the plug-in's", "the gateway signature does not verify", 2},
+        {"a version other than the manifest's", "the gateway signature does not verify", 3},
+        {"a truncated gateway signature", "the gateway signature does not verify", 4},
+        {"a compliance signature by an untrusted key", "the compliance signature does not verify",
+         5},
+        {"a truncated compliance signature", "the compliance signature does not verify", 6},
+        {"a manifest outside its window", "the profile is outside its validity window", 7},
+        {"another country's manifest", "the manifest is for another country", 8},
+        {"a manifest cut short", "not a compliance manifest", 9},
+        {"a KYC revocation list",
+         "the manifest is neither a capital-control profile nor a tax table", 10},
+        {"a profile that does not decode", "the profile does not decode", 11},
+        {"a tax table that does not decode", "the tax table does not decode", 12},
+        {"a manifest for KF while the country is KE", "the manifest is for another country", 13},
+        {"a tax table by an untrusted compliance key", "the compliance signature does not verify",
+         14},
+    };
+    for (unsigned i = 0; i < sizeof bad / sizeof bad[0]; i++) {
+        size_t ml = JML, sl = CPK_SIG_LEN, gl = JURIS_GW_SIG_LEN;
+        ju_profile(&pr, "KE", 2, &JK1);
+        switch (bad[i].how) {
+        case 0:
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK2, true);
+            break;
+        case 1:
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, false);
+            break;
+        case 2:
+            ju_sign(&JP_CAP, JURIS_HOOK_TRANSFER, 2, &JK1, &JK1, true);
+            break;
+        case 3:
+            ju_sign(&JP_CAP, JP_CAP.hooks, 3, &JK1, &JK1, true);
+            break;
+        case 4:
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+            gl--;
+            break;
+        case 5:
+            ju_profile(&pr, "KE", 2, &JK2);
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK2, &JK1, true);
+            break;
+        case 6:
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+            sl--;
+            break;
+        case 7:
+            pr.hdr.not_before = ju_now() + 86400;
+            JML = capctl_encode(&pr, JM, sizeof JM);
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+            break;
+        case 8:
+            ju_profile(&pr, "NG", 2, &JK1);
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+            break;
+        case 9:
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+            ml = 40;
+            break;
+        case 10:
+            JM[6] = CP_KIND_KYC_REVOKE;
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+            break;
+        case 11:
+            JM[JML++] = 0;
+            ml++;
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+            break;
+        case 13:
+            ju_profile(&pr, "KF", 2, &JK1);
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+            break;
+        case 14: {
+            taxhook_table_t tt;
+            ju_table(&tt, "KE", TAXHOOK_VAT, 160000, 1, &JK2);
+            ju_sign(&JP_VAT, JP_VAT.hooks, 1, &JK2, &JK1, true);
+            break;
+        }
+        default: {
+            taxhook_table_t tt;
+            ju_table(&tt, "KE", TAXHOOK_VAT, 160000, 1, &JK1);
+            JM[JML++] = 0;
+            ml = JML;
+            ju_sign(&JP_VAT, JP_VAT.hooks, 1, &JK1, &JK1, true);
+        }
+        }
+        if (bad[i].how != 9 && bad[i].how != 11 && bad[i].how != 12) ml = JML;
+        r = ju_install_req(ml, sl, gl);
+        snprintf(want, sizeof want, "{\"code\":-32097,\"message\":\"%s\"}", bad[i].why);
+        CHECK(strstr(r, want) && has(REQ("5", "books.file", ""), rc2) &&
+                  has(REQ("5", "jurisdiction.get", ""), "\"plugins\":0,") &&
+                  has(REQ("5", "jurisdiction.get", ""), "\"installed\":[]}"),
+              "J7: %s refused, nothing changed: %s", bad[i].what, r);
+    }
+    CHECK(
+        strstr(
+            rpc(REQ("5", "jurisdiction.install",
+                    ",\"params\":{\"manifest\":\"!!\",\"sig\":\"AA==\",\"gateway_sig\":\"AA==\"}")),
+            "-32602,\"message\":\"\\\"manifest\\\" must be base64 of 1 to"),
+        "J7: bad base64 refused");
+    CHECK(has(REQ("5", "jurisdiction.install",
+                  ",\"params\":{\"manifest\":\"\",\"sig\":\"AA==\",\"gateway_sig\":\"AA==\"}"),
+              "-32602,\"message\":\"\\\"manifest\\\" must be base64 of 1 to"),
+          "J7: an empty manifest refused as a parameter");
+    CHECK(has(REQ("5", "jurisdiction.install", ",\"params\":{\"manifest\":\"AA==\"}"),
+              "missing string parameter \\\"sig\\\""),
+          "J7: every part required");
+    /* J7: installed */
+    ju_profile(&pr, "KE", 2, &JK1);
+    ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+    r = ju_install_now();
+    CHECK(strstr(r, "\"plugins\":1,") &&
+              strstr(r, "\"installed\":[{\"id\":\"capctl/KE\",\"version\":2,\"loaded\":true}]}"),
+          "J7: a signed capctl profile is a loaded plug-in: %s", r);
+    CHECK(has(REQ("6", "books.file", ""), rc3), "J7: one record");
+    CHECK(strstr(ju_install_now(), "the manifest's version is not above the installed one"),
+          "J8: the same version again refused");
+    /* J9: decisions */
+    CHECK(has(REQ("7", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":100,"
+                  "\"sender\":1,\"receiver\":2}"),
+              "\"base\":\"true\",\"action\":\"proceed\",\"proceed\":true,\"reports\":0}"),
+          "J9: an allowed transfer proceeds");
+    CHECK(has(REQ("7", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":1}"),
+              "\"base\":\"true\""),
+          "J9: one minor unit is a transfer");
+    CHECK(has(REQ("7", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":\"600\"}"),
+              "\"proceed\":true,\"reports\":1}"),
+          "J9: a reported transfer proceeds with its report");
+    CHECK(has(REQ("7", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":1001}"),
+              "\"base\":\"false\",\"action\":\"refuse\",\"proceed\":false,\"reports\":0}"),
+          "J9: over the limit refused");
+    CHECK(has(REQ("7", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":10}"),
+              "\"base\":\"neither\""),
+          "J9: an unknown country waits");
+    CHECK(has(REQ("7", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"VFV\",\"amount\":10}"),
+              "\"base\":\"false\""),
+          "J9: a currency with no ISO 4217 number refused");
+    CHECK(has(REQ("7", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KEN\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":10}"),
+              "-32602") &&
+              has(REQ("7", "jurisdiction.check",
+                      ",\"params\":{\"from\":\"KE\",\"to\":\"NGA\",\"ccy\":\"KES\",\"amount\":10}"),
+                  "-32602") &&
+              has(REQ("7", "jurisdiction.check",
+                      ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KESS\",\"amount\":10}"),
+                  "-32602") &&
+              has(REQ("7", "jurisdiction.check",
+                      ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":0}"),
+                  "\\\"amount\\\" must be above 0") &&
+              has(REQ("7", "jurisdiction.check",
+                      ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\"}"),
+                  "-32602") &&
+              has(REQ("7", "jurisdiction.check",
+                      ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":1,"
+                      "\"sender\":-1}"),
+                  "-32602"),
+          "J9: bad check parameters refused");
+    /* J9: tax tables */
+    taxhook_table_t tt;
+    CHECK(has(REQ("8", "jurisdiction.tax_rate", ",\"params\":{\"kind\":\"vat\"}"),
+              "{\"code\":-32097,\"message\":\"no plug-in gives this rate\"}"),
+          "J9: no tax plug-in, no rate");
+    ju_table(&tt, "KE", TAXHOOK_VAT, 160000, 1, &JK1);
+    ju_sign(&JP_VAT, JP_VAT.hooks, 1, &JK1, &JK1, true);
+    r = ju_install_now();
+    CHECK(strstr(r, "\"plugins\":2,") && strstr(r, "{\"id\":\"taxhook/KE//1\",\"version\":1"),
+          "J7: a signed VAT table: %s", r);
+    EXPECT(REQ("8", "jurisdiction.tax_rate", ",\"params\":{\"kind\":\"vat\"}"),
+           OK("8", "{\"kind\":\"vat\",\"num\":\"160000\",\"den\":\"1000000\"}"));
+    CHECK(has(REQ("8", "jurisdiction.tax_rate", ",\"params\":{\"kind\":\"income\"}"),
+              "no plug-in gives this rate") &&
+              has(REQ("8", "jurisdiction.tax_rate", ",\"params\":{\"kind\":\"withholding\"}"),
+                  "no plug-in gives this rate"),
+          "J9: a VAT table does not know income tax");
+    CHECK(has(REQ("8", "jurisdiction.tax_rate", ",\"params\":{\"kind\":\"VAT\"}"), "-32602") &&
+              has(REQ("8", "jurisdiction.tax_rate", ""), "-32602"),
+          "J9: kind is exact and required");
+    ju_table(&tt, "KE", TAXHOOK_GST, 150000, 1, &JK1);
+    ju_sign(&JP_GST, JP_GST.hooks, 1, &JK1, &JK1, true);
+    CHECK(strstr(ju_install_now(), "\"plugins\":3,"), "a GST table with another rate");
+    CHECK(has(REQ("8", "jurisdiction.tax_rate", ",\"params\":{\"kind\":\"vat\"}"),
+              "{\"code\":-32097,\"message\":\"the plug-ins disagree on the rate\"}"),
+          "J9: two rates: refused, escalate");
+    ju_table(&tt, "KE", TAXHOOK_GST, 160000, 2, &JK1);
+    ju_sign(&JP_GST, JP_GST.hooks, 2, &JK1, &JK1, true);
+    r = ju_install_now();
+    CHECK(strstr(r, "\"plugins\":3,") && strstr(r, "{\"id\":\"taxhook/KE//2\",\"version\":2"),
+          "J7: a newer version replaces in place: %s", r);
+    CHECK(has(REQ("8", "jurisdiction.tax_rate", ",\"params\":{\"kind\":\"vat\"}"),
+              "\"num\":\"160000\""),
+          "and the rates agree");
+    /* restart: replayed */
+    char before[2000];
+    snprintf(before, sizeof before, "%s", rpc(REQ("9", "jurisdiction.get", "")));
+    /* F5: a key or an install the file cannot take */
+    signal(SIGXFSZ, SIG_IGN);
+    struct rlimit old, lim;
+    getrlimit(RLIMIT_FSIZE, &old);
+    lim = old;
+    lim.rlim_cur = (rlim_t) file_size(path);
+    CHECK(setrlimit(RLIMIT_FSIZE, &lim) == 0, "limit the file size");
+    CHECK(strstr(ju_set_key(JK2.pk, JURIS_GW_PK_LEN), "\"name\":\"ZXV_E_IO\"") &&
+              strstr(OUT.p, "this change is not saved"),
+          "F5: a key change that cannot be saved: %s", OUT.p);
+    CHECK(!strcmp(rpc(REQ("9", "jurisdiction.get", "")), before), "J6: and it did not apply");
+    setrlimit(RLIMIT_FSIZE, &old);
+    reopen();
+    lim.rlim_cur = (rlim_t) file_size(path);
+    CHECK(setrlimit(RLIMIT_FSIZE, &lim) == 0, "limit the file size again");
+    ju_table(&tt, "KE", TAXHOOK_GST, 160000, 3, &JK1);
+    ju_sign(&JP_GST, JP_GST.hooks, 3, &JK1, &JK1, true);
+    CHECK(strstr(ju_install_now(), "\"name\":\"ZXV_E_IO\"") &&
+              strstr(OUT.p, "this change is not saved"),
+          "F5: an install that cannot be saved: %s", OUT.p);
+    CHECK(has(REQ("9", "jurisdiction.get", ""), "{\"id\":\"taxhook/KE//2\",\"version\":3"),
+          "F5: it stays for this run only");
+    CHECK(strstr(ju_install_now(), "ZXV_E_IO") && strstr(OUT.p, "read-only"),
+          "F5: and the books take nothing more: %s", OUT.p);
+    setrlimit(RLIMIT_FSIZE, &old);
+    reopen();
+    snprintf(want, sizeof want, "\"gateway_key\":\"%s\"", kidx);
+    r = rpc(REQ("9", "jurisdiction.get", ""));
+    CHECK(!strcmp(r, before) && strstr(r, "\"plugins\":3,") && strstr(r, want),
+          "J6/J7: a restart replays the key and the plug-ins: %s", r);
+    CHECK(has(REQ("9", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":1001}"),
+              "\"proceed\":false") &&
+              has(REQ("9", "jurisdiction.tax_rate", ",\"params\":{\"kind\":\"vat\"}"),
+                  "\"num\":\"160000\""),
+          "and they answer as before");
+    ju_table(&tt, "KE", TAXHOOK_GST, 160000, 2, &JK1);
+    ju_sign(&JP_GST, JP_GST.hooks, 2, &JK1, &JK1, true);
+    CHECK(strstr(ju_install_now(), "version is not above"), "J8: the floor survives a restart");
+    /* J6: another country unloads them, coming back loads them again */
+    r = rpc(REQ("10", "jurisdiction.set", ",\"params\":{\"country\":\"NG\"}"));
+    CHECK(strstr(r, "\"plugins\":0,") && strstr(r, "\"loaded\":false}") &&
+              !strstr(r, "\"loaded\":true"),
+          "J6: another country: installed but not loaded: %s", r);
+    ju_profile(&pr, "KE", 3, &JK1);
+    ju_sign(&JP_CAP, JP_CAP.hooks, 3, &JK1, &JK1, true);
+    CHECK(strstr(ju_install_now(), "the manifest is for another country"),
+          "J7: a KE manifest while the country is NG");
+    r = rpc(REQ("10", "jurisdiction.set", ",\"params\":{\"country\":\"KE\"}"));
+    CHECK(strstr(r, "\"plugins\":3,") && !strstr(r, "\"loaded\":false"),
+          "J6: back to KE, loaded again: %s", r);
+    r = ju_install_now();
+    CHECK(strstr(r, "{\"id\":\"capctl/KE\",\"version\":3,\"loaded\":true}") &&
+              strstr(r, "\"plugins\":3,") && !strstr(strstr(r, "capctl/KE") + 1, "capctl/KE"),
+          "capctl v3 replaces v2 in its slot: %s", r);
+    /* J6: a new key drops every plug-in; the floors stay */
+    long n0;
+    char *b0 = slurp(path, &n0);
+    r = ju_set_key(JK2.pk, JURIS_GW_PK_LEN);
+    CHECK(strstr(r, "\"plugins\":0,") && strstr(r, "\"installed\":[]}") && !strstr(r, kidx),
+          "J6: a new key drops the plug-ins: %s", r);
+    CHECK(has(REQ("11", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":10}"),
+              "\"base\":\"neither\""),
+          "J6: and the host waits again");
+    CHECK(has(REQ("11", "jurisdiction.tax_rate", ",\"params\":{\"kind\":\"vat\"}"),
+              "no plug-in gives this rate"),
+          "no rate either");
+    ju_profile(&pr, "KE", 5, &JK1);
+    ju_sign(&JP_CAP, JP_CAP.hooks, 5, &JK1, &JK1, true);
+    CHECK(strstr(ju_install_now(), "the gateway signature does not verify"),
+          "J6: the old key's manifests no longer verify");
+    ju_profile(&pr, "KE", 3, &JK2);
+    ju_sign(&JP_CAP, JP_CAP.hooks, 3, &JK2, &JK2, true);
+    CHECK(strstr(ju_install_now(), "version is not above"), "J8: the floor survives a key change");
+    ju_profile(&pr, "KE", 4, &JK2);
+    ju_sign(&JP_CAP, JP_CAP.hooks, 4, &JK2, &JK2, true);
+    CHECK(strstr(ju_install_now(), "{\"id\":\"capctl/KE\",\"version\":4,\"loaded\":true}"),
+          "J7: v4 under the new key");
+    reopen();
+    CHECK(has(REQ("12", "jurisdiction.get", ""),
+              "\"installed\":[{\"id\":\"capctl/KE\",\"version\":4,\"loaded\":true}]}"),
+          "J6: the key change and the reinstall replay in order");
+    r = rpc(REQ("12", "jurisdiction.set", ",\"params\":{\"gateway_key\":\"\"}"));
+    CHECK(strstr(r, "\"plugins\":0,\"report_standard\":\"\",\"gateway_key\":null,"
+                    "\"installed\":[]}"),
+          "J6: clearing the key: %s", r);
+    reopen();
+    CHECK(has(REQ("12", "jurisdiction.get", ""), "\"gateway_key\":null"), "kept cleared");
+    /* J7: an install record is judged at its own time: a profile valid then
+     * but expired now replays, then fails closed */
+    zxvd_rpc_books_close();
+    spit(path, b0, n0);
+    {
+        static char rec[ZXVD_RPC_MAX_LINE];
+        static char m64[JB64(sizeof JM)], s64[JB64(CPK_SIG_LEN)], g64[JB64(JURIS_GW_SIG_LEN)];
+        ju_profile(&pr, "KE", 9, &JK1);
+        pr.hdr.not_before = 1000;
+        pr.hdr.not_after = 2000;
+        JML = capctl_encode(&pr, JM, sizeof JM);
+        ju_sign(&JP_CAP, JP_CAP.hooks, 9, &JK1, &JK1, true);
+        ju_b64(JM, JML, m64);
+        ju_b64(JSIG, CPK_SIG_LEN, s64);
+        ju_b64(JGSIG, JURIS_GW_SIG_LEN, g64);
+        snprintf(rec, sizeof rec,
+                 "{\"op\":\"juris_install\",\"manifest\":\"%s\",\"sig\":\"%s\",\"gsig\":\"%s\","
+                 "\"at\":\"1500\"}",
+                 m64, s64, g64);
+        append_chained(path, rec);
+        CHECK(zxvd_rpc_books_open() == 0, "J7: the record replays at its own time");
+        CHECK(has(REQ("13", "jurisdiction.get", ""), "{\"id\":\"capctl/KE\",\"version\":9,"),
+              "installed");
+        CHECK(has(REQ("13", "jurisdiction.check",
+                      ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":10}"),
+                  "\"base\":\"false\""),
+              "C4: expired now: refused");
+        zxvd_rpc_books_close();
+        /* damaged records stop the start */
+        long n1;
+        char *b1 = slurp(path, &n1);
+        snprintf(rec, sizeof rec,
+                 "{\"op\":\"juris_install\",\"manifest\":\"%s\",\"sig\":\"%s\",\"gsig\":\"%s\","
+                 "\"at\":\"1500\"}",
+                 m64, s64, g64);
+        const char *badrec[] = {
+            "{\"op\":\"juris_gw\",\"key\":\"abc\"}",
+            "{\"op\":\"juris_gw\",\"key\":\"00\"}",
+            "{\"op\":\"juris_gw\"}",
+            "{\"op\":\"juris_install\",\"manifest\":\"AA==\",\"sig\":\"AA==\",\"gsig\":\"AA==\"}",
+            "{\"op\":\"juris_install\",\"manifest\":\"!\",\"sig\":\"AA==\",\"gsig\":\"AA==\","
+            "\"at\":\"1\"}",
+            "{\"op\":\"juris_install\",\"manifest\":\"AA==\",\"sig\":\"!\",\"gsig\":\"AA==\","
+            "\"at\":\"1\"}",
+            "{\"op\":\"juris_install\",\"manifest\":\"AA==\",\"sig\":\"AA==\",\"gsig\":\"!\","
+            "\"at\":\"1\"}",
+            "{\"op\":\"juris_install\",\"manifest\":\"AA==\",\"sig\":\"AA==\",\"gsig\":\"AA==\","
+            "\"at\":\"x\"}",
+            rec, /* the same version again: refused by J8 */
+        };
+        for (unsigned i = 0; i < sizeof badrec / sizeof badrec[0]; i++) {
+            spit(path, b1, n1);
+            append_chained(path, badrec[i]);
+            CHECK(zxvd_rpc_books_open() == -1, "a damaged jurisdiction record %u stops the start",
+                  i);
+            zxvd_rpc_books_close();
+        }
+        spit(path, b1, n1);
+        free(b1);
+    }
+    free(b0);
+    CHECK(zxvd_rpc_books_open() == 0, "the good file opens again");
+    /* without a books file: in memory for this run only */
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_file("") == 0 && zxvd_rpc_books_open() == 0, "in memory");
+    CHECK(strstr(ju_set_key(JK1.pk, JURIS_GW_PK_LEN), kidx), "a key without a file");
+    rpc(REQ("14", "jurisdiction.set", ",\"params\":{\"country\":\"KE\"}"));
+    ju_table(&tt, "KE", TAXHOOK_VAT, 160000, 1, &JK1);
+    ju_sign(&JP_VAT, JP_VAT.hooks, 1, &JK1, &JK1, true);
+    CHECK(strstr(ju_install_now(), "\"plugins\":1,"), "and an install");
+    ju_profile(&pr, "KE", 2, &JK1);
+    ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+    CHECK(strstr(ju_install_now(), "\"plugins\":2,"), "capctl in the second slot");
+    CHECK(has(REQ("14", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":600}"),
+              "\"proceed\":true,\"reports\":1}"),
+          "J9: the report of a capctl plug-in in any slot");
+    r = ju_region_install("NB", 1, &JK1);
+    CHECK(strstr(r, "\"plugins\":3,") && strstr(r, "{\"id\":\"taxhook/KE/NB/1\",\"version\":1,"),
+          "J7: a regional table of the country: %s", r);
+    /* J7: eight slots */
+    static const char *const RG[] = {"R1", "R2", "R3", "R4", "R5", "R6", "S1", "S2",
+                                     "S3", "S4", "S5", "S6", "S7", "S8", "T1"};
+    for (unsigned i = 0; i < 5; i++) {
+        snprintf(want, sizeof want, "\"plugins\":%u,", 4 + i);
+        CHECK(strstr(ju_region_install(RG[i], 1, &JK1), want), "slot %u", 4 + i);
+    }
+    CHECK(strstr(ju_region_install(RG[5], 1, &JK1), "no room for another plug-in"),
+          "J7: a ninth plug-in refused: %s", OUT.p);
+    CHECK(strstr(ju_region_install(RG[0], 2, &JK1), "\"plugins\":8,"),
+          "a newer version of an installed one still fits");
+    /* J8: sixteen ids have floors; a new key frees the slots, not the floors */
+    ju_set_key(JK2.pk, JURIS_GW_PK_LEN);
+    for (unsigned i = 6; i < 14; i++) {
+        snprintf(want, sizeof want, "\"plugins\":%u,", i - 5);
+        CHECK(strstr(ju_region_install(RG[i], 1, &JK2), want), "id %u", i + 3);
+    }
+    ju_set_key(JK1.pk, JURIS_GW_PK_LEN);
+    CHECK(strstr(ju_region_install(RG[14], 1, &JK1), "no room for another plug-in"),
+          "J8: a seventeenth id refused: %s", OUT.p);
+    CHECK(strstr(ju_region_install(RG[0], 3, &JK1), "\"plugins\":1,"), "a known id still installs");
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_open() == 0 &&
+              has(REQ("14", "jurisdiction.get", ""), "\"gateway_key\":null"),
+          "gone after a restart");
+    ju_set_key(JK1.pk, JURIS_GW_PK_LEN);
+    rpc(REQ("14", "jurisdiction.set", ",\"params\":{\"country\":\"KE\"}"));
+    ju_table(&tt, "KE", TAXHOOK_VAT, 160000, 1, &JK1);
+    ju_sign(&JP_VAT, JP_VAT.hooks, 1, &JK1, &JK1, true);
+    CHECK(strstr(ju_install_now(), "\"plugins\":1,"), "the floors went with the run");
+    snprintf(req, sizeof req, "%s/books.zxvb", tmpl);
+    unlink(req);
     rmdir(tmpl);
 }
 
@@ -3509,8 +4141,8 @@ static void test_phone_methods(void)
     PHONE_EXPECT(REQ("6", "phone.link", ",\"params\":{\"on\":false}"), true,
                  ERR("6", "-32015", "not allowed from a phone"));
     PHONE_EXPECT(REQ("6", "peer.serve", ""), true, ERR("6", "-32015", "not allowed from a phone"));
-    static const char *const NEVER[] = {"jurisdiction.set", "aipi.put", "aipi.publish",
-                                        "aipi.execute"};
+    static const char *const NEVER[] = {"jurisdiction.set", "jurisdiction.install", "aipi.put",
+                                        "aipi.publish", "aipi.execute"};
     for (size_t i = 0; i < sizeof NEVER / sizeof NEVER[0]; i++) {
         char req[160];
         snprintf(req, sizeof req, "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"%s\"}", NEVER[i]);
@@ -7916,6 +8548,7 @@ int main(void)
     test_views();
     test_play();
     test_jurisdiction();
+    test_juris_plugins();
     test_groups();
     test_feature_save();
     test_edges();

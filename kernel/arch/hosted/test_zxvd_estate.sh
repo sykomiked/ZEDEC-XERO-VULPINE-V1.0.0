@@ -36,6 +36,7 @@ RP="-Wl,-rpath,$R/sdk/libzxv/build"
     "$K/src/estate/recovery.c" "$K/src/pay/pay_ledger.c" \
     "$K/src/pay/pay_util.c" "$K/src/pay/pay_assure.c" "$T/keccak.o" \
     "$K/src/robin_debanks/sha256.c" "$K/src/robin_debanks/ed25519_verify.c" \
+    "$K/src/pqsec/pq_mldsa87.c" "$K/src/pqsec/mldsa/fips202.c" \
     "$K/src/provenance/test_signer.c" "$K/src/tensor/zt.c" "$K/src/swarm/swarm_market.c" \
     "$K/src/swarm/swarm_budget.c" "$K/src/swarm/swarm_emotion.c" \
     "$MODA" -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm -o "$T/test_zxvd_estate" 2>"$T/cc.log" ||

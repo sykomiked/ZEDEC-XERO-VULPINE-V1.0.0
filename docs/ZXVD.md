@@ -99,7 +99,7 @@ CI checks it matches what zxvd serves.
 | `net.command` | `command` | `result` |
 | `net.peers` | | `peers` (`id`, `addr`, `bucket`, `ubh`, `last_seen_ms`, `in_book`, `member`, `held`, `receivable`, `social`, `pending`), `count` |
 | `net.offers` | | `share` (`compute`, `storage`), `wants`, `outstanding` |
-| `player.card` | | `tier`, `metal`, `stone`, `inputs`, `next`, `perks` |
+| `player.card` | | `tier`, `metal`, `stone`, `inputs`, `next`, `perks`, `practice` |
 | `peer.ask` | `peer` (IP or IP:PORT), `prompt`, `max_price_minor` | `answer`, `settlement`, `security` |
 | `peer.serve` | `price_minor`? (absent stops) | the `peer.status` object |
 | `peer.status` | | `serving`, `port`, `price_minor`, `wallet_minor`, `fees_paid_minor`, `buckets`, `sold`, `bought`, `refused`, `sessions`, `book_ok`, `history` |
@@ -114,8 +114,11 @@ CI checks it matches what zxvd serves.
 | `swarm.earnings` | | `currency`, `rate_minor`, `source_account`, `owner_account`, `balance_minor`, `postings`, `cycles`, `resumed` |
 | `mesh.books` | | `currency`, `wallet_account`, `counterparty_account`, `fee_account`, `wallet_minor`, `fees_minor`, `sold`, `bought` |
 | `books.file` | | `saved`, `path`, `records`, `head`, `writable` |
-| `jurisdiction.get` | | `market`, `standard`, `country`, `standards`, `in_effect`, `plugins`, `report_standard` |
-| `jurisdiction.set` | `market`?, `standard`?, `country`? | as `jurisdiction.get` |
+| `jurisdiction.get` | | `market`, `standard`, `country`, `standards`, `in_effect`, `plugins`, `report_standard`, `gateway_key`, `installed` |
+| `jurisdiction.set` | `market`?, `standard`?, `country`?, `gateway_key`? | as `jurisdiction.get` |
+| `jurisdiction.install` | `manifest`, `sig`, `gateway_sig` (base64) | as `jurisdiction.get` |
+| `jurisdiction.check` | `from`, `to`, `ccy`, `amount`, `sender`?, `receiver`? | `tag`, `base`, `action`, `proceed`, `reports` |
+| `jurisdiction.tax_rate` | `kind` | `kind`, `num`, `den` |
 | `chat.me` | | `node_id`, `saved`, `records`, `following` |
 | `chat.post` | `text`, `reply_to`? | a record: `id`, `author`, `mine`, `kind`, `lamport`, `wall_ms`, `text`, `reply_to`, `replies`, `reactions` |
 | `chat.react` | `to`, `emoji` | a record |
@@ -221,7 +224,7 @@ CI checks it matches what zxvd serves.
 | `derivatives.perp_close` | `id`, `side`, `sig`?, `now`? | `id`, `to_long_minor`, `to_short_minor` |
 | `derivatives.status` |  | `set_up`, `keys`, `leverage`, `opening_enabled`, `juris`, `gateway`, ... |
 | `grants.setup` | `funnel`, `underwriters`?, `min_uptime_bps`?, `min_volume`?, `min_stake`?, `cap_num`?, `cap_den`? | `funnel`, `pool`, `reserve`, `issuer`, `underwriters`, `min_uptime_bps`, ... |
-| `grants.key` | `key`, `public_key` | `key`, `added`, `keys` |
+| `grants.key` | `key`, `public_key`, `fingerprint`? | `key`, `fingerprint`, `added`, `keys` |
 | `grants.account_open` | `owner`, `asset` | `account`, `owner`, `asset` |
 | `grants.fund` | `account`, `amount_minor` | `account`, `balance_minor`, `sandbox` |
 | `grants.account` | `account` | `account`, `owner`, `asset`, `balance_minor`, `credit_minor`, `sandbox` |
@@ -234,8 +237,9 @@ CI checks it matches what zxvd serves.
 | `grants.attest` | `lot`, `count`, `underwriter`, `expiry`, `sig`, `now`? | `lot`, `backed`, `label`, `status` |
 | `grants.dispute` | `lot`, `sig` | `lot`, `backed`, `disputed` |
 | `grants.redeem` | `holder`, `holder_vino`, `lot`, `n`, `price`, `now`? | `lot`, `barrels`, `paid_minor`, `held` |
-| `grants.message` | `kind`, the fields the kind signs | `message`, `bytes`, `scheme` |
+| `grants.message` | `kind`, the fields the kind signs | `message`, `bytes`, `scheme`, `context` |
 | `grants.status` | `now`? | `set_up`, `keys`, `epoch`, `inflow_minor`, `weight`, `rate_defined`, ... |
+| `estate.key` | `public_key`, `fingerprint`? | `fingerprint`, `added`, `keys` |
 | `estate.setup` | `owner`, `guardians`, `k`, `attestors`, `court`, `gateway`, `wait`?, `release`? | `guardians`, `k`, `attestors`, `wait`, `release`, `phase` |
 | `estate.manifest` | `enclave`, `heirs`?, `husband`?, `wives`?, `father`?, `mother`?, `sons`?, `daughters`?, `others`?, `ids`?, `jurisdiction`?, `children`?, `gifts`?, `will_den`? | `enclave`, `advisory`, `heirs`, `digest` |
 | `estate.faraid` | `husband`?, `wives`?, `father`?, `mother`?, `sons`?, `daughters`?, `others`?, `amount_minor`? | `classes`, `unallocated`, `awl`, `radd`, `amount_minor`, `advisory`, ... |
@@ -251,8 +255,9 @@ CI checks it matches what zxvd serves.
 | `estate.resolve` | `heir`, `sig` | `heir`, `released_minor` |
 | `estate.distribute` | `amount_minor` | `parts`, `to_escrow_minor`, `held_minor`, `moved` |
 | `estate.stream` | `amount_minor` | `parts`, `to_escrow_minor`, `held_minor`, `moved` |
-| `estate.message` | `kind`, `bond_minor`?, `heir`? | `message`, `bytes`, `scheme` |
+| `estate.message` | `kind`, `bond_minor`?, `heir`? | `message`, `bytes`, `scheme`, `context` |
 | `estate.status` | `now`? | `set_up`, `phase`, `epoch`, `bond_minor`, `bond`, `approvals`, ... |
+| `recovery.key` | `public_key`, `fingerprint`? | `fingerprint`, `added`, `keys` |
 | `recovery.setup` | `root`, `guardians`, `gateway`, `first_device`, `timelock`? | `timelock`, `rate_window`, `rate_max`, `state` |
 | `recovery.claim` | `new_key`, `now`? | `state`, `claim`, `approvals`, `vetoed` |
 | `recovery.approve` | `guardian`, `sig` | `state`, `claim`, `approvals`, `vetoed` |
@@ -262,8 +267,131 @@ CI checks it matches what zxvd serves.
 | `recovery.device_revoke` | `key`, `sig` | `active` |
 | `recovery.finalize` | `now`? | `state`, `claim`, `approvals`, `vetoed` |
 | `recovery.gateway` | `sig` | `gateway_verified` |
-| `recovery.message` | `kind`, `key`? | `message`, `bytes`, `scheme` |
+| `recovery.message` | `kind`, `key`? | `message`, `bytes`, `scheme`, `context` |
 | `recovery.status` | `now`?, `vbill_minor`?, `liquid_minor`? | `set_up`, `state`, `claim`, `approvals`, `needed`, `vetoed`, ... |
+| `mint.setup` | `vbill_backing`? | `vino_issuer`, `vbill_issuer`, `vbill_backing`, `exclusive`, `jurisdictions` |
+| `mint.key` | `key`, `public_key` | `key`, `added`, `keys` |
+| `mint.account_open` | `owner`, `asset` | `account`, `owner`, `asset` |
+| `mint.account` | `account` | `account`, `owner`, `asset`, `balance_minor`, `credit_minor`, `sandbox` |
+| `mint.juris` | `code`, `enabled`, `haircut_bps`?, `cap_minor` | `code`, `enabled`, `haircut_bps`, `cap_minor`, `used_minor` |
+| `mint.attestor` | `id`, `enabled`, `haircut_bps`? | `id`, `enabled`, `haircut_bps` |
+| `mint.unit` | `capacity`, `num`, `den` | `capacity`, `num`, `den` |
+| `mint.message` | `kind`, `attestor`, `id`, `capacity`, `juris`, `qty`, `expiry` | `message`, `bytes`, `scheme` |
+| `mint.issue` | `attestor`, `id`, `capacity`, `juris`, `qty`, `expiry`, `sig`, `target`, `holder`, `now`? | `id`, `state`, `attestor`, `capacity`, `juris`, `qty`, `expiry`, ... |
+| `mint.epoch` |  | `epoch` |
+| `mint.quarantine` | `id` | `id`, `face_minor`, `state`, `moved` |
+| `mint.retire` | `id`, `from` | `id`, `state`, `attestor`, `capacity`, `juris`, `qty`, `expiry`, ... |
+| `mint.status` | `now`? | `set_up`, `keys`, `epoch`, `vbill_backing`, `backing_minor`, `vino`, `vbill`, ... |
+| `qnote.setup` |  | `reserve`, `escrow`, `lots_max` |
+| `qnote.account_open` | `owner`, `asset` | `account`, `owner`, `asset` |
+| `qnote.fund` | `account`, `amount_minor` | `account`, `balance_minor`, `sandbox` |
+| `qnote.account` | `account` | `account`, `owner`, `asset`, `balance_minor`, `credit_minor`, `sandbox` |
+| `qnote.lot_open` | `claim`, `face_minor`, `unit_face_minor`, `p_start`, `p_step`, `p_min` | `lot`, `state`, `asset`, `issuer`, `claim`, `face_minor`, `unit_face_minor`, ... |
+| `qnote.lot_account` | `lot`, `owner` | `account`, `owner`, `lot` |
+| `qnote.bid` | `lot`, `fiat_account`, `qnote_account`, `qty`, `limit`, `now`? | `lot`, `bid`, `locked_minor` |
+| `qnote.clear` | `lot` | `lot`, `state`, `asset`, `issuer`, `claim`, `face_minor`, `unit_face_minor`, ... |
+| `qnote.settle` | `lot`, `now`? | `lot`, `state`, `asset`, `issuer`, `claim`, `face_minor`, `unit_face_minor`, ... |
+| `qnote.recover` | `lot`, `from`, `amount_minor`, `now`? | `lot`, `state`, `asset`, `issuer`, `claim`, `face_minor`, `unit_face_minor`, ... |
+| `qnote.close` | `lot`, `now`? | `lot`, `state`, `asset`, `issuer`, `claim`, `face_minor`, `unit_face_minor`, ... |
+| `qnote.status` |  | `set_up`, `reserve`, `escrow`, `reserve_minor`, `escrow_minor`, `reserve_in_minor`, `lots`, ... |
+| `fx.setup` | `market`?, `scale`?, `band_bps`?, `max_orders`? | `market`, `base`, `quote`, `base_escrow`, `quote_escrow`, `fee_account`, `scale`, ... |
+| `fx.key` | `key`, `public_key` | `key`, `added`, `keys` |
+| `fx.account_open` | `owner`, `asset` | `account`, `owner`, `asset` |
+| `fx.fund` | `account`, `amount_minor` | `account`, `balance_minor`, `sandbox` |
+| `fx.account` | `account` | `account`, `owner`, `asset`, `balance_minor`, `credit_minor`, `sandbox` |
+| `fx.config` | `enabled`?, `band_bps`?, `max_orders`? | `enabled`, `band_bps`, `max_orders`, `leverage` |
+| `fx.open` |  | `epoch`, `state` |
+| `fx.message` | `kind`, `side`, `base_account`, `quote_account`, `qty`, `limit`, `nonce` | `message`, `bytes`, `scheme` |
+| `fx.order` | `side`, `base_account`, `quote_account`, `qty`, `limit`, `nonce`, `sig`, `now`? | `order`, `side`, `owner`, `locked_minor`, `epoch` |
+| `fx.clear` |  | `epoch`, `market_price`, `price`, `ref_before`, `supply`, `demand`, `volume`, ... |
+| `fx.settle` | `now`? | `epoch`, `market_price`, `price`, `ref_before`, `supply`, `demand`, `volume`, ... |
+| `fx.cancel` | `now`? | `epoch`, `state`, `cancelled` |
+| `fx.net` |  | `positions`, `nonzero`, `gross_legs`, `net_legs`, `saved`, `balanced` |
+| `fx.status` |  | `set_up`, `keys`, `leverage`, `enabled`, `band_bps`, `max_orders`, `state`, ... |
+| `vhub.setup` | `issuer_xta`, `issuer_xtb` | `currencies`, `pegs_set`, `rules` |
+| `vhub.key` | `key`, `public_key` | `key`, `added`, `keys` |
+| `vhub.account_open` | `owner`, `asset` | `account`, `owner`, `asset` |
+| `vhub.fund` | `account`, `amount_minor` | `account`, `balance_minor`, `sandbox` |
+| `vhub.account` | `account` | `account`, `owner`, `asset`, `balance_minor`, `credit_minor`, `sandbox` |
+| `vhub.back` | `ccy`, `leg`, `amount_minor`, `now`? | `ccy`, `leg`, `account`, `balance_minor`, `sandbox` |
+| `vhub.message` | `kind`, `ccy`, `num`, `den`, `epoch` | `message`, `bytes`, `scheme` |
+| `vhub.peg` | `ccy`, `num`, `den`, `epoch`, `sig` | `ccy`, `num`, `den`, `epoch` |
+| `vhub.rule` | `ccy`, `limit_minor` | `ccy`, `rule`, `limit_minor`, `rules` |
+| `vhub.quote` | `from`, `to`, `amount_minor` | `from`, `to`, `exact_minor` |
+| `vhub.swap` | `from`, `to`, `sender`, `receiver`, `amount_minor`, `epoch`?, `now`? | `from`, `to`, `sender`, `receiver`, `amount_minor`, `vbills`, `out_minor` |
+| `vhub.status` |  | `set_up`, `keys`, `currencies`, `posted`, `quarantined`, `check`, `sandbox` |
+| `capmkt.setup` | `share_num`?, `share_den`? | `share_num`, `share_den`, `fee` |
+| `capmkt.key` | `key`, `public_key` | `key`, `added`, `keys` |
+| `capmkt.deposit` | `account`, `amount_minor` | `account`, `available`, `locked`, `escrow`, `earned`, `delivered`, `missed`, ... |
+| `capmkt.withdraw` | `account`, `amount_minor` | `account`, `available`, `locked`, `escrow`, `earned`, `delivered`, `missed`, ... |
+| `capmkt.account` | `account` | `account`, `available`, `locked`, `escrow`, `earned`, `delivered`, `missed`, ... |
+| `capmkt.ask` | `account`, `resource`, `tenor`, `region`?, `qty`, `price`, `expires` | `order`, `side`, `qty`, `price`, `locked` |
+| `capmkt.bid` | `account`, `resource`, `tenor`, `region`?, `qty`, `limit`, `expires` | `order`, `side`, `qty`, `price`, `locked` |
+| `capmkt.cancel` | `account`, `order` | `order`, `cancelled` |
+| `capmkt.quote` | `resource`, `tenor`, `region`?, `now`? | `last_price`, `last_volume`, `best_bid`, `best_ask`, `bid_units`, `ask_units`, `providers`, ... |
+| `capmkt.clear` | `resource`, `tenor`, `region`?, `now`? | `round`, `price`, `volume`, `lo`, `hi`, `providers`, `cap`, ... |
+| `capmkt.message` | `kind`, `contract`, `units`, `at` | `message`, `bytes`, `scheme` |
+| `capmkt.deliver` | `contract`, `units`, `at`, `sig` | `contract`, `state`, `bid`, `ask`, `buyer`, `provider`, `qty`, ... |
+| `capmkt.expire` | `now`? | `closed` |
+| `capmkt.status` |  | `set_up`, `keys`, `deposits`, `commons`, `fee_buckets`, `round`, `contracts`, ... |
+| `market.setup` | `now`? | `currency`, `asset`, `escrow`, `commons`, `tax`, `now` |
+| `market.key` | `key`, `public_key` | `key`, `added`, `keys` |
+| `market.account_open` | `owner`, `asset` | `account`, `owner`, `asset` |
+| `market.fund` | `account`, `amount_minor` | `account`, `balance_minor`, `sandbox` |
+| `market.account` | `account` | `account`, `owner`, `asset`, `balance_minor`, `credit_minor`, `sandbox` |
+| `market.message` | `kind`, `owner`?, `name`?, `region`?, `fulfil_within`?, `arbiter`?, `store`?, `type`?, `title`?, `category`?, `price_minor`?, `shipping_minor`?, `stock`?, `cid`?, `return_window`?, `auto_release`?, `version`?, `order`?, `buyer_award`? | `message`, `bytes`, `scheme` |
+| `market.store` | `owner`, `name`, `region`, `version`, `fulfil_within`?, `arbiter`?, `handle`?, `sig` | `store`, `version` |
+| `market.listing` | `store`, `type`, `title`, `category`?, `price_minor`, `shipping_minor`?, `stock`, `cid`?, `return_window`?, `auto_release`?, `version`, `handle`?, `sig` | `listing`, `version`, `available` |
+| `market.order` | `buyer`, `listing`, `qty`, `region`, `community`? | `order`, `state`, `store`, `buyer`, `seller`, `total_minor`, `tax_minor`, ... |
+| `market.pay` | `order`, `buyer` | `order`, `state`, `store`, `buyer`, `seller`, `total_minor`, `tax_minor`, ... |
+| `market.fulfil` | `order`, `seller`, `proof` | `order`, `state`, `store`, `buyer`, `seller`, `total_minor`, `tax_minor`, ... |
+| `market.confirm` | `order`, `buyer` | `order`, `state`, `store`, `buyer`, `seller`, `total_minor`, `tax_minor`, ... |
+| `market.refund` | `order`, `seller`, `line`?, `qty` | `order`, `state`, `store`, `buyer`, `seller`, `total_minor`, `tax_minor`, ... |
+| `market.cancel` | `order`, `actor` | `order`, `state`, `store`, `buyer`, `seller`, `total_minor`, `tax_minor`, ... |
+| `market.dispute` | `order`, `actor` | `order`, `state`, `store`, `buyer`, `seller`, `total_minor`, `tax_minor`, ... |
+| `market.rule` | `order`, `mediator`, `buyer_award`, `sig` | `order`, `state`, `store`, `buyer`, `seller`, `total_minor`, `tax_minor`, ... |
+| `market.tick` | `now`? | `now` |
+| `market.status` |  | `set_up`, `keys`, `now`, `stores`, `listings`, `escrow_minor`, `commons_minor`, ... |
+| `royalty.setup` |  | `fee_account`, `asset`, `advances` |
+| `royalty.key` | `key`, `public_key` | `key`, `added`, `keys` |
+| `royalty.account_open` | `owner`, `asset` | `account`, `owner`, `asset` |
+| `royalty.fund` | `account`, `amount_minor` | `account`, `balance_minor`, `sandbox` |
+| `royalty.account` | `account` | `account`, `owner`, `asset`, `balance_minor`, `credit_minor`, `sandbox` |
+| `royalty.message` | `kind`, `work`?, `version`?, `owners`?, `parent`?, `up_num`?, `up_den`?, `terms`?, `num`?, `den`?, `flat_minor`?, `owner`?, `giving_account`?, `giving_bps`?, `invest_account`?, `invest_bps`?, `seq`? | `message`, `bytes`, `scheme` |
+| `royalty.register` | `work`, `version`, `owners`, `parent`?, `up_num`?, `up_den`?, `terms`, `num`?, `den`?, `flat_minor`?, `sig` | `work`, `version`, `depth`, `owners`, `parent`, `payments`, `gross_minor`, ... |
+| `royalty.update` | `work`, `version`, `owners`, `parent`?, `up_num`?, `up_den`?, `terms`, `num`?, `den`?, `flat_minor`?, `sigs` | `work`, `version`, `depth`, `owners`, `parent`, `payments`, `gross_minor`, ... |
+| `royalty.split` | `work`, `owner`, `giving_account`?, `giving_bps`?, `invest_account`?, `invest_bps`?, `seq`, `sig` | `work`, `version`, `depth`, `owners`, `parent`, `payments`, `gross_minor`, ... |
+| `royalty.sale` | `from`, `to`, `amount_minor`, `now`? | `from`, `to`, `amount_minor`, `receipt` |
+| `royalty.quote` | `work`, `gross_minor` | `gross_minor`, `royalty_minor`, `fee_minor`, `levels`, `shares`, `digest` |
+| `royalty.pay` | `work`, `payer`, `gross_minor`, `receipt`, `digest`, `now`? | `posted`, `quote` |
+| `royalty.status` |  | `set_up`, `keys`, `fee_account`, `fee_minor`, `receipts_used`, `works`, `check`, ... |
+| `cred.setup` | `decay_num`?, `decay_den`?, `alpha_num`?, `alpha_den`?, `iters`?, `fail_base`?, `fail_cap`? | `decay_num`, `decay_den`, `alpha_num`, `alpha_den`, `iters`, `fail_base`, `fail_cap`, ... |
+| `cred.subject` | `id`, `pretrusted`? | `id`, `pretrusted`, `subjects` |
+| `cred.fulfil` | `rater`, `ratee`, `value_minor`, `receipt` | `rater`, `ratee`, `gain`, `local`, `computed` |
+| `cred.fail` | `rater`, `ratee`, `ruling` | `rater`, `ratee`, `local`, `computed` |
+| `cred.decay` |  | `epoch` |
+| `cred.compute` |  | `iters`, `last_delta`, `computed` |
+| `cred.card` | `subject`, `bond`?, `uptime_bps`?, `giving`? | `card`, `sandbox` |
+| `cred.status` |  | `set_up`, `credit_lines`, `epoch`, `fulfilments`, `failures`, `computed`, `subjects`, ... |
+| `dispute.setup` | `gateway`, `vrf_public_key`, `base_bond`?, `juror_bond`?, `commit_ticks`?, `reveal_ticks`?, `appeal_ticks`?, `jury`? | `gateway`, `escrow`, `reserve`, `base_bond_minor`, `juror_bond_minor`, `jury`, `vrf` |
+| `dispute.key` | `key`, `public_key` | `key`, `added`, `keys` |
+| `dispute.account_open` | `owner`, `asset` | `account`, `owner`, `asset` |
+| `dispute.fund` | `account`, `amount_minor` | `account`, `balance_minor`, `sandbox` |
+| `dispute.account` | `account` | `account`, `owner`, `asset`, `balance_minor`, `credit_minor`, `sandbox` |
+| `dispute.juror` | `id`, `remove`?, `account`?, `stake`? | `id`, `removed`, `pool` |
+| `dispute.open` | `order`, `terms`, `buyer`, `seller`, `buyer_account`, `seller_account`, `escrow_minor`, `now`? | `case`, `state`, `level`, `round`, `order`, `buyer`, `seller`, ... |
+| `dispute.message` | `kind`, `case`, `party`?, `proof_kind`?, `hash`?, `juror`?, `commit`?, `award_bps`?, `vote`?, `salt`? | `message`, `bytes`, `scheme` |
+| `dispute.proof` | `case`, `party`, `proof_kind`, `hash`, `sig` | `result`, `case` |
+| `dispute.escalate` | `case`, `party`, `now`? | `result`, `case` |
+| `dispute.select` | `case`, `proof`, `out`, `now`? | `result`, `case` |
+| `dispute.commit` | `case`, `juror`, `commit`, `sig`, `now`? | `result`, `case` |
+| `dispute.reveal` | `case`, `juror`, `vote`, `salt`, `now`? | `result`, `case` |
+| `dispute.tally` | `case`, `now`? | `result`, `case` |
+| `dispute.finalize` | `case`, `now`? | `result`, `case` |
+| `dispute.gateway` | `case`, `award_bps`, `sig` | `result`, `case` |
+| `dispute.ruling` | `case` | `case`, `award_bps`, `level`, `round`, `loser`, `loser_id`, `buyer_minor`, ... |
+| `dispute.release` | `case` | `case`, `released` |
+| `dispute.status` |  | `set_up`, `keys`, `locked_minor`, `returned_minor`, `slashed_minor`, `escrow_minor`, `reserve_minor`, ... |
 | `companion.dna` | | `agent_id`, `seed`, `genes` (8 by name), `traits` (`home`, `*_permille`, `specialty`, `specialty_name`), `parent_a`, `parent_b`, `founder`, `generation` |
 | `companion.generation` | | `agent_id`, `generation`, `seed`, `steps`, `growths`, `last_step` |
 | `companion.mood` | | `agent_id`, `feeling`, `home`, `at_home`, `swarm_mood` (each feeling: `emotion`, `emoji`, `codepoint`, `intensity`, `charge`, `valence`) |
@@ -312,8 +440,9 @@ why), -32040 a card operation the issuer refused, -32041 a passkey ceremony
 refused (the message says why), -32050 a vault, swap, auction, Zenny or
 stats engine refused (the message is its status name, e.g.
 `VSWAP_ERR_DISABLED`, or `VAUC_ERR_LEDGER (PAY_ERR_FUNDS)`),
--32060 a bond, derivative, grant or estate engine refused (the message is
-`<STATUS>: why`, see "Bonds, derivatives, grants and estates" below),
+-32060 a bond, derivative, grant, estate or money engine refused (the message
+is `<STATUS>: why`, see "Bonds, derivatives, grants and estates" and
+"Money engines" below),
 -32070 no companion yet
 (`companion.*` before the swarm has an agent),
 -32071 the organ could not answer (`swarm.organ`),
@@ -324,6 +453,8 @@ the `chg_name.h` code, e.g. `CHGN_E_RESERVED`, then why),
 envelope feed" below),
 -32096 an IRC gateway refusal (the message says why, see "The IRC gateway"
 below),
+-32097 a jurisdiction install or tax rate refused (the message says why, see
+"The jurisdiction bridge" below),
 -32080 a seat refused (the message is `<SEAT_ERR_*>: why`, see "Seats"
 below), -32095 power tracking is not running or a budget's target is
 unknown (see "Power" below),
@@ -412,7 +543,8 @@ finish the handshake, and an idle phone is dropped after 60 s.
 What a phone may call: everything read-only, plus `swarm.ask` and
 `notes.mark_read`. A phone paired with `allow_post` may also call
 `net.command`, `peer.ask`, `currency.enable`, `ledger.open_account` and
-`ledger.post`. `zxvd.shutdown`, `peer.serve`, `jurisdiction.set`, `aipi.put`,
+`ledger.post`. `zxvd.shutdown`, `peer.serve`, `jurisdiction.set`,
+`jurisdiction.install`, `aipi.put`,
 `aipi.publish`, `aipi.execute`, `phone.*`, the people methods (`social.*`,
 `call.*`, `xlate.*`, `devmesh.*`, `ui.*`), and the system utilities and
 apps' methods (`sys.*`, `log.tail`, `journal.*`, `screen.*`, `place.*`,
@@ -535,11 +667,15 @@ These feed ZXV Studio's P2P Mesh, Storefront and Ledger pages.
   still waiting on the other side: a sell offer the buyer has not accepted,
   or a purchase the seller has not committed.
 - `player.card` evaluates your tier with `sic_tier_eval` (`kernel/src/sicily`).
-  Credibility is your verified contributions from mesh trades. Bond, uptime
-  and giving have no source on the node yet; they are reported as 0 with
-  that reason, so the card shows Copper / Obsidian until they exist. The
-  next tier's thresholds and the missing inputs are listed. Tiers give no
-  priority, fee discount or credit.
+  Credibility is your verified contributions from mesh trades. Uptime is not
+  measured yet. Bond and giving have no real ledger on the node: the V-Bonds
+  desk (`bonds.*`) and the grants desk (`grants.*`) run on practice units,
+  which are not money, so both inputs are reported as 0 with that reason and
+  the card shows Copper / Obsidian until real sources exist. Your live
+  practice V-Bonds are shown apart, under `practice.bonds` (`value`, `live`,
+  `set_up`, `source`), and are never a tier input. The next tier's
+  thresholds and the missing inputs are listed. Tiers give no priority, fee
+  discount or credit.
 
 ## Feature switches and method groups
 
@@ -697,12 +833,52 @@ change is one record, written before it applies, so it survives a restart.
 The jurisdiction host (`kernel/src/juris`, see [ADAPTERS.md](ADAPTERS.md))
 gets these settings at start and at every change, so `in_effect` is true.
 `plugins` counts the jurisdiction plug-ins it has loaded: none until the
-deployment configures a gateway key, so its answers fail closed until then.
+deployment sets a gateway key and installs a signed manifest, so its answers
+fail closed until then.
 `report_standard` is the framework reports follow: the chosen standard when
 an adapter is built for it (IFRS, US_GAAP or AAOIFI) and a country is set,
 otherwise empty. No payment path asks the host yet. The adapters are designed
 to follow each standard; they do not replace an accountant or a Shariah
 board.
+
+The gateway key (`zxvd_rpc.h` J6-J9, `kernel/src/juris/juris_cp.h`):
+`jurisdiction.set` with `gateway_key` (an ML-DSA-87 public key in hex, `""`
+to clear it) sets the deployment's jurisdiction gateway key, saved in the
+books file. `jurisdiction.get` reports it as `gateway_key`, the SHA-256 of the
+key in hex, never the key itself, or `null`. The same key is the only signer
+zxvd trusts for compliance manifests, under the ML-DSA context
+`ZXV-COMPLIANCE`; plug-in manifests use `ZXV-JURIS-GATEWAY`, so neither
+signature passes as the other. A new key, or none, drops every installed
+plug-in.
+
+`jurisdiction.install` takes a capital-control profile (`kernel/src/capctl`)
+or a tax table (`kernel/src/taxhook`) for the settings' country, its own
+signature and the gateway's signature over the plug-in manifest (`juris.h`
+J3: id `capctl/CC` or `taxhook/CC/REGION/KIND`, the plug-in's hook mask, the
+manifest's version, and the SHA-256 of the manifest bytes as the plug-in
+image), all three in base64 (two ML-DSA-87 signatures in hex would not fit
+one 16 KiB request). Anything that does not verify, another country, a
+manifest outside its validity window, or a version not above every one
+installed under that id before (across restarts and key changes) is refused
+with -32097 and changes nothing. An install is saved with its time; a restart
+replays it judged at that time, so a table that has expired since still
+loads, then refuses. `installed` lists each one (`id`, `version`, `loaded`):
+a plug-in for another country stays installed but is not loaded until the
+country comes back.
+
+`jurisdiction.check` asks the host about a transfer and commits nothing: the
+64-state tag (`base`, `action`, `proceed`) and how many capital-control
+reports it would produce. A profile denies (`proceed` false), an unknown
+country waits, a currency with no ISO 4217 number is refused; with no
+plug-in loaded every answer waits. `jurisdiction.tax_rate` with `kind`
+(`vat`, `income` or `withholding`) answers the rate the tax plug-ins agree
+on as `num`/`den`: only the national standard VAT/GST rate in force today
+(UTC) is reachable this way; plug-ins that disagree, or none that knows, is
+-32097. Rolling-window usage (capctl C6) is not recorded by zxvd, since no
+payment path commits through the host yet. The KYC gate in `juris_cp.h` is
+not served by zxvd: it needs a challenge-and-proof exchange zxvd does not
+offer. None of this is legal or tax advice; each table needs local counsel
+and a tax adviser to sign off.
 
 ## Commons: your posts in your own name
 
@@ -832,13 +1008,27 @@ How they work:
   `*.fund`. Nothing on these ledgers is posted to the owner's books, and
   `*.fund` creates sandbox money from nothing: it is a test bench. The
   estate group keeps no ledger.
-- Signers are Ed25519 keys registered with `*.key` (`key` = the key id; give
-  a party the same id as the ledger owner of its accounts, which the
-  derivatives engine is moving to require). `*.message`
-  returns the exact bytes the engine checks, as hex; the caller signs them
-  and passes the 64-byte signature as `sig` (hex). A list of keys
-  (`guardians`, `attestors`) is the 32-byte keys concatenated in one hex
-  string.
+- Bonds and derivatives signers are Ed25519 keys registered with `*.key`
+  (`key` = the key id; give a party the same id as the ledger owner of its
+  accounts, which the derivatives engine is moving to require); their
+  signatures are 64 bytes. `*.message` returns the exact bytes the engine
+  checks, as hex; the caller signs them and passes the signature as `sig`
+  (hex).
+- Grants, estate and recovery signers are ML-DSA-87 (FIPS 204) keys, as
+  their engines specify (`zxvd_sandbox.h` C2b). `grants.key` registers a
+  2592-byte public key under the key id; `estate.key` and `recovery.key`
+  (one table each) register one and answer its **fingerprint**,
+  SHA-256(`"zxvd.mldsa87.key.v1"` || public key), the 32-byte key that
+  `estate.setup`, `recovery.setup`, `recovery.claim` and the device methods
+  take. An optional `fingerprint` on `*.key` must match the key or the call
+  is refused (`KEY_MISMATCH`). `*.message` answers `"scheme":"ml-dsa-87"`
+  and the FIPS 204 `context` to sign under (`zxvd.grants.v1`,
+  `zxvd.estate.v1`, `zxvd.recovery.v1`), so a signature verifies only in
+  its own group. Every `sig` there is exactly 4627 bytes (9254 hex
+  characters): a 64-byte Ed25519 signature is refused, and a fingerprint
+  whose public key is not registered signs nothing. A list of keys
+  (`guardians`, `attestors`) is the 32-byte fingerprints concatenated in
+  one hex string.
 - 64-bit results are decimal strings; `now` is optional unix seconds
   (default: the clock).
 - A refusal answers -32060 with the engine's status name and why, for
@@ -870,11 +1060,79 @@ Honest limits:
   and `estate.stream` only compute the split.
 - `recovery.*` counts the notices a claim would send to the owner's devices
   but delivers none (`"notices_delivered":false`).
-- The signatures are Ed25519, not the ML-DSA the engines are meant to be fed
-  in production.
+- Bonds and derivatives signatures are still Ed25519, not post-quantum;
+  grants, estate and recovery use ML-DSA-87. Key tables live in memory and
+  are emptied when zxvd stops: register the keys again after a restart.
 - The framework has no string-array reader, so key lists are concatenated
   hex; amounts above 2^63-1 are refused; one request line holds about 20
   `grants.distribute` recipients.
+
+## Money engines
+
+Nine method groups put the remaining money engines behind the socket
+(`kernel/arch/hosted/zxvd_money.c`), each behind its own switch:
+
+| Feature | Regulated | Engine | Methods |
+|---|---|---|---|
+| `mint` | yes | minting Vino or V-Bills against attested capacity (`kernel/src/mint`) | `mint.*` |
+| `qnote` | yes | Q-Note quarantine lots sold by a falling-price auction (`kernel/src/qnote`) | `qnote.*` |
+| `fx` | yes | FX by uniform-price batch epochs, no leverage (`kernel/src/fxepoch`) | `fx.*` |
+| `vhub` | yes | cross-currency clearing through V-Bills (`kernel/src/vhub`) | `vhub.*` |
+| `capmkt` | yes | the capacity market: double auction, escrow, pay on delivery (`kernel/src/capmkt`) | `capmkt.*` |
+| `market` | yes | storefronts, orders, escrow and disputes (`kernel/src/market`) | `market.*` |
+| `royalty` | no | royalties from realised sales only (`kernel/src/royalty`) | `royalty.*` |
+| `cred` | no | EigenTrust credibility over fulfilled trades (`kernel/src/cred`) | `cred.*` |
+| `dispute` | no | the dispute funnel: proofs, a staked jury drawn by ECVRF, a gateway (`kernel/src/dispute`, `kernel/src/vrf`) | `dispute.*` |
+
+The cbank engines (`netting.*`, `iso20022.*`, `card.check`), the settlement
+spine, `player.card` and `jurisdiction.*` were already served and get no
+group here.
+
+How they work:
+
+- They work like the bonds and grants groups above. `<group>.setup` starts
+  the engine once per run; until then its methods answer -32060 "`<group>`
+  is not set up". Read-only methods (`*.status`, `*.account`, `*.message`,
+  `*.quote`, `fx.net`, `cred.card`, `dispute.ruling`) answer while the
+  switch is off.
+- Each ledger-backed group keeps its own **sandbox book**: practice units
+  filled with `*.fund` from a sandbox issuer. They are not money, never
+  reach the owner's books, and are gone when zxvd stops. `capmkt.deposit` adds
+  practice units to the capacity market's own deposit table, and `cred` keeps
+  only its score tables. Every status method sets `"sandbox": true`.
+- Signers are Ed25519 keys registered with `*.key` under the engine's
+  numeric signer id. `*.message` returns the exact bytes to sign, as hex. A
+  market party is its key id, little-endian, then 28 zero bytes. Capacity
+  delivery evidence is the buyer's signature over
+  `"zxvd/capmkt-proof/v1"` || contract || seq || units || at_ms || prev.
+  `dispute.select` checks the jury draw's ECVRF proof (RFC 9381) against
+  the `vrf_public_key` given at `dispute.setup`.
+- An engine's own switch stays the engine's. `fx.config` turns the batch
+  market on, and leverage is always 0. Every `mint` jurisdiction starts off
+  (`mint.juris`). `cred` never turns credit lines on.
+- Every status method reports the engine's own audit as `"check"`: mint_check,
+  qnote_check, fx_check, cm_conserved, mk_market_conserved with
+  pay_ledger_check, roy_check, cred_check, dsp_check. vhub has no audit of
+  its own; its check is pay_ledger_check together with the quarantine log's
+  verify.
+- Replays are refused: a used claim id, nonce, receipt, ruling, proof-chain
+  step, version or peg epoch is refused, and the state is left unchanged.
+- A refusal answers -32060 with the engine's status name and why, for
+  example `MINT_ERR_JURIS: ...` or `ROY_ERR_STALE_QUOTE: ...`.
+
+Honest limits:
+
+- Everything is in memory: state, sandbox books and key tables are lost when
+  zxvd stops.
+- The six regulated features start off, as every feature does. Minting,
+  Q-Notes and V-Bills are likely securities; FX dealing, an exchange and a
+  marketplace are regulated in many places. zxvd claims no licence; turning
+  one on is for a test or a licensed deployment.
+- `cred.card` is not a credit score and never reaches `player.card`. Its
+  inputs are marked "sandbox input". `dispute` gives a protocol outcome, not
+  a court ruling.
+- Signatures are Ed25519, not post-quantum. `qnote`'s first-loss vault step
+  is not served.
 
 ## Seats: the people on this device and the login after boot
 
@@ -1216,7 +1474,8 @@ layer on the real engines and pay_ledger (the switches, exact replies, every
 refusal, and full flows); it is the harness's test for `zxvd_econ.c`.
 `zxvd_aipi.c`. `test_zxvd_instruments.sh` (bonds, derivatives) and
 `test_zxvd_estate.sh` (grants, estate, recovery) run those groups behind the
-RPC layer on the real engines, signing with real Ed25519 keys; they are the
+RPC layer on the real engines, signing with real Ed25519 (bonds, derivatives)
+and ML-DSA-87 (grants, estate, recovery) keys; they are the
 harness's tests for `zxvd_instruments.c`, `zxvd_estate.c` and `zxvd_sandbox.c`.
 `test_zxvd_companion.sh` runs `companion.*` behind the RPC layer on the real
 swarm DNA, emotion and evolution code (exact replies, every emotion and

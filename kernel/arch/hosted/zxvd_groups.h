@@ -29,6 +29,11 @@ const zxvd_group_t *zxvd_stats_group(void);    /* stats.*   feature "stats"    *
 /* zxvd_instruments.c: V-Bonds and V-Calls / V-Perps (regulated) */
 const zxvd_group_t *zxvd_bonds_group(void);
 const zxvd_group_t *zxvd_derivatives_group(void);
+/* The V-Bonds desk at a glance for the Player Card (zxv_host.c, zxvd_rpc.h
+ * V3): the live bonds and their summed qty (the lock account). False, with
+ * both 0, until bonds.setup has run this run. Always practice units
+ * (zxvd_sandbox.h C1): shown on the card, never a tier input. */
+bool zxvd_bonds_practice(uint32_t *live, uint64_t *qty);
 /* zxvd_estate.c: barrel grants (regulated); estate, recovery, faraid */
 const zxvd_group_t *zxvd_grants_group(void);
 const zxvd_group_t *zxvd_estate_group(void);
@@ -64,5 +69,16 @@ const zxvd_group_t *zxvd_pspace_group(void);
 /* fab.* (zxvd_fab.c, kernel/src/fab): feature "fab", file fabrication from
  * public blocks; fab.status and fab.keys always on (zxvd_fab.h) */
 const zxvd_group_t *zxvd_fab_group(void);
+/* zxvd_money.c: the money engines, each on its own sandbox book or table;
+ * mint, qnote, fx, vhub, capmkt and market are regulated */
+const zxvd_group_t *zxvd_mint_group(void);    /* mint.*    kernel/src/mint    */
+const zxvd_group_t *zxvd_qnote_group(void);   /* qnote.*   kernel/src/qnote   */
+const zxvd_group_t *zxvd_fx_group(void);      /* fx.*      kernel/src/fxepoch */
+const zxvd_group_t *zxvd_vhub_group(void);    /* vhub.*    kernel/src/vhub    */
+const zxvd_group_t *zxvd_capmkt_group(void);  /* capmkt.*  kernel/src/capmkt  */
+const zxvd_group_t *zxvd_market_group(void);  /* market.*  kernel/src/market  */
+const zxvd_group_t *zxvd_royalty_group(void); /* royalty.* kernel/src/royalty */
+const zxvd_group_t *zxvd_cred_group(void);    /* cred.*    kernel/src/cred    */
+const zxvd_group_t *zxvd_dispute_group(void); /* dispute.* kernel/src/dispute */
 
 #endif

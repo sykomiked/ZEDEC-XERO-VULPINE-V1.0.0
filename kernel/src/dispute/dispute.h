@@ -113,14 +113,18 @@
  *
  * HONEST LIMITS. A jury is not a court: its ruling is a protocol outcome,
  * and level 3 exists so that a real jurisdiction can decide. Selection is
- * only as unpredictable as the VRF: production needs a real VRF (e.g. ECVRF,
- * RFC 9381); the test uses a deterministic SHA-256 stand-in that is NOT a
- * VRF. Stake weighting favours the well-staked; pool capture by one party's
- * friends is limited only by stake and by the cross-round exclusion. Binary
- * votes cannot express a partial award below level 3. Juror bribery is not
- * prevented, only made costly by bonds. Dispute resolution, arbitration and
- * consumer law differ by jurisdiction and need legal review. Freestanding
- * C11: no allocation, no floating point, no libc.
+ * only as unpredictable as the VRF: src/vrf provides ECVRF-EDWARDS25519-
+ * SHA512-TAI (RFC 9381) and its hook vrf_dsp_verify (ctx = vrf_dsp_ctx_t,
+ * proof = the 80-byte pi, out = the first 32 bytes of beta), which the test
+ * uses; the VRF key holder still learns each draw in advance and can
+ * withhold it (stalling selection), so that key belongs to a party with no
+ * stake in the case. Stake weighting favours the well-staked; pool
+ * capture by one party's friends is limited only by stake and by the
+ * cross-round exclusion. Binary votes cannot express a partial award below
+ * level 3. Juror bribery is not prevented, only made costly by bonds.
+ * Dispute resolution, arbitration and consumer law differ by jurisdiction
+ * and need legal review. Freestanding C11: no allocation, no floating
+ * point, no libc.
  */
 #ifndef ZXV_DISPUTE_H
 #define ZXV_DISPUTE_H
@@ -223,7 +227,7 @@ typedef struct {
 typedef bool (*dsp_verify_fn)(void *ctx, uint32_t signer, const uint8_t *msg, uint32_t len,
                               const uint8_t *sig, uint32_t sig_len);
 /* vrf_verify(ctx, seed, proof, proof_len, out): true when out is the VRF
- * output of seed proved by proof (ECVRF in production). */
+ * output of seed proved by proof (ECVRF: vrf.h vrf_dsp_verify). */
 typedef bool (*dsp_vrf_fn)(void *ctx, const uint8_t seed[32], const uint8_t *proof,
                            uint32_t proof_len, const uint8_t out[32]);
 /* D2: deterministic predicate; returns a dsp_pred_t. */

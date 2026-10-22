@@ -52,6 +52,7 @@
 #include "zxv_sched.h"        /* schedule.*: timers apps register (Treadle) */
 #include "zxvd_proc.h"        /* proc.*: the machine's processes (Warren) */
 #include "juris.h"            /* J5: the jurisdiction host (kernel/src/juris) */
+#include "juris_cp.h"         /* J6-J9: the gateway key, capctl and taxhook as plug-ins */
 #include "../../src/chiglet/chg_vocab.h" /* swarm.organ: the organ names */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
@@ -68,6 +69,7 @@
 #define E_PARAMS   (-32602)
 #define E_INTERNAL (-32603)
 #define E_LIBZXV   (-32000) /* a libzxv status: data = {status, name, class} */
+#define E_JURIS    (-32097) /* J7-J9: a jurisdiction step refused (message says why) */
 
 /* ===================== output buffer ===================== */
 
@@ -227,7 +229,9 @@ static void books_close(void)
 #define BF_MAGIC "{\"op\":\"books\",\"v\":1}"
 #define LIT(b, s)                                                                                  \
     zxvd_buf_raw((b), "" s, sizeof("" s) - 1) /* a string literal only: anything else fails */
-#define BF_MAX_LINE 1024u                     /* a record is far smaller; longer is damage */
+#define BF_MAX_LINE                                                                                \
+    16384u /* the largest record (J7: a manifest and two ML-DSA-87 signatures in base64) is        \
+              about 13.5 KB; longer is damage */
 
 static char BF_PATH[1024];  /* "" = the books live in memory only (F1) */
 static int BF = -1;         /* the open file */
@@ -394,11 +398,52 @@ static bool JU_OPEN;    /* J2: false = closed clearing (the default) */
 static uint32_t JU_IDX; /* J3: index in JU_STD; 0 = not chosen */
 static char JU_CC[3];   /* J1: ISO 3166-1 alpha-2, or "" */
 
-/* J5: the jurisdiction host holds the same settings. No gateway key is
- * configured, so no plug-in can register and its answers fail closed. */
+/* J5: the jurisdiction host holds the same settings. J6: its verify hook
+ * checks the gateway key (juris_cp.h JC1); with no key set every plug-in is
+ * refused and the host's answers fail closed (wait). */
 static lpx_qrec_t JU_QLOG[64];
 static juris_host_t JU_HOST;
 
+/* J6-J9: the gateway key, the compliance engines behind the plug-ins and
+ * the installed plug-ins (each with what J3 needs to register it again) */
+#define JU_MAN_MAX                                                                                 \
+    (CAPCTL_MANIFEST_MAX > TAXHOOK_MANIFEST_MAX ? CAPCTL_MANIFEST_MAX : TAXHOOK_MANIFEST_MAX)
+#define JU_TALLIES 16u
+static juris_gw_t JU_GW;
+static cpk_ring_t JU_RING; /* J7: the gateway key, trusted to sign capctl profiles and tax tables */
+static capctl_t JU_CAP;
+static capctl_tally_t JU_TALLY[JU_TALLIES];
+static taxhook_t JU_TAX;
+typedef struct {
+    bool used;
+    juris_plugin_t p;
+    juris_cp_capctl_t cap;
+    juris_cp_tax_t tax;
+    uint32_t version;
+    uint8_t m[JU_MAN_MAX];
+    size_t mlen;
+    uint8_t gsig[JURIS_GW_SIG_LEN];
+} ju_pl_t;
+static ju_pl_t JU_PL[JURIS_MAX_PLUGINS];
+/* J8: the highest version installed per plug-in id, kept across key changes */
+static char JU_FID[JURIS_MAX_IDS][JURIS_ID_LEN];
+static uint32_t JU_FV[JURIS_MAX_IDS], JU_NF;
+
+/* J9: plug-ins judge with the wall clock */
+static uint64_t ju_clock(void *ctx)
+{
+    (void) ctx;
+    return zxvd_now_ms() / 1000u;
+}
+
+static bool ju_ccy(const char *alpha, uint16_t *num)
+{
+    return zxv_iso4217_by_alpha(alpha, num, NULL, NULL) == ZXV_OK;
+}
+
+/* J6: the host again from the settings and every installed plug-in (those
+ * for another country stay installed but not loaded); the quarantine log
+ * and a halt carry over unless reset */
 static void ju_host_sync(bool reset)
 {
     juris_settings_t s;
@@ -407,10 +452,128 @@ static void ju_host_sync(bool reset)
     s.standard = (uint8_t) acct_std_from_name(JU_STD[JU_IDX]);
     if (JU_CC[0]) memcpy(s.country, JU_CC, sizeof JU_CC); /* "" may leave old bytes after it */
     s.in_effect = true;
-    if (reset)
-        juris_host_init(&JU_HOST, &s, NULL, NULL, JU_QLOG, 64);
-    else
-        (void) juris_host_apply_settings(&JU_HOST, &s);
+    lpx_qlog_t q = JU_HOST.qlog;
+    bool halted = JU_HOST.halted;
+    juris_host_init(&JU_HOST, &s, juris_gw_verify, &JU_GW, JU_QLOG,
+                    (uint32_t) (sizeof JU_QLOG / sizeof JU_QLOG[0]));
+    for (uint32_t i = 0; i < JURIS_MAX_PLUGINS; i++) {
+        ju_pl_t *pl = &JU_PL[i];
+        juris_manifest_t m;
+        if (!pl->used) continue;
+        juris_cp_manifest(&pl->p, pl->version, pl->m, pl->mlen, pl->gsig, JURIS_GW_SIG_LEN, &m);
+        (void) juris_host_register(&JU_HOST, &pl->p, &m, pl->m, pl->mlen);
+    }
+    if (!reset) {
+        JU_HOST.qlog = q;
+        JU_HOST.halted = halted;
+    }
+}
+
+/* J6: a new gateway key (or none) drops every installed plug-in and the
+ * engines' tables; J8's version floors stay */
+static void ju_gw_apply(const uint8_t *pk)
+{
+    juris_gw_init(&JU_GW);
+    cpk_init(&JU_RING);
+    /* both refuse a NULL key: no key leaves no gateway and an empty ring */
+    juris_gw_set(&JU_GW, pk, JURIS_GW_PK_LEN);
+    cpk_add(&JU_RING, pk, (1u << CP_KIND_CAPCTL) | (1u << CP_KIND_TAXTABLE), "**");
+    capctl_init(&JU_CAP, cpk_verify, &JU_RING, JU_TALLY, JU_TALLIES);
+    taxhook_init(&JU_TAX, cpk_verify, &JU_RING);
+    memset(JU_PL, 0, sizeof JU_PL);
+}
+
+static uint32_t *ju_floor(const char id[JURIS_ID_LEN])
+{
+    for (uint32_t i = 0; i < JU_NF; i++)
+        if (!memcmp(JU_FID[i], id, JURIS_ID_LEN)) return &JU_FV[i];
+    return NULL;
+}
+
+static const char *const CAPCTL_WHY[] = {"",
+                                         "bad argument",
+                                         "the profile does not decode",
+                                         "the compliance signature does not verify",
+                                         "the profile is outside its validity window",
+                                         "the profile is not above the installed version",
+                                         "the profile is below the required version",
+                                         "no room for another profile"};
+static const char *const TAX_WHY[] = {"",
+                                      "bad argument",
+                                      "the tax table does not decode",
+                                      "the compliance signature does not verify",
+                                      "the tax table is outside its validity window",
+                                      "the tax table is not above the installed version",
+                                      "no room for another tax table"};
+
+/* J7: install a compliance manifest (capctl profile or tax table) the
+ * gateway signed, as a plug-in, judged at `at`; NULL or why it is refused.
+ * Every check runs before anything changes; the engine's install is the
+ * last check and changes nothing when it refuses. */
+static const char *ju_install(const uint8_t *m, size_t mlen, const uint8_t *sig, size_t slen,
+                              const uint8_t *gsig, size_t glen, uint64_t at)
+{
+    static ju_pl_t nw;
+    static taxhook_table_t tt;
+    static capctl_t scratch; /* names a capctl plug-in without touching JU_CAP */
+    cp_hdr_t h;
+    cp_r_t r = {m, mlen, 0, false};
+    if (!JU_GW.set) return "no gateway key is set (jurisdiction.set gateway_key)";
+    if (!JU_CC[0]) return "no country is set";
+    if (!cp_hdr_get(&r, &h, false)) return "not a compliance manifest";
+    if (memcmp(h.country, JU_CC, 2)) return "the manifest is for another country";
+    memset(&nw, 0, sizeof nw);
+    if (h.kind == CP_KIND_CAPCTL) {
+        capctl_init(&scratch, NULL, NULL, NULL, 0);
+        juris_cp_capctl_plugin(&nw.p, &nw.cap, &scratch, h.country, ju_clock, NULL, ju_ccy);
+    } else if (h.kind == CP_KIND_TAXTABLE) {
+        if (taxhook_decode(m, mlen, &tt) != TAXHOOK_OK) return TAX_WHY[2];
+        juris_cp_tax_plugin(&nw.p, &nw.tax, &JU_TAX, h.country, h.region, tt.kind, ju_clock, NULL);
+    } else {
+        return "the manifest is neither a capital-control profile nor a tax table";
+    }
+    /* J8: strictly above every version installed under this id */
+    uint32_t *fl = ju_floor(nw.p.id);
+    if (fl && h.version <= *fl) return "the manifest's version is not above the installed one";
+    ju_pl_t *slot = NULL;
+    for (uint32_t i = 0; i < JURIS_MAX_PLUGINS && !slot; i++)
+        if (JU_PL[i].used && !memcmp(JU_PL[i].p.id, nw.p.id, JURIS_ID_LEN)) slot = &JU_PL[i];
+    for (uint32_t i = 0; i < JURIS_MAX_PLUGINS && !slot; i++)
+        if (!JU_PL[i].used) slot = &JU_PL[i];
+    if (!slot || (!fl && JU_NF >= JURIS_MAX_IDS)) return "no room for another plug-in";
+    /* J3: the gateway signs the plug-in manifest over this compliance manifest */
+    juris_manifest_t jm;
+    uint8_t msg[JURIS_MANIFEST_MSG];
+    juris_cp_manifest(&nw.p, h.version, m, mlen, gsig, (uint32_t) glen, &jm);
+    juris_manifest_msg(&jm, msg);
+    if (!juris_gw_verify(&JU_GW, msg, sizeof msg, gsig, (uint32_t) glen))
+        return "the gateway signature does not verify";
+    if (h.kind == CP_KIND_CAPCTL) {
+        capctl_status_t st = capctl_install(&JU_CAP, m, mlen, sig, slen, at);
+        if (st != CAPCTL_OK) return CAPCTL_WHY[-st];
+        capctl_enable(&JU_CAP, true);
+        /* C4: from now on this country's profile is required (a requirement is
+         * only added with an installed profile, so there is always room) */
+        juris_cp_capctl_plugin(&nw.p, &nw.cap, &JU_CAP, h.country, ju_clock, NULL, ju_ccy);
+    } else {
+        taxhook_status_t st = taxhook_install(&JU_TAX, m, mlen, sig, slen, at);
+        if (st != TAXHOOK_OK) return TAX_WHY[-st];
+        taxhook_enable(&JU_TAX, true);
+    }
+    nw.used = true;
+    nw.version = h.version;
+    memcpy(nw.m, m, mlen);
+    nw.mlen = mlen;
+    memcpy(nw.gsig, gsig, JURIS_GW_SIG_LEN);
+    *slot = nw;
+    slot->p.ctx = h.kind == CP_KIND_CAPCTL ? (void *) &slot->cap : (void *) &slot->tax;
+    if (!fl) {
+        memcpy(JU_FID[JU_NF], nw.p.id, JURIS_ID_LEN);
+        fl = &JU_FV[JU_NF++];
+    }
+    *fl = h.version;
+    ju_host_sync(false);
+    return NULL;
 }
 
 static int ju_std(const char *s)
@@ -441,6 +604,42 @@ static int32_t bk_juris(bool open, uint32_t idx, const char *cc)
     memcpy(JU_CC, cc, strlen(cc) + 1);
     ju_host_sync(false);
     return ZXV_OK;
+}
+
+static void b64_put(zxvd_buf_t *b, const uint8_t *d, size_t n);
+static int64_t b64_get(const char *s, size_t n, uint8_t *out, size_t cap);
+
+/* J6: a new gateway key, or none (pk NULL); saved first, then applied; the
+ * same key again writes nothing. Its one caller (m_juris_set) runs
+ * bk_juris first, which refuses books that are not writable. */
+static int32_t bk_gw(const uint8_t *pk)
+{
+    static char hx[2 * JURIS_GW_PK_LEN + 1];
+    int32_t st;
+    if (pk ? JU_GW.set && !memcmp(JU_GW.pk, pk, JURIS_GW_PK_LEN) : !JU_GW.set) return ZXV_OK;
+    hx[0] = 0;
+    if (pk) w4_hex_encode(pk, JURIS_GW_PK_LEN, hx, sizeof hx);
+    zxvd_buf_t r = {0};
+    zxvd_buf_printf(&r, "{\"op\":\"juris_gw\",\"key\":\"%s\"}", hx);
+    if ((st = saved(&r)) != ZXV_OK) return st;
+    ju_gw_apply(pk);
+    ju_host_sync(false);
+    return ZXV_OK;
+}
+
+/* J7: the install is applied (ju_install), then saved with its time */
+static int32_t bk_install(const uint8_t *m, size_t ml, const uint8_t *sig, size_t sl,
+                          const uint8_t *gsig, size_t gl, uint64_t at)
+{
+    zxvd_buf_t r = {0};
+    LIT(&r, "{\"op\":\"juris_install\",\"manifest\":");
+    b64_put(&r, m, ml);
+    LIT(&r, ",\"sig\":");
+    b64_put(&r, sig, sl);
+    LIT(&r, ",\"gsig\":");
+    b64_put(&r, gsig, gl);
+    zxvd_buf_printf(&r, ",\"at\":\"%llu\"}", (unsigned long long) at);
+    return saved(&r);
 }
 
 /* X7: a feature switch, saved so a restart keeps the owner's choice */
@@ -536,6 +735,31 @@ static const char *bf_apply(const char *js, size_t n)
         ju_host_sync(false);
         return NULL;
     }
+    if (w4_json_str_eq(js, &t[op], "juris_gw")) {
+        static char hx[2 * JURIS_GW_PK_LEN + 1];
+        static uint8_t pk[JURIS_GW_PK_LEN];
+        if (w4_json_get_str(js, t, k, 0, "key", hx, sizeof hx) < 0 ||
+            (hx[0] && w4_hex_decode(hx, (uint32_t) strlen(hx), pk, sizeof pk) != JURIS_GW_PK_LEN))
+            return "bad gateway key record";
+        ju_gw_apply(hx[0] ? pk : NULL);
+        ju_host_sync(false);
+        return NULL;
+    }
+    if (w4_json_str_eq(js, &t[op], "juris_install")) {
+        static char in[BF_MAX_LINE];
+        static uint8_t m[JU_MAN_MAX], sg[CPK_SIG_LEN], gs[JURIS_GW_SIG_LEN];
+        int64_t ml, sl, gl;
+        if (w4_json_get_str(js, t, k, 0, "manifest", in, sizeof in) != W4_OK ||
+            (ml = b64_get(in, strlen(in), m, sizeof m)) <= 0 ||
+            w4_json_get_str(js, t, k, 0, "sig", in, sizeof in) != W4_OK ||
+            (sl = b64_get(in, strlen(in), sg, sizeof sg)) <= 0 ||
+            w4_json_get_str(js, t, k, 0, "gsig", in, sizeof in) != W4_OK ||
+            (gl = b64_get(in, strlen(in), gs, sizeof gs)) <= 0 ||
+            w4_json_get_str(js, t, k, 0, "at", a, sizeof a) != W4_OK ||
+            sscanf(a, "%llu", (unsigned long long *) &x) != 1)
+            return "bad jurisdiction install record";
+        return ju_install(m, (size_t) ml, sg, (size_t) sl, gs, (size_t) gl, x);
+    }
     if (w4_json_str_eq(js, &t[op], "feat")) {
         int32_t on = w4_json_get(js, t, k, 0, "on");
         bool v;
@@ -562,6 +786,8 @@ static int bf_load(void)
     JU_OPEN = false;
     JU_IDX = 0;
     JU_CC[0] = 0;
+    ju_gw_apply(NULL);
+    JU_NF = 0;
     ju_host_sync(true);
     memset(BF_HEAD, 0, sizeof BF_HEAD);
     if (!BF_PATH[0]) return 0;
@@ -3596,15 +3822,47 @@ static void m_books(call_t *c)
                     (unsigned long long) BF_RECS, hx, BF_BROKEN ? "false" : "true");
 }
 
-/* ----- jurisdiction.* (J1-J5) ----- */
+/* ----- jurisdiction.* (J1-J9) ----- */
+static bool ju_loaded(const juris_plugin_t *p)
+{
+    for (uint32_t i = 0; i < JU_HOST.n; i++)
+        if (JU_HOST.plug[i] == p) return true;
+    return false;
+}
+
 static void ju_put(zxvd_buf_t *o)
 {
     zxvd_buf_printf(o, "{\"market\":\"%s\",\"standard\":\"%s\",\"country\":\"%s\",\"standards\":[",
                     JU_OPEN ? "open" : "closed", JU_STD[JU_IDX], JU_CC);
     for (uint32_t i = 1; i < JU_NSTD; i++)
         zxvd_buf_printf(o, "%s\"%s\"", i > 1 ? "," : "", JU_STD[i]);
-    zxvd_buf_printf(o, "],\"in_effect\":true,\"plugins\":%u,\"report_standard\":\"%s\"}",
+    zxvd_buf_printf(o, "],\"in_effect\":true,\"plugins\":%u,\"report_standard\":\"%s\"",
                     (unsigned) JU_HOST.n, acct_std_name(juris_host_standard(&JU_HOST)));
+    /* J6: the key's id, never the key */
+    if (JU_GW.set) {
+        uint8_t id[32];
+        char hx[65];
+        juris_gw_key_id(JU_GW.pk, id);
+        hex32(id, hx);
+        zxvd_buf_printf(o, ",\"gateway_key\":\"%s\",\"installed\":[", hx);
+    } else {
+        LIT(o, ",\"gateway_key\":null,\"installed\":[");
+    }
+    bool first = true;
+    for (uint32_t i = 0; i < JURIS_MAX_PLUGINS; i++) {
+        const ju_pl_t *pl = &JU_PL[i];
+        char id[JURIS_ID_LEN + 1];
+        if (!pl->used) continue;
+        memcpy(id, pl->p.id, JURIS_ID_LEN);
+        id[JURIS_ID_LEN] = 0;
+        if (!first) LIT(o, ",");
+        LIT(o, "{\"id\":");
+        zxvd_buf_json_str(o, id);
+        zxvd_buf_printf(o, ",\"version\":%u,\"loaded\":%s}", (unsigned) pl->version,
+                        ju_loaded(&pl->p) ? "true" : "false");
+        first = false;
+    }
+    zxvd_buf_raw(o, "]}", 2);
 }
 
 static void m_juris_get(call_t *c)
@@ -3614,9 +3872,12 @@ static void m_juris_get(call_t *c)
 
 static void m_juris_set(call_t *c)
 {
+    static char gk[2 * JURIS_GW_PK_LEN + 1];
+    static uint8_t pk[JURIS_GW_PK_LEN];
     char m[16], sd[16], cc[8];
     if (!books(c) || !p_str(c, "market", m, sizeof m, false) ||
-        !p_str(c, "standard", sd, sizeof sd, false) || !p_str(c, "country", cc, sizeof cc, false))
+        !p_str(c, "standard", sd, sizeof sd, false) || !p_str(c, "country", cc, sizeof cc, false) ||
+        !p_str(c, "gateway_key", gk, sizeof gk, false))
         return;
     bool open = JU_OPEN;
     int ix = (int) JU_IDX;
@@ -3633,7 +3894,95 @@ static void m_juris_set(call_t *c)
         memcpy(cc, JU_CC, sizeof JU_CC);
     else if (!ju_cc(cc))
         return fail(c, E_PARAMS, "\"country\" must be \"\" or two capital letters (ISO 3166-1)");
-    if (zok(c, bk_juris(open, (uint32_t) ix, cc))) ju_put(c->res);
+    bool gset = param(c, "gateway_key") >= 0;
+    if (gset && gk[0] && w4_hex_decode(gk, (uint32_t) strlen(gk), pk, sizeof pk) != JURIS_GW_PK_LEN)
+        return fail(c, E_PARAMS,
+                    "\"gateway_key\" must be \"\" or an ML-DSA-87 public key in hex (%u digits)",
+                    2u * JURIS_GW_PK_LEN);
+    if (zok(c, bk_juris(open, (uint32_t) ix, cc)) && (!gset || zok(c, bk_gw(gk[0] ? pk : NULL))))
+        ju_put(c->res);
+}
+
+/* J7: a gateway-signed compliance manifest becomes a plug-in */
+static bool p_b64(call_t *c, const char *key, uint8_t *out, size_t cap, int64_t *n)
+{
+    static char in[ZXVD_RPC_MAX_LINE + 1];
+    if (!p_str(c, key, in, sizeof in, true)) return false;
+    if ((*n = b64_get(in, strlen(in), out, cap)) <= 0) {
+        fail(c, E_PARAMS, "\"%s\" must be base64 of 1 to %u bytes", key, (unsigned) cap);
+        return false;
+    }
+    return true;
+}
+
+static void m_juris_install(call_t *c)
+{
+    static uint8_t m[JU_MAN_MAX], sg[CPK_SIG_LEN], gs[JURIS_GW_SIG_LEN];
+    int64_t ml, sl, gl;
+    int32_t st;
+    if (!books(c) || !p_b64(c, "manifest", m, sizeof m, &ml) ||
+        !p_b64(c, "sig", sg, sizeof sg, &sl) || !p_b64(c, "gateway_sig", gs, sizeof gs, &gl))
+        return;
+    if (!writable(&st)) return (void) zok(c, st);
+    uint64_t at = zxvd_now_ms() / 1000u;
+    const char *why = ju_install(m, (size_t) ml, sg, (size_t) sl, gs, (size_t) gl, at);
+    if (why) return fail(c, E_JURIS, "%s", why);
+    if (zok(c, bk_install(m, (size_t) ml, sg, (size_t) sl, gs, (size_t) gl, at))) ju_put(c->res);
+}
+
+/* J9: ask the host about a transfer (nothing is posted or committed) */
+static void m_juris_check(call_t *c)
+{
+    char from[4], to[4], ccy[8];
+    int64_t amount;
+    uint32_t sender = 0, receiver = 0;
+    if (!books(c) || !p_str(c, "from", from, sizeof from, true) ||
+        !p_str(c, "to", to, sizeof to, true) || !p_str(c, "ccy", ccy, sizeof ccy, true) ||
+        !p_amount(c, "amount", &amount) || !zxvd_param_u32(c, "sender", &sender, false) ||
+        !zxvd_param_u32(c, "receiver", &receiver, false))
+        return;
+    if (strlen(from) > 2 || strlen(to) > 2 || strlen(ccy) > 3)
+        return fail(c, E_PARAMS, "\"from\" and \"to\" are ISO 3166-1 alpha-2, \"ccy\" ISO 4217");
+    if (amount <= 0) return fail(c, E_PARAMS, "\"amount\" must be above 0 (minor units)");
+    juris_transfer_t t;
+    memset(&t, 0, sizeof t);
+    memcpy(t.from_country, from, strlen(from));
+    memcpy(t.to_country, to, strlen(to));
+    memcpy(t.ccy, ccy, strlen(ccy));
+    t.amount = (uint64_t) amount;
+    t.sender = sender;
+    t.receiver = receiver;
+    lpx_t g = juris_check_transfer(&JU_HOST, &t);
+    uint32_t reports = 0;
+    for (uint32_t i = 0; i < JURIS_MAX_PLUGINS; i++) {
+        capctl_result_t r;
+        if (JU_PL[i].used && ju_loaded(&JU_PL[i].p) && juris_cp_capctl_report(&JU_PL[i].cap, &r))
+            reports += r.n_reports;
+    }
+    lpx_action_t act = lpx_action(g);
+    zxvd_buf_printf(c->res,
+                    "{\"tag\":%u,\"base\":\"%s\",\"action\":\"%s\",\"proceed\":%s,"
+                    "\"reports\":%u}",
+                    (unsigned) g, lpx_base_name(lpx_base(g)), lpx_action_name(act),
+                    act == LPX_ACT_PROCEED ? "true" : "false", (unsigned) reports);
+}
+
+/* J9: the tax rate the plug-ins agree on */
+static void m_juris_tax_rate(call_t *c)
+{
+    static const char *const K[JURIS_TAX_COUNT] = {"income", "vat", "withholding"};
+    char kind[16];
+    if (!books(c) || !p_str(c, "kind", kind, sizeof kind, true)) return;
+    int k = -1;
+    for (int i = 0; i < (int) JURIS_TAX_COUNT; i++)
+        if (!strcmp(kind, K[i])) k = i;
+    if (k < 0) return fail(c, E_PARAMS, "\"kind\" must be income, vat or withholding");
+    uint64_t num, den;
+    juris_status_t st = juris_host_tax_rate(&JU_HOST, (juris_tax_kind_t) k, &num, &den);
+    if (st == JURIS_E_CONFLICT) return fail(c, E_JURIS, "the plug-ins disagree on the rate");
+    if (st != JURIS_OK) return fail(c, E_JURIS, "no plug-in gives this rate");
+    zxvd_buf_printf(c->res, "{\"kind\":\"%s\",\"num\":\"%llu\",\"den\":\"%llu\"}", kind,
+                    (unsigned long long) num, (unsigned long long) den);
 }
 
 /* ----- views from the host (V1-V3) ----- */
@@ -3713,6 +4062,9 @@ static const method_t METHODS[] = {
     {"books.file", m_books, PH_READ},
     {"jurisdiction.get", m_juris_get, PH_READ},
     {"jurisdiction.set", m_juris_set, PH_NO},
+    {"jurisdiction.install", m_juris_install, PH_NO},
+    {"jurisdiction.check", m_juris_check, PH_READ},
+    {"jurisdiction.tax_rate", m_juris_tax_rate, PH_READ},
     {"aipi.put", m_aipi_put, PH_NO},
     {"aipi.get", m_aipi_get, PH_READ},
     {"aipi.publish", m_aipi_publish, PH_NO},

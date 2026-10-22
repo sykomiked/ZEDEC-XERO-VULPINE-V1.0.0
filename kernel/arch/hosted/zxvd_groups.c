@@ -21,6 +21,15 @@ int zxvd_groups_register(void)
         zxvd_irc_group,                           /* zxvd_irc.c */
         zxvd_pspace_group,                        /* zxvd_pspace.c */
         zxvd_fab_group,                           /* zxvd_fab.c */
+        zxvd_mint_group,                          /* zxvd_money.c */
+        zxvd_qnote_group,                         /* zxvd_money.c */
+        zxvd_fx_group,                            /* zxvd_money.c */
+        zxvd_vhub_group,                          /* zxvd_money.c */
+        zxvd_capmkt_group,                        /* zxvd_money.c */
+        zxvd_market_group,                        /* zxvd_money.c */
+        zxvd_royalty_group,                       /* zxvd_money.c */
+        zxvd_cred_group,                          /* zxvd_money.c */
+        zxvd_dispute_group,                       /* zxvd_money.c */
     };
     for (size_t i = 0; i < sizeof ALL / sizeof ALL[0]; i++)
         if (ALL[i] && zxvd_rpc_add_group(ALL[i]()) != 0) return -1;

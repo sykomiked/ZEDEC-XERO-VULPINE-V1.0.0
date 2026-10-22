@@ -3,7 +3,9 @@
 /* test_zxvd_sandbox.h — what test_zxvd_instruments.c and test_zxvd_estate.c
  * share: requests through zxvd_rpc_handle_line, exact and partial checks,
  * and TEST-ONLY Ed25519 signing (src/provenance/test_signer.h) of the bytes
- * a *.message method returns. */
+ * a *.message method returns. A test that signs with ML-DSA instead
+ * (test_zxvd_estate.c) defines TEST_ZXVD_MLDSA first and brings its own
+ * signing helpers; the Ed25519 ones are then left out. */
 #ifndef TEST_ZXVD_SANDBOX_H
 #define TEST_ZXVD_SANDBOX_H
 
@@ -15,7 +17,9 @@
 #include "zxvd_rpc.h"
 #include "zxvd_ext.h"
 #include "zxvd_groups.h"
-#include "../../src/provenance/test_signer.h"
+#ifndef TEST_ZXVD_MLDSA
+#    include "../../src/provenance/test_signer.h"
+#endif
 
 static int fails, checks;
 static zxvd_buf_t OUT;
@@ -69,6 +73,7 @@ static void hex_of(const uint8_t *p, size_t n, char *out)
     for (size_t i = 0; i < n; i++) snprintf(out + 2 * i, 3, "%02x", p[i]);
 }
 
+#ifndef TEST_ZXVD_MLDSA
 static char *pk_hex(const test_signer_t *s)
 {
     static char b[8][65];
@@ -119,6 +124,8 @@ static const char *zero_sig(void)
     memset(z, '0', 128);
     return z;
 }
+
+#endif
 
 static int finish(const char *name)
 {

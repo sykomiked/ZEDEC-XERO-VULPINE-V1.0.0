@@ -28,7 +28,9 @@ M="$(sh "$HERE/zxvd_mod_archive.sh")" || exit 3
     -I"$R/sdk/kits/z-wasm/include" -I"$R/sdk/kits/z-wasm/test" \
     "$HERE/test_zxvd_aipi.c" "$HERE/zxvd_aipi.c" "$HERE/zxvd_rpc.c" "$HERE/zxv_files.c" "$HERE/zxv_spaces.c" "$HERE/zxv_sysinfo.c" "$HERE/zxvd_log.c" "$HERE/zxv_search.c" "$HERE/zxv_print_host.c" "$HERE/zxv_keepsake.c" "$HERE/zxv_journal.c" "$HERE/zxv_screen.c" "$HERE/zxv_place.c" "$HERE/zxv_caps.c" "$HERE/zxvd_shell.c" "$HERE/zxvd_dns.c" "$HERE/zxv_sched.c" "$HERE/zxvd_proc.c" "$K/src/print/ipp.c" "$K/src/print/escl.c" "$K/src/chiglet/chg_vocab.c" "$K/src/web4/web4_json.c" \
     "$K/src/web4/web4_util.c" "$K/src/mlkem/keccak.c" \
-    "$K/src/juris/juris.c" "$K/src/acct/acct.c" "$M" \
+    "$K/src/juris/juris.c" "$K/src/juris/juris_cp.c" "$K/src/capctl/capctl.c" \
+    "$K/src/capctl/cp_common.c" "$K/src/capctl/cpk.c" "$K/src/taxhook/taxhook.c" \
+    "$K/src/kycwrap/kycwrap.c" "$K/src/acct/acct.c" "$M" \
     "$A/libaipi_zwasm.a" "$A/libaipi_core.a" "$A/zcontract/libzcontract_wasm.a" \
     "$A/zcontract/libzcontract.a" "$A/zwasm/libzwasm.a" \
     -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm -o "$T/test_zxvd_aipi" 2>"$T/cc.log" ||
