@@ -360,6 +360,18 @@ warren	check backoff tries=8 base=0 most=60 = both
 warren	check backoff tries=4 base=2 most=86401 = both
 warren	check record_ok engine=0,99,100,1 enabled=1,9,1,10 regulated=0,9,0,1 restarts=0,999,0,1 changed=1700000000000,999999999999999,1,1 = true,true,false,false
 warren	check banker.share size=0,14090000,7045000 total=14090000 = 0,10000,5000
+watchfire	check place_share_ok started=1,0,1,1,1,1 optin=1,1,0,1,1,0 listed=1,1,1,0,1,0 placeok=1,1,1,1,0,0 = true,false,false,false,false,false
+watchfire	check place_share_ok started=1,2 optin=1,1 listed=1,1 placeok=1,1 = both
+watchfire	check place_share_ok started=1,1 optin=1,1 listed=1,1 placeok=1,3 = both
+watchfire	check cancel_left window=30,30,30,30,10,60,0,99 waited=0,29,30,1000,5,0,0,0 = 30,1,0,0,5,60,0,99
+watchfire	check cancel_left window=30,30 waited=0,-1 = both
+watchfire	check cancel_left window=30,100 waited=0,0 = both
+watchfire	check sos_ring_ok window=10,60,30,9,61,30,30,0 left=0,0,0,0,0,1,0,0 cancelled=0,0,0,0,0,0,1,0 = true,true,true,false,false,false,false,false
+watchfire	check sos_ring_ok window=30,30 left=0,-1 cancelled=0,0 = both
+watchfire	check sos_ring_ok window=30,30 left=0,0 cancelled=0,-1 = both
+watchfire	check medical_id_ok field=1,6,9,10,1,1 bytes=0,255,999,1,1000,1 stamp=1700000000000,999999999999999,0,0,0,1000000000000000 = true,true,true,false,false,false
+watchfire	check sos_contact_ok seq=1,9,99,100,1,1,1 peer=7,4294967295,9999999999,7,10000000000,7,7 bytes=1,47,99,1,1,100,1 stamp=1700000000000,0,999999999999999,0,0,0,1000000000000000 = true,true,true,false,false,false,false
+watchfire	check warren.approval_ok owner=1,1,0 approved=1,0,1 = true,false,false
 waymark	check place_ok lat=90000000,-90000000,90000001,0 lon=180000000,-180000000,0,-180000001 = true,true,false,false
 waymark	check place_ok lat=0,0 lon=0 = both
 wellspring	check band reading=39,40,100,101 lo=40,40,40,40 hi=100,100,100,100 = -1,0,0,1

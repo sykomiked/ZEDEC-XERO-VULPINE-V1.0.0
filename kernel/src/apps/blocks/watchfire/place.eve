@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Share where the machine is with this contact (watchfire_rules.h WF1), in
+# Eve: the person started the emergency (started 1), the owner opted in to
+# sharing (optin 1), the contact is on the emergency list (listed 1) and
+# zxvd's place.ask allowed Watchfire (placeok 1). Each is a flag of exactly
+# one yes; a flag that is no flag (2, or below 0) does not fit, never yes.
+# place.kron reads any flag above 0 as yes: such a row is held.
+eve watchfire
+said_yes = 1 .. 1
+
+share_place {
+  started: said_yes
+  optin: said_yes
+  listed: said_yes
+  placeok: said_yes
+}

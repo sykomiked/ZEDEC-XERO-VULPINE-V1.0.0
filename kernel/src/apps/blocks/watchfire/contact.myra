@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Watchfire files one emergency contact in MYRA (watchfire_rules.h
+; WF5): its place on the list (the order to ring), the member id call.start
+; rings, how many bytes of name the person typed (kept as typed) and when
+; it was set (ms since 1970).
+^ZXWFCON(seq:i2) = peer:i10! ^ bytes:i2! ^ stamp:i15!

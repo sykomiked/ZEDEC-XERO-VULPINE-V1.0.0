@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# May Watchfire ring the person's contacts now (watchfire_rules.h WF3), in
+# Eve: the cancel window the owner set is 10 to 60 seconds (never 0, so it
+# is never skipped), none of it is left (left 0: cancel_left's answer, WF2)
+# and the person did not cancel (cancelled 0). Eve checks each field
+# against its own range, so the time still to wait comes in as WF2's
+# count. A left or cancelled below 0 is no count and does not fit here;
+# ring.kron reads anything below 1 as none: such a row is held.
+eve watchfire
+cancel_window = 10 .. 60
+none_left = 0 .. 0
+not_cancelled = 0 .. 0
+
+ring_contacts {
+  window: cancel_window
+  left: none_left
+  cancelled: not_cancelled
+}

@@ -165,7 +165,12 @@
 #define ALX_SLOT_NUM_FOLIO_PAGE_LINES            157u /* 590.70 folio.page_lines */
 #define ALX_SLOT_LOGIC_FOLIO_PAGE_SETUP_OK       158u /* 490.77 folio.page_setup_ok */
 #define ALX_SLOT_NUM_FOLIO_SCALED_AMOUNT         159u /* 590.71 folio.scaled_amount */
-#define ALX_SLOT__COUNT 159u
+#define ALX_SLOT_NUM_WATCHFIRE_CANCEL_LEFT       160u /* 590.72 watchfire.cancel_left */
+#define ALX_SLOT_LOGIC_WATCHFIRE_MEDICAL_ID_OK   161u /* 490.78 watchfire.medical_id_ok */
+#define ALX_SLOT_LOGIC_WATCHFIRE_PLACE_SHARE_OK  162u /* 490.79 watchfire.place_share_ok */
+#define ALX_SLOT_LOGIC_WATCHFIRE_SOS_CONTACT_OK  163u /* 490.80 watchfire.sos_contact_ok */
+#define ALX_SLOT_LOGIC_WATCHFIRE_SOS_RING_OK     164u /* 490.81 watchfire.sos_ring_ok */
+#define ALX_SLOT__COUNT 164u
 /* clang-format on */
 
 #endif

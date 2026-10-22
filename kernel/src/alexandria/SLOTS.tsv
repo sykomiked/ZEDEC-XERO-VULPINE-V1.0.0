@@ -194,3 +194,8 @@
 157	num.folio_page_lines	590.70	folio.page_lines	base
 158	logic.folio_page_setup_ok	490.77	folio.page_setup_ok	base
 159	num.folio_scaled_amount	590.71	folio.scaled_amount	base
+160	num.watchfire_cancel_left	590.72	watchfire.cancel_left	base
+161	logic.watchfire_medical_id_ok	490.78	watchfire.medical_id_ok	base
+162	logic.watchfire_place_share_ok	490.79	watchfire.place_share_ok	base
+163	logic.watchfire_sos_contact_ok	490.80	watchfire.sos_contact_ok	base
+164	logic.watchfire_sos_ring_ok	490.81	watchfire.sos_ring_ok	base

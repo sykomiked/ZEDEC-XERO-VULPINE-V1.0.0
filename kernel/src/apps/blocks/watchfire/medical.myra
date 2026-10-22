@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Watchfire files one field of the medical ID in MYRA
+; (watchfire_rules.h WF4): which field it is (1 name .. 6 notes), how many
+; bytes the person typed (the text itself is kept exactly as typed, never
+; computed or read for meaning) and when it was set (ms since 1970).
+^ZXWFMED(field:i1) = bytes:i3! ^ stamp:i15!

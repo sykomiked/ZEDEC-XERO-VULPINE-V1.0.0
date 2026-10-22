@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Seconds of the cancel window still to run before Watchfire may ring
+# (watchfire_rules.h WF2): window - waited while the person has waited less
+# than the window, 0 once it has run out. window fits 9(2) and waited 9(9):
+# a negative wait (a clock gone back) or a window past two digits does not
+# fit its picture and is refused, where cancel.kron answers it: held.
+record cancel-left
+  window: 9(2)
+  waited: 9(9)
+  left: 9(2)
+procedure
+  if waited < window
+    compute left = window - waited
+  end-if
+  answer left
