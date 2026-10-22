@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Silt files a record in its case file tree, in MYRA (silt_rules.h
+; SR4): series, case, then the document's place in the case, holding the
+; record's register number, its date (days since 1970) and its legal hold
+; flag. The model asks whether the numbers fit before it writes the
+; register line.
+^ZXSILT(series:i4, caseno:i6, doc:i4) = regno:i10! ^ dated:i6! ^ hold:i1!

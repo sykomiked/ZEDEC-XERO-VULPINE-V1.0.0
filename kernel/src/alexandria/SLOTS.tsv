@@ -493,3 +493,7 @@
 456	logic.larder_category_over	492.24	larder.category_over	base
 457	num.larder_category_spent	592.26	larder.category_spent	base
 458	num.larder_unspent_carry	592.27	larder.unspent_carry	base
+459	num.silt_backlog_clear_days	592.28	silt.backlog_clear_days	base
+460	logic.silt_case_file_node_ok	492.25	silt.case_file_node_ok	base
+461	logic.silt_record_may_dispose	492.26	silt.record_may_dispose	base
+462	num.silt_register_number	592.29	silt.register_number	base

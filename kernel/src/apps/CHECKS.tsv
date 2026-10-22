@@ -1016,6 +1016,32 @@ signpost	check addr_class a=8,0,127,10,172,172,192,169,100,100,224,239,240,255,2
 signpost	check addr_class a=8,256 b=8,0 c=8,0 d=8,0 = both
 signpost	check cache_ok seq=1,999999999,1000000000,1 class=3,9,3,10 addr=3232235777,9999999999,1,1 stored=1700000000,99999999999,1,1 ttl=300,9999999999,1,1 = true,true,false,false
 signpost	check ttl_left stored=1000,1000,1000,1000 ttl=300,300,300,0 now=1000,1299,1300,2000 = 300,1,0,0
+silt	check record_may_dispose left=0,-1,1,-9999999,-5,-5,-5,-5 hold=0,0,0,0,1,0,2,0 approved=1,1,1,1,1,0,1,2 = true,true,false,true,false,false,false,false
+silt	check record_may_dispose left=-10000000,-1 hold=0,0 approved=1,1 = both
+silt	check backlog_clear_days arrived=3,4,5 cleared=6,6,6 backlog=12 = 6
+silt	check backlog_clear_days arrived=1,2 cleared=3,3 backlog=10 = 20/3
+silt	check backlog_clear_days arrived=0,999999 cleared=999999,999999 backlog=999999999 = 2002002/1001
+silt	check register_number year=2026 seq=1 = 2026000001
+silt	check register_number year=9999 seq=999999 = 9999999999
+silt	check register_number year=0 seq=1 = 1
+silt	check register_number year=2026 seq=0 = both
+silt	check case_file_node_ok series=1,9999,10000,1,1,1 caseno=7,999999,1,1000000,1,1 doc=1,9999,1,1,1,1 regno=2026000001,9999999999,1,1,10000000000,1 dated=20000,999999,1,1,1,1 hold=0,1,0,0,0,10 = true,true,false,false,false,false
+silt	check sealwax.sign_ready fields=1,32,33,0,5 missing=0,0,0,0,1 outside=0,0,0,0,0 = true,true,false,false,false
+silt	check sealwax.sign_ready fields=5,5 missing=0,-1 outside=0,0 = both
+silt	check broadsheet.well_formed header=1,1,0,1 off=0,268435455,0,5000 room=1,1,5000,0 = true,true,false,false
+silt	check broadsheet.well_formed header=1,2 off=0,0 room=10,10 = both
+silt	check witness.chain_ok seq=1,5,5 prev=0,1,4 last=0,1,5 = true,true,false
+silt	check witness.chain_ok seq=2,-1 prev=1,1 last=1,1 = both
+silt	check witness.kind_count kind=1,2,2,5,3 want=2 = 2
+silt	check witness.kind_count kind=1,2 want=1,1 = both
+silt	check banker.share size=0,5,10 total=10 = 0,5000,10000
+silt	check banker.share size=11 total=10 = both
+silt	check banker.total size=4096,12000,0 = 16096
+silt	check banker.entry_ok folder=3,3 seq=1,2 size=999999999999999999,12 mtime=1760000000,0 = true,true
+silt	check cartulary.retention_left filed=20000 years=7 months=0 today=20000 = 2556
+silt	check cartulary.retention_left filed=-1 years=1 months=0 today=0 = both
+silt	check cartulary.class_year_cell cls=1,1,2,1,2 year=2024,2024,2024,2025,2024 = 2,2,2,1,2
+silt	check tallystick.next_doc_number last=0,1,41,999999998 = 1,2,42,999999999
 solstice	check month_days year=2023 month=1 = 31
 solstice	check month_days year=2023 month=2 = 28
 solstice	check month_days year=2024 month=2 = 29

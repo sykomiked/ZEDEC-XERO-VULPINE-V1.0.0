@@ -464,7 +464,11 @@
 #define ALX_SLOT_LOGIC_LARDER_CATEGORY_OVER      456u /* 492.24 larder.category_over */
 #define ALX_SLOT_NUM_LARDER_CATEGORY_SPENT       457u /* 592.26 larder.category_spent */
 #define ALX_SLOT_NUM_LARDER_UNSPENT_CARRY        458u /* 592.27 larder.unspent_carry */
-#define ALX_SLOT__COUNT 458u
+#define ALX_SLOT_NUM_SILT_BACKLOG_CLEAR_DAYS     459u /* 592.28 silt.backlog_clear_days */
+#define ALX_SLOT_LOGIC_SILT_CASE_FILE_NODE_OK    460u /* 492.25 silt.case_file_node_ok */
+#define ALX_SLOT_LOGIC_SILT_RECORD_MAY_DISPOSE   461u /* 492.26 silt.record_may_dispose */
+#define ALX_SLOT_NUM_SILT_REGISTER_NUMBER        462u /* 592.29 silt.register_number */
+#define ALX_SLOT__COUNT 462u
 /* clang-format on */
 
 #endif

@@ -1,0 +1,23 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The backlog forecast (silt_rules.h SR3), in Trebago: arrived(1..n) and
+! cleared(1..n) are the records received and filed on each of the last n
+! days, backlog the records waiting now. Arrivals minus processed is
+! sum(arrived) - sum(cleared) over n days, so the backlog falls by
+! net / n a day, net = sum(cleared) - sum(arrived), and clears in
+! backlog * n / net days: an exact reduced fraction, never rounded.
+! ok is 0, and the answer divided by it refused, for more than 366 days,
+! a day outside 0 .. 999999 records, a backlog outside 0 .. 999999999 or
+! a backlog that does not fall (net 0 or less).
+trebago forecast
+  in  arrived(n), cleared(n), backlog
+  out days
+  var net, ok
+  net = sum(j, cleared(j)) - sum(j, arrived(j))
+  ok = min(1, max(0, net)) * min(1, max(0, 366 - n + 1)) * min(1, max(0, backlog + 1)) &
+     * min(1, max(0, 999999999 - backlog + 1)) &
+     * (1 - min(1, sum(j, min(1, max(0, 0 - arrived(j))) + min(1, max(0, 0 - cleared(j))) &
+     + min(1, max(0, arrived(j) - 999999)) + min(1, max(0, cleared(j) - 999999)))))
+  days = (backlog * n / net) / ok
+end

@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# May this record be disposed of (silt_rules.h SR2), in Eve: its
+# retention period is over (left, cartulary.retention_left's days, is 0
+# or fewer, down to -9999999, the least Sutra's s9(7) holds), no legal
+# hold is on it (hold 0: a hold always wins) and the records officer
+# approved (approved 1). Each is held to its own range; dispose.kron
+# compares the same three. Advice only: the owner confirms the disposal,
+# and it goes to the Trash.
+eve silt
+over_days = -9999999 .. 0
+no_hold = 0 .. 0
+officer_approved = 1 .. 1
+
+record_disposal {
+  left: over_days
+  hold: no_hold
+  approved: officer_approved
+}

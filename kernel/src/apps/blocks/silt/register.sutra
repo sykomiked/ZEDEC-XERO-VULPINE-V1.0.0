@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A record's register number (silt_rules.h SR1), in Sutra: a register
+# line is a fixed business record, the year in 9(4) and the record's place
+# in that year's register in 9(6), and its number is year * 1000000 + seq
+# in 9(10). A negative value, or one with more digits (a year's register
+# past 999999 records), is a size error: refused, never wrapped.
+record register-line
+  year: 9(4)
+  seq: 9(6)
+  regno: 9(10)
+procedure
+  compute regno = year * 1000000 + seq
+  answer regno

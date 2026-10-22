@@ -1,0 +1,144 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Silt, the official records office: L2, slot 242. It receives a record
+# from the Hoard (files.list of the inbox, files.stat), stamps it with a
+# register number of its year and the journal's newest seq, files it in
+# its case file tree and keeps it to its series' retention schedule. The
+# register is Silt's own Hoard file (files.read, files.write, files.mkdir);
+# a record's versions are what Keepsake's backups hold (backup.versions);
+# the trail is the register's own chain joined with zxvd's journal
+# (journal.query, journal.verify); a signed copy is checked with
+# web4.verify. See silt_model.h SM1-SM8 and silt_rules.h SR1-SR5.
+#
+# Advisory and owner-confirmed: every change to the register (a record
+# received, a legal hold set or lifted, a disposal) takes the owner's
+# confirmed word. A disposal needs the records officer's approval too, and
+# goes to the Trash (files.trash); Silt erases nothing. zxvd has no method
+# that says who approved, so the approval is the owner's own flag; no
+# notification method either, so the model composes the notice's text
+# (notify).
+#
+# Composed, not written again (six uses of ZXAPP_USES 8; its own 6 logic
+# lines and its parts' 45 are 51 of ZXAPP_LOGIC_MAX 128): a receipt is
+# ready to stamp when sealwax.sign_ready holds for its fields; a received
+# PDF is well formed by broadsheet.well_formed, its startxref inside the
+# file; the register's lines are linked by witness.chain_ok and counted by
+# kind (filed, disposed) with witness.kind_count; a series' bytes are
+# banker.total, its share of the register banker.share, and each line fits
+# the Hoard's record by banker.entry_ok; the retention period is
+# cartulary.retention_left (Cartulary owns retention days) and the filing
+# grid, series by year, is cartulary.class_year_cell, the same count of
+# rows sharing two keys, so it is used, not written again in KRON as the
+# task asked; the year's next seq is tallystick.next_doc_number (Tallystick
+# owns the next number of a document sequence). Cartulary's
+# version_may_go does not fit a disposal: its third condition is
+# Keepsake's keep rule, where a disposal's is the records officer's
+# approval, so record_may_dispose is Silt's own.
+#
+# The task's slot 242 is no matrix layer (zxapp.c M1: 0..144); an L2 app
+# sits on the layer of its L1 part that is outermost in MATRIX_ORDER.tsv:
+# Sealwax (place 76, layer 47), past Broadsheet (71), Tallystick (41),
+# Witness (16) and the Banker (wave 0). Cartulary is L2, on Witness's 18.
+#
+# Later layers use the disposal rule, the yearly register number, the
+# backlog forecast and the case file node, so each is general and
+# registered in CONCEPTS.tsv with Silt as owner. Kept in C: text (the
+# register's lines, references and paths, a PDF's trailer), zxvd's
+# answers, and the four-valued join of two records under one reference
+# (lpres_kjoin, then lpres_conjoin with the disposal rule, SR5).
+#
+# Planned (no runtime yet): Haskell owns pure functions and types that
+# rule out bugs, so it waits on record_may_dispose.
+zxapp 1
+id     silt
+name   Silt
+version 1.0.0
+slot   242
+layer  L2
+matrix 47
+icon   icons/l2/242-silt.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  journal
+needs  backup
+needs  notify
+model  apps/silt_model.c
+use    sealwax 1      # @logic.sealwax_sign_ready
+use    broadsheet 1   # @logic.broadsheet_well_formed
+use    witness 1      # @logic.witness_chain_ok @num.witness_kind_count
+use    banker 1       # @num.banker_share @num.banker_total @logic.banker_entry_ok
+use    cartulary 1    # @num.cartulary_retention_left @num.cartulary_class_year_cell
+use    tallystick 1   # @num.tallystick_next_doc_number
+# what it exports, so apps built from it can use them too (C1)
+provides sealwax.sign_ready truth fields missing outside
+provides broadsheet.well_formed truth header off room
+provides witness.chain_ok truth seq prev last
+provides witness.kind_count num kind want
+provides banker.share num size total
+provides banker.total num size
+provides banker.entry_ok truth folder seq size mtime
+provides cartulary.retention_left num filed years months today
+provides cartulary.class_year_cell num cls year
+provides tallystick.next_doc_number num last
+
+# May this record be disposed of (SR2, critical): its retention period
+# over (left <= 0), no legal hold and the records officer's approval.
+# Ada as Eve declares each range, APL as KRON compares; a left below
+# s9(7) is held (Eve refuses it, KRON answers).
+provides record_may_dispose truth left hold approved
+logic    eve  record_may_dispose apps/blocks/silt/dispose.eve
+logic    kron record_may_dispose apps/blocks/silt/dispose.kron
+pending  Haskell record_may_dispose
+
+# The backlog forecast (SR3): days to clear, backlog * n / (cleared -
+# arrived), exact. FORTRAN as Trebago.
+provides backlog_clear_days num arrived cleared backlog
+logic    trebago backlog_clear_days apps/blocks/silt/backlog.tb
+
+# The register of records (SR1): year * 1000000 + seq, refused on
+# overflow. COBOL as Sutra, and a proof of its domain in ALGOL 60; seq 0
+# fits Sutra's picture but is no register number: held.
+provides register_number num year seq
+logic    sutra   register_number apps/blocks/silt/register.sutra
+# ALGOL 60, twin Rootwyrm
+logic    algol60 register_number apps/blocks/silt/register.alg
+
+# The case file tree (SR4): ^ZXSILT(series, caseno, doc) = regno ^ dated
+# ^ hold. MUMPS as MYRA.
+provides case_file_node_ok truth series caseno doc regno dated hold
+logic    myra case_file_node_ok apps/blocks/silt/case.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check record_may_dispose left=0,-1,1,-9999999,-5,-5,-5,-5 hold=0,0,0,0,1,0,2,0 approved=1,1,1,1,1,0,1,2 = true,true,false,true,false,false,false,false
+check record_may_dispose left=-10000000,-1 hold=0,0 approved=1,1 = both
+check backlog_clear_days arrived=3,4,5 cleared=6,6,6 backlog=12 = 6
+check backlog_clear_days arrived=1,2 cleared=3,3 backlog=10 = 20/3
+check backlog_clear_days arrived=0,999999 cleared=999999,999999 backlog=999999999 = 2002002/1001
+check register_number year=2026 seq=1 = 2026000001
+check register_number year=9999 seq=999999 = 9999999999
+check register_number year=0 seq=1 = 1
+check register_number year=2026 seq=0 = both
+check case_file_node_ok series=1,9999,10000,1,1,1 caseno=7,999999,1,1000000,1,1 doc=1,9999,1,1,1,1 regno=2026000001,9999999999,1,1,10000000000,1 dated=20000,999999,1,1,1,1 hold=0,1,0,0,0,10 = true,true,false,false,false,false
+# A receipt ready to stamp, and a received PDF's offsets
+check sealwax.sign_ready fields=1,32,33,0,5 missing=0,0,0,0,1 outside=0,0,0,0,0 = true,true,false,false,false
+check sealwax.sign_ready fields=5,5 missing=0,-1 outside=0,0 = both
+check broadsheet.well_formed header=1,1,0,1 off=0,268435455,0,5000 room=1,1,5000,0 = true,true,false,false
+check broadsheet.well_formed header=1,2 off=0,0 room=10,10 = both
+# The register's trail and its counts by kind
+check witness.chain_ok seq=1,5,5 prev=0,1,4 last=0,1,5 = true,true,false
+check witness.chain_ok seq=2,-1 prev=1,1 last=1,1 = both
+check witness.kind_count kind=1,2,2,5,3 want=2 = 2
+check witness.kind_count kind=1,2 want=1,1 = both
+# A series' bytes, its share, and a register line as a Hoard entry
+check banker.share size=0,5,10 total=10 = 0,5000,10000
+check banker.share size=11 total=10 = both
+check banker.total size=4096,12000,0 = 16096
+check banker.entry_ok folder=3,3 seq=1,2 size=999999999999999999,12 mtime=1760000000,0 = true,true
+# The retention period and the filing grid, series by year
+check cartulary.retention_left filed=20000 years=7 months=0 today=20000 = 2556
+check cartulary.retention_left filed=-1 years=1 months=0 today=0 = both
+check cartulary.class_year_cell cls=1,1,2,1,2 year=2024,2024,2024,2025,2024 = 2,2,2,1,2
+# The year's next seq
+check tallystick.next_doc_number last=0,1,41,999999998 = 1,2,42,999999999
