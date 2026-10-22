@@ -316,6 +316,7 @@ typedef struct {
     pid_t pid;
     int vfd; /* the job writes its tag byte here when it ends */
     bool done;
+    bool told; /* its end was announced at the prompt: the slot may be reused */
     lpx_t tag;
     char text[200];
 } job_t;
@@ -343,7 +344,10 @@ static void jobs_reap(bool announce)
         int status;
         if (!j->id || j->done || waitpid(j->pid, &status, WNOHANG) != j->pid) continue;
         job_finish(j, status);
-        if (announce) fprintf(stderr, "[%d] done  %c  %s\n", j->id, zxsh_letter(j->tag), j->text);
+        if (announce) {
+            fprintf(stderr, "[%d] done  %c  %s\n", j->id, zxsh_letter(j->tag), j->text);
+            j->told = true;
+        }
     }
 }
 
@@ -353,7 +357,8 @@ static lpx_t bg_cb(void *u, zxsh_t *sh, const char *text)
     job_t *j = NULL;
     jobs_reap(false);
     for (int i = 0; i < MAX_JOBS && !j; i++)
-        if (!g_jobs[i].id || (g_jobs[i].done && g_jobs[i].vfd < 0)) j = &g_jobs[i];
+        /* a job that ended but was never reported keeps its slot for wait */
+        if (!g_jobs[i].id || (g_jobs[i].done && g_jobs[i].told)) j = &g_jobs[i];
     int vp[2];
     if (!j || pipe(vp) != 0) {
         snprintf(sh->why, ZXSH_WHY_MAX, "no room for another background job");
