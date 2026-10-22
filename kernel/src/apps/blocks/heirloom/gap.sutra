@@ -1,0 +1,29 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# How far two shares an / ad and bn / bd are from one whole, in Sutra
+# (heirloom_rules.h HR1), cross-multiplied over ad * bd and never divided:
+# an * bd + bn * ad - ad * bd, worked as bn * ad - (ad - an) * bd. 0 when
+# the shares make exactly one whole, below 0 short of it, above 0 past it.
+# The model sets the sum of the earlier heirs (added with Tally's rule)
+# against the last heir: a manifest is whole when the gap is 0. Every
+# part fits 9(9): a negative part, a denominator of 0 (aedge, bedge), or a
+# share past its whole (ashort, bshort) is a size error, refused.
+# gap.tb says the same in Trebago, which answers there: held.
+record share-gap
+  an: 9(9)
+  ad: 9(9)
+  bn: 9(9)
+  bd: 9(9)
+  aedge: 9(9)
+  bedge: 9(9)
+  ashort: 9(9)
+  bshort: 9(9)
+  gap: s9(18)
+procedure
+  compute aedge = ad - 1
+  compute bedge = bd - 1
+  compute ashort = ad - an
+  compute bshort = bd - bn
+  compute gap = bn * ad - ashort * bd
+  answer gap

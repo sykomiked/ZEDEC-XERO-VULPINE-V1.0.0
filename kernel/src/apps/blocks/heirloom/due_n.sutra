@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether a death report's release is due, as a number to count with, in
+# Sutra (heirloom_rules.h HR3N): 1 when reported is 1, k 1 .. 5, spare
+# 0 .. 4, over at or above 0 and vetoed 0; else 0. Each flag and count is
+# s9(1) and over s9(18): past its picture refused, where Trebago answers
+# 0 or 1: held.
+record release-due-count
+  reported: s9(1)
+  k: s9(1)
+  spare: s9(1)
+  over: s9(18)
+  vetoed: s9(1)
+procedure
+  if reported = 1 and k >= 1 and k <= 5 and spare >= 0 and spare <= 4 and over >= 0 and vetoed = 0
+    answer 1
+  end-if
+  answer 0

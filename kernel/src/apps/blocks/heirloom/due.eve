@@ -1,0 +1,25 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether a death report's release is due, in Eve (heirloom_rules.h HR3):
+# a signed attestation filed (reported 1), a guardians' quorum k of 1 .. 5
+# (estate.setup takes 1..5 guardians), the approvals beyond k (spare =
+# approvals - k) 0 .. 4, the waiting period over (over = now - the report
+# - the wait) 0 .. 18 digits, and no living veto since the report (vetoed
+# 0). Eve holds each field to its own range; the relations across fields
+# come in as these margins. Time or silence alone is never enough.
+# due.sutra says the same in Sutra.
+eve heirloom
+filed = 1 .. 1
+quorum = 1 .. 5
+beyond_quorum = 0 .. 4
+past_wait = 0 .. 999999999999999999
+no_veto = 0 .. 0
+
+heir_release_due {
+  reported: filed
+  k: quorum
+  spare: beyond_quorum
+  over: past_wait
+  vetoed: no_veto
+}

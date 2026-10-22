@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! How far two shares an / ad and bn / bd are from one whole, in Trebago
+! (heirloom_rules.h HR1), cross-multiplied over ad * bd:
+! bn * ad - (ad - an) * bd, which is an * bd + bn * ad - ad * bd; 0 exactly
+! when the two make one whole. Trebago is exact to 64 bits: a denominator
+! of 0 or below divides by zero (ok is 0), refused, as Sutra refuses it;
+! a negative part, a share past its whole or a part past nine digits is
+! answered here and refused by Sutra: held.
+trebago gap
+  in  an(n), ad(n), bn(n), bd(n)
+  out gap(n)
+  var ok(n)
+  ok(i) = min(1, max(0, ad(i))) * min(1, max(0, bd(i)))
+  gap(i) = (bn(i) * ad(i) - (ad(i) - an(i)) * bd(i)) / ok(i)
+end

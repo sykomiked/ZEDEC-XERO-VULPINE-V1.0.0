@@ -283,6 +283,16 @@ hedgerow	check reach_rule_ok seq=1,999999999,1000000000,1,1,1 path=1,6,1,1,1,1 o
 hedgerow	check reach_rule_ok seq=1,1 path=1,7 open=0,0 port=0,0 stamp=0,0 = both
 hedgerow	check reach_rule_ok seq=1,1 path=1,1 open=0,0 port=80,65536 stamp=0,0 = both
 hedgerow	check gatehouse.use_ok asked=1,1,1 granted=1,0,1 revoked=0,0,1 = true,false,false
+heirloom	check estate_share_gap an=1,1,2,0,0,999999999,0 ad=2,2,3,1,1,999999999,999999999 bn=1,1,1,1,0,999999999,0 bd=2,3,2,1,1,999999999,999999999 = 0,-1,1,0,-1,999999998000000001,-999999998000000001
+heirloom	check estate_share_gap an=1,3 ad=2,2 bn=1,1 bd=2,2 = both
+heirloom	check estate_share_gap an=1,-1 ad=2,2 bn=1,1 bd=2,2 = both
+heirloom	check heir_release_due reported=1,1,1,1,0,1,1,1 k=2,2,2,1,2,0,5,3 spare=0,-1,0,4,0,0,0,0 over=0,0,-1,999999999999999999,5,5,0,7 vetoed=0,0,0,0,0,0,1,0 = true,false,false,true,false,false,false,true
+heirloom	check heir_release_due reported=1,1 k=2,2 spare=0,0 over=0,1000000000000000000 vetoed=0,0 = both
+heirloom	check heir_release_due_n reported=1,1,1,1,0,1,1,1 k=2,2,2,1,2,0,5,3 spare=0,-1,0,4,0,0,0,0 over=0,0,-1,999999999999999999,5,5,0,7 vetoed=0,0,0,0,0,0,1,0 = 1,0,0,1,0,0,0,1
+heirloom	check heir_release_due_n reported=1,1 k=2,2 spare=0,10 over=0,0 vetoed=0,0 = both
+heirloom	check coffer.holdings balance=100,250,0 = 350
+heirloom	check crown.allot units=1000 weight=3,2,1 total=6 extra=0,0,1 = 500,333,167
+heirloom	check tally.ratio_add an=1,1 ad=2,3 bn=1,1 bd=3,6 = 5/6,1/2
 hollow	check tile_cols windows=0,1,2,4,5,9,10,64 = 0,1,2,2,3,3,4,8
 hollow	check tile_cols windows=4,65 = both
 hollow	check tile_cols windows=4,-1 = both

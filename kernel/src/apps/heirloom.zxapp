@@ -1,0 +1,106 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Heirloom, estate plans and recovery guardians: layer 81 of the matrix.
+# The owner's inheritance manifest (who receives what, as exact fractions
+# summing to one whole), the guardians who confirm a death report and the
+# waiting period before anything is released, a split preview of what the
+# owner holds, and account recovery by guardians (estate.setup,
+# estate.manifest, estate.faraid, estate.distribute, estate.status and the
+# signed steps estate.message, estate.report, estate.approve,
+# estate.confirm, estate.veto; recovery.setup, recovery.claim,
+# recovery.status). zxvd's estate engine keeps the estate; the model
+# keeps a copy for the view.
+#
+# Nothing happens on time or silence alone: the owner and the guardians
+# sign (each signature is the signer's, over the bytes estate.message
+# answers; the model never holds a key). Every split is advice:
+# estate.distribute reports the parts and moves nothing, and a faraid or
+# forced-heirship manifest is advisory until a court or scholar rules. No
+# money is moved by this app; the ledger is only read (Coffer).
+#
+# Of the layers the task names, Coffer (73, built before) gives what the
+# owner holds in a currency (coffer.holdings), the amount a preview
+# splits. Crown (75, built before) owns the split of a whole by weight
+# with the largest remainder (crown.allot, Sutra and Trebago witnessed),
+# which is exactly zxvd's est_distribute rule (estate.h E2, ties to the
+# earlier heir): the preview is crown.allot, never written again, and the
+# model compares it with estate.distribute. Tally (109, built before) owns
+# exact rational addition (tally.ratio_add): a manifest's earlier heirs
+# are added with it, and only the last step, the gap from one whole, is
+# this app's own. No later layer leans on this one (MATRIX_ORDER.tsv), but
+# a whole of shares and a guardians' release are general rules, so they
+# are registered in CONCEPTS.tsv with Heirloom as owner.
+#
+# The task pairs the release in Eve and Trebago. A witnessed pair answers
+# one kind (zxapp.c run_one B3): Eve answers truths only and Trebago
+# numbers only, so it is split as Ninefold's state_reserved is: the truth
+# in Eve and Sutra, the number to count with in Trebago and Sutra; both
+# mean the same rule (heirloom_rules.h HR3). Eve checks each field against
+# its own range, so the relations across fields (approvals at least k,
+# now past the report plus the wait) come in as margins.
+#
+# zxvd answers the limits taken here: 1..5 guardians and k at most their
+# count (estate.setup), 1..16 heirs (estate.manifest). estate.status does
+# not answer when a report was filed or the waiting period, so the model
+# keeps the wait from estate.setup and the time of a report it filed
+# itself; a report it did not file leaves the release not due (stated in
+# the notice, never guessed). zxvd has no notification method: the model
+# composes each notice's text.
+zxapp 1
+id     heirloom
+name   Heirloom
+version 1.0.0
+slot   81
+layer  L1
+matrix 81
+icon   icons/l1/081-heirloom.svg
+budget 233
+needs  ledger.read
+needs  peers
+needs  notify
+model  apps/heirloom_model.c
+use    coffer 1   # @num.coffer_holdings
+use    crown 1    # @num.crown_allot
+use    tally 1    # @num.tally_ratio_add
+
+# How far two shares are from one whole (HR1), cross-multiplied, never
+# divided: an * bd + bn * ad - ad * bd. 0 exactly when they make one
+# whole. Sutra holds each part to 9(9) and a share to its whole; Trebago
+# answers past them: held.
+provides estate_share_gap num an ad bn bd
+logic    sutra   estate_share_gap apps/blocks/heirloom/gap.sutra
+logic    trebago estate_share_gap apps/blocks/heirloom/gap.tb
+# Oberon (structure) owns the manifest's shape, a whole made of parts; it
+# has no runtime yet, so Sutra and Trebago stand in.
+pending  Oberon estate_share_gap
+
+# A death report's release is due (HR3): a signed attestation, k guardian
+# approvals and the waiting period over, no living veto since.
+provides heir_release_due truth reported k spare over vetoed
+logic    eve   heir_release_due apps/blocks/heirloom/due.eve
+logic    sutra heir_release_due apps/blocks/heirloom/due.sutra
+# Elixir (messaging, faults) owns a rule decided by signed messages from
+# several parties with a veto as the fault path; Eve and Sutra stand in.
+pending  Elixir heir_release_due
+
+# The same rule as a number to count with (HR3N): 1 due, 0 not.
+provides heir_release_due_n num reported k spare over vetoed
+logic    trebago heir_release_due_n apps/blocks/heirloom/due_n.tb
+logic    sutra   heir_release_due_n apps/blocks/heirloom/due_n.sutra
+# Simula I (discrete-event simulation) owns a count stepped by events in
+# time (a report, approvals, the wait running out); Trebago and Sutra
+# stand in.
+pending  Simula_I heir_release_due_n
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check estate_share_gap an=1,1,2,0,0,999999999,0 ad=2,2,3,1,1,999999999,999999999 bn=1,1,1,1,0,999999999,0 bd=2,3,2,1,1,999999999,999999999 = 0,-1,1,0,-1,999999998000000001,-999999998000000001
+check estate_share_gap an=1,3 ad=2,2 bn=1,1 bd=2,2 = both
+check estate_share_gap an=1,-1 ad=2,2 bn=1,1 bd=2,2 = both
+check heir_release_due reported=1,1,1,1,0,1,1,1 k=2,2,2,1,2,0,5,3 spare=0,-1,0,4,0,0,0,0 over=0,0,-1,999999999999999999,5,5,0,7 vetoed=0,0,0,0,0,0,1,0 = true,false,false,true,false,false,false,true
+check heir_release_due reported=1,1 k=2,2 spare=0,0 over=0,1000000000000000000 vetoed=0,0 = both
+check heir_release_due_n reported=1,1,1,1,0,1,1,1 k=2,2,2,1,2,0,5,3 spare=0,-1,0,4,0,0,0,0 over=0,0,-1,999999999999999999,5,5,0,7 vetoed=0,0,0,0,0,0,1,0 = 1,0,0,1,0,0,0,1
+check heir_release_due_n reported=1,1 k=2,2 spare=0,10 over=0,0 vetoed=0,0 = both
+check coffer.holdings balance=100,250,0 = 350
+check crown.allot units=1000 weight=3,2,1 total=6 extra=0,0,1 = 500,333,167
+check tally.ratio_add an=1,1 ad=2,3 bn=1,1 bd=3,6 = 5/6,1/2

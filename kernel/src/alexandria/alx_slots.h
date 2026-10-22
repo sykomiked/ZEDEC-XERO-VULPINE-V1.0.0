@@ -311,7 +311,10 @@
 #define ALX_SLOT_NUM_WORDHOARD_EDIT_DISTANCE     303u /* 591.44 wordhoard.edit_distance */
 #define ALX_SLOT_LOGIC_WORDHOARD_HEADWORD_ROW_OK 304u /* 491.51 wordhoard.headword_row_ok */
 #define ALX_SLOT_NUM_WORDHOARD_SHARED_SENSES     305u /* 591.45 wordhoard.shared_senses */
-#define ALX_SLOT__COUNT 305u
+#define ALX_SLOT_NUM_HEIRLOOM_ESTATE_SHARE_GAP   306u /* 591.46 heirloom.estate_share_gap */
+#define ALX_SLOT_LOGIC_HEIRLOOM_HEIR_RELEASE_DUE 307u /* 491.52 heirloom.heir_release_due */
+#define ALX_SLOT_NUM_HEIRLOOM_HEIR_RELEASE_DUE_N 308u /* 591.47 heirloom.heir_release_due_n */
+#define ALX_SLOT__COUNT 308u
 /* clang-format on */
 
 #endif

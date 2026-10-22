@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Whether a death report's release is due, as a number to count with, in
+! Trebago (heirloom_rules.h HR3N): 1 when reported is 1, k 1 .. 5, spare
+! (approvals - k) 0 .. 4, over (seconds past the wait) at or above 0 and
+! vetoed 0; else 0. For integers 1 - min(1, abs(x - c)) is 1 exactly when
+! x = c, min(1, max(0, x - lo + 1)) exactly when x >= lo and
+! min(1, max(0, hi - x + 1)) exactly when x <= hi. Trebago answers any
+! value that fits 64 bits, where Sutra refuses one past its picture: held.
+trebago due
+  in  reported(n), k(n), spare(n), over(n), vetoed(n)
+  out due(n)
+  due(i) = (1 - min(1, abs(reported(i) - 1))) * min(1, max(0, k(i))) * min(1, max(0, 6 - k(i))) &
+         * min(1, max(0, spare(i) + 1)) * min(1, max(0, 5 - spare(i))) &
+         * min(1, max(0, over(i) + 1)) * (1 - min(1, abs(vetoed(i))))
+end

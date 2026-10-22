@@ -340,3 +340,6 @@
 303	num.wordhoard_edit_distance	591.44	wordhoard.edit_distance	base
 304	logic.wordhoard_headword_row_ok	491.51	wordhoard.headword_row_ok	base
 305	num.wordhoard_shared_senses	591.45	wordhoard.shared_senses	base
+306	num.heirloom_estate_share_gap	591.46	heirloom.estate_share_gap	base
+307	logic.heirloom_heir_release_due	491.52	heirloom.heir_release_due	base
+308	num.heirloom_heir_release_due_n	591.47	heirloom.heir_release_due_n	base

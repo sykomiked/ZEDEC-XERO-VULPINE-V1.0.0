@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether a death report's release is due, as a truth, in Sutra
+# (heirloom_rules.h HR3): reported 1, k 1 .. 5, spare (approvals - k)
+# 0 .. 4, over (seconds past the wait) at or above 0 and vetoed 0. Each
+# flag and count is s9(1) and over s9(18): a value past its picture is a
+# size error, refused, where Eve answers FALSE: held. Too few approvals
+# or a wait not over is a plain no in both.
+record release-due
+  reported: s9(1)
+  k: s9(1)
+  spare: s9(1)
+  over: s9(18)
+  vetoed: s9(1)
+procedure
+  answer reported = 1 and k >= 1 and k <= 5 and spare >= 0 and spare <= 4 and over >= 0 and vetoed = 0
