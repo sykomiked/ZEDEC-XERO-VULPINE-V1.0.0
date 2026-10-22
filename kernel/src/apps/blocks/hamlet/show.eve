@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Show this post to this seat (hamlet_rules.h HR2), in Eve. Each part comes
+# as its margin, so that a field is held against its own range: roleroom,
+# the seat's role in the post's group minus member (none -2, observer -1,
+# member 0, admin 1, owner 2; a post to no group is 0), 0 to 2; muteroom,
+# minus the seat's mutes that cover the post (its author, its group),
+# exactly 0. show.myra reads both as $H days (0 to 2980013): a role room of
+# 3 or more, or a mute room above 0, is a day to MYRA and no role or mute
+# count to Eve: held.
+eve hamlet
+role_room = 0 .. 2
+mute_room = 0 .. 0
+
+post_show {
+  roleroom: role_room
+  muteroom: mute_room
+}

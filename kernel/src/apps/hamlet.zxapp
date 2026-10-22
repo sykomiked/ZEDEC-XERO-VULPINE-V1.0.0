@@ -1,0 +1,95 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Hamlet, your social circle's feed: layer 96 of the matrix. The circle's
+# posts and replies (social.feed, social.post), reactions (social.react)
+# and groups (social.groups, social.join, social.leave), and gifts to a
+# member: a Web4 envelope with amount_minor (web4.post), which zxvd holds
+# unsigned until web4.consent answers it.
+#
+# Feed ranking stays the daemon's: social.feed's order is shown as it
+# comes, and nothing is re-ranked here (hamlet_model.h HM2). A gift is a
+# financial action, advisory and owner-confirmed: it is posted only on the
+# owner's confirmed word, within the owner's own gift ceiling, and the
+# consent that releases it is the owner's act too (HM5). zxvd has no
+# method that delivers an envelope to the receiving member or brings back
+# their consent, no mute method and no notification method, so mutes are
+# kept in the model and the notice of unread posts is only composed (HM4,
+# HM6); none is invented.
+#
+# Built on what is nearer the core: a group's unread posts are Commons's
+# room_unread (newest - seen, KRON and Trebago witnessed), the task's
+# "unread counts per group in Trebago", used as it is; whether the owner's
+# consent covers a gift is Ramble's consent_covers (Eve and Sutra), used
+# as it is before web4.consent is called. Assay (tests and scores), Kitling
+# (the companion) and Murmuration (the swarm's shares), which the matrix
+# says this layer leans on, decide nothing Hamlet decides, so none of their
+# entries is used.
+#
+# Four later layers lean on this one (Forage, and Watershed, Thicket and
+# Cairn as L2), so each entry is a general rule registered in CONCEPTS.tsv
+# with Hamlet as owner: what stays of a gift ceiling after a gift, whether
+# a post is shown to a seat, and a group's read marker record.
+#
+# Witness pairs are of one kind: gift_room is a number, Sutra and C++ (as
+# WebAssembly); Sutra refuses past 18 digits where C++ answers: held.
+# post_show_ok is a truth, Eve and MYRA. MYRA checks only whether values
+# fit their fields, so each part comes as a margin that MYRA reads as a $H
+# day (0..2980013, so a margin below 0 does not fit) and Eve holds to its
+# meaning: a margin past its meaning is held. The read marker is MYRA's
+# alone, as the task asks.
+#
+# Kept in C, since no runnable language owns it: hex ids, a text's bytes
+# and something besides spaces, and reading zxvd's answers.
+#
+# Planned languages: Erlang (fault-tolerant messaging) owns who a message
+# reaches, post_show_ok; it does not run yet, so Eve and MYRA stand in.
+zxapp 1
+id     hamlet
+name   Hamlet
+version 1.0.0
+slot   96
+layer  L1
+matrix 96
+icon   icons/l1/096-hamlet.svg
+budget 233
+needs  peers
+needs  net
+needs  notify
+model  apps/hamlet_model.c
+use    commons 1   # @num.commons_room_unread
+use    ramble 1    # @logic.ramble_consent_covers
+
+# What stays of the owner's gift ceiling after a gift (HR1): ceiling -
+# amount, the amount 1..ceiling minor units. Sutra holds 9(18), C++ (as
+# WebAssembly) answers to 64 bits: past 18 digits held.
+provides gift_room num amount ceiling
+logic    sutra gift_room apps/blocks/hamlet/gift.sutra
+logic    wasm  gift_room apps/blocks/hamlet/gift.wasm
+
+# Show this post to this seat (HR2): a member of the post's group (role
+# room 0..2) and not muted (mute room 0). Eve's ranges, witnessed by MYRA's
+# days; a margin past its meaning is held.
+provides post_show_ok truth roleroom muteroom
+logic    eve  post_show_ok apps/blocks/hamlet/show.eve
+logic    myra post_show_ok apps/blocks/hamlet/show.myra
+# Erlang (fault-tolerant messaging) owns who a message reaches; it does
+# not run yet.
+pending  Erlang post_show_ok
+
+# A group's read marker makes a ^ZXHAMLET record (HR3), in MYRA.
+provides read_marker_ok truth group lamport stamp
+logic    myra read_marker_ok apps/blocks/hamlet/marker.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check gift_room amount=1,2500,999999999999999999,5,1 ceiling=1,10000,999999999999999999,5,999999999999999999 = 0,7500,0,0,999999999999999998
+check gift_room amount=1,1 ceiling=1,1000000000000000000 = both
+check gift_room amount=1,1000000000000000000 ceiling=1,1000000000000000000 = both
+check post_show_ok roleroom=0,1,2,-1,-2,0,2,3000000 muteroom=0,0,0,0,0,-1,-2,0 = true,true,true,false,false,false,false,false
+check post_show_ok roleroom=0,3 muteroom=0,0 = both
+check post_show_ok roleroom=0,0 muteroom=0,1 = both
+check read_marker_ok group=0,999,1000,1,1 lamport=0,999999999999999999,1,1000000000000000000,1 stamp=0,999999999999,0,0,1000000000000 = true,true,false,false,false
+# A group's unread, Commons's rule: seven known, four read; all read; read past the known
+check commons.room_unread newest=7,3,2 seen=4,3,5 = 3,0,0
+# A gift's consent, Ramble's rule: 7500 left of the ceiling for ten minutes; one minor unit over
+check ramble.consent_covers scopegap=0,0 ceilingleft=7500,-1 secondsleft=600,600 = true,false

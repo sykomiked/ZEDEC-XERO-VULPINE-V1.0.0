@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; A group's read marker in MYRA (hamlet_rules.h HR3): the group's place in
+; the model's list (3 digits), the Lamport time of the last post the owner
+; has read there (18 digits, zxvd's lamport as text) and when the marker
+; moved, in seconds since 1970 (12 digits). Hamlet keeps a marker only
+; when its values make a record.
+^ZXHAMLET(group:i3) = lamport:i18! ^ stamp:i12!

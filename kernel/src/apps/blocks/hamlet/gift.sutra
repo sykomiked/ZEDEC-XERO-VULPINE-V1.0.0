@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What stays of the owner's gift ceiling after a gift (hamlet_rules.h HR1),
+# in Sutra: ceiling - amount, in integer minor units of the books'
+# currency. A gift is at least one minor unit (least = amount - 1 must fit
+# an unsigned picture) and never past the ceiling (room must fit one too):
+# either is a size error, refused, never stored short. Amount and ceiling
+# fit 9(18); gift.cpp says the same in C++ (as WebAssembly), which answers
+# to 64 bits: past eighteen digits the two disagree and it is held.
+record hamlet-gift
+  amount: 9(18)
+  ceiling: 9(18)
+  least: 9(18)
+  room: 9(18)
+procedure
+  compute least = amount - 1
+  compute room = ceiling - amount
+  answer room

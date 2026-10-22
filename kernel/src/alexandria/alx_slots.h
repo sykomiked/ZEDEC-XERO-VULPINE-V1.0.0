@@ -346,7 +346,10 @@
 #define ALX_SLOT_NUM_NEAP_EQUATION_GAP           338u /* 591.65 neap.equation_gap */
 #define ALX_SLOT_NUM_NEAP_GL_LINE_AMOUNT         339u /* 591.66 neap.gl_line_amount */
 #define ALX_SLOT_NUM_NEAP_STRAIGHT_CHARGE        340u /* 591.67 neap.straight_charge */
-#define ALX_SLOT__COUNT 340u
+#define ALX_SLOT_NUM_HAMLET_GIFT_ROOM            341u /* 591.68 hamlet.gift_room */
+#define ALX_SLOT_LOGIC_HAMLET_POST_SHOW_OK       342u /* 491.65 hamlet.post_show_ok */
+#define ALX_SLOT_LOGIC_HAMLET_READ_MARKER_OK     343u /* 491.66 hamlet.read_marker_ok */
+#define ALX_SLOT__COUNT 343u
 /* clang-format on */
 
 #endif

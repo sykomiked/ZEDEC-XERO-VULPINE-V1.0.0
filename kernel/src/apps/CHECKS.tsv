@@ -351,6 +351,15 @@ halloo	check hms ms=1000,10000000000 = both
 halloo	check hms ms=1000,-1 = both
 halloo	check call_ok seq=1,999999999,1000000000,1,1 peer=1,4294967295,1,10000000000,1 dir=0,1,0,0,0 media=0,1,0,0,0 reason=0,10,0,0,0 ms=0,9999999999,0,0,0 stamp=0,9999999999999,0,0,10000000000000 = true,true,false,false,false
 halloo	check call_ok seq=1,1 peer=7,7 dir=1,2 media=0,0 reason=1,1 ms=60000,60000 stamp=1700000000000,1700000000000 = both
+hamlet	check gift_room amount=1,2500,999999999999999999,5,1 ceiling=1,10000,999999999999999999,5,999999999999999999 = 0,7500,0,0,999999999999999998
+hamlet	check gift_room amount=1,1 ceiling=1,1000000000000000000 = both
+hamlet	check gift_room amount=1,1000000000000000000 ceiling=1,1000000000000000000 = both
+hamlet	check post_show_ok roleroom=0,1,2,-1,-2,0,2,3000000 muteroom=0,0,0,0,0,-1,-2,0 = true,true,true,false,false,false,false,false
+hamlet	check post_show_ok roleroom=0,3 muteroom=0,0 = both
+hamlet	check post_show_ok roleroom=0,0 muteroom=0,1 = both
+hamlet	check read_marker_ok group=0,999,1000,1,1 lamport=0,999999999999999999,1,1000000000000000000,1 stamp=0,999999999999,0,0,1000000000000 = true,true,false,false,false
+hamlet	check commons.room_unread newest=7,3,2 seen=4,3,5 = 3,0,0
+hamlet	check ramble.consent_covers scopegap=0,0 ceilingleft=7500,-1 secondsleft=600,600 = true,false
 hedgerow	check path_open sw=1,1,1,0,1,1,1,-1 moderoom=0,2,1,1,-1,0,-2,0 bindroom=0,2,0,1,0,-1,-2,0 = true,true,true,false,false,false,false,false
 hedgerow	check path_open sw=1,2 moderoom=0,0 bindroom=0,0 = both
 hedgerow	check path_open sw=1,1 moderoom=0,3 bindroom=0,0 = both

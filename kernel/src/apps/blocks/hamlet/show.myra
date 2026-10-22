@@ -1,0 +1,11 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; Show this post to this seat (hamlet_rules.h HR2), in MYRA: the seat's
+; view of a post filed as ^ZXHAMLETSEE, its two margins as $H days, so a
+; margin below 0 does not fit (MYRA's date is 0 to 2980013). roleroom is
+; the seat's role minus member (below 0: not a member of the post's
+; group); muteroom is minus the mutes that cover the post (below 0: muted).
+; show.eve holds each to its meaning (roleroom 0..2, muteroom 0); a larger
+; margin fits a day and not the meaning: held.
+^ZXHAMLETSEE(roleroom:d) = muteroom:d!
