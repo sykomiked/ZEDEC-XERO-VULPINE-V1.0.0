@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What Graft compares line by line (graft_rules.h GR4), in Eve: a file of
+# at most 16 MiB (16777216 bytes) and at most 65536 lines. A larger file
+# is refused for a diff or a merge, never cut short.
+eve graft
+diff_bytes = 0 .. 16777216
+diff_lines = 0 .. 65536
+
+diff_limits {
+  bytes: diff_bytes
+  lines: diff_lines
+}

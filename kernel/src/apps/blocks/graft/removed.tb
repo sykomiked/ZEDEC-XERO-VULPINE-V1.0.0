@@ -1,0 +1,15 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Lines a diff removes (graft_rules.h GR3), in Trebago, one diff a row:
+! the older file's lines (before) less the lines both files keep in order
+! (kept), exact. ok is 1 when 0 <= kept <= before <= 65536; anything else
+! makes ok 0 and the answer a division by zero, refused.
+trebago diff_lines_removed
+  in  before(n), kept(n)
+  out removed(n)
+  var ok(n)
+  ok(i) = min(1, max(0, before(i) - kept(i) + 1)) * min(1, max(0, kept(i) + 1)) &
+        * min(1, max(0, 65537 - before(i)))
+  removed(i) = (before(i) - kept(i)) / ok(i)
+end

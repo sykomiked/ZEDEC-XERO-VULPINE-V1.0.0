@@ -387,7 +387,13 @@
 #define ALX_SLOT_LOGIC_MEADOW_SEAT_POST_OK       379u /* 491.90 meadow.seat_post_ok */
 #define ALX_SLOT_NUM_MEADOW_SPACE_MEMBERS_TOTAL  380u /* 591.81 meadow.space_members_total */
 #define ALX_SLOT_NUM_MEADOW_SPACE_NEW_EVENTS     381u /* 591.82 meadow.space_new_events */
-#define ALX_SLOT__COUNT 381u
+#define ALX_SLOT_LOGIC_GRAFT_COMMIT_RECORD_OK    382u /* 491.91 graft.commit_record_ok */
+#define ALX_SLOT_NUM_GRAFT_DIFF_LINES_ADDED      383u /* 591.83 graft.diff_lines_added */
+#define ALX_SLOT_NUM_GRAFT_DIFF_LINES_REMOVED    384u /* 591.84 graft.diff_lines_removed */
+#define ALX_SLOT_LOGIC_GRAFT_DIFF_SIZE_OK        385u /* 491.92 graft.diff_size_ok */
+#define ALX_SLOT_LOGIC_GRAFT_MERGE_LINE_CLASH    386u /* 491.93 graft.merge_line_clash */
+#define ALX_SLOT_LOGIC_GRAFT_MERGE_UNTOUCHED     387u /* 491.94 graft.merge_untouched */
+#define ALX_SLOT__COUNT 387u
 /* clang-format on */
 
 #endif

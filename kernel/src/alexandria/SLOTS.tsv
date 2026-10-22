@@ -416,3 +416,9 @@
 379	logic.meadow_seat_post_ok	491.90	meadow.seat_post_ok	base
 380	num.meadow_space_members_total	591.81	meadow.space_members_total	base
 381	num.meadow_space_new_events	591.82	meadow.space_new_events	base
+382	logic.graft_commit_record_ok	491.91	graft.commit_record_ok	base
+383	num.graft_diff_lines_added	591.83	graft.diff_lines_added	base
+384	num.graft_diff_lines_removed	591.84	graft.diff_lines_removed	base
+385	logic.graft_diff_size_ok	491.92	graft.diff_size_ok	base
+386	logic.graft_merge_line_clash	491.93	graft.merge_line_clash	base
+387	logic.graft_merge_untouched	491.94	graft.merge_untouched	base

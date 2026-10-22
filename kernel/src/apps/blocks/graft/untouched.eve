@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A line of a three-way merge neither side touched (graft_rules.h GR2),
+# in Eve: ours did not change it (0) and theirs did not (0). That line is
+# NEITHER: the base line stays as it was. Each flag is 0 .. 0 on its own;
+# untouched.kron reads any flag below 1 as clear: a flag of -1 is held.
+eve graft
+flag_clear = 0 .. 0
+
+line_untouched {
+  ours: flag_clear
+  theirs: flag_clear
+}

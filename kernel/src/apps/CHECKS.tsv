@@ -376,6 +376,16 @@ gnomon	check triangle_area2 ax=0,1000001 ay=0,0 bx=1,0 by=0,0 cx=0,0 cy=1,1 = bo
 gnomon	check side_len_sq ax=0,0,-1000000,7 ay=0,0,-1000000,7 bx=3,0,1000000,7 by=4,0,1000000,7 = 25,0,8000000000000,0
 gnomon	check side_len_sq ax=0,0 ay=0,-1000001 bx=3,0 by=4,0 = both
 gnomon	check figure_record_ok figure=999999999,1000000000,0,0,0,-999999999 vertices=1024,1,10000,1,1,9999 kind=1,0,0,10,0,-9 mtime=999999999999,1,1,1,1000000000000,-1 = true,false,false,false,false,true
+graft	check merge_line_clash ours=1,1,1,0,1,0 theirs=1,1,0,1,0,0 apart=1,0,1,1,0,0 = true,false,false,false,false,false
+graft	check merge_line_clash ours=1,2 theirs=1,1 apart=1,1 = both
+graft	check merge_untouched ours=0,1,0,1 theirs=0,0,1,1 = true,false,false,false
+graft	check merge_untouched ours=0,-1 theirs=0,0 = both
+graft	check diff_lines_added after=0,10,65536,7 kept=0,4,0,7 = 0,6,65536,0
+graft	check diff_lines_removed before=0,10,65536,9 kept=0,3,65536,1 = 0,7,0,8
+graft	check diff_size_ok bytes=0,16777216,16777217,5,5,-1 lines=0,65536,1,65537,-1,1 = true,true,false,false,false,false
+graft	check commit_record_ok commit=1,999999999,1000000000,2,2,2,2 parent=0,999999998,0,1,1,1,1 author=1,999999,1,1000000,1,1,1 stamp=1700000000,99999999999,1,1,100000000000,1,1 msglen=1,9999,1,1,1,10000,-5 = true,true,false,false,false,false,true
+graft	check witness.chain_ok seq=1,2,3,3 prev=0,1,2,1 last=0,1,2,2 = true,true,true,false
+graft	check witness.chain_ok seq=2,-1 prev=1,1 last=1,1 = both
 halloo	check quiet_left opens=1320,1320,1320,1320,420,600,0,0 closes=420,420,420,420,1320,600,1,0 now=1320,1400,419,420,900,600,1,1439 = 540,460,1,0,420,1440,0,1
 halloo	check quiet_left opens=1320,1320 closes=420,420 now=0,-1 = both
 halloo	check quiet_left opens=1320,1440 closes=420,420 now=0,0 = both

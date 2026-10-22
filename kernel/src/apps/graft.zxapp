@@ -1,0 +1,103 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Graft, version control for folders in the Hoard: layer 124 of the
+# matrix. A commit is a Keepsake snapshot of the space (backup.run) and a
+# record in the folder's history file (files.read, files.write); a file's
+# versions come from backup.versions, each beside the commit that made
+# its snapshot; one is brought back with backup.restore as a new item,
+# never over what is there; backup.list says whether every commit's
+# snapshot is still kept. Diffs and three-way merges are worked over
+# files.read and written with files.write (exclusive). See graft_model.h
+# GM1-GM7 and graft_rules.h GR1-GR5.
+#
+# zxvd has no commit, branch, diff or merge method, and none is invented;
+# nor a clock method under these needs, so the caller gives each commit's
+# time. The person who commits is a number the household keeps, never a
+# name in the record.
+#
+# History intact (GR1) is Witness's chain link, used, not written again:
+# a commit's parent is the commit before it and its number is past it,
+# witness.chain_ok in KRON and Sutra, witnessed (Witness is nearer the
+# core in MATRIX_ORDER.tsv, position 10 against Graft's 117). Its chain
+# and record digits are the C the model runs (witness_rules.h).
+#
+# No layer leans on this one yet; the merge rule, the diff's counts and
+# limits and the commit record are general all the same (a document, a
+# sheet or a book app that keeps versions merges and counts lines the
+# same way), so they are registered in CONCEPTS.tsv with Graft as owner.
+#
+# A line of a merge has four values (GR2): each side is a source about
+# the line, joined with lpres_kjoin (one side only TRUE, the same change
+# TRUE, changes apart BOTH, untouched NEITHER), and the file's merge is
+# lpres_conjoin across the lines that changed. The task asks for the
+# four values in Eve and KRON; Eve answers truths only and checks each
+# field against its own range, so the rule is the two truths that are
+# not TRUE: the line is BOTH (merge_line_clash) and the line is NEITHER
+# (merge_untouched), each a conjunction of flags Eve can declare;
+# every other line is TRUE. A BOTH is never resolved here: both sides
+# are kept between markers for the person to pick.
+#
+# Planned: Elm owns views with no runtime errors, and merge_line_clash
+# decides what the merge view shows the person (both sides to pick);
+# OCaml owns typed records and parsing, and commit_record_ok is the typed
+# commit record. Bourne shell owns wiring programs together; Graft wires
+# none (zxvd does the snapshot), so it has no pending line.
+zxapp 1
+id     graft
+name   Graft
+version 1.0.0
+slot   124
+layer  L1
+matrix 124
+icon   icons/l1/124-graft.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  backup
+model  apps/graft_model.c
+use    witness 1    # @logic.witness_chain_ok
+
+# A merged line in conflict (GR2, critical: what the person must pick):
+# ours changed it, theirs changed it, and apart. Ada as Eve (each flag
+# 1 .. 1) and APL as KRON (any flag above 0 is set), witnessed: a flag
+# of 2 is held.
+provides merge_line_clash truth ours theirs apart
+logic    eve  merge_line_clash apps/blocks/graft/clash.eve
+logic    kron merge_line_clash apps/blocks/graft/clash.kron
+pending  Elm merge_line_clash
+
+# A merged line neither side touched (GR2, critical: the base stays):
+# Eve (each flag 0 .. 0) and KRON (any flag below 1 is clear), witnessed:
+# a flag of -1 is held.
+provides merge_untouched truth ours theirs
+logic    eve  merge_untouched apps/blocks/graft/untouched.eve
+logic    kron merge_untouched apps/blocks/graft/untouched.kron
+
+# Lines a diff adds and removes, exact (GR3): FORTRAN as Trebago.
+provides diff_lines_added num after kept
+logic    trebago diff_lines_added apps/blocks/graft/added.tb
+provides diff_lines_removed num before kept
+logic    trebago diff_lines_removed apps/blocks/graft/removed.tb
+
+# What may be compared (GR4): 16 MiB and 65536 lines at most, in Eve.
+provides diff_size_ok truth bytes lines
+logic    eve diff_size_ok apps/blocks/graft/limits.eve
+
+# A commit fits its record (GR5): MUMPS as MYRA.
+provides commit_record_ok truth commit parent author stamp msglen
+logic    myra commit_record_ok apps/blocks/graft/commit.myra
+pending  OCaml commit_record_ok
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check merge_line_clash ours=1,1,1,0,1,0 theirs=1,1,0,1,0,0 apart=1,0,1,1,0,0 = true,false,false,false,false,false
+check merge_line_clash ours=1,2 theirs=1,1 apart=1,1 = both
+check merge_untouched ours=0,1,0,1 theirs=0,0,1,1 = true,false,false,false
+check merge_untouched ours=0,-1 theirs=0,0 = both
+check diff_lines_added after=0,10,65536,7 kept=0,4,0,7 = 0,6,65536,0
+check diff_lines_removed before=0,10,65536,9 kept=0,3,65536,1 = 0,7,0,8
+check diff_size_ok bytes=0,16777216,16777217,5,5,-1 lines=0,65536,1,65537,-1,1 = true,true,false,false,false,false
+check commit_record_ok commit=1,999999999,1000000000,2,2,2,2 parent=0,999999998,0,1,1,1,1 author=1,999999,1,1000000,1,1,1 stamp=1700000000,99999999999,1,1,100000000000,1,1 msglen=1,9999,1,1,1,10000,-5 = true,true,false,false,false,false,true
+# A history's links, through Witness
+check witness.chain_ok seq=1,2,3,3 prev=0,1,2,1 last=0,1,2,2 = true,true,true,false
+check witness.chain_ok seq=2,-1 prev=1,1 last=1,1 = both

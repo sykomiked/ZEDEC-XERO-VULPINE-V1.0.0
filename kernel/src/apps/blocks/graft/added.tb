@@ -1,0 +1,16 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Lines a diff adds (graft_rules.h GR3), in Trebago, one diff a row: the
+! newer file's lines (after) less the lines both files keep in order
+! (kept), exact. For integers min(1, max(0, a - b + 1)) is 1 exactly
+! when a >= b, so ok is 1 when 0 <= kept <= after <= 65536; anything else
+! makes ok 0 and the answer a division by zero, refused.
+trebago diff_lines_added
+  in  after(n), kept(n)
+  out added(n)
+  var ok(n)
+  ok(i) = min(1, max(0, after(i) - kept(i) + 1)) * min(1, max(0, kept(i) + 1)) &
+        * min(1, max(0, 65537 - after(i)))
+  added(i) = (after(i) - kept(i)) / ok(i)
+end

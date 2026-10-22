@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A line of a three-way merge in conflict (graft_rules.h GR2), in Eve:
+# ours changed it (1), theirs changed it (1) and the two changes are apart
+# (1, not the same text). That line is BOTH, both sides kept for the
+# person to pick; Graft never picks. Each flag is 1 .. 1 on its own, so a
+# flag that is no flag (2, -1) does not fit; clash.kron reads any flag
+# above 0 as set: held.
+eve graft
+flag_set = 1 .. 1
+
+line_clash {
+  ours: flag_set
+  theirs: flag_set
+  apart: flag_set
+}

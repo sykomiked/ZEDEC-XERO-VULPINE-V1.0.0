@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Graft files one commit of a folder's history in MYRA (graft_rules.h
+; GR5): under its number, the number of the commit before it (0 for the
+; first), its author (the household's number for the person, never a
+; name), its time (seconds since 1970) and its message's length in bytes.
+; The model asks whether the numbers fit before it keeps the commit.
+^ZXGRAFT(commit:i9) = parent:i9! ^ author:i6! ^ stamp:i11! ^ msglen:i4!
