@@ -1,0 +1,12 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; Wordhoard's headword index in MYRA (wordhoard_rules.h WH6): one record a
+; headword and sense, by the headword's name code (kindred_rules.h KR2)
+; and then its synset number (OEWN's offset times 10 plus its part of
+; speech), holding the word's language (its place in xlate.languages, 0
+; not known), which list it came from (0 the owner's own, 1 the core
+; pack, 2 the optional pack) and that list's mtime (seconds since 1970).
+; A prefix search walks ^ZXWORDHOARD in order ($ORDER) from the typed
+; code up to the range kindred.name_prefix_hit tests one code against.
+^ZXWORDHOARD(word:i18, sense:i9) = lang:i3! ^ list:i1! ^ stamp:i12!

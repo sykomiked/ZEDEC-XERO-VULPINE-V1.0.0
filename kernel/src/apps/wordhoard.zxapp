@@ -1,0 +1,122 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wordhoard, the dictionary and thesaurus: layer 46 of the matrix. Word
+# lists are kept in the Hoard and read with zxvd's files.list and
+# files.read; search.query finds the lists that hold a word; the language
+# of a word comes from xlate.detect and the languages from xlate.languages;
+# a definition the swarm writes (swarm.ask) is held until the owner
+# accepts it (wordhoard_model.h WM1-WM8).
+#
+# A data-pack app (docs/DATAPACKS.md). The core pack wordhoard-core.tar
+# (Open English WordNet 2024, CC BY 4.0, and the Open Multilingual Wordnet
+# lexicons whose own licence is TRUE) and the optional pack
+# wordhoard-optional.tar (Wiktionary through Wiktextract, CC BY-SA 4.0)
+# are installed into the Hoard as Wordhoard/core and Wordhoard/optional;
+# nothing of either is in this repository. The model reads a pack only
+# when its PACK.tsv names this app, its slot and the state its pack must
+# hold (core TRUE, optional BOTH), shows its ATTRIBUTION.txt, and keeps the
+# optional pack's entries marked as its own (list 2), so share-alike text
+# is read and shown, never mixed into the app's code. Both packs are read
+# when both are installed. The owner's own lists are Wordhoard/lists/*.tsv.
+#
+# Advice only: a "did you mean" offer, a synonym's place and a definition
+# from the swarm are shown for the owner to pick or accept; nothing is
+# looked up, kept or shown as the dictionary's but on the owner's word.
+#
+# Built on what is nearer the core. The prefix lookup is Kindred's
+# name_prefix_hit over Kindred's name code (KR2, KR3): the headword index
+# is kept by name code, the same 18 digits Kindred's index walks, so the
+# prefix range is not written again. Synonym order is assay.score_rank of
+# each candidate's shared senses (best first, ties sharing a place). The
+# owner's word on a definition is warren.approval_ok (the owner's own
+# session and approval, both exactly 1).
+#
+# Three new entries; the two general ones are registered in CONCEPTS.tsv
+# with Wordhoard as owner, since search, mail and notes will want a "did
+# you mean" and any tagged collection an overlap count:
+#   edit_distance   the edit distance of two words over code points (WH2),
+#                   in C++ compiled to wasm, as the task asks, witnessed by
+#                   BASIC (twin Hatchling), whose step-by-step table is the
+#                   classic form of it. A word is four numbers of three
+#                   21-bit code points (WH1), so up to 12 code points;
+#                   wasm takes no vector and an entry at most 8 inputs.
+#                   The C++ refuses a surrogate (never a character), BASIC
+#                   holds the fields as numbers only and answers: held.
+#   shared_senses   how many of a candidate's senses are a headword's
+#                   (WH4), in KRON, as the task asks, witnessed by Trebago
+#                   (FORTRAN), which refuses a synset number outside
+#                   1..999999999 where KRON counts it: held.
+#   headword_row_ok a headword index record, ^ZXWORDHOARD, in MYRA (WH6),
+#                   as the task asks for the index.
+# The "did you mean" limit (WH3) and the byte check after the prefix walk
+# (WH7) stay in C: they are text work over the code points the witnessed
+# entries already decided, and no runnable language owns text.
+#
+# Planned: AWK (text, report) is the best fit for the edit distance, a
+# text comparison, and is pending there. TeX (typesetting) and PostScript
+# (page layout) have no entry here: Wordhoard sets no type and lays out
+# no page, so neither is pending (named in the report).
+zxapp 1
+id     wordhoard
+name   Wordhoard
+version 1.0.0
+slot   46
+layer  L1
+matrix 46
+icon   icons/l1/046-wordhoard.svg
+budget 233
+needs  fs.read
+needs  search
+needs  ai.ask
+model  apps/wordhoard_model.c
+use    kindred 1   # @num.kindred_name_prefix_hit
+use    assay 1     # @num.assay_score_rank
+use    warren 1    # @logic.warren_approval_ok
+
+# "Did you mean" (WH1, WH2): C++ as wasm, witnessed by BASIC.
+provides edit_distance num a1 a2 a3 a4 b1 b2 b3 b4
+logic    wasm  edit_distance apps/blocks/wordhoard/distance.wasm
+# Minimal BASIC, twin Hatchling: the file is in the twin's canonical form
+# (zxlang twin); the line names the runtime "basic".
+logic    basic edit_distance apps/blocks/wordhoard/distance.bas
+pending  AWK edit_distance
+
+# Synonym order by shared senses (WH4, WH5): KRON, witnessed by Trebago.
+provides shared_senses num head sense
+logic    kron    shared_senses apps/blocks/wordhoard/shared.kron
+logic    trebago shared_senses apps/blocks/wordhoard/shared.tb
+
+# The headword index (WH6), a ^ZXWORDHOARD record in MYRA.
+provides headword_row_ok truth word sense lang list stamp
+logic    myra headword_row_ok apps/blocks/wordhoard/headword.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+# kitten to sitting: 3
+check edit_distance a1=470591196889204 a2=510173607100526 a3=0 a4=0 b1=505775568978036 b2=510173615489134 b3=452998790643712 b4=0 = 3
+# word to word: 0
+check edit_distance a1=523367767605362 a2=439804651110400 a3=0 a4=0 b1=523367767605362 b2=439804651110400 b3=0 b4=0 = 0
+# nothing to abc: 3
+check edit_distance a1=0 a2=0 a3=0 a4=0 b1=426610717098083 b2=0 b3=0 b4=0 = 3
+# cafe with an e acute (U+00E9) to cafe: 1, one code point, not two bytes
+check edit_distance a1=435406808023142 a2=1024744837087232 a3=0 a4=0 b1=435406808023142 b2=444202697621504 b3=0 b4=0 = 1
+# twelve code points to twelve others: 12
+check edit_distance a1=426610717098083 a2=439804862922854 a3=452999008747625 a4=466193154572396 b1=479387300397167 b2=492581446221938 b3=505775592046709 b4=518969737871480 = 12
+# Worterbuch with an o umlaut (U+00F6) to Worterbuch: 1
+check edit_distance a1=382630562365554 a2=510173607100530 a3=431008803455075 a4=457396837154816 b1=382630279250034 b2=510173607100530 b3=431008803455075 b4=457396837154816 = 1
+# flaw to lawn: 2
+check edit_distance a1=448600970625121 a2=523367534821376 a3=0 a4=0 b1=474989226623095 b2=483785116221440 b3=0 b4=0 = 2
+# a surrogate, U+D800: C++ refuses, BASIC answers
+check edit_distance a1=243194379878006784 a2=0 a3=0 a4=0 b1=426610511577088 b2=0 b3=0 b4=0 = both
+check shared_senses head=10,20,30 sense=20,30,40,50 = 2
+check shared_senses head=10,20 sense=30,40 = 0
+check shared_senses head=999999999,1 sense=1,999999999 = 2
+check shared_senses head=1,2 sense=0,2 = both
+check shared_senses head=1000000000,5 sense=1000000000,5 = both
+check headword_row_ok word=102030000000000000,999999999999999999,1000000000000000000,1,1,1,1,1,-5 sense=20840710,999999999,1,1000000000,1,1,1,1,-1 lang=1,999,0,0,1000,0,0,0,-999 list=1,9,0,0,0,10,0,0,-1 stamp=1760000000,999999999999,1,1,1,1,1000000000000,0,-1 = true,true,false,false,false,false,false,true,true
+# The prefix walk, Kindred's: "do" (0415) begins "dog", not "cat"
+check kindred.name_prefix_hit name=41507000000000000,30120000000000000 prefix=41500000000000000,41500000000000000 len=2,2 = 1,0
+# Synonym order: three candidates sharing 2, 3 and 2 senses
+check assay.score_rank score=2,3,2 = 2,1,2
+# A definition from the swarm, kept only on the owner's word
+check warren.approval_ok owner=1,1,0 approved=1,0,1 = true,false,false

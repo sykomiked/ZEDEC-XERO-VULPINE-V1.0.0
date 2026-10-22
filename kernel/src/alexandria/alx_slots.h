@@ -308,7 +308,10 @@
 #define ALX_SLOT_LOGIC_COVE_TUNNEL_OPEN_OK       300u /* 491.49 cove.tunnel_open_ok */
 #define ALX_SLOT_LOGIC_COVE_TUNNEL_RECORD_OK     301u /* 491.50 cove.tunnel_record_ok */
 #define ALX_SLOT_NUM_COVE_TUNNEL_SEQ_GAP         302u /* 591.43 cove.tunnel_seq_gap */
-#define ALX_SLOT__COUNT 302u
+#define ALX_SLOT_NUM_WORDHOARD_EDIT_DISTANCE     303u /* 591.44 wordhoard.edit_distance */
+#define ALX_SLOT_LOGIC_WORDHOARD_HEADWORD_ROW_OK 304u /* 491.51 wordhoard.headword_row_ok */
+#define ALX_SLOT_NUM_WORDHOARD_SHARED_SENSES     305u /* 591.45 wordhoard.shared_senses */
+#define ALX_SLOT__COUNT 305u
 /* clang-format on */
 
 #endif

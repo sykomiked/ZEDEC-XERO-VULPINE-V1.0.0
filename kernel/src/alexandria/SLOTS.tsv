@@ -337,3 +337,6 @@
 300	logic.cove_tunnel_open_ok	491.49	cove.tunnel_open_ok	base
 301	logic.cove_tunnel_record_ok	491.50	cove.tunnel_record_ok	base
 302	num.cove_tunnel_seq_gap	591.43	cove.tunnel_seq_gap	base
+303	num.wordhoard_edit_distance	591.44	wordhoard.edit_distance	base
+304	logic.wordhoard_headword_row_ok	491.51	wordhoard.headword_row_ok	base
+305	num.wordhoard_shared_senses	591.45	wordhoard.shared_senses	base

@@ -1,0 +1,18 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! How many of a candidate's senses are among a headword's, in Trebago
+! (wordhoard_rules.h WH4): the count of pairs with sense(i) = head(j),
+! each list holding a synset number once. A synset number is
+! 1..999999999 (OEWN's offset times 10 plus its part of speech); ok is 1
+! when every number on both sides is, else 0, and the count is divided by
+! it: anything else is a division by zero, refused, where shared.kron
+! counts it: held. Exact; shared.kron says the same.
+trebago shared_senses
+  in  head(m), sense(n)
+  out shared
+  var ok
+  ok = 1 - min(1, sum(i, min(1, max(0, 1 - sense(i))) + min(1, max(0, sense(i) - 999999999))) &
+       + sum(j, min(1, max(0, 1 - head(j))) + min(1, max(0, head(j) - 999999999))))
+  shared = sum(i, sum(j, 1 - min(1, abs(sense(i) - head(j))))) / ok
+end
