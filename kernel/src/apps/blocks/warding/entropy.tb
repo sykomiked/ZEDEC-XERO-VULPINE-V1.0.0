@@ -1,0 +1,282 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A key's entropy in whole bits, in Trebago (warding_rules.h WR4), one key
+! per row, from two lengths only, never the key's bytes: chars, the key's
+! length in symbols, 0..4096, and alphabet, how many symbols it is drawn
+! from, 1..256. bits = floor(chars * lg / 1000), lg the integer table
+! floor(1000 * log2(alphabet)) (the largest m with 2^m <= alphabet^1000,
+! made exactly in integers), the table spelled as eight sums of rows with
+! [alphabet = k] = min(1, max(0, 1 - abs(alphabet - k))). Trebago has no
+! floor, so the quotient is counted: whole millions of the product first
+! (at most 32), then whole thousands of the rest (at most 999), each the
+! count of k with x - k * step >= 0, which min(1, max(0, ... + 1)) is for
+! integers. ok is 0 for chars or alphabet outside its range, and the bits
+! are divided by it: refused. entropy.kron answers any length: past 4096
+! symbols the two disagree, held.
+trebago entropy
+  in  chars(n), alphabet(n)
+  out bits(n)
+  var ok(n), m1(n), m2(n), m3(n), m4(n), m5(n), m6(n), m7(n), m8(n), x(n), hi(n), lo(n)
+  ok(i) = min(1, max(0, chars(i) + 1)) * min(1, max(0, 4096 - chars(i) + 1)) &
+        * min(1, max(0, alphabet(i))) * min(1, max(0, 256 - alphabet(i) + 1))
+  m1(i) = min(1, max(0, 1 - abs(alphabet(i) - 2))) * 1000 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 3))) * 1584 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 4))) * 2000 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 5))) * 2321 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 6))) * 2584 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 7))) * 2807 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 8))) * 3000 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 9))) * 3169 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 10))) * 3321 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 11))) * 3459 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 12))) * 3584 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 13))) * 3700 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 14))) * 3807 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 15))) * 3906 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 16))) * 4000 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 17))) * 4087 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 18))) * 4169 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 19))) * 4247 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 20))) * 4321 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 21))) * 4392 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 22))) * 4459 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 23))) * 4523 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 24))) * 4584 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 25))) * 4643 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 26))) * 4700 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 27))) * 4754 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 28))) * 4807 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 29))) * 4857 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 30))) * 4906 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 31))) * 4954 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 32))) * 5000 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 33))) * 5044
+  m2(i) = min(1, max(0, 1 - abs(alphabet(i) - 34))) * 5087 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 35))) * 5129 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 36))) * 5169 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 37))) * 5209 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 38))) * 5247 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 39))) * 5285 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 40))) * 5321 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 41))) * 5357 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 42))) * 5392 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 43))) * 5426 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 44))) * 5459 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 45))) * 5491 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 46))) * 5523 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 47))) * 5554 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 48))) * 5584 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 49))) * 5614 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 50))) * 5643 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 51))) * 5672 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 52))) * 5700 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 53))) * 5727 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 54))) * 5754 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 55))) * 5781 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 56))) * 5807 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 57))) * 5832 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 58))) * 5857 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 59))) * 5882 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 60))) * 5906 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 61))) * 5930 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 62))) * 5954 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 63))) * 5977 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 64))) * 6000 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 65))) * 6022
+  m3(i) = min(1, max(0, 1 - abs(alphabet(i) - 66))) * 6044 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 67))) * 6066 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 68))) * 6087 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 69))) * 6108 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 70))) * 6129 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 71))) * 6149 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 72))) * 6169 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 73))) * 6189 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 74))) * 6209 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 75))) * 6228 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 76))) * 6247 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 77))) * 6266 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 78))) * 6285 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 79))) * 6303 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 80))) * 6321 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 81))) * 6339 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 82))) * 6357 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 83))) * 6375 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 84))) * 6392 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 85))) * 6409 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 86))) * 6426 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 87))) * 6442 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 88))) * 6459 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 89))) * 6475 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 90))) * 6491 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 91))) * 6507 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 92))) * 6523 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 93))) * 6539 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 94))) * 6554 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 95))) * 6569 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 96))) * 6584 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 97))) * 6599
+  m4(i) = min(1, max(0, 1 - abs(alphabet(i) - 98))) * 6614 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 99))) * 6629 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 100))) * 6643 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 101))) * 6658 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 102))) * 6672 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 103))) * 6686 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 104))) * 6700 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 105))) * 6714 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 106))) * 6727 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 107))) * 6741 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 108))) * 6754 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 109))) * 6768 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 110))) * 6781 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 111))) * 6794 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 112))) * 6807 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 113))) * 6820 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 114))) * 6832 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 115))) * 6845 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 116))) * 6857 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 117))) * 6870 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 118))) * 6882 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 119))) * 6894 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 120))) * 6906 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 121))) * 6918 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 122))) * 6930 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 123))) * 6942 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 124))) * 6954 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 125))) * 6965 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 126))) * 6977 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 127))) * 6988 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 128))) * 7000 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 129))) * 7011
+  m5(i) = min(1, max(0, 1 - abs(alphabet(i) - 130))) * 7022 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 131))) * 7033 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 132))) * 7044 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 133))) * 7055 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 134))) * 7066 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 135))) * 7076 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 136))) * 7087 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 137))) * 7098 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 138))) * 7108 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 139))) * 7118 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 140))) * 7129 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 141))) * 7139 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 142))) * 7149 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 143))) * 7159 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 144))) * 7169 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 145))) * 7179 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 146))) * 7189 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 147))) * 7199 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 148))) * 7209 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 149))) * 7219 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 150))) * 7228 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 151))) * 7238 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 152))) * 7247 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 153))) * 7257 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 154))) * 7266 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 155))) * 7276 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 156))) * 7285 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 157))) * 7294 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 158))) * 7303 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 159))) * 7312 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 160))) * 7321 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 161))) * 7330
+  m6(i) = min(1, max(0, 1 - abs(alphabet(i) - 162))) * 7339 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 163))) * 7348 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 164))) * 7357 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 165))) * 7366 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 166))) * 7375 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 167))) * 7383 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 168))) * 7392 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 169))) * 7400 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 170))) * 7409 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 171))) * 7417 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 172))) * 7426 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 173))) * 7434 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 174))) * 7442 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 175))) * 7451 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 176))) * 7459 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 177))) * 7467 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 178))) * 7475 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 179))) * 7483 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 180))) * 7491 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 181))) * 7499 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 182))) * 7507 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 183))) * 7515 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 184))) * 7523 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 185))) * 7531 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 186))) * 7539 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 187))) * 7546 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 188))) * 7554 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 189))) * 7562 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 190))) * 7569 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 191))) * 7577 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 192))) * 7584 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 193))) * 7592
+  m7(i) = min(1, max(0, 1 - abs(alphabet(i) - 194))) * 7599 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 195))) * 7607 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 196))) * 7614 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 197))) * 7622 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 198))) * 7629 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 199))) * 7636 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 200))) * 7643 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 201))) * 7651 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 202))) * 7658 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 203))) * 7665 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 204))) * 7672 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 205))) * 7679 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 206))) * 7686 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 207))) * 7693 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 208))) * 7700 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 209))) * 7707 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 210))) * 7714 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 211))) * 7721 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 212))) * 7727 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 213))) * 7734 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 214))) * 7741 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 215))) * 7748 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 216))) * 7754 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 217))) * 7761 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 218))) * 7768 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 219))) * 7774 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 220))) * 7781 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 221))) * 7787 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 222))) * 7794 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 223))) * 7800 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 224))) * 7807 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 225))) * 7813
+  m8(i) = min(1, max(0, 1 - abs(alphabet(i) - 226))) * 7820 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 227))) * 7826 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 228))) * 7832 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 229))) * 7839 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 230))) * 7845 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 231))) * 7851 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 232))) * 7857 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 233))) * 7864 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 234))) * 7870 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 235))) * 7876 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 236))) * 7882 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 237))) * 7888 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 238))) * 7894 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 239))) * 7900 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 240))) * 7906 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 241))) * 7912 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 242))) * 7918 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 243))) * 7924 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 244))) * 7930 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 245))) * 7936 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 246))) * 7942 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 247))) * 7948 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 248))) * 7954 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 249))) * 7960 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 250))) * 7965 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 251))) * 7971 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 252))) * 7977 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 253))) * 7982 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 254))) * 7988 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 255))) * 7994 &
+        + min(1, max(0, 1 - abs(alphabet(i) - 256))) * 8000
+  x(i) = chars(i) * (m1(i) + m2(i) + m3(i) + m4(i) + m5(i) + m6(i) + m7(i) + m8(i))
+  hi(i) = sum(k = 1:32, min(1, max(0, x(i) - k * 1000000 + 1)))
+  lo(i) = sum(k = 1:999, min(1, max(0, x(i) - hi(i) * 1000000 - k * 1000 + 1)))
+  bits(i) = (hi(i) * 1000 + lo(i)) * ok(i) / ok(i)
+end

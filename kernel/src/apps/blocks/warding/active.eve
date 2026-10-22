@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Is a key active (warding_rules.h WR1), in Eve: the one record that fits
+# is a key issued (1), revoked on no device (0 devices say so) and not
+# expired, its days left (lockbox.days_left) 1 to 3650, the longest
+# expiry the limits allow (WR2). Any other row does not fit: not active.
+# active.kron reads issued above 0 as yes, revoked below 1 as none and any
+# days left above 0: a flag that is no flag, a negative count or days
+# past the limits fit KRON but not this record, held.
+eve warding
+key_issued = 1 .. 1
+key_unrevoked = 0 .. 0
+key_left = 1 .. 3650
+
+key_active {
+  issued: key_issued
+  revoked: key_unrevoked
+  left: key_left
+}

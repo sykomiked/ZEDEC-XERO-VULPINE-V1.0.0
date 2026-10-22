@@ -1,0 +1,13 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The key register, in Sutra (warding_rules.h WR3): a serial may enter the
+# register only above the last one entered, so serials rise strictly and
+# none is used twice. Both fit 9(9): a serial past 999999999 (the register
+# has overflowed) or a negative one is a size error, refused, never
+# wrapped or restarted.
+record key-register
+  serial: 9(9)
+  last: 9(9)
+procedure
+  answer serial > last

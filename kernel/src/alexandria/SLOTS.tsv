@@ -456,3 +456,9 @@
 419	num.ratchet_repair_line_cost	592.04	ratchet.repair_line_cost	base
 420	num.ratchet_sensor_hour_faults	592.05	ratchet.sensor_hour_faults	base
 421	num.ratchet_service_hours_left	592.06	ratchet.service_hours_left	base
+422	num.warding_access_grid_cell	592.07	warding.access_grid_cell	base
+423	logic.warding_holder_node_ok	492.09	warding.holder_node_ok	base
+424	logic.warding_key_active	492.10	warding.key_active	base
+425	num.warding_key_entropy_bits	592.08	warding.key_entropy_bits	base
+426	logic.warding_key_expiry_ok	492.11	warding.key_expiry_ok	base
+427	logic.warding_key_serial_ok	492.12	warding.key_serial_ok	base

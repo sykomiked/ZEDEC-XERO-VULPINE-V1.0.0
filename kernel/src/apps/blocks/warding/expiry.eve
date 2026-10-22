@@ -1,0 +1,12 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A key's expiry inside Warding's limits (warding_rules.h WR2), in Eve:
+# 1 to 3650 days from its issue (ten years of 365 days). A key that never
+# expires is not offered: every key carries an expiry.
+eve warding
+expiry_days = 1 .. 3650
+
+key_expiry {
+  days: expiry_days
+}

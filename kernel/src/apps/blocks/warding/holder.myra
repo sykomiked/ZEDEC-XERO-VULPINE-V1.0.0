@@ -1,0 +1,10 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Warding files the keys each holder holds, in MYRA (warding_rules.h
+; WR6): a tree under the holder (their place on seats.list), the kind of
+; thing the key opens (1 a door, 2 a device, 3 an account) and the door's,
+; device's or account's number, with the key's serial (WR3) and when it
+; expires, in seconds since 1970. Never a key's bytes: there is no field
+; for one. The model asks whether the numbers fit before it keeps a key.
+^ZXWARD(holder:i4, kind:i1, item:i4) = serial:i9! ^ expires:i12!

@@ -427,7 +427,13 @@
 #define ALX_SLOT_NUM_RATCHET_REPAIR_LINE_COST    419u /* 592.04 ratchet.repair_line_cost */
 #define ALX_SLOT_NUM_RATCHET_SENSOR_HOUR_FAULTS  420u /* 592.05 ratchet.sensor_hour_faults */
 #define ALX_SLOT_NUM_RATCHET_SERVICE_HOURS_LEFT  421u /* 592.06 ratchet.service_hours_left */
-#define ALX_SLOT__COUNT 421u
+#define ALX_SLOT_NUM_WARDING_ACCESS_GRID_CELL    422u /* 592.07 warding.access_grid_cell */
+#define ALX_SLOT_LOGIC_WARDING_HOLDER_NODE_OK    423u /* 492.09 warding.holder_node_ok */
+#define ALX_SLOT_LOGIC_WARDING_KEY_ACTIVE        424u /* 492.10 warding.key_active */
+#define ALX_SLOT_NUM_WARDING_KEY_ENTROPY_BITS    425u /* 592.08 warding.key_entropy_bits */
+#define ALX_SLOT_LOGIC_WARDING_KEY_EXPIRY_OK     426u /* 492.11 warding.key_expiry_ok */
+#define ALX_SLOT_LOGIC_WARDING_KEY_SERIAL_OK     427u /* 492.12 warding.key_serial_ok */
+#define ALX_SLOT__COUNT 427u
 /* clang-format on */
 
 #endif

@@ -1,0 +1,127 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Warding, keys for doors, devices and accounts: L2, slot 173. One place
+# that issues and revokes the owner's keys: an account's passkeys
+# (passkeys.list, passkeys.revoke), the devices of the owner's mesh
+# (devmesh.devices, devmesh.revoke), the people who hold them (seats.list)
+# and the doors of the home. See warding_model.h WM1-WM8 and
+# warding_rules.h WR1-WR7.
+#
+# Security and advisory: issuing, revoking and every door action is the
+# owner's act (owner_confirmed), and the app never unlocks a door by
+# itself; an AI's suggestion is never run. No key's bytes enter the app:
+# a key is its serial in the register and the public ids zxvd lists.
+# zxvd has no door lock method (as Homestead reports), so a door command
+# the rules allow is kept for a bridge to carry out, and a door key's
+# revocation is the model's own record. zxvd has no method that reads
+# another mesh device's word on a key either: what each device says
+# comes to the model from the view (warding_device_says), this device's
+# own from passkeys.list and devmesh.devices. zxvd has no notification
+# method: the model composes the notice text (notify).
+#
+# Composed, not written again (four uses of ZXAPP_USES 8; every part
+# carries version 1.0.0 and its provides lines): who may issue or revoke
+# a holder's key is threshold.rights_ok and a holder's seat record
+# threshold.seat_ok; "is this use allowed" is gatehouse.use_ok (asked,
+# granted, revoked); a key's days left before it expires are
+# lockbox.days_left; a door command is homestead.device_cmd_ok, a lock
+# being a guarded kind that needs the owner's approval (homestead_owed,
+# through Warren's approval_ok).
+#
+# The task's "matrix 173" is refused by zxapp.c (M1: a matrix layer is
+# 0..144); an L2 app sits on the layer of its part that is outermost in
+# MATRIX_ORDER.tsv: Homestead (place 93, layer 94), past Threshold (3),
+# Lockbox (9) and Gatehouse (8).
+#
+# Later layers use "key active" and the key register (Barbican, Sanctum,
+# Bitting, Collet, Umbra, Bevel, Portcullis, Bulwark, Seachest, Veil), so
+# every entry is general and registered in CONCEPTS.tsv with Warding as
+# owner. Kept in C: text (ids, the notice), zxvd's answers and the
+# four-valued join of the devices' words (lpres_kjoin, WR7).
+#
+# Nim (machine) is planned but Warding has no entry of that kind; no
+# pending line is written for it.
+zxapp 1
+id     warding
+name   Warding
+version 1.0.0
+slot   173
+layer  L2
+matrix 94
+icon   icons/l2/173-warding.svg
+budget 233
+needs  sys.read
+needs  peers
+needs  notify
+model  apps/warding_model.c
+use    threshold 1   # @logic.threshold_rights_ok @logic.threshold_seat_ok
+use    gatehouse 1   # @logic.gatehouse_use_ok
+use    lockbox 1     # @num.lockbox_days_left
+use    homestead 1   # @logic.homestead_device_cmd_ok
+# what it exports, so apps built from it can use them too (C1)
+provides threshold.rights_ok truth role own target
+provides threshold.seat_ok truth seat role lock color wait
+provides gatehouse.use_ok truth asked granted revoked
+provides lockbox.days_left num expires now
+provides homestead.device_cmd_ok truth above below owed ai
+
+# A key is active (WR1, critical): issued AND revoked on no device AND not
+# expired. Ada as Eve declares the one record that fits, APL as KRON
+# reads the flags; a flag that is no flag, a negative count or days past
+# the limits are held (Eve says no, KRON yes).
+provides key_active truth issued revoked left
+logic    eve  key_active apps/blocks/warding/active.eve
+logic    kron key_active apps/blocks/warding/active.kron
+
+# Expiry limits (WR2): 1..3650 days. Ada as Eve.
+provides key_expiry_ok truth days
+logic    eve key_expiry_ok apps/blocks/warding/expiry.eve
+
+# The key register (WR3): serials strictly rising, never reused, refused
+# past 9(9). COBOL as Sutra.
+provides key_serial_ok truth serial last
+logic    sutra key_serial_ok apps/blocks/warding/register.sutra
+
+# Entropy from two lengths (WR4, critical): FORTRAN as Trebago and APL as
+# KRON over one integer table; past 4096 symbols, or an alphabet of 0,
+# held (Trebago refuses, KRON answers).
+provides key_entropy_bits num chars alphabet
+logic    trebago key_entropy_bits apps/blocks/warding/entropy.tb
+logic    kron    key_entropy_bits apps/blocks/warding/entropy.kron
+
+# The access grid (WR5), holders by doors or devices. APL as KRON.
+provides access_grid_cell num holder item live
+logic    kron access_grid_cell apps/blocks/warding/grid.kron
+
+# The holder tree (WR6): ^ZXWARD(holder, kind, item) = serial ^ expires.
+# MUMPS as MYRA; Kotlin (objects) waits on it.
+provides holder_node_ok truth holder kind item serial expires
+logic    myra holder_node_ok apps/blocks/warding/holder.myra
+pending  Kotlin holder_node_ok
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check key_active issued=1,1,0,1,1,1 revoked=0,0,0,1,0,2 left=1,3650,5,5,0,5 = true,true,false,false,false,false
+check key_active issued=1,2 revoked=0,0 left=5,5 = both
+check key_active issued=1,1 revoked=0,-1 left=5,5 = both
+check key_active issued=1,1 revoked=0,0 left=5,3651 = both
+check key_expiry_ok days=1,3650,0,3651,-1,365 = true,true,false,false,false,true
+check key_serial_ok serial=1,19,19,999999999,0 last=0,18,19,999999998,0 = true,true,false,true,false
+check key_entropy_bits chars=32,16,0,4096,20,1 alphabet=256,62,256,256,10,1 = 256,95,0,32768,66,0
+check key_entropy_bits chars=32,4097 alphabet=256,256 = both
+check key_entropy_bits chars=32,32 alphabet=256,0 = both
+check access_grid_cell holder=1,1,2,1,2 item=7,7,7,9,7 live=1,1,1,0,0 = 2,2,1,0,1
+check holder_node_ok holder=1,9999,10000,1,1 kind=1,3,1,10,1 item=7,9999,1,1,1 serial=19,999999999,1,1,1 expires=1760000000,999999999999,1,1,1000000000000 = true,true,false,false,false
+# Who may issue or revoke a holder's key, and a holder's seat record
+check threshold.rights_ok role=1,1,1,2,2,2,3,3,1 own=0,1,0,1,0,1,1,0,0 target=2,1,3,2,2,3,3,2,0 = true,true,false,true,false,false,false,false,false
+check threshold.rights_ok role=1,10 own=0,0 target=2,2 = both
+check threshold.seat_ok seat=0,4095,9999,10000 role=1,3,9,1 lock=0,2,9,0 color=0,4294967295,9999999999,0 wait=0,3600000,9999999,0 = true,true,true,false
+# Is this use allowed
+check gatehouse.use_ok asked=1,1,0,1,0,1 granted=1,0,1,1,0,1 revoked=0,0,0,1,0,1 = true,false,false,false,false,false
+check gatehouse.use_ok asked=1,2 granted=1,1 revoked=0,0 = both
+# A key's days left before it expires
+check lockbox.days_left expires=86400,172799,0,253402300799 now=0,0,86400,0 = 1,1,0,2932896
+check lockbox.days_left expires=86400,-1 now=0,0 = both
+# A door command: a lock needs the owner, an AI's suggestion never runs
+check homestead.device_cmd_ok above=0,1,1,1,1 below=1,0,0,0,0 owed=0,-1,1,0,0 ai=0,0,0,0,1 = true,true,false,true,false
+check homestead.device_cmd_ok above=5,5 below=5,5 owed=0,-2 ai=0,0 = both
