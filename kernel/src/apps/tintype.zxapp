@@ -1,0 +1,164 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tintype, the photo workflow: L2, slot 167. Photos and screen grabs are
+# captured, developed and catalogued in one workflow in the Hoard: each is
+# kept as "Tintype/Album N/Photo M.jpg" (or .png), M the first number free
+# in files.list's listing of its album, written with files.write as a new
+# file and its size confirmed with files.stat, within the room sys.disk
+# reports; a photo is checked against its record by reading it back with
+# files.read. Albums, the rights register and the record of every photo
+# are kept in "Tintype/catalogue.txt". See tintype_model.h TM1-TM8 and
+# tintype_rules.h TR1-TR6. Keeping a photo or the catalogue takes the
+# owner's word; the rights register and "possibly altered" are advisory:
+# Tintype says what it read, the owner decides.
+#
+# zxvd has no method that decodes an image (as Gridmark reports), none
+# that captures the display (as Glimpse reports) and none that captures a
+# camera frame (as Pinhole reports; api/zxvd.openrpc.json lists none). So
+# the view captures the frame or the screen and hands the model its bytes
+# with what the camera or screen reported, and the view's decoder hands the
+# develop step its channel values; the model reads only an image's header
+# (JPEG SOF and EXIF time, PNG IHDR) itself. None is invented.
+#
+# Composed, not written again (five uses of ZXAPP_USES 8; its own 8 logic
+# lines and its parts' are within ZXAPP_LOGIC_MAX 128, tests/tintype_zxapp.inc
+# counts them):
+#   glint.item_ok             each catalogued photo as a media item
+#   gesso.pixel_bright, gesso.pixel_contrast   the develop step's pixel
+#                             operations, after the curve
+#   gesso.pixel_range_count   the histogram, one bin a range of levels
+#   pinhole.camera_ready      the camera may take the frame
+#   pinhole.exposure_ok       the exposure inside its limits
+#   pinhole.photo_record_ok   a photo's record fits ^ZXPINHOLE
+#   lifeboat.restore_fits     "photo fits" (Pinhole's PH4): Pinhole takes it
+#                             from Lifeboat and exports only its own
+#                             entries, so Tintype uses the owner, Lifeboat
+#   glimpse.capture_origin    the capture region's corner, clamped
+#   glimpse.recording_bytes   a screen recording's size against the room
+#   glimpse.first_free_n      the first free photo number in an album
+#
+# matrix: zxapp.c takes 0..144 and slot 167 is no matrix layer; an L2 app
+# sits on the layer of its part outermost in MATRIX_ORDER.tsv: Glimpse
+# (place 107, layer 111), past Pinhole (58), Gesso (53), Lifeboat (11) and
+# Glint (wave 0).
+#
+# Witness pairs answer one kind. The exposure value is FORTRAN as Trebago
+# and APL as KRON, numbers both: an input off its table is refused by
+# Trebago and counted by KRON: held. "Possibly altered" is Ada as Eve and
+# APL as KRON, truths both, over the gaps between the record and the
+# decode (the model takes the differences, since Eve holds each field to
+# its own range and cannot relate two): a content-id flag of 2 is no flag
+# to Eve and the same id to KRON: held. The rights register is COBOL as
+# Sutra (fixed records), the storage limit Ada as Eve, the develop curve
+# over image arrays APL as KRON and the album tree MUMPS as MYRA. The C of
+# each is tintype_rules.h.
+#
+# Later layers (Parsec, Stereoscope, Chintz, Monochord, Vernier, Parallax,
+# Galliard) use the exposure value and "possibly altered", so both are
+# registered in CONCEPTS.tsv with Tintype as owner. Kept in C: text (names,
+# paths, the catalogue), zxvd's answers, an image's header, the content id
+# (SHA-256) and the four-valued join of the record and the decode
+# (lpres_kjoin: BOTH, flagged possibly altered).
+#
+# Planned (no runtime yet): Julia owns numeric work and stands for the
+# exposure value; Clojure owns immutable data transforms, which the
+# develop curve over an image array is. JavaScript, also planned, owns
+# views and scripting and runs already; Tintype has no entry of either
+# kind, so it has no line here.
+#
+# Defaults taken (tintype_model.h): 16 albums, 64 photos, a capture of at
+# most 2 MiB, 64 MiB kept free on the disk, an EXIF time read on the
+# camera's own clock.
+zxapp 1
+id     tintype
+name   Tintype
+version 1.0.0
+slot   167
+layer  L2
+matrix 111
+icon   icons/l2/167-tintype.svg
+budget 233
+needs  camera
+needs  fs.read
+needs  fs.write
+needs  sys.read
+model  apps/tintype_model.c
+use    glint 1      # @logic.glint_item_ok
+use    gesso 1      # @num.gesso_pixel_bright @num.gesso_pixel_contrast @num.gesso_pixel_range_count
+use    pinhole 1    # @logic.pinhole_camera_ready @logic.pinhole_exposure_ok @logic.pinhole_photo_record_ok
+use    lifeboat 1   # @logic.lifeboat_restore_fits
+use    glimpse 1    # @num.glimpse_capture_origin @num.glimpse_recording_bytes @num.glimpse_first_free_n
+# what it exports, so apps built from it can use them too (C1)
+provides glint.item_ok truth folder seq kind size
+provides gesso.pixel_bright num px delta
+provides gesso.pixel_contrast num px gain
+provides gesso.pixel_range_count num px lo hi
+provides pinhole.camera_ready truth sensor mode buffer
+provides pinhole.exposure_ok truth iso shutter comp
+provides pinhole.photo_record_ok truth photo album bytes width height placed stamp
+provides lifeboat.restore_fits truth need free reserve
+provides glimpse.capture_origin num pos span
+provides glimpse.recording_bytes num w h bpp secs fps room
+provides glimpse.first_free_n num used
+
+# The exposure value in thirds of a stop (TR1, critical): FORTRAN as
+# Trebago and APL as KRON, witnessed.
+provides exposure_ev_thirds num aperture shutter iso
+logic    trebago exposure_ev_thirds apps/blocks/tintype/ev.tb
+logic    kron    exposure_ev_thirds apps/blocks/tintype/ev.kron
+pending  Julia exposure_ev_thirds
+
+# "Possibly altered" (TR2, critical): Ada as Eve and APL as KRON, witnessed.
+provides photo_decode_ok truth wgap hgap tgap cidsame
+logic    eve  photo_decode_ok apps/blocks/tintype/match.eve
+logic    kron photo_decode_ok apps/blocks/tintype/match.kron
+
+# The rights register (TR3): COBOL as Sutra, fixed records.
+provides rights_record_ok truth photo owner licence release
+logic    sutra rights_record_ok apps/blocks/tintype/rights.sutra
+
+# The storage limit (TR4): Ada as Eve.
+provides album_storage_ok truth room declared
+logic    eve album_storage_ok apps/blocks/tintype/storage.eve
+
+# The develop curve over an image array (TR5): APL as KRON.
+provides develop_curve_px num px curve
+logic    kron develop_curve_px apps/blocks/tintype/curve.kron
+pending  Clojure develop_curve_px
+
+# The album tree (TR6): MUMPS as MYRA.
+provides album_node_ok truth parent album declared used photos
+logic    myra album_node_ok apps/blocks/tintype/album.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check exposure_ev_thirds aperture=160,10,320,28,14,160 shutter=8000,31,30000000,1000000,16666,7999 iso=100,25,25600,100,400,99 = 45,51,-9,9,15,47
+check exposure_ev_thirds aperture=160,9 shutter=8000,8000 iso=100,100 = both
+check exposure_ev_thirds aperture=160,160 shutter=8000,30000001 iso=100,100 = both
+check photo_decode_ok wgap=0,10,0,0,0,0,0 hgap=0,0,-1,0,0,0,0 tgap=0,0,0,1,-1,2,0 cidsame=1,1,1,1,1,1,0 = true,false,false,true,true,false,false
+check photo_decode_ok wgap=0,0 hgap=0,0 tgap=0,0 cidsame=1,2 = both
+check rights_record_ok photo=1,999999999,0,1,1,1 owner=1,999999999,1,0,1,1 licence=0,7,2,2,8,2 release=0,1,1,1,0,2 = true,true,false,false,false,false
+check album_storage_ok room=0,999999999999999,-1,1000000000000000,5 declared=1,999999999999999,100,999999999999999,0 = true,true,false,false,false
+check develop_curve_px px=0,63,64,128,200,255 curve=0,40,128,200,255 = 0,39,40,128,206,255
+check develop_curve_px px=0,100,255 curve=255,200,128,60,0 = 255,159,0
+check album_node_ok parent=0,9999,10000,1,1,1 album=1,9999,1,1,1,1 declared=1,999999999999999,1,1000000000000000,1,1 used=0,999999999999999,0,0,0,0 photos=0,99999,0,0,100000,-99999 = true,true,false,false,false,true
+# The parts: a catalogued item, the develop step and the histogram, the camera, the room, the screen
+check glint.item_ok folder=1,1 seq=1,2 kind=3,1000 size=5,5 = true,false
+check gesso.pixel_bright px=0,255,100,100,128,0 delta=0,0,50,-150,-1,255 = 0,255,150,0,127,255
+check gesso.pixel_bright px=10,256 delta=0,0 = both
+check gesso.pixel_contrast px=128,0,255,100,200,127 gain=10000,10000,10000,20000,20000,5000 = 128,0,255,72,255,127
+check gesso.pixel_contrast px=10,-1 gain=10000,10000 = both
+check gesso.pixel_range_count px=0,10,128,255,128,129 lo=10 hi=128 = 3
+check gesso.pixel_range_count px=1,2 lo=1,1 hi=2,2 = both
+check pinhole.camera_ready sensor=1,0,1,1 mode=1,1,0,1 buffer=1,1,1,0 = true,false,false,false
+check pinhole.camera_ready sensor=1,2 mode=1,1 buffer=1,1 = both
+check pinhole.exposure_ok iso=25,25600,24,100 shutter=31,30000000,8000,30000001 comp=-9,9,0,0 = true,true,false,false
+# agree: pinhole.exposure_ok Eve and KRON hold the same three ranges, each on its own, with nothing relating them, so no integer input can split them
+check pinhole.photo_record_ok photo=1,1000000000 album=0,0 bytes=1,1 width=4000,1 height=3000,1 placed=0,0 stamp=1792627200000,1 = true,false
+check lifeboat.restore_fits need=0,3000000,3000001 free=0,4000000,4000000 reserve=0,1000000,1000000 = true,true,false
+check lifeboat.restore_fits need=1,-1 free=10,10 reserve=1,1 = both
+check glimpse.capture_origin pos=-5,0,10,1920,3000 span=1920,1920,1920,1920,1920 = 0,0,10,1920,1920
+check glimpse.capture_origin pos=10,10 span=1920,0 = both
+check glimpse.recording_bytes w=1920,1920 h=1080,1080 bpp=4,4 secs=10,10 fps=30,30 room=2488320000,2488319999 = 2488320000,-1
+check glimpse.recording_bytes w=1920,1920 h=1080,1080 bpp=4,4 secs=10,10 fps=30,61 room=999999999,999999999999 = both
+check glimpse.first_free_n used=1,3,2,6 = 4

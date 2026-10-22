@@ -1,0 +1,5 @@
+s:3&_px%64
+lo:curve@s
+hi:curve@s+1
+w:64-0|1&s-2
+lo+_((hi-lo)*px-64*s)%w

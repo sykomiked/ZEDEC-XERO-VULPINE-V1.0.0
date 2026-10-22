@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A row of Tintype's rights register (tintype_rules.h TR3), in Sutra: a
+# fixed business record of the photo's number, its owner's number, the
+# licence code it is offered under (0 all rights reserved, 1 public
+# domain dedication, 2 attribution, 3 attribution share-alike, 4
+# attribution no derivatives, 5 attribution non-commercial, 6
+# non-commercial share-alike, 7 non-commercial no derivatives) and the
+# release flag (1 when a signed release from the people shown is on
+# file). The photo and owner fit 9(9), the code 9(2) and the flag 9(1):
+# a negative value, or one with more digits, is a size error, refused.
+record rights-row
+  photo: 9(9)
+  owner: 9(9)
+  licence: 9(2)
+  release: 9(1)
+procedure
+  answer photo >= 1 and owner >= 1 and licence <= 7 and release <= 1

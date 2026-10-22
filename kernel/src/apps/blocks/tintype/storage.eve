@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# An album at most the bytes the owner declared for it (tintype_rules.h
+# TR4), in Eve: room is the declared bytes less those the album holds and
+# those a photo would add (the model computes it), never below 0, and the
+# declaration itself is 1 byte to 15 digits of bytes. Each field is held
+# to its own range.
+eve tintype
+album_room = 0 .. 999999999999999
+album_declared = 1 .. 999999999999999
+
+album_storage {
+  room: album_room
+  declared: album_declared
+}

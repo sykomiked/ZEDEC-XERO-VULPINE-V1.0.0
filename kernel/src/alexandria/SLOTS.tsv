@@ -577,3 +577,9 @@
 540	logic.handfast_clause_node_ok	492.64	handfast.clause_node_ok	base
 541	num.handfast_clause_party_state	592.70	handfast.clause_party_state	base
 542	num.handfast_obligation_share	592.71	handfast.obligation_share	base
+543	logic.tintype_album_node_ok	492.65	tintype.album_node_ok	base
+544	logic.tintype_album_storage_ok	492.66	tintype.album_storage_ok	base
+545	num.tintype_develop_curve_px	592.72	tintype.develop_curve_px	base
+546	num.tintype_exposure_ev_thirds	592.73	tintype.exposure_ev_thirds	base
+547	logic.tintype_photo_decode_ok	492.67	tintype.photo_decode_ok	base
+548	logic.tintype_rights_record_ok	492.68	tintype.rights_record_ok	base

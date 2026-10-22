@@ -1,0 +1,84 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The exposure value at ISO 100 in thirds of a stop, in Trebago
+! (tintype_rules.h TR1): av + tv - sv, each the place of the input on its
+! integer log2 table of third stops, the largest nominal value at most it.
+! aperture in tenths of an f-number (10 f/1 .. 320 f/32, av 0 .. 30),
+! shutter in microseconds (31 1/32000 s .. 30000000 30 s, tv 45 at 1/32000
+! s, 0 at 1 s, -15 at 30 s) and iso (25 .. 25600, sv 0 at 100). Each table
+! is a sum of steps: min(1, max(0, x - t + 1)) is 1 exactly when x >= t,
+! for integers. ok is 0 for an input outside its table, and the answer
+! divided by it is refused, where ev.kron counts it anyway: held. f/16 at
+! 1/125 s and ISO 100 is EV 15, 45 thirds.
+trebago exposurevalue
+  in  aperture(n), shutter(n), iso(n)
+  out ev(n)
+  var ok(n), av(n), tv(n), sv(n)
+  ok(i) = min(1, max(0, aperture(i) - 9)) * min(1, max(0, 321 - aperture(i))) &
+        * min(1, max(0, shutter(i) - 30)) * min(1, max(0, 30000001 - shutter(i))) &
+        * min(1, max(0, iso(i) - 24)) * min(1, max(0, 25601 - iso(i)))
+  av(i) = min(1, max(0, aperture(i) - 10)) + min(1, max(0, aperture(i) - 11)) &
+        + min(1, max(0, aperture(i) - 13)) + min(1, max(0, aperture(i) - 15)) &
+        + min(1, max(0, aperture(i) - 17)) + min(1, max(0, aperture(i) - 19)) &
+        + min(1, max(0, aperture(i) - 21)) + min(1, max(0, aperture(i) - 24)) &
+        + min(1, max(0, aperture(i) - 27)) + min(1, max(0, aperture(i) - 31)) &
+        + min(1, max(0, aperture(i) - 34)) + min(1, max(0, aperture(i) - 39)) &
+        + min(1, max(0, aperture(i) - 44)) + min(1, max(0, aperture(i) - 49)) &
+        + min(1, max(0, aperture(i) - 55)) + min(1, max(0, aperture(i) - 62)) &
+        + min(1, max(0, aperture(i) - 70)) + min(1, max(0, aperture(i) - 79)) &
+        + min(1, max(0, aperture(i) - 89)) + min(1, max(0, aperture(i) - 99)) &
+        + min(1, max(0, aperture(i) - 109)) + min(1, max(0, aperture(i) - 129)) &
+        + min(1, max(0, aperture(i) - 139)) + min(1, max(0, aperture(i) - 159)) &
+        + min(1, max(0, aperture(i) - 179)) + min(1, max(0, aperture(i) - 199)) &
+        + min(1, max(0, aperture(i) - 219)) + min(1, max(0, aperture(i) - 249)) &
+        + min(1, max(0, aperture(i) - 289)) + min(1, max(0, aperture(i) - 319))
+  tv(i) = min(1, max(0, shutter(i) - 38)) + min(1, max(0, shutter(i) - 49)) &
+        + min(1, max(0, shutter(i) - 61)) + min(1, max(0, shutter(i) - 77)) &
+        + min(1, max(0, shutter(i) - 99)) + min(1, max(0, shutter(i) - 124)) &
+        + min(1, max(0, shutter(i) - 155)) + min(1, max(0, shutter(i) - 199)) &
+        + min(1, max(0, shutter(i) - 249)) + min(1, max(0, shutter(i) - 311)) &
+        + min(1, max(0, shutter(i) - 399)) + min(1, max(0, shutter(i) - 499)) &
+        + min(1, max(0, shutter(i) - 624)) + min(1, max(0, shutter(i) - 799)) &
+        + min(1, max(0, shutter(i) - 999)) + min(1, max(0, shutter(i) - 1249)) &
+        + min(1, max(0, shutter(i) - 1561)) + min(1, max(0, shutter(i) - 1999)) &
+        + min(1, max(0, shutter(i) - 2499)) + min(1, max(0, shutter(i) - 3124)) &
+        + min(1, max(0, shutter(i) - 3999)) + min(1, max(0, shutter(i) - 4999)) &
+        + min(1, max(0, shutter(i) - 6249)) + min(1, max(0, shutter(i) - 7999)) &
+        + min(1, max(0, shutter(i) - 9999)) + min(1, max(0, shutter(i) - 12499)) &
+        + min(1, max(0, shutter(i) - 16665)) + min(1, max(0, shutter(i) - 19999)) &
+        + min(1, max(0, shutter(i) - 24999)) + min(1, max(0, shutter(i) - 33332)) &
+        + min(1, max(0, shutter(i) - 39999)) + min(1, max(0, shutter(i) - 49999)) &
+        + min(1, max(0, shutter(i) - 66665)) + min(1, max(0, shutter(i) - 76922)) &
+        + min(1, max(0, shutter(i) - 99999)) + min(1, max(0, shutter(i) - 124999)) &
+        + min(1, max(0, shutter(i) - 166665)) + min(1, max(0, shutter(i) - 199999)) &
+        + min(1, max(0, shutter(i) - 249999)) + min(1, max(0, shutter(i) - 333332)) &
+        + min(1, max(0, shutter(i) - 399999)) + min(1, max(0, shutter(i) - 499999)) &
+        + min(1, max(0, shutter(i) - 624999)) + min(1, max(0, shutter(i) - 769229)) &
+        + min(1, max(0, shutter(i) - 999999)) + min(1, max(0, shutter(i) - 1299999)) &
+        + min(1, max(0, shutter(i) - 1599999)) + min(1, max(0, shutter(i) - 1999999)) &
+        + min(1, max(0, shutter(i) - 2499999)) + min(1, max(0, shutter(i) - 3199999)) &
+        + min(1, max(0, shutter(i) - 3999999)) + min(1, max(0, shutter(i) - 4999999)) &
+        + min(1, max(0, shutter(i) - 5999999)) + min(1, max(0, shutter(i) - 7999999)) &
+        + min(1, max(0, shutter(i) - 9999999)) + min(1, max(0, shutter(i) - 12999999)) &
+        + min(1, max(0, shutter(i) - 14999999)) &
+        + min(1, max(0, shutter(i) - 19999999)) &
+        + min(1, max(0, shutter(i) - 24999999)) &
+        + min(1, max(0, shutter(i) - 29999999))
+  sv(i) = min(1, max(0, iso(i) - 31)) + min(1, max(0, iso(i) - 39)) &
+        + min(1, max(0, iso(i) - 49)) + min(1, max(0, iso(i) - 63)) &
+        + min(1, max(0, iso(i) - 79)) + min(1, max(0, iso(i) - 99)) &
+        + min(1, max(0, iso(i) - 124)) + min(1, max(0, iso(i) - 159)) &
+        + min(1, max(0, iso(i) - 199)) + min(1, max(0, iso(i) - 249)) &
+        + min(1, max(0, iso(i) - 319)) + min(1, max(0, iso(i) - 399)) &
+        + min(1, max(0, iso(i) - 499)) + min(1, max(0, iso(i) - 639)) &
+        + min(1, max(0, iso(i) - 799)) + min(1, max(0, iso(i) - 999)) &
+        + min(1, max(0, iso(i) - 1249)) + min(1, max(0, iso(i) - 1599)) &
+        + min(1, max(0, iso(i) - 1999)) + min(1, max(0, iso(i) - 2499)) &
+        + min(1, max(0, iso(i) - 3199)) + min(1, max(0, iso(i) - 3999)) &
+        + min(1, max(0, iso(i) - 4999)) + min(1, max(0, iso(i) - 6399)) &
+        + min(1, max(0, iso(i) - 7999)) + min(1, max(0, iso(i) - 9999)) &
+        + min(1, max(0, iso(i) - 12799)) + min(1, max(0, iso(i) - 15999)) &
+        + min(1, max(0, iso(i) - 19999)) + min(1, max(0, iso(i) - 25599))
+  ev(i) = (av(i) + 45 - tv(i) - sv(i) + 6) / ok(i)
+end

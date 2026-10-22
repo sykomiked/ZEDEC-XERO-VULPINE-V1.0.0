@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Does a photo decode to what its record says (tintype_rules.h TR2), in
+# Eve: the recorded width and height less the decoded ones are each 0, the
+# recorded time less the decoded time is within the camera clock's second
+# either way, and the content id the file hashes to is the recorded one
+# (cidsame exactly 1). Each gap is held to its own range; any other record
+# does not fit: possibly altered. match.kron says the same, but reads any
+# cidsame above 0 as the same id, so a cidsame of 2 is held.
+eve tintype
+gap_none = 0 .. 0
+clock_slack = -1 .. 1
+flag_yes = 1 .. 1
+
+photo_decode {
+  wgap: gap_none
+  hgap: gap_none
+  tgap: clock_slack
+  cidsame: flag_yes
+}

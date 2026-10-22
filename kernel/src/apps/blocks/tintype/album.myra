@@ -1,0 +1,7 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Tintype files an album in its tree, in MYRA (tintype_rules.h TR6):
+; under its parent album (0 the root), its own number, then the bytes the
+; owner declared for it, the bytes it holds and how many photos it holds.
+^ZXTINTYPE(parent:i4, album:i4) = declared:i15! ^ used:i15! ^ photos:i5!

@@ -548,7 +548,13 @@
 #define ALX_SLOT_LOGIC_HANDFAST_CLAUSE_NODE_OK   540u /* 492.64 handfast.clause_node_ok */
 #define ALX_SLOT_NUM_HANDFAST_CLAUSE_PARTY_STATE 541u /* 592.70 handfast.clause_party_state */
 #define ALX_SLOT_NUM_HANDFAST_OBLIGATION_SHARE   542u /* 592.71 handfast.obligation_share */
-#define ALX_SLOT__COUNT 542u
+#define ALX_SLOT_LOGIC_TINTYPE_ALBUM_NODE_OK     543u /* 492.65 tintype.album_node_ok */
+#define ALX_SLOT_LOGIC_TINTYPE_ALBUM_STORAGE_OK  544u /* 492.66 tintype.album_storage_ok */
+#define ALX_SLOT_NUM_TINTYPE_DEVELOP_CURVE_PX    545u /* 592.72 tintype.develop_curve_px */
+#define ALX_SLOT_NUM_TINTYPE_EXPOSURE_EV_THIRDS  546u /* 592.73 tintype.exposure_ev_thirds */
+#define ALX_SLOT_LOGIC_TINTYPE_PHOTO_DECODE_OK   547u /* 492.67 tintype.photo_decode_ok */
+#define ALX_SLOT_LOGIC_TINTYPE_RIGHTS_RECORD_OK  548u /* 492.68 tintype.rights_record_ok */
+#define ALX_SLOT__COUNT 548u
 /* clang-format on */
 
 #endif
