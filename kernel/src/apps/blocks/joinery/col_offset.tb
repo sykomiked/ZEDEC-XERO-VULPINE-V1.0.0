@@ -1,0 +1,16 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A column's byte offset in its line, in Trebago (joinery_rules.h JR3):
+! width holds the UTF-8 width of each character of the line in bytes,
+! 1..4, and column col (0 the first) starts after the exact sum of the
+! widths before it; col is 0..n, n meaning the end of the line. A width
+! that is no UTF-8 width, or a column outside the line, is refused.
+trebago utf8_col_offset
+  in  width(n), col
+  out offset
+  var bad(n)
+  bad(i) = min(1, max(0, 1 - width(i))) + min(1, max(0, width(i) - 4))
+  offset = sum(i, width(i) * min(1, max(0, col - i + 1))) &
+         / (min(1, max(0, col + 1)) * min(1, max(0, n - col + 1)) * (1 - min(1, sum(i, bad(i)))))
+end

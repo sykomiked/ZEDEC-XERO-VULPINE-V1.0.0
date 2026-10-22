@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The edit buffer's limits (joinery_rules.h JR5), in Eve: the file at
+# most 16 MiB (16777216 bytes, inside zxvd's 256 MiB ZXF_FILE_MAX), its
+# longest line at most 65536 bytes (its newline aside) and the undo
+# history at most 1024 steps. Eve holds each count to its own range alone;
+# buffer.kron also holds the longest line inside its file: a line longer
+# than the file it is in is no measurement, held.
+eve joinery
+file_bytes = 0 .. 16777216
+line_bytes = 0 .. 65536
+undo_steps = 0 .. 1024
+
+edit_buffer {
+  filebytes: file_bytes
+  linebytes: line_bytes
+  undosteps: undo_steps
+}

@@ -1,0 +1,1 @@
+(filebytes>-1)&(filebytes<16777217)&(linebytes>-1)&(linebytes<65537)&(undosteps>-1)&(undosteps<1025)&linebytes<filebytes+1

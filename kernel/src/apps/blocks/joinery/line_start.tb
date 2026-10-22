@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Where a line starts, in Trebago (joinery_rules.h JR1): the byte offset
+! of line `line` (0 the first) is the exact sum of the bytes of the lines
+! before it. linebytes holds each line ended by a newline, the newline
+! counted, so each is 1..65537 (a line of at most 65536 bytes and its
+! newline); line is 0..n, n meaning the end of the last of them. Anything
+! else is no measurement: ok is 0 and the division refuses it.
+trebago line_start_offset
+  in  linebytes(n), line
+  out start
+  var bad(n)
+  bad(i) = min(1, max(0, 1 - linebytes(i))) + min(1, max(0, linebytes(i) - 65537))
+  start = sum(i, linebytes(i) * min(1, max(0, line - i + 1))) &
+        / (min(1, max(0, line + 1)) * min(1, max(0, n - line + 1)) * (1 - min(1, sum(i, bad(i)))))
+end

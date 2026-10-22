@@ -1,0 +1,20 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The column at a byte offset in its line, in Trebago (joinery_rules.h
+! JR4): over width, each character's UTF-8 width 1..4, the column at off
+! is how many characters end at or before it. off must fall on a
+! character's boundary (0, or where one ends): an offset inside a
+! character, past the line or negative is refused, as is a width that is
+! no UTF-8 width (on or ok is 0 and the division refuses it).
+trebago utf8_offset_col
+  in  width(n), off
+  out col
+  var bad(n), ends(n)
+  bad(i) = min(1, max(0, 1 - width(i))) + min(1, max(0, width(i) - 4))
+  ends(i) = scan(width(i))
+  col = sum(i, min(1, max(0, off - ends(i) + 1))) &
+      / ((max(0, min(1, 1 + off)) * max(0, min(1, 1 - off)) &
+          + sum(i, max(0, min(1, 1 + off - ends(i))) * max(0, min(1, 1 + ends(i) - off)))) &
+         * (1 - min(1, sum(i, bad(i)))))
+end

@@ -1,0 +1,18 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Which line holds a byte, in Trebago (joinery_rules.h JR2): the line of
+! byte offset off (0 the first) is how many lines end at or before it,
+! counted over linebytes, each line ended by a newline with the newline
+! counted (1..65537 bytes each); the text after the last newline is the
+! line after them. off is 0..16777216 (a file of at most 16 MiB). Anything
+! else is no measurement: the division by 0 refuses it.
+trebago offset_line_index
+  in  linebytes(n), off
+  out line
+  var bad(n), ends(n)
+  bad(i) = min(1, max(0, 1 - linebytes(i))) + min(1, max(0, linebytes(i) - 65537))
+  ends(i) = scan(linebytes(i))
+  line = sum(i, min(1, max(0, off - ends(i) + 1))) &
+       / (min(1, max(0, off + 1)) * min(1, max(0, 16777216 - off + 1)) * (1 - min(1, sum(i, bad(i)))))
+end

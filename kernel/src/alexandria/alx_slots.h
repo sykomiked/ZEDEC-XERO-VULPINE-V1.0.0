@@ -445,7 +445,13 @@
 #define ALX_SLOT_NUM_LEVIN_CIRCUIT_ROOM_WATTS    437u /* 592.15 levin.circuit_room_watts */
 #define ALX_SLOT_LOGIC_LEVIN_PANEL_CIRCUIT_OK    438u /* 492.16 levin.panel_circuit_ok */
 #define ALX_SLOT_NUM_LEVIN_WIRING_PERMIT_FEE     439u /* 592.16 levin.wiring_permit_fee */
-#define ALX_SLOT__COUNT 439u
+#define ALX_SLOT_LOGIC_JOINERY_EDIT_BUFFER_OK    440u /* 492.17 joinery.edit_buffer_ok */
+#define ALX_SLOT_NUM_JOINERY_LINE_START_OFFSET   441u /* 592.17 joinery.line_start_offset */
+#define ALX_SLOT_NUM_JOINERY_OFFSET_LINE_INDEX   442u /* 592.18 joinery.offset_line_index */
+#define ALX_SLOT_LOGIC_JOINERY_UNDO_RECORD_OK    443u /* 492.18 joinery.undo_record_ok */
+#define ALX_SLOT_NUM_JOINERY_UTF8_COL_OFFSET     444u /* 592.19 joinery.utf8_col_offset */
+#define ALX_SLOT_NUM_JOINERY_UTF8_OFFSET_COL     445u /* 592.20 joinery.utf8_offset_col */
+#define ALX_SLOT__COUNT 445u
 /* clang-format on */
 
 #endif

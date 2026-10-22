@@ -474,3 +474,9 @@
 437	num.levin_circuit_room_watts	592.15	levin.circuit_room_watts	base
 438	logic.levin_panel_circuit_ok	492.16	levin.panel_circuit_ok	base
 439	num.levin_wiring_permit_fee	592.16	levin.wiring_permit_fee	base
+440	logic.joinery_edit_buffer_ok	492.17	joinery.edit_buffer_ok	base
+441	num.joinery_line_start_offset	592.17	joinery.line_start_offset	base
+442	num.joinery_offset_line_index	592.18	joinery.offset_line_index	base
+443	logic.joinery_undo_record_ok	492.18	joinery.undo_record_ok	base
+444	num.joinery_utf8_col_offset	592.19	joinery.utf8_col_offset	base
+445	num.joinery_utf8_offset_col	592.20	joinery.utf8_offset_col	base

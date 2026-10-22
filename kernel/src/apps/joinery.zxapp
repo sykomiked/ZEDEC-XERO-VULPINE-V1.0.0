@@ -1,0 +1,131 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Joinery, the code editor: layer 121 of the matrix. One source file of
+# the Hoard in an edit buffer, read with files.read and saved whole with
+# files.write (replace, or begin, add..., end when it does not fit one
+# request line) and renamed with files.rename; found in files with
+# search.query and search.refresh; run as a Playground template's file
+# with play.run (scratch state, never the books); and the swarm's
+# suggestions (swarm.ask) held until the person accepts them (zxm.h M3).
+# Every method is zxvd's; none is invented.
+#
+# Advisory and owner-confirmed (joinery_model.h JM4): a save or a rename
+# changes the Hoard, so each waits for the owner's word and sends nothing
+# without it; a new file is written exclusive, never over another. A
+# suggestion changes only the buffer, as an ordinary edit that can be
+# undone, and only when the person accepts it.
+#
+# 1 later layer leans on this one (Glimpse, 111), so the places of a text
+# (a line's start, the line of a byte, a column's byte offset and back),
+# the buffer's limits and the undo record are general rules owned here
+# (CONCEPTS.tsv). Of the layers the task names, Toolchest (126), Coffer
+# (73), Fairground (79) and Trellis (29) are built before this one, but
+# Joinery judges no kit, moves no money, makes no offer and pairs no
+# device, so none is used. How full the buffer is, of its 16 MiB, is
+# used_share.used_x100 (the core), used as it is. Colonnade's
+# play_limits_ok would need a run's output bytes and milliseconds, which
+# play.run does not report, so it is not used either.
+#
+# Witness pairs are of one kind (zxapp.c run_one B3). KRON and Trebago
+# witness the four places, numbers, as the task asks: Trebago refuses a
+# line length outside 1..65537, a width outside 1..4, a line or column
+# outside the text and an offset inside a character, where KRON answers:
+# held. Eve holds the buffer's limits, each count on its own range, and
+# KRON witnesses them, also holding the longest line inside its file: a
+# line longer than its file is held. MYRA files the undo record. The
+# model's C (joinery_rules.h) is the third witness of each.
+#
+# Kept in C, since no runnable language owns it: reading source text (a
+# line's characters and their UTF-8 widths, where its lines end), whose
+# best-fit language, Racket, has no runtime yet; and reading zxvd's
+# answers. COBOL owns no decision in an editor, so it is left out.
+#
+# Planned (no runtime yet): Racket (symbolic, parse) owns reading a line
+# into its characters' byte places, the lexer's half: pending on
+# utf8_col_offset. Haskell (pure functions and types) owns the total
+# inverse whose type rules out an offset inside a character: pending on
+# utf8_offset_col. Bourne shell (jobs) owns wiring programs together;
+# Joinery's one job is play.run, zxvd's, and it decides no rule of its
+# own, so it has no pending line.
+#
+# Defaults taken: the undo history keeps at most 1 MiB of removed and
+# inserted bytes beside its 1024 steps, the oldest steps given up first;
+# one edit larger than that clears the history and cannot be undone. zxvd
+# allows a file of 256 MiB (ZXF_FILE_MAX); the task's 16 MiB is stricter,
+# and is the editor's own limit.
+zxapp 1
+id     joinery
+name   Joinery
+version 1.0.0
+slot   121
+layer  L1
+matrix 121
+icon   icons/l1/121-joinery.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  search
+needs  ai.ask
+model  apps/joinery_model.c
+use    used_share 1   # @num.used_x100
+
+# Where a line starts (JR1): the bytes of the lines before it.
+provides line_start_offset num linebytes line
+logic    kron    line_start_offset apps/blocks/joinery/line_start.kron
+logic    trebago line_start_offset apps/blocks/joinery/line_start.tb
+
+# Which line holds a byte (JR2): the lines that end at or before it.
+provides offset_line_index num linebytes off
+logic    kron    offset_line_index apps/blocks/joinery/offset_line.kron
+logic    trebago offset_line_index apps/blocks/joinery/offset_line.tb
+
+# A column's byte offset in its line (JR3), over UTF-8 widths.
+provides utf8_col_offset num width col
+logic    kron    utf8_col_offset apps/blocks/joinery/col_offset.kron
+logic    trebago utf8_col_offset apps/blocks/joinery/col_offset.tb
+pending  Racket utf8_col_offset
+
+# The column at a byte offset in its line (JR4), on a boundary only.
+provides utf8_offset_col num width off
+logic    kron    utf8_offset_col apps/blocks/joinery/offset_col.kron
+logic    trebago utf8_offset_col apps/blocks/joinery/offset_col.tb
+pending  Haskell utf8_offset_col
+
+# The buffer's limits (JR5): 16 MiB, a line of 65536 bytes, 1024 undo steps.
+provides edit_buffer_ok truth filebytes linebytes undosteps
+logic    eve  edit_buffer_ok apps/blocks/joinery/buffer.eve
+logic    kron edit_buffer_ok apps/blocks/joinery/buffer.kron
+
+# One step of the undo history (JR6): ^ZXJOINERY's digits.
+provides undo_record_ok truth step offset removed inserted
+logic    myra undo_record_ok apps/blocks/joinery/undo.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check line_start_offset linebytes=3,5,1 line=2 = 8
+check line_start_offset linebytes=65537,1,4 line=3 = 65542
+check line_start_offset linebytes=3,5,1 line=0 = 0
+check line_start_offset linebytes=3,5,1 line=4 = both
+check line_start_offset linebytes=3,0,1 line=1 = both
+check line_start_offset linebytes=3,65538 line=1 = both
+check offset_line_index linebytes=3,5,1 off=7 = 1
+check offset_line_index linebytes=3,5,1 off=9 = 3
+check offset_line_index linebytes=3,5,1 off=0 = 0
+check offset_line_index linebytes=3,5,1 off=-1 = both
+check offset_line_index linebytes=3,5,1 off=16777217 = both
+check utf8_col_offset width=1,2,3,4 col=2 = 3
+check utf8_col_offset width=1,2,3,4 col=4 = 10
+check utf8_col_offset width=1,2,3,4 col=0 = 0
+check utf8_col_offset width=1,5 col=1 = both
+check utf8_col_offset width=1,2 col=3 = both
+check utf8_offset_col width=1,2,3,4 off=3 = 2
+check utf8_offset_col width=1,2,3,4 off=10 = 4
+check utf8_offset_col width=1,2,3,4 off=0 = 0
+check utf8_offset_col width=1,2,3,4 off=2 = both
+check utf8_offset_col width=1,2,3,4 off=11 = both
+check utf8_offset_col width=0,1 off=1 = both
+check edit_buffer_ok filebytes=0,16777216,16777217,100,100,100,100,-1 linebytes=0,65536,0,65537,100,0,0,0 undosteps=0,1024,0,0,0,1025,-1,0 = true,true,false,false,true,false,false,false
+check edit_buffer_ok filebytes=10,10 linebytes=5,20 undosteps=0,0 = both
+check undo_record_ok step=1,1024,9999,10000,1,1,1,-9999 offset=0,16777216,99999999,0,100000000,0,0,0 removed=0,16777216,99999999,0,0,100000000,0,0 inserted=0,0,99999999,0,0,0,100000000,0 = true,true,true,false,false,false,false,true
+# How full the buffer is of its 16 MiB: empty, half, full
+check used_share.used_x100 total=16777216,16777216,16777216 left=16777216,8388608,0 = 0,5000,10000

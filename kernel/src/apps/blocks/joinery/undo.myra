@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Joinery files one step of its undo history in MYRA (joinery_rules.h
+; JR6): the step (its place in the history, 1..1024), the byte offset the
+; edit was made at, how many bytes it removed and how many it inserted
+; (each 0..16777216, a file of at most 16 MiB). The rules say what the
+; values may mean; this says whether they make a record.
+^ZXJOINERY(step:i4) = offset:i8! ^ removed:i8! ^ inserted:i8!
