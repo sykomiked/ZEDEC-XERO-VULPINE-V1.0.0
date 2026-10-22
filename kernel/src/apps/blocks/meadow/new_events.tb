@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The events applied in each space since an index (meadow_rules.h MR3), in
+! Trebago: next, the last index pspace.events answered, less since, the
+! index asked from, one space per row. For integers min(1, max(0, m + 1))
+! is 1 exactly when m >= 0, so ok is 1 when 0 <= since <= next <=
+! 999999999999999999 (the record's 18 digits), else 0, and the answer is
+! divided by it: anything outside is a division by zero, refused.
+trebago newevents
+  in  since(n), next(n)
+  out fresh(n)
+  var ok(n)
+  ok(i) = min(1, max(0, since(i) + 1)) * min(1, max(0, next(i) - since(i) + 1)) &
+        * min(1, max(0, 999999999999999999 - next(i) + 1))
+  fresh(i) = (next(i) - since(i)) / ok(i)
+end

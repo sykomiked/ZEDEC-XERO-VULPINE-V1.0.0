@@ -1,0 +1,10 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; A space this node is in or joining, in MYRA (meadow_rules.h MR5): its
+; place in pspace.list (8 at most, vna_space.h VNA_SPACE_MAX), its phase
+; (1 searching, 2 joining, 3 in, 4 not found), its members (33 at most),
+; the last event index Meadow has read there (zxvd's index, 18 digits)
+; and when that event was made, in ms since 1970 (13 digits). Meadow keeps
+; a joined space only when its values make a record.
+^ZXMEADOW(space:i1) = phase:i1! ^ members:i2! ^ last:i18! ^ stamp:i13!

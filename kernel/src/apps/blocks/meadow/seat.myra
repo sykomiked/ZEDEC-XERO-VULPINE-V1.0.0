@@ -1,0 +1,13 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; May this seat post here (meadow_rules.h MR2), in MYRA: the seat's line
+; of the rights record filed as ^ZXMEADOWSEAT, its role room the key and
+; the post's two size margins its pieces, each a $H day, so a margin below
+; 0 does not fit (MYRA's date is 0 to 2980013). roleroom is the most open
+; role that may write in the space's kind minus the seat's role (below 0:
+; the kind gives this role no write); lenleft is 1024 - bytes (below 0:
+; past pspace.post's 1024), lenpast is bytes - 1 (below 0: an empty
+; post). seat.eve holds each to its meaning (0..3, 0..1023, 0..1023); a
+; larger margin fits a day and not the meaning: held.
+^ZXMEADOWSEAT(roleroom:d) = lenleft:d! ^ lenpast:d!

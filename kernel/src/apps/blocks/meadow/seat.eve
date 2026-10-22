@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# May this seat post here (meadow_rules.h MR2), in Eve. Each part comes as
+# its margin, so that a field is held against its own range: roleroom, the
+# most open role that may write in the space's kind (the rights record,
+# MR1) minus the seat's role, 0 to 3; lenleft, 1024 - the post's bytes, and
+# lenpast, the post's bytes - 1, each 0 to 1023 (pspace.post takes 1 to
+# 1024 bytes). seat.myra reads all three as $H days (0 to 2980013): a role
+# room of 4 or more, or a size margin of 1024 or more, is a day to MYRA and
+# no seat or post to Eve: held.
+eve meadow
+role_room = 0 .. 3
+len_left = 0 .. 1023
+len_past = 0 .. 1023
+
+seat_post {
+  roleroom: role_room
+  lenleft: len_left
+  lenpast: len_past
+}

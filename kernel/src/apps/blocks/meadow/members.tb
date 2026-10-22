@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The people across this node's spaces (meadow_rules.h MR4), in Trebago:
+! the exact sum of pspace.members' count of each space, one space per row,
+! this node counted in each it is in. For integers min(1, max(0, m + 1))
+! is 1 exactly when m >= 0, so ok is 1 when a count is 0..33 (32 members,
+! vna_space.h VNA_SPACE_MEMBERS, and this node), else 0, and each row is
+! divided by it: a count outside is a division by zero and refuses the
+! whole sum.
+trebago members
+  in  members(n)
+  out total
+  var ok(n)
+  ok(i) = min(1, max(0, members(i) + 1)) * min(1, max(0, 33 - members(i) + 1))
+  total = sum(i, members(i) / ok(i))
+end

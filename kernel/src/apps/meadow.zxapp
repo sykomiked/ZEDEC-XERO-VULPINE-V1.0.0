@@ -1,0 +1,105 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Meadow, the park: layer 86 of the matrix. Find, join and use public
+# spaces on the peer network: search a directory topic (pspace.find), join
+# a space by its CID (pspace.join), leave it (pspace.leave), see the spaces
+# this node is in (pspace.list), their members (pspace.members) and events
+# (pspace.events), and post (pspace.post). The rights of each seat come
+# from the rights record zxvd keeps for the spaces this node owns or was
+# invited into (spaces.list: the space's kind, this node's role, and the
+# pspace CID a published cloud top or park lives under). Every method is
+# zxvd's; none is invented.
+#
+# Posts cannot be deleted (pspace.post has no delete, ban or silence,
+# vna_space.h P5), so before each post Meadow says so and sends only on
+# the owner's confirmed word (meadow_model.h MM6). Public spaces are the
+# feature "pspace", off by default: the owner turns it on in settings, and
+# Meadow never does (MM7).
+#
+# Built on what is nearer the core: a space CID's text is Seedbank's
+# cid_byte, one byte at a time (SR2), checked before a CID found or given
+# is kept or sent. Gatehouse (8) owns whether an app may use a capability;
+# Meadow's needs are its manifest's, granted by the owner there, so none of
+# its entries is used here. Trellis (29) keeps the owner's device mesh,
+# which no public space touches. Commons (27) comes after this layer in the
+# build order (MATRIX_ORDER.tsv), so it is not used: what Commons needs
+# from public spaces is written here and owned here.
+#
+# Four later layers lean on this one, so every entry is a general rule
+# registered in CONCEPTS.tsv with Meadow as owner: may a seat post in a
+# space, new events in a space, the people across spaces, and a joined
+# space's record.
+#
+# Witness pairs are of one kind. seat_post_ok is a truth, Eve and MYRA, as
+# the task asks. MYRA checks only whether values fit their fields
+# (zxapp_myra.c MY1-MY4) and cannot look a role up in a table, so the
+# model looks the seat's role up in the rights record (meadow_rules.h MR1,
+# zxv_spaces.h S1) and both languages get each part as a margin: the role
+# room 0..3, and the post's size as 1024 - bytes and bytes - 1. MYRA reads
+# each as a $H day (0..2980013, so a margin below 0 does not fit) and Eve
+# holds it to its meaning: a margin past its meaning is held (BOTH). The
+# model's C (meadow_rules.h) is the third witness. The counts are
+# Trebago's alone, the joined spaces' record MYRA's alone, as the task
+# asks.
+#
+# Kept in C, since no runnable language owns it: base32 CID and hex NodeID
+# text, whole UTF-8, and reading zxvd's answers.
+#
+# Defaults taken (meadow_model.h MM1): a public space with no entry in
+# spaces.list was found or joined by its CID alone, so its seat is the
+# public's in a park.
+#
+# Logo (twin Kiteling) runs now and owns geometry, but it is not used:
+# Lingua's Logo refuses readword and readlist (zl_logo.c), so a Logo
+# program cannot read an entry's arguments (zxapp_lingua.c L1), and Meadow
+# decides no geometry. Planned languages: C# owns objects and views; a
+# joined space's record is Meadow's object, but LANGUAGE_FIT.tsv already
+# gives C# a runtime (dotnet), though no host registers one, so a pending
+# line is refused: none.
+zxapp 1
+id     meadow
+name   Meadow
+version 1.0.0
+slot   86
+layer  L1
+matrix 86
+icon   icons/l1/086-meadow.svg
+budget 233
+needs  peers
+needs  net
+needs  notify
+model  apps/meadow_model.c
+use    seedbank 1   # @num.seedbank_cid_byte
+
+# May this seat post here (MR2): the kind's rights for the seat's role and
+# 1..1024 bytes, each as its margin. Eve's ranges, witnessed by MYRA's
+# days; a margin past its meaning is held.
+provides seat_post_ok truth roleroom lenleft lenpast
+logic    eve  seat_post_ok apps/blocks/meadow/seat.eve
+logic    myra seat_post_ok apps/blocks/meadow/seat.myra
+
+# New events in each space since an index (MR3): next - since, refused
+# outside 0 <= since <= next <= 18 digits.
+provides space_new_events num since next
+logic    trebago space_new_events apps/blocks/meadow/new_events.tb
+
+# The people across this node's spaces (MR4): the exact sum of each
+# space's count, each 0..33, else refused.
+provides space_members_total num members
+logic    trebago space_members_total apps/blocks/meadow/members.tb
+
+# A joined space makes a ^ZXMEADOW record (MR5), in MYRA.
+provides joined_space_ok truth space phase members last stamp
+logic    myra joined_space_ok apps/blocks/meadow/joined.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check seat_post_ok roleroom=0,3,-1,0,0,2 lenleft=1023,0,500,-1,1024,10 lenpast=0,1023,523,1024,-1,1013 = true,true,false,false,false,true
+check seat_post_ok roleroom=0,4 lenleft=1023,1023 lenpast=0,0 = both
+check seat_post_ok roleroom=0,0 lenleft=1023,0 lenpast=0,1024 = both
+check space_new_events since=0,0,5,7,0 next=0,3,5,40,999999999999999999 = 0,3,0,33,999999999999999999
+check space_members_total members=1,33,0,5 = 39
+check space_members_total members=0,0 = 0
+check joined_space_ok space=0,7,10,1,1,1 phase=3,4,3,10,3,3 members=1,33,1,1,100,1 last=0,999999999999999999,0,0,0,1000000000000000000 stamp=1700000000000,9999999999999,0,0,0,0 = true,true,false,false,false,false
+# A space CID's text, Seedbank's rule: 'b' first, then base32, 59 bytes; a 58-byte text never fits
+check seedbank.cid_byte pos=0,1,58,1,0 code=98,122,50,49,98 len=59,59,59,59,58 = 1,1,1,0,0

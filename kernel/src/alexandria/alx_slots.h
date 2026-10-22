@@ -383,7 +383,11 @@
 #define ALX_SLOT_LOGIC_QUARRY_CITE_RECORD_OK     375u /* 491.86 quarry.cite_record_ok */
 #define ALX_SLOT_LOGIC_QUARRY_CLAIM_SOURCED      376u /* 491.87 quarry.claim_sourced */
 #define ALX_SLOT_LOGIC_QUARRY_SUMMARY_LENGTH_OK  377u /* 491.88 quarry.summary_length_ok */
-#define ALX_SLOT__COUNT 377u
+#define ALX_SLOT_LOGIC_MEADOW_JOINED_SPACE_OK    378u /* 491.89 meadow.joined_space_ok */
+#define ALX_SLOT_LOGIC_MEADOW_SEAT_POST_OK       379u /* 491.90 meadow.seat_post_ok */
+#define ALX_SLOT_NUM_MEADOW_SPACE_MEMBERS_TOTAL  380u /* 591.81 meadow.space_members_total */
+#define ALX_SLOT_NUM_MEADOW_SPACE_NEW_EVENTS     381u /* 591.82 meadow.space_new_events */
+#define ALX_SLOT__COUNT 381u
 /* clang-format on */
 
 #endif

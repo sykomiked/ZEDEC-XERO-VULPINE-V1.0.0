@@ -412,3 +412,7 @@
 375	logic.quarry_cite_record_ok	491.86	quarry.cite_record_ok	base
 376	logic.quarry_claim_sourced	491.87	quarry.claim_sourced	base
 377	logic.quarry_summary_length_ok	491.88	quarry.summary_length_ok	base
+378	logic.meadow_joined_space_ok	491.89	meadow.joined_space_ok	base
+379	logic.meadow_seat_post_ok	491.90	meadow.seat_post_ok	base
+380	num.meadow_space_members_total	591.81	meadow.space_members_total	base
+381	num.meadow_space_new_events	591.82	meadow.space_new_events	base
