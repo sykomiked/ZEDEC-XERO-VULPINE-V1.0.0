@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A Hedgerow rule record (hedgerow_rules.h HR6), in Eve: what each field
+# may mean, where MYRA holds only how many digits it has. A sequence
+# number 1..999999999, a path 1..6, open 0 or 1, a port 0..65535 and a
+# time 0..99999999999 seconds since 1970.
+eve hedgerow
+sequence = 1 .. 999999999
+path_kind = 1 .. 6
+flag = 0 .. 1
+port_number = 0 .. 65535
+seconds = 0 .. 99999999999
+
+reach_rule {
+  seq: sequence
+  path: path_kind
+  open: flag
+  port: port_number
+  stamp: seconds
+}

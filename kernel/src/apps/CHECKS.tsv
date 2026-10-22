@@ -170,6 +170,20 @@ halloo	check hms ms=1000,10000000000 = both
 halloo	check hms ms=1000,-1 = both
 halloo	check call_ok seq=1,999999999,1000000000,1,1 peer=1,4294967295,1,10000000000,1 dir=0,1,0,0,0 media=0,1,0,0,0 reason=0,10,0,0,0 ms=0,9999999999,0,0,0 stamp=0,9999999999999,0,0,10000000000000 = true,true,false,false,false
 halloo	check call_ok seq=1,1 peer=7,7 dir=1,2 media=0,0 reason=1,1 ms=60000,60000 stamp=1700000000000,1700000000000 = both
+hedgerow	check path_open sw=1,1,1,0,1,1,1,-1 moderoom=0,2,1,1,-1,0,-2,0 bindroom=0,2,0,1,0,-1,-2,0 = true,true,true,false,false,false,false,false
+hedgerow	check path_open sw=1,2 moderoom=0,0 bindroom=0,0 = both
+hedgerow	check path_open sw=1,1 moderoom=0,3 bindroom=0,0 = both
+hedgerow	check path_open_n sw=1,1,1,0,1,1,1 moderoom=0,2,1,1,-1,0,-2 bindroom=0,2,0,1,0,-1,-2 = 1,1,1,0,0,0,0
+hedgerow	check path_open_n sw=1,2 moderoom=0,0 bindroom=0,0 = both
+hedgerow	check path_open_n sw=1,1 moderoom=0,0 bindroom=0,3 = both
+hedgerow	check addr_scope fam=4,4,4,4,4,4,4,4,4,4,4,4 a=8,127,10,172,172,192,169,0,224,255,100,1 b=8,0,1,16,32,168,254,0,0,255,64,1 c=8,0,2,0,0,1,1,0,0,255,0,1 d=8,1,3,1,1,1,1,0,1,255,1,1 = 0,1,2,2,0,2,3,5,5,5,0,0
+hedgerow	check addr_scope fam=6,6,6,6,6,6,6,6,6,6 a=0,0,0,254,254,252,253,255,32,254 b=0,0,0,128,191,0,255,2,1,192 c=0,0,255,0,0,0,0,0,0,0 d=1,0,255,1,1,1,1,1,1,1 = 1,5,5,3,3,4,4,5,0,0
+hedgerow	check addr_scope fam=4,4 a=8,256 b=8,0 c=8,0 d=8,0 = both
+hedgerow	check addr_scope fam=4,5 a=8,8 b=8,8 c=8,8 d=8,8 = both
+hedgerow	check reach_rule_ok seq=1,999999999,1000000000,1,1,1 path=1,6,1,1,1,1 open=0,1,0,0,0,0 port=0,65535,0,443,100000,0 stamp=0,99999999999,0,1700000000,0,100000000000 = true,true,false,true,false,false
+hedgerow	check reach_rule_ok seq=1,1 path=1,7 open=0,0 port=0,0 stamp=0,0 = both
+hedgerow	check reach_rule_ok seq=1,1 path=1,1 open=0,0 port=80,65536 stamp=0,0 = both
+hedgerow	check gatehouse.use_ok asked=1,1,1 granted=1,0,1 revoked=0,0,1 = true,false,false
 hollow	check tile_cols windows=0,1,2,4,5,9,10,64 = 0,1,2,2,3,3,4,8
 hollow	check tile_cols windows=4,65 = both
 hollow	check tile_cols windows=4,-1 = both

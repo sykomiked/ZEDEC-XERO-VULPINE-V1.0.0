@@ -216,7 +216,11 @@
 #define ALX_SLOT_LOGIC_COMMONS_ROOM_POST_OK      208u /* 491.01 commons.room_post_ok */
 #define ALX_SLOT_LOGIC_COMMONS_ROOM_RECORD_OK    209u /* 491.02 commons.room_record_ok */
 #define ALX_SLOT_NUM_COMMONS_ROOM_UNREAD         210u /* 590.98 commons.room_unread */
-#define ALX_SLOT__COUNT 210u
+#define ALX_SLOT_NUM_HEDGEROW_ADDR_SCOPE         211u /* 590.99 hedgerow.addr_scope */
+#define ALX_SLOT_LOGIC_HEDGEROW_PATH_OPEN        212u /* 491.03 hedgerow.path_open */
+#define ALX_SLOT_NUM_HEDGEROW_PATH_OPEN_N        213u /* 591.01 hedgerow.path_open_n */
+#define ALX_SLOT_LOGIC_HEDGEROW_REACH_RULE_OK    214u /* 491.04 hedgerow.reach_rule_ok */
+#define ALX_SLOT__COUNT 214u
 /* clang-format on */
 
 #endif

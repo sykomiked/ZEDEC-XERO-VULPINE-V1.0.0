@@ -1,0 +1,10 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Hedgerow files one opening or closing in MYRA (hedgerow_rules.h HR6):
+; its sequence number, its path (1 lan, 2 online, 3 answering peers,
+; 4 the phone link, 5 hosted spaces, 6 the IRC gateway), whether it opened
+; (1) or closed (0), its port (0 when the path has none) and when, in
+; seconds since 1970. The rules say what the values may mean; this says
+; whether they make a record.
+^ZXHEDGEROW(seq:i9) = path:i1! ^ open:i1! ^ port:i5! ^ stamp:i11!

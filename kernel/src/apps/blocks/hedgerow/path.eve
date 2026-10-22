@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Is this path open (hedgerow_rules.h HR3), in Eve: the switch that exposes
+# it is on (1), and the asker is no farther than the network mode lets in
+# (moderoom = mode - far, 0..2) and no farther than the listener binds
+# (bindroom = bind - far, 0..2). Any other row, a switch that is no flag
+# among them, does not fit: not open.
+eve hedgerow
+switch_on = 1 .. 1
+room = 0 .. 2
+
+reach_path {
+  sw: switch_on
+  moderoom: room
+  bindroom: room
+}

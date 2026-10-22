@@ -1,0 +1,106 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Hedgerow, the firewall: layer 30 of the matrix. Who may reach this
+# machine: the network mode (net.command off, lan or online), answering
+# other nodes (peer.serve, peer.status), the phone link (phone.link,
+# phone.list), the feature switches that expose method groups
+# (features.get), the hosted spaces (pspace.list), the IRC gateway
+# (irc.status) and the peers the routing table verified (net.peers), each
+# with its reach (hedgerow_model.h). Opening anything is asked first and
+# waits for the owner's confirmed word; closing happens at once. Advisory:
+# Hedgerow never opens a path on its own.
+#
+# zxvd has no method that filters packets or keeps per-port rules, and
+# none is invented: Hedgerow shows and changes only what the methods above
+# reach. net.command answers "networking is on" or "off" and zxvd has no
+# method that reads the mode, so the model keeps the mode it last set
+# (zxvd starts off).
+#
+# Three later layers lean on this one (Hollow 2, Wake 14, Sounding 16), so
+# every entry is a general rule with Hedgerow as its owner (CONCEPTS.tsv).
+# Of the layers this one leans on, Gatehouse fits: opening a path is a use
+# the owner grants, so the model asks gatehouse.use_ok (asked, granted by
+# the owner's confirmed word, not revoked by a close) before it opens
+# anything. Coffer, Vintner, Ninefold and Kitling hold balances, sales,
+# capital forms and growth: no rule of reach is one of theirs.
+#
+#   path_open    is this path reachable (HR3): the switch that exposes it
+#                is on and the asker is no farther than the mode lets in
+#                and the listener binds. The task asks for Eve, KRON and
+#                C++ (wasm) as three witnesses of one entry; Eve answers
+#                truths only (zxapp_eve.c EV2) and WebAssembly numbers only
+#                (zxapp_wasm.c W2), and Eve checks each field against its
+#                own range, never one field against another. So the
+#                relation is given as two rooms (mode - far, bind - far,
+#                HR2) that Eve can range, and the rule is two entries of
+#                one meaning: Eve and KRON witness the truth (path_open),
+#                C++ and KRON the number (path_open_n), and the model's C
+#                is the third witness of both (tests/hedgerow_zxapp.inc).
+#                A switch of 2 or a room of 3 fits KRON's reading and not
+#                Eve's: held (BOTH).
+#   path_open_n  the same rule as a number to count with, 1 or 0: C++
+#                traps on a switch that is no flag or a room off -2..2,
+#                where KRON answers: held (BOTH).
+#   addr_scope   the scope of an address from its octets, IPv4 or IPv6
+#                (HR4), in Rust (as WebAssembly) and KRON: Rust traps on an
+#                octet past 255 or a family not 4 or 6, KRON answers: held.
+#                Signpost's addr_class is IPv4 only, and Signpost (layer
+#                34) is built after this layer, so it cannot be used here.
+#   reach_rule_ok  one opening or closing filed as a ^ZXHEDGEROW record
+#                (HR6): MYRA holds the digits of each field, Eve its
+#                meaning; a path of 7 or a port of 65536 has the digits and
+#                not the meaning: held.
+#
+# Planned languages: Erlang owns messaging and faults, and stands for
+# path_open, the rule that decides whether a peer's message reaches this
+# machine. Occam owns concurrency and HyperTalk scripting and views: no
+# entry here is either.
+zxapp 1
+id     hedgerow
+name   Hedgerow
+version 1.0.0
+slot   30
+layer  L1
+matrix 30
+icon   icons/l1/030-hedgerow.svg
+budget 233
+needs  net
+needs  peers
+needs  sys.read
+needs  notify
+model  apps/hedgerow_model.c
+use    gatehouse 1   # @logic.gatehouse_use_ok
+
+provides path_open truth sw moderoom bindroom
+logic    eve  path_open apps/blocks/hedgerow/path.eve
+logic    kron path_open apps/blocks/hedgerow/path_open.kron
+pending  Erlang path_open
+
+provides path_open_n num sw moderoom bindroom
+logic    wasm path_open_n apps/blocks/hedgerow/path_open_n.wasm
+logic    kron path_open_n apps/blocks/hedgerow/path_open_n.kron
+
+provides addr_scope num fam a b c d
+logic    wasm addr_scope apps/blocks/hedgerow/addr_scope.wasm
+logic    kron addr_scope apps/blocks/hedgerow/addr_scope.kron
+
+provides reach_rule_ok truth seq path open port stamp
+logic    myra reach_rule_ok apps/blocks/hedgerow/rule.myra
+logic    eve  reach_rule_ok apps/blocks/hedgerow/rule.eve
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check path_open sw=1,1,1,0,1,1,1,-1 moderoom=0,2,1,1,-1,0,-2,0 bindroom=0,2,0,1,0,-1,-2,0 = true,true,true,false,false,false,false,false
+check path_open sw=1,2 moderoom=0,0 bindroom=0,0 = both
+check path_open sw=1,1 moderoom=0,3 bindroom=0,0 = both
+check path_open_n sw=1,1,1,0,1,1,1 moderoom=0,2,1,1,-1,0,-2 bindroom=0,2,0,1,0,-1,-2 = 1,1,1,0,0,0,0
+check path_open_n sw=1,2 moderoom=0,0 bindroom=0,0 = both
+check path_open_n sw=1,1 moderoom=0,0 bindroom=0,3 = both
+check addr_scope fam=4,4,4,4,4,4,4,4,4,4,4,4 a=8,127,10,172,172,192,169,0,224,255,100,1 b=8,0,1,16,32,168,254,0,0,255,64,1 c=8,0,2,0,0,1,1,0,0,255,0,1 d=8,1,3,1,1,1,1,0,1,255,1,1 = 0,1,2,2,0,2,3,5,5,5,0,0
+check addr_scope fam=6,6,6,6,6,6,6,6,6,6 a=0,0,0,254,254,252,253,255,32,254 b=0,0,0,128,191,0,255,2,1,192 c=0,0,255,0,0,0,0,0,0,0 d=1,0,255,1,1,1,1,1,1,1 = 1,5,5,3,3,4,4,5,0,0
+check addr_scope fam=4,4 a=8,256 b=8,0 c=8,0 d=8,0 = both
+check addr_scope fam=4,5 a=8,8 b=8,8 c=8,8 d=8,8 = both
+check reach_rule_ok seq=1,999999999,1000000000,1,1,1 path=1,6,1,1,1,1 open=0,1,0,0,0,0 port=0,65535,0,443,100000,0 stamp=0,99999999999,0,1700000000,0,100000000000 = true,true,false,true,false,false
+check reach_rule_ok seq=1,1 path=1,7 open=0,0 port=0,0 stamp=0,0 = both
+check reach_rule_ok seq=1,1 path=1,1 open=0,0 port=80,65536 stamp=0,0 = both
+check gatehouse.use_ok asked=1,1,1 granted=1,0,1 revoked=0,0,1 = true,false,false

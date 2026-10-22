@@ -245,3 +245,7 @@
 208	logic.commons_room_post_ok	491.01	commons.room_post_ok	base
 209	logic.commons_room_record_ok	491.02	commons.room_record_ok	base
 210	num.commons_room_unread	590.98	commons.room_unread	base
+211	num.hedgerow_addr_scope	590.99	hedgerow.addr_scope	base
+212	logic.hedgerow_path_open	491.03	hedgerow.path_open	base
+213	num.hedgerow_path_open_n	591.01	hedgerow.path_open_n	base
+214	logic.hedgerow_reach_rule_ok	491.04	hedgerow.reach_rule_ok	base
