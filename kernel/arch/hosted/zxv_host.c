@@ -2149,14 +2149,13 @@ static void send_web(sock_t c, const char *path, size_t plen)
     }
     const char *type = zxv_web_type(rel);
     snprintf(full, sizeof full, "%s/%s", WEB_ROOT, rel);
-    struct stat st;
-    if (stat(full, &st) != 0 || !S_ISREG(st.st_mode) || st.st_size < 0 ||
-        st.st_size > 64L * 1024 * 1024) {
-        reply(c, "404 Not Found", "text/plain", "not found", 9);
-        return;
-    }
+    /* open first, then look at what was opened: no window between a check
+     * on the name and the read */
     FILE *fp = fopen(full, "rb");
-    if (!fp) {
+    struct stat st;
+    if (!fp || fstat(fileno(fp), &st) != 0 || !S_ISREG(st.st_mode) || st.st_size < 0 ||
+        st.st_size > 64L * 1024 * 1024) {
+        if (fp) fclose(fp);
         reply(c, "404 Not Found", "text/plain", "not found", 9);
         return;
     }

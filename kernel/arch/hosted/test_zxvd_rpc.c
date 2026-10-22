@@ -2588,11 +2588,18 @@ static void ju_b64(const uint8_t *d, size_t n, char *out)
 
 static const char *ju_set_key(const uint8_t *pk, size_t n)
 {
-    int k = snprintf(JREQ, sizeof JREQ,
-                     "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"jurisdiction.set\","
-                     "\"params\":{\"gateway_key\":\"");
-    for (size_t i = 0; i < n; i++) k += snprintf(JREQ + k, sizeof JREQ - (size_t) k, "%02x", pk[i]);
-    snprintf(JREQ + k, sizeof JREQ - (size_t) k, "\"}}");
+    static const char H[] = "0123456789abcdef";
+    char hex[2 * JURIS_GW_PK_LEN + 1];
+    size_t o = 0;
+    for (size_t i = 0; i < n && o + 2 < sizeof hex; i++) {
+        hex[o++] = H[pk[i] >> 4];
+        hex[o++] = H[pk[i] & 15];
+    }
+    hex[o] = 0;
+    snprintf(JREQ, sizeof JREQ,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"jurisdiction.set\","
+             "\"params\":{\"gateway_key\":\"%s\"}}",
+             hex);
     return rpc(JREQ);
 }
 
