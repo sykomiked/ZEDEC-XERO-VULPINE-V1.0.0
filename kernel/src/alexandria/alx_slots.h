@@ -273,7 +273,11 @@
 #define ALX_SLOT_LOGIC_ASSAY_MEETS_BAR           265u /* 491.33 assay.meets_bar */
 #define ALX_SLOT_NUM_ASSAY_PASS_SHARE_X100       266u /* 591.24 assay.pass_share_x100 */
 #define ALX_SLOT_NUM_ASSAY_SCORE_RANK            267u /* 591.25 assay.score_rank */
-#define ALX_SLOT__COUNT 267u
+#define ALX_SLOT_NUM_POLLEN_FREIGHT_COUNT        268u /* 591.26 pollen.freight_count */
+#define ALX_SLOT_NUM_POLLEN_FREIGHT_PACKETS      269u /* 591.27 pollen.freight_packets */
+#define ALX_SLOT_LOGIC_POLLEN_SHARE_LIMITS_OK    270u /* 491.34 pollen.share_limits_ok */
+#define ALX_SLOT_LOGIC_POLLEN_SHARE_RECORD_OK    271u /* 491.35 pollen.share_record_ok */
+#define ALX_SLOT__COUNT 271u
 /* clang-format on */
 
 #endif

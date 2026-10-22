@@ -302,3 +302,7 @@
 265	logic.assay_meets_bar	491.33	assay.meets_bar	base
 266	num.assay_pass_share_x100	591.24	assay.pass_share_x100	base
 267	num.assay_score_rank	591.25	assay.score_rank	base
+268	num.pollen_freight_count	591.26	pollen.freight_count	base
+269	num.pollen_freight_packets	591.27	pollen.freight_packets	base
+270	logic.pollen_share_limits_ok	491.34	pollen.share_limits_ok	base
+271	logic.pollen_share_record_ok	491.35	pollen.share_record_ok	base

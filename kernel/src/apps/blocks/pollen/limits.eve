@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# How much Pollen offers nearby devices at once (pollen_rules.h PR3), in
+# Eve: each file of an offer 1..16777216 bytes (16 MiB), 1..16 files in
+# one offer, and 0..7 offers already open when one more opens, so at most
+# 8 are open. Each field is held to its own range; nothing relates them.
+eve pollen
+file_bytes = 1 .. 16777216
+offer_files = 1 .. 16
+open_offers = 0 .. 7
+
+offer {
+  bytes: file_bytes
+  files: offer_files
+  open: open_offers
+}

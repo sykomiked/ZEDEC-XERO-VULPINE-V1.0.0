@@ -1,0 +1,29 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! How many packets a receiver needs to rebuild a file of size bytes sent
+! at k data rows a freight, in Trebago (pollen_rules.h PR2): any k of each
+! freight's 168 packets rebuild it, so k * ceil(size / (20 * k)), none for
+! an empty file. The ceiling is counted as in freights.tb: floor(x / d)
+! with x = size + d - 1 and d = 20 * k, three decimal digits at a time,
+! each digit the count of j = 1 to 999 with j * step * d <= x. ok is 1
+! for a size 0..999999999999 and k 1..168 (freight.pack's rows), else 0,
+! and the answer is divided by it: anything else is a division by zero,
+! refused, where packets.kron answers: held.
+trebago freight_packets
+  in  size(n), k(n)
+  out packets(n)
+  var x(n), dv(n), ok(n), a(n), b(n), c(n), d(n)
+  ok(i) = min(1, max(0, size(i) + 1)) * min(1, max(0, 999999999999 - size(i) + 1)) &
+        * min(1, max(0, k(i))) * min(1, max(0, 168 - k(i) + 1))
+  dv(i) = 20 * k(i)
+  x(i) = size(i) + dv(i) - 1
+  a(i) = sum(j = 1:999, min(1, max(0, x(i) - j * 1000000000 * dv(i) + 1)))
+  x(i) = x(i) - a(i) * 1000000000 * dv(i)
+  b(i) = sum(j = 1:999, min(1, max(0, x(i) - j * 1000000 * dv(i) + 1)))
+  x(i) = x(i) - b(i) * 1000000 * dv(i)
+  c(i) = sum(j = 1:999, min(1, max(0, x(i) - j * 1000 * dv(i) + 1)))
+  x(i) = x(i) - c(i) * 1000 * dv(i)
+  d(i) = sum(j = 1:999, min(1, max(0, x(i) - j * dv(i) + 1)))
+  packets(i) = k(i) * (1000000000 * a(i) + 1000000 * b(i) + 1000 * c(i) + d(i)) / ok(i)
+end

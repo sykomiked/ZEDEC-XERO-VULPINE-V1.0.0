@@ -372,6 +372,20 @@ platen	check sheets pages=3,4,1 sides=2,2,1 copies=1,3,1 = 2,6,1
 platen	check sheets pages=1 sides=1 copies=10000 = both
 platen	check copies_ok copies=0,1,99,100 most=99,99,99,99 = false,true,true,false
 platen	check copies_ok copies=1000000000 most=1000000000 = both
+pollen	check freight_count size=0,1,20,21,3360,3361,100,101,999999999999 k=1,1,1,1,168,168,5,5,1 = 0,1,1,2,1,2,1,2,50000000000
+pollen	check freight_count size=100,100 k=5,169 = both
+pollen	check freight_packets size=0,1,21,3361,100,101,999999999999 k=1,1,1,168,5,5,1 = 0,1,2,336,5,10,50000000000
+pollen	check freight_packets size=100,100 k=5,169 = both
+pollen	check share_limits_ok bytes=1,16777216,0,16777217,1,1,1,1,4096 files=1,16,1,1,0,17,1,1,3 open=0,7,0,0,0,0,8,-1,2 = true,true,false,false,false,false,false,false,true
+pollen	check share_record_ok offer=1,9999,10000,-9999,1,1 files=1,99,1,1,100,1 bytes=0,999999999,1,1,1,1000000000 state=1,9,0,0,0,0 stamp=1760000000000,999999999999999,1,1,1,1 = true,true,false,true,false,false
+pollen	check witness.kind_count kind=1,0,1,2,1 want=1 = 3
+pollen	check witness.kind_count kind=1,2 want=1,1 = both
+pollen	check used_share.used_x100 total=1000,1000,1000,3 left=1000,400,0,2 = 0,6000,10000,3333
+pollen	check used_share.used_x100 total=1000,1000 left=0,1001 = both
+pollen	check ferry.target_fits avail=1000,1000,0,0 need=600,600,1,0 spare=400,401,0,0 = true,false,false,true
+pollen	check ferry.target_fits avail=1000,1000000000000000 need=600,0 spare=400,0 = both
+pollen	check hedgerow.addr_scope fam=4,4,4,4,4 a=127,192,10,169,8 b=0,168,0,254,8 c=0,1,0,1,8 d=1,7,5,9,8 = 1,2,2,3,0
+pollen	check hedgerow.addr_scope fam=4,4 a=8,256 b=8,0 c=8,0 d=8,0 = both
 quillon	check size_ok bytes=0,1048576,1048577 = true,true,false
 ramble	check consent_covers scopegap=0,0,1,0,0,0,0,2 ceilingleft=0,999999999999999999,0,-1,0,0,5,0 secondsleft=1,86400,600,600,0,86401,-5,600 = true,true,false,false,false,false,false,false
 ramble	check consent_covers scopegap=0,0 ceilingleft=0,1000000000000000000 secondsleft=600,600 = both

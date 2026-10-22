@@ -1,0 +1,100 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pollen, share with nearby devices: layer 31 of the matrix. It turns
+# zxvd's peer network to the local network (net.command lan, or off; never
+# online), lists the verified peers and keeps the nearby ones (net.peers),
+# drafts offers of files of the Hoard (files.stat) that open only on the
+# owner's approval, telling zxvd the storage bytes it shares (net.offers,
+# net.command share), asks nearby devices for bytes only when they fit
+# here (net.command want, the price always 0), cuts a file into freights
+# (freight.pack) and rebuilds each from its last k packets only
+# (freight.unpack) into a new file of the Hoard (files.read, files.write),
+# and lets a file out of a space only through files.cross, a held crossing
+# done only on the owner's confirmation (pollen_model.h PM1-PM7).
+#
+# Advisory and owner-confirmed: nothing is shared, wanted or crossed
+# without the owner's word, and Pollen never pays. zxvd has no method that
+# sends a freight's packets to a peer (or fetches them from one), so the
+# carrier is this machine (loopback); the path is the one a peer's
+# packets would take. zxvd has no notification method either, so the
+# notice is text only. None is invented.
+#
+# Reuse, nearer the core: Witness (layer 18, the task's matrix line) counts
+# the offers open with its count by kind; whether a file fits on the
+# receiver is Ferry's target_fits (need + spare <= avail, Sutra and KRON),
+# the very rule the task asks of Sutra and KRON, so it is used, never
+# written again; whether a peer is nearby is Hedgerow's addr_scope
+# (loopback, private or link-local); progress x100 is used_share.used_x100
+# over the packets needed and the packets still to rebuild.
+#
+# 69 later layers lean on this one, so each new entry is a general rule
+# registered in CONCEPTS.tsv with Pollen as its owner: the freights and the
+# packets a file takes at k data rows (Trebago and KRON, witnessed: Trebago
+# refuses a k past freight.pack's 168 rows or a size past 12 digits, KRON
+# answers: held), the limits of an offer (Eve, each field on its own range,
+# as the task asks) and an offer's record (MYRA).
+#
+# JavaScript, planned for this layer, owns views and scripting: Pollen has
+# no entry of either kind, so it has no pending line here.
+#
+# Defaults taken (pollen_rules.h, pollen_model.h): a file of an offer at
+# most 16 MiB, 16 files an offer, 8 offers open at once, 64 MiB kept free
+# on the receiver when the owner gives no spare.
+zxapp 1
+id     pollen
+name   Pollen
+version 1.0.0
+slot   31
+layer  L1
+matrix 31
+icon   icons/l1/031-pollen.svg
+budget 233
+needs  peers
+needs  fs.read
+needs  fs.write
+needs  notify
+model  apps/pollen_model.c
+use    witness 1      # @num.witness_kind_count
+use    used_share 1   # @num.used_x100
+use    ferry 1        # @logic.ferry_target_fits
+use    hedgerow 1     # @num.hedgerow_addr_scope
+
+# The freights a file of size bytes takes at k data rows (PR1):
+# ceil(size / (20 * k)). Trebago counts the ceiling exactly, KRON floors.
+provides freight_count num size k
+logic    trebago freight_count apps/blocks/pollen/freights.tb
+logic    kron    freight_count apps/blocks/pollen/freights.kron
+
+# The packets a receiver needs to rebuild it (PR2): k * PR1.
+provides freight_packets num size k
+logic    trebago freight_packets apps/blocks/pollen/packets.tb
+logic    kron    freight_packets apps/blocks/pollen/packets.kron
+# Nim, planned: the packet framing is machine work
+pending  Nim freight_packets
+
+# An offer inside its limits (PR3), in Eve.
+provides share_limits_ok truth bytes files open
+logic    eve share_limits_ok apps/blocks/pollen/limits.eve
+
+# An offer makes a ^ZXPOLLEN record (PR4), in MYRA.
+provides share_record_ok truth offer files bytes state stamp
+logic    myra share_record_ok apps/blocks/pollen/record.myra
+# Gleam, planned: an offer is a message to nearby devices, typed
+pending  Gleam share_record_ok
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check freight_count size=0,1,20,21,3360,3361,100,101,999999999999 k=1,1,1,1,168,168,5,5,1 = 0,1,1,2,1,2,1,2,50000000000
+check freight_count size=100,100 k=5,169 = both
+check freight_packets size=0,1,21,3361,100,101,999999999999 k=1,1,1,168,5,5,1 = 0,1,2,336,5,10,50000000000
+check freight_packets size=100,100 k=5,169 = both
+check share_limits_ok bytes=1,16777216,0,16777217,1,1,1,1,4096 files=1,16,1,1,0,17,1,1,3 open=0,7,0,0,0,0,8,-1,2 = true,true,false,false,false,false,false,false,true
+check share_record_ok offer=1,9999,10000,-9999,1,1 files=1,99,1,1,100,1 bytes=0,999999999,1,1,1,1000000000 state=1,9,0,0,0,0 stamp=1760000000000,999999999999999,1,1,1,1 = true,true,false,true,false,false
+check witness.kind_count kind=1,0,1,2,1 want=1 = 3
+check witness.kind_count kind=1,2 want=1,1 = both
+check used_share.used_x100 total=1000,1000,1000,3 left=1000,400,0,2 = 0,6000,10000,3333
+check used_share.used_x100 total=1000,1000 left=0,1001 = both
+check ferry.target_fits avail=1000,1000,0,0 need=600,600,1,0 spare=400,401,0,0 = true,false,false,true
+check ferry.target_fits avail=1000,1000000000000000 need=600,0 spare=400,0 = both
+check hedgerow.addr_scope fam=4,4,4,4,4 a=127,192,10,169,8 b=0,168,0,254,8 c=0,1,0,1,8 d=1,7,5,9,8 = 1,2,2,3,0
+check hedgerow.addr_scope fam=4,4 a=8,256 b=8,0 c=8,0 d=8,0 = both

@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Pollen files one offer to nearby devices in MYRA (pollen_rules.h
+; PR4): its number, how many files it holds, their bytes in all, its state
+; (0 drafted, 1 open on the owner's approval, 2 withdrawn) and when (ms
+; since 1970, zxvd's clock).
+^ZXPOLLEN(offer:i4) = files:i2! ^ bytes:i9! ^ state:i1! ^ stamp:i15!

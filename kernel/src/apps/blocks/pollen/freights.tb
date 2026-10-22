@@ -1,0 +1,32 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! How many freights a file of size bytes takes at k data rows a freight,
+! in Trebago (pollen_rules.h PR1): zxvd's freight.pack carries 20 bytes a
+! data row, so ceil(size / (20 * k)), none for an empty file. Trebago is
+! exact and has no floor, so the ceiling is counted: ceil(v / d) is
+! floor(x / d) with x = v + d - 1, and floor(x / d) is found three
+! decimal digits at a time, each digit the count of j = 1 to 999 with
+! j * step * d <= x, which min(1, max(0, x - j * step * d + 1)) is for
+! integers; what each digit takes is subtracted before the next. Four
+! digits of three hold every answer here (below 10^11). ok is 1 for a
+! size 0..999999999999 and k 1..168 (freight.pack's rows), else 0, and the
+! answer is divided by it: anything else is a division by zero, refused,
+! where freights.kron answers: held.
+trebago freight_count
+  in  size(n), k(n)
+  out freights(n)
+  var x(n), dv(n), ok(n), a(n), b(n), c(n), d(n)
+  ok(i) = min(1, max(0, size(i) + 1)) * min(1, max(0, 999999999999 - size(i) + 1)) &
+        * min(1, max(0, k(i))) * min(1, max(0, 168 - k(i) + 1))
+  dv(i) = 20 * k(i)
+  x(i) = size(i) + dv(i) - 1
+  a(i) = sum(j = 1:999, min(1, max(0, x(i) - j * 1000000000 * dv(i) + 1)))
+  x(i) = x(i) - a(i) * 1000000000 * dv(i)
+  b(i) = sum(j = 1:999, min(1, max(0, x(i) - j * 1000000 * dv(i) + 1)))
+  x(i) = x(i) - b(i) * 1000000 * dv(i)
+  c(i) = sum(j = 1:999, min(1, max(0, x(i) - j * 1000 * dv(i) + 1)))
+  x(i) = x(i) - c(i) * 1000 * dv(i)
+  d(i) = sum(j = 1:999, min(1, max(0, x(i) - j * dv(i) + 1)))
+  freights(i) = (1000000000 * a(i) + 1000000 * b(i) + 1000 * c(i) + d(i)) / ok(i)
+end
