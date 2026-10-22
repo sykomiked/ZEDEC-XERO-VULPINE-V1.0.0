@@ -18,6 +18,7 @@
 
 #include "zxvd_groups.h"
 #include "zxvd_power.h"
+#include "power_ledger.h" /* PW_MAX_CONSUMERS */
 #include "zxv_thermal_host.h"
 
 static int fails, checks;
@@ -203,6 +204,7 @@ static void test_closed(void)
     CHECK(zxvd_power_admit(1), "W4: closed admits");
     CHECK(zxvd_power_token_scale() == 1000, "W5: closed scale is 1000");
     zxvd_power_note_agent(1, "x", 5, 0); /* a no-op */
+    zxvd_power_note_agent(5, "ghost", 7, 0); /* noted while closed: never seen after open */
     zxvd_power_tick(true);               /* a no-op */
     CHECK(!zxvd_power_is_open(), "still closed");
     CHECK(zxvd_power_open("/nonexistent/zxvd-power-root") == 0, "a root with nothing to read");
@@ -213,13 +215,13 @@ static void test_closed(void)
     zxvd_power_note_agent(5, "engine", 300000000u, 0);
     zxvd_power_tick(true);
     const char *top = rpc(call("power.top", "{\"lifetime\":true}"));
-    CHECK(strstr(top, "\"kind\":\"system\",\"name\":\"system\",\"parent\":null,\"uj\":null,"
-                      "\"mw\":null,\"source\":\"none\",\"state\":\"neither\",\"lifetime_uj\":0,") &&
-              strstr(top,
-                     "\"name\":\"engine\",\"parent\":1,\"uj\":null,\"mw\":null,\"source\":"
-                     "\"none\",\"state\":\"neither\",\"lifetime_uj\":0,\"cpu_ns\":300000000}") &&
-              !strstr(top, "\"uj\":0") && !strstr(top, "\"state\":\"true\""),
-          "W6: nothing measured is null, never 0: %.600s", top);
+    CHECK(
+        strstr(top, "\"kind\":\"system\",\"name\":\"system\",\"parent\":null,\"uj\":null,"
+                    "\"mw\":null,\"source\":\"none\",\"state\":\"neither\",\"lifetime_uj\":0,") &&
+            strstr(top, "\"name\":\"engine\",\"parent\":1,\"uj\":null,\"mw\":null,\"source\":"
+                        "\"none\",\"state\":\"neither\",\"lifetime_uj\":0,\"cpu_ns\":300000000}") &&
+            !strstr(top, "\"uj\":0") && !strstr(top, "\"state\":\"true\"") && !strstr(top, "ghost"),
+        "W6: nothing measured is null, never 0: %.600s", top);
     NOW = 0;
     zxvd_rpc_groups_reset(); /* the group's close */
     CHECK(!zxvd_power_is_open(), "the group's close closes power");
@@ -513,6 +515,12 @@ static void test_thermal(void)
     CHECK(cls && !strncmp(got, HEAD, strlen(HEAD)) &&
               !strncmp(got + strlen(HEAD), live_js, (size_t) (cls - live_js)),
           "W9: this machine's state, host and reason: %.200s", got);
+    lng[ZTH_ROOT_MAX] = 0; /* exactly ZTH_ROOT_MAX: no room for its end, so this machine too */
+    zxvd_power_set_thermal_root(lng);
+    got = rpc(call("thermal.read", "{}"));
+    CHECK(!strncmp(got, HEAD, strlen(HEAD)) &&
+              !strncmp(got + strlen(HEAD), live_js, (size_t) (cls - live_js)),
+          "W9: a root of ZTH_ROOT_MAX bytes is this machine: %.200s", got);
     lng[ZTH_ROOT_MAX - 1] = 0; /* the longest root kept: a fixture that is not there */
     zxvd_power_set_thermal_root(lng);
     snprintf(want, sizeof want,
@@ -543,6 +551,27 @@ static void test_cpu(void)
           (unsigned long long) v, (unsigned long long) hi);
 }
 
+/* ----- a full ledger (W7): an app budget with no room left is refused ----- */
+
+static void test_full(void)
+{
+    fresh();
+    NOW = 0;
+    CHECK(zxvd_power_open(R) == 0, "open on the fixture");
+    CHECK(zxvd_rpc_enable("power") == 0, "power on");
+    const char *got = NULL;
+    char params[160];
+    for (unsigned i = 0; i < PW_MAX_CONSUMERS + 1; i++) {
+        snprintf(params, sizeof params,
+                 "{\"target\":\"app\",\"app\":\"app%u\",\"window_ms\":1000,\"max_uj\":1}", i);
+        got = rpc(call("power.budget", params));
+        if (!strstr(got, "\"ok\":true")) break;
+    }
+    CHECK(got && strstr(got, "no room for another app in the power ledger"),
+          "W7: no room for another app: %.200s", got ? got : "");
+    zxvd_rpc_groups_reset();
+}
+
 int main(void)
 {
     zxvd_power_set_clock(clock_ms);
@@ -552,6 +581,7 @@ int main(void)
     test_params();
     test_thermal();
     test_cpu();
+    test_full();
     zxvd_rpc_groups_reset();
     zxvd_power_set_clock(NULL);
     cleanup();
