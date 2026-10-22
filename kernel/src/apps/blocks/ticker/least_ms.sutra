@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# How long a caption stays at least, in Sutra: 60 milliseconds for each of
+# its characters, and never less than a second. chars fits 9(4); a
+# negative count, or one past 9999, does not fit: refused.
+record caption-least
+  chars: 9(4)
+  least: 9(6)
+procedure
+  compute least = chars * 60
+  if least < 1000
+    compute least = 1000
+  end-if
+  answer least

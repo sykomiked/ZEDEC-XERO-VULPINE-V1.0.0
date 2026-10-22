@@ -1,0 +1,1 @@
+(shown>999)&(shown<1000000000)&(pace>59)&(pace<1000000000)&(lines>0)&(lines<3)&(longest>0)&longest<43

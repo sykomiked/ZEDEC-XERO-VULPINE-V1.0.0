@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Ticker files a caption the person saved, in MYRA: when it was shown
+; (ms since 1970), who spoke (their number in the call, the media or the
+; room), the source language (its place in xlate.languages, 0 not known)
+; and how many characters it holds. Captions not saved are never filed.
+^ZXTICKER(at:i15) = speaker:i3! ^ lang:i3! ^ chars:i4!

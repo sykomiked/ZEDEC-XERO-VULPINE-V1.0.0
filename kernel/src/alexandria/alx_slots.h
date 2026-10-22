@@ -359,7 +359,11 @@
 #define ALX_SLOT_LOGIC_FIREGLOW_EPISODE_ROW_OK   351u /* 491.71 fireglow.episode_row_ok */
 #define ALX_SLOT_LOGIC_FIREGLOW_PLAY_SPEED_OK    352u /* 491.72 fireglow.play_speed_ok */
 #define ALX_SLOT_NUM_FIREGLOW_SPEED_LEFT_MS      353u /* 591.72 fireglow.speed_left_ms */
-#define ALX_SLOT__COUNT 353u
+#define ALX_SLOT_LOGIC_TICKER_CAPTION_HOLD_OK    354u /* 491.73 ticker.caption_hold_ok */
+#define ALX_SLOT_NUM_TICKER_CAPTION_LEAST_MS     355u /* 591.73 ticker.caption_least_ms */
+#define ALX_SLOT_NUM_TICKER_CAPTION_PACE_MS      356u /* 591.74 ticker.caption_pace_ms */
+#define ALX_SLOT_LOGIC_TICKER_CAPTION_RECORD_OK  357u /* 491.74 ticker.caption_record_ok */
+#define ALX_SLOT__COUNT 357u
 /* clang-format on */
 
 #endif

@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A caption has stayed long enough to leave the screen (ticker_rules.h
+# TK3): shown at least a second, at a pace of at least 60 milliseconds for
+# each character (pace, ticker_pace's floor(shown / chars)), laid out in
+# one or two lines whose longest holds at most 42 characters. Any other
+# row does not fit: it stays.
+eve ticker
+shown_ms = 1000 .. 999999999
+pace_ms = 60 .. 999999999
+line_count = 1 .. 2
+line_chars = 1 .. 42
+
+caption_hold {
+  shown: shown_ms
+  pace: pace_ms
+  lines: line_count
+  longest: line_chars
+}

@@ -388,3 +388,7 @@
 351	logic.fireglow_episode_row_ok	491.71	fireglow.episode_row_ok	base
 352	logic.fireglow_play_speed_ok	491.72	fireglow.play_speed_ok	base
 353	num.fireglow_speed_left_ms	591.72	fireglow.speed_left_ms	base
+354	logic.ticker_caption_hold_ok	491.73	ticker.caption_hold_ok	base
+355	num.ticker_caption_least_ms	591.73	ticker.caption_least_ms	base
+356	num.ticker_caption_pace_ms	591.74	ticker.caption_pace_ms	base
+357	logic.ticker_caption_record_ok	491.74	ticker.caption_record_ok	base

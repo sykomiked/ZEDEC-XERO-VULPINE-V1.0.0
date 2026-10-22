@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The pace a caption has been read at, in Sutra: the whole milliseconds
+# each of its characters has had on screen, floor(shown / chars). shown
+# fits 9(9) and chars 9(4); a negative value, or one past its picture, does
+# not fit, and no characters is no pace: refused.
+record caption-pace
+  shown: 9(9)
+  chars: 9(4)
+  pace: 9(9)
+procedure
+  compute pace = shown / chars
+  answer pace

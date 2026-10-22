@@ -1,0 +1,82 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Ticker, live captions: layer 135 of the matrix (access, language and
+# safety). Speech in a call, in media or in the room is shown as captions,
+# translated into the person's language with xlate.translate after its own
+# language is found with xlate.detect (the places of languages come from
+# xlate.languages). A machine translation is marked as one; when no model
+# can translate (-32031) the words are shown as they were said, nothing
+# invented (ticker_model.h TM1-TM7).
+#
+#   caption_least_ms   how long a caption stays at least: 60 ms for each
+#                      character, never less than 1000 ms (TK1).
+#   caption_pace_ms    the pace a caption has been read at: whole ms per
+#                      character so far, floor(shown / chars) (TK2).
+#   caption_hold_ok    a caption may leave the screen: shown 1000 ms or
+#                      more at 60 ms or more per character, in 1..2 lines
+#                      of at most 42 characters (TK3).
+#   caption_record_ok  a saved caption makes a ^ZXTICKER record: time,
+#                      speaker, source language and text length (TK4).
+#
+# The task asked for "a caption stays long enough" in Eve and KRON. Eve
+# only checks that each field of a record fits its own range (zxapp_eve.c
+# EV1-EV3), so the relation across fields (60 ms per character) is given
+# to it as one field: the pace, floor(shown / chars), which is at least 60
+# exactly when shown is at least 60 * chars. The pace and the least time
+# are numbers, so they are witnessed in Sutra and KRON; the rule itself is
+# then each field against its own range in Eve and in KRON, which share one
+# domain (# agree below).
+#
+# Captions are not kept. A caption leaves the screen and is gone unless
+# the person saves it (ticker_save); a saved one stays in the model, with
+# its ^ZXTICKER record, until the person clears it. Writing saved captions
+# to the Hoard would need fs.write, which this app does not ask for.
+#
+# Kept in C, since no runnable language owns it: breaking text into lines
+# of at most 42 characters at spaces (text work: its best-fit languages,
+# SNOBOL and Raku, have no runtime yet, so they have no pending line here),
+# reading xlate's JSON and counting UTF-8 characters. Python, also planned,
+# already has a runtime (no pending line).
+#
+# zxvd has no speech-to-text method and no microphone stream on RPC
+# (call.start carries signalling only; media is the host's job): the host
+# hands Ticker the words it heard, with when and who, and Ticker captions
+# them. Nothing earlier in the matrix owns captions or reading pace, so
+# Ticker uses no other app (its layer leans on none, LAYER_ORDER.tsv).
+zxapp 1
+id     ticker
+name   Ticker
+version 1.0.0
+slot   135
+layer  L1
+matrix 135
+icon   icons/l1/135-ticker.svg
+budget 233
+needs  mic
+needs  ai.ask
+model  apps/ticker_model.c
+
+provides caption_least_ms num chars
+logic    sutra caption_least_ms apps/blocks/ticker/least_ms.sutra
+logic    kron  caption_least_ms apps/blocks/ticker/least_ms.kron
+
+provides caption_pace_ms num shown chars
+logic    sutra caption_pace_ms apps/blocks/ticker/pace.sutra
+logic    kron  caption_pace_ms apps/blocks/ticker/pace.kron
+
+provides caption_hold_ok truth shown pace lines longest
+logic    eve  caption_hold_ok apps/blocks/ticker/hold.eve
+logic    kron caption_hold_ok apps/blocks/ticker/hold.kron
+
+provides caption_record_ok truth at speaker lang chars
+logic    myra caption_record_ok apps/blocks/ticker/caption.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check caption_least_ms chars=0,16,17,84,9999 = 1000,1000,1020,5040,599940
+check caption_least_ms chars=1,-1 = both
+check caption_pace_ms shown=1000,5040,5039,999999999 chars=1,84,84,9999 = 1000,60,59,100010
+check caption_pace_ms shown=1000,-1 chars=10,10 = both
+check caption_hold_ok shown=1000,999,1000,1000,1000,1000,1000,1000 pace=60,999,59,60,60,60,60,60 lines=1,1,2,2,3,2,0,1 longest=1,1,42,42,42,43,1,0 = true,false,false,true,false,false,false,false
+# agree: caption_hold_ok each field against its own range: Eve declares the four ranges and KRON compares the same four, so no row can make them answer apart
+check caption_record_ok at=999999999999999,1000000000000000 speaker=999,1 lang=999,0 chars=9999,1 = true,false
