@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a Gesso brush may be (gesso_rules.h GR5), in Eve: 1 to 512 pixels
+# across, an opacity of 0 to 255 and a hardness of 0 to 100 percent. Each
+# field is held to its own range; nothing relates them.
+eve gesso
+brush_size = 1 .. 512
+brush_opacity = 0 .. 255
+brush_hardness = 0 .. 100
+
+brush {
+  size: brush_size
+  opacity: brush_opacity
+  hardness: brush_hardness
+}

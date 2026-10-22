@@ -203,6 +203,27 @@ gatehouse	check use_allowed asked=1,1 granted=1,-1 revoked=0,0 = both
 gatehouse	check holders held=1,0,1,1 = 3
 gatehouse	check holders held=0,0 = 0
 gatehouse	check holders held=1,2 = both
+gesso	check pixel_bright px=0,255,100,100,0,255,128,0 delta=0,0,50,-150,-255,255,-1,255 = 0,255,150,0,0,255,127,255
+gesso	check pixel_bright px=10,256 delta=0,0 = both
+gesso	check pixel_bright px=10,10 delta=0,-256 = both
+gesso	check pixel_contrast px=128,0,255,100,200,0,255,64,127,129 gain=10000,10000,10000,20000,20000,0,40000,5000,5000,5000 = 128,0,255,72,255,128,255,96,127,128
+gesso	check pixel_contrast px=10,-1 gain=10000,10000 = both
+gesso	check pixel_contrast px=10,10 gain=10000,40001 = both
+gesso	check pixel_blend base=0,255,0,255,100,10 top=255,0,255,0,200,20 alpha=0,0,255,255,128,1 = 0,255,255,0,150,10
+gesso	check pixel_blend base=1,1 top=1,1 alpha=1,256 = both
+gesso	check pixel_range_count px=0,10,128,255,128,129 lo=10 hi=128 = 3
+gesso	check pixel_range_count px=0,255,7 lo=0 hi=255 = 3
+gesso	check pixel_range_count px=1,2 lo=1,1 hi=2,2 = both
+gesso	check brush_limits_ok size=1,512,0,513,10,10,10,10 opacity=0,255,10,10,256,10,0,255 hardness=0,100,50,50,50,101,100,0 = true,true,false,false,false,false,true,true
+gesso	check brush_limits_ok size=10,-1 opacity=10,10 hardness=10,10 = both
+gesso	check brush_limits_ok size=10,10 opacity=10,10000 hardness=10,10 = both
+gesso	check canvas_limits_ok width=1,2048,0,2049,100,100,640 height=1,2048,100,100,0,2049,480 = true,true,false,false,false,false,true
+gesso	check canvas_limits_ok width=100,-1 height=100,100 = both
+gesso	check paint_layer_ok layer=0,9,10,-9,1,1,1 kind=1,9,1,1,10,1,1 amount=99999,-99999,0,0,0,100000,0 opacity=999,0,0,0,0,0,1000 visible=1,9,1,1,1,1,1 = true,true,false,true,false,false,false
+gesso	check hollow.shown pos=-4,0,1020,2000,0 size=9,9,9,9,0 span=1024,1024,1024,1024,1024 = 5,9,4,0,0
+gesso	check hollow.shown pos=0,0 size=9,-1 span=1024,1024 = both
+gesso	check witness.kind_count kind=0,255,255,7,0 want=255 = 2
+gesso	check witness.kind_count kind=1,2 want=1,1 = both
 gleaner	check holdout row=0,4,5,9,7,0,999999999 share=2000,2000,2000,2000,0,10000,10000 = 0,1,0,1,0,1,1
 gleaner	check holdout row=4,-1 share=2000,2000 = both
 gleaner	check row_match label=1,2,2,1,1,1,1,1 source=0,0,0,3,0,0,0,3 date=20260101,20260505,20260505,20260505,20251231,20261231,20270101,20260505 lab=1,-1,1,1,1,1,1,1 src=-1,-1,-1,0,-1,-1,-1,3 from=20260101,20260101,20260101,20260101,20260101,20260101,20260101,20260101 to=20261231,20261231,20261231,20261231,20261231,20261231,20261231,20261231 = true,true,false,false,false,true,false,true

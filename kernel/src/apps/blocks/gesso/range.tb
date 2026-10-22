@@ -1,0 +1,12 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! How many pixels of a row lie in lo..hi, both ends counted, in Trebago
+! (gesso_rules.h GR4): each pixel counts 1 when 1 + px - lo and 1 + hi - px
+! are both at least 1, else 0. One lo and one hi for the whole row: two of
+! either are refused here, where KRON sums them: held. Exact.
+trebago pixel_range_count
+  in  px(n), lo, hi
+  out count
+  count = sum(i, max(0, min(1, 1 + px(i) - lo)) * max(0, min(1, 1 + hi - px(i))))
+end

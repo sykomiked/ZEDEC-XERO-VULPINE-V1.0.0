@@ -319,3 +319,10 @@
 282	logic.mockingbird_emu_limits_ok	491.40	mockingbird.emu_limits_ok	base
 283	num.mockingbird_region_overlaps	591.34	mockingbird.region_overlaps	base
 284	num.mockingbird_run_cycles	591.35	mockingbird.run_cycles	base
+285	logic.gesso_brush_limits_ok	491.41	gesso.brush_limits_ok	base
+286	logic.gesso_canvas_limits_ok	491.42	gesso.canvas_limits_ok	base
+287	logic.gesso_paint_layer_ok	491.43	gesso.paint_layer_ok	base
+288	num.gesso_pixel_blend	591.36	gesso.pixel_blend	base
+289	num.gesso_pixel_bright	591.37	gesso.pixel_bright	base
+290	num.gesso_pixel_contrast	591.38	gesso.pixel_contrast	base
+291	num.gesso_pixel_range_count	591.39	gesso.pixel_range_count	base

@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A Gesso brush inside its limits (gesso_rules.h GR5), in Sutra: 1 to 512
+# pixels across, an opacity of at most 255 and a hardness of at most 100
+# percent. Each field fits 9(4): a negative value, or one of 10000 or
+# more, is no brush Gesso keeps, so it is refused. brush.eve holds the
+# same ranges.
+record brush
+  size: 9(4)
+  opacity: 9(4)
+  hardness: 9(4)
+procedure
+  answer size >= 1 and size <= 512 and opacity <= 255 and hardness <= 100

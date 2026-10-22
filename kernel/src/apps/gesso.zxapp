@@ -1,0 +1,111 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Gesso, image editing and painting: layer 53 of the matrix. An image is
+# a file of the Hoard read with files.read (base64): a binary PGM (grey,
+# P5) or PPM (colour, P6) of 8 bits a channel. Brightness, contrast, a
+# grey wash and brush dabs change it in the model; layers of adjustments
+# are kept apart and laid down on the owner's word. An edit is saved as a
+# new file (files.write, exclusive: never over a file that is there), and
+# over the original only when the owner confirms it (gesso_model.h GM1-GM6).
+#
+# Reuse, nearer the core: a brush dab clips to the canvas with Hollow's
+# shown (the pixels of a span on a side, Hollow being the desktop that
+# shows these images as wallpaper), and the pixels an edit held at 0 or
+# 255 are counted with Witness's kind_count, which is also one level's
+# count in the histogram. Seedbank and Talisman, which the matrix line
+# names, have nothing an image needs: Gesso keeps its files in the Hoard,
+# not the blockstore, and decides no tier, so neither is used.
+#
+# Limner and Tintype (and Spindrift) lean on this layer for pixel work, so
+# each entry is a general rule registered in CONCEPTS.tsv with Gesso as
+# owner. Pixel operations over whole rows are KRON and C++ (as
+# WebAssembly), witnessed: the C++ refuses (traps) a value outside its
+# domain where KRON answers: held. The range count of a histogram is KRON
+# and Trebago: two lo or hi values are refused by Trebago and summed by
+# KRON: held. The brush and canvas limits are Eve's ranges, each field on
+# its own, witnessed by Sutra, which refuses a negative value or one past
+# its picture where Eve answers false: held. The layer record is MYRA.
+# Input names have no underscore: KRON reads _ as floor.
+#
+# Planned languages: LabVIEW (dataflow, signal) owns the level shift a
+# signal chain does, pixel_bright; Julia (numeric, matrix) owns the
+# weighted mix of two planes, pixel_blend. Neither runs yet; KRON and C++
+# stand in.
+#
+# Defaults taken (gesso_rules.h, gesso_model.h): a canvas side of at most
+# 2048 pixels, a brush of at most 512, a gain of at most 4 times, 8 layers.
+zxapp 1
+id     gesso
+name   Gesso
+version 1.0.0
+slot   53
+layer  L1
+matrix 53
+icon   icons/l1/053-gesso.svg
+budget 233
+needs  fs.read
+needs  fs.write
+model  apps/gesso_model.c
+use    hollow 1    # @num.hollow_shown
+use    witness 1   # @num.witness_kind_count
+
+# Brightness (GR1): px + delta, held in 0..255.
+provides pixel_bright num px delta
+logic    kron pixel_bright apps/blocks/gesso/bright.kron
+logic    wasm pixel_bright apps/blocks/gesso/bright.wasm
+pending  LabVIEW pixel_bright
+
+# Contrast about grey 128 (GR2): 128 + floor((px - 128) * gain / 10000),
+# held in 0..255.
+provides pixel_contrast num px gain
+logic    kron pixel_contrast apps/blocks/gesso/contrast.kron
+logic    wasm pixel_contrast apps/blocks/gesso/contrast.wasm
+
+# Top over base at alpha (GR3): floor((base * (255 - alpha) + top * alpha) / 255).
+provides pixel_blend num base top alpha
+logic    kron pixel_blend apps/blocks/gesso/blend.kron
+logic    wasm pixel_blend apps/blocks/gesso/blend.wasm
+pending  Julia pixel_blend
+
+# Pixels of a row in lo..hi (GR4), one lo and one hi for the row.
+provides pixel_range_count num px lo hi
+logic    kron    pixel_range_count apps/blocks/gesso/range.kron
+logic    trebago pixel_range_count apps/blocks/gesso/range.tb
+
+# A brush inside its limits (GR5): Eve's ranges, witnessed by Sutra.
+provides brush_limits_ok truth size opacity hardness
+logic    eve   brush_limits_ok apps/blocks/gesso/brush.eve
+logic    sutra brush_limits_ok apps/blocks/gesso/brush.sutra
+
+# A canvas inside its limits (GR6): Eve's ranges, witnessed by Sutra.
+provides canvas_limits_ok truth width height
+logic    eve   canvas_limits_ok apps/blocks/gesso/canvas.eve
+logic    sutra canvas_limits_ok apps/blocks/gesso/canvas.sutra
+
+# A layer makes a ^ZXGESSO record (GR7), in MYRA.
+provides paint_layer_ok truth layer kind amount opacity visible
+logic    myra paint_layer_ok apps/blocks/gesso/layer.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check pixel_bright px=0,255,100,100,0,255,128,0 delta=0,0,50,-150,-255,255,-1,255 = 0,255,150,0,0,255,127,255
+check pixel_bright px=10,256 delta=0,0 = both
+check pixel_bright px=10,10 delta=0,-256 = both
+check pixel_contrast px=128,0,255,100,200,0,255,64,127,129 gain=10000,10000,10000,20000,20000,0,40000,5000,5000,5000 = 128,0,255,72,255,128,255,96,127,128
+check pixel_contrast px=10,-1 gain=10000,10000 = both
+check pixel_contrast px=10,10 gain=10000,40001 = both
+check pixel_blend base=0,255,0,255,100,10 top=255,0,255,0,200,20 alpha=0,0,255,255,128,1 = 0,255,255,0,150,10
+check pixel_blend base=1,1 top=1,1 alpha=1,256 = both
+check pixel_range_count px=0,10,128,255,128,129 lo=10 hi=128 = 3
+check pixel_range_count px=0,255,7 lo=0 hi=255 = 3
+check pixel_range_count px=1,2 lo=1,1 hi=2,2 = both
+check brush_limits_ok size=1,512,0,513,10,10,10,10 opacity=0,255,10,10,256,10,0,255 hardness=0,100,50,50,50,101,100,0 = true,true,false,false,false,false,true,true
+check brush_limits_ok size=10,-1 opacity=10,10 hardness=10,10 = both
+check brush_limits_ok size=10,10 opacity=10,10000 hardness=10,10 = both
+check canvas_limits_ok width=1,2048,0,2049,100,100,640 height=1,2048,100,100,0,2049,480 = true,true,false,false,false,false,true
+check canvas_limits_ok width=100,-1 height=100,100 = both
+check paint_layer_ok layer=0,9,10,-9,1,1,1 kind=1,9,1,1,10,1,1 amount=99999,-99999,0,0,0,100000,0 opacity=999,0,0,0,0,0,1000 visible=1,9,1,1,1,1,1 = true,true,false,true,false,false,false
+check hollow.shown pos=-4,0,1020,2000,0 size=9,9,9,9,0 span=1024,1024,1024,1024,1024 = 5,9,4,0,0
+check hollow.shown pos=0,0 size=9,-1 span=1024,1024 = both
+check witness.kind_count kind=0,255,255,7,0 want=255 = 2
+check witness.kind_count kind=1,2 want=1,1 = both

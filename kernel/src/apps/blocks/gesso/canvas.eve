@@ -1,0 +1,12 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a Gesso canvas may be (gesso_rules.h GR6), in Eve: 1 to 2048 pixels
+# wide and 1 to 2048 high. Each side is held to its own range.
+eve gesso
+canvas_side = 1 .. 2048
+
+canvas {
+  width: canvas_side
+  height: canvas_side
+}

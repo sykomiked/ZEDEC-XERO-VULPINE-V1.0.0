@@ -1,0 +1,1 @@
+_((base*255-alpha)+top*alpha)%255

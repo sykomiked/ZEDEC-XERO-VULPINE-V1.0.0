@@ -1,0 +1,11 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A Gesso canvas inside its limits (gesso_rules.h GR6), in Sutra: 1 to
+# 2048 pixels wide and high. Each side fits 9(5): a negative side, or one
+# of 100000 or more, is refused. canvas.eve holds the same ranges.
+record canvas
+  width: 9(5)
+  height: 9(5)
+procedure
+  answer width >= 1 and width <= 2048 and height >= 1 and height <= 2048

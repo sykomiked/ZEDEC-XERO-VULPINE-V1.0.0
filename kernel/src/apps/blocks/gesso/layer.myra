@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Gesso files one layer in MYRA (gesso_rules.h GR7): its place in the
+; stack (0 .. 7), what it does (1 brightness, 2 contrast, 3 a grey wash),
+; its amount (a delta, a gain in hundredths of a percent or a grey level),
+; its opacity (0 .. 255) and whether it is shown (1) or hidden (0). Gesso
+; asks whether the numbers fit before it keeps them.
+^ZXGESSO(layer:i1) = kind:i1! ^ amount:i5! ^ opacity:i3! ^ visible:i1!

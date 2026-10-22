@@ -290,7 +290,14 @@
 #define ALX_SLOT_LOGIC_MOCKINGBIRD_EMU_LIMITS_OK 282u /* 491.40 mockingbird.emu_limits_ok */
 #define ALX_SLOT_NUM_MOCKINGBIRD_REGION_OVERLAPS 283u /* 591.34 mockingbird.region_overlaps */
 #define ALX_SLOT_NUM_MOCKINGBIRD_RUN_CYCLES      284u /* 591.35 mockingbird.run_cycles */
-#define ALX_SLOT__COUNT 284u
+#define ALX_SLOT_LOGIC_GESSO_BRUSH_LIMITS_OK     285u /* 491.41 gesso.brush_limits_ok */
+#define ALX_SLOT_LOGIC_GESSO_CANVAS_LIMITS_OK    286u /* 491.42 gesso.canvas_limits_ok */
+#define ALX_SLOT_LOGIC_GESSO_PAINT_LAYER_OK      287u /* 491.43 gesso.paint_layer_ok */
+#define ALX_SLOT_NUM_GESSO_PIXEL_BLEND           288u /* 591.36 gesso.pixel_blend */
+#define ALX_SLOT_NUM_GESSO_PIXEL_BRIGHT          289u /* 591.37 gesso.pixel_bright */
+#define ALX_SLOT_NUM_GESSO_PIXEL_CONTRAST        290u /* 591.38 gesso.pixel_contrast */
+#define ALX_SLOT_NUM_GESSO_PIXEL_RANGE_COUNT     291u /* 591.39 gesso.pixel_range_count */
+#define ALX_SLOT__COUNT 291u
 /* clang-format on */
 
 #endif
