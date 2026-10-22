@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Meets the bar (assay_rules.h AY2), in Eve. Eve checks each field against
+# its own range, so each part of the bar comes as its margin, what the
+# subject has minus what the owner asks: the pass margin (pass share minus
+# the bar, both in hundredths of a percent) 0 to 10000, the refusal margin
+# (most refusals allowed minus refusals) and the run margin (runs minus the
+# fewest runs) 0 to 999999999. A margin below 0 misses the bar; one past
+# its range is no measurement. bar.kron reads any margin at or above 0 as
+# met: a margin past its range is held.
+eve assay
+share_room = 0 .. 10000
+count_room = 0 .. 999999999
+
+test_bar {
+  passroom: share_room
+  refusalroom: count_room
+  runroom: count_room
+}

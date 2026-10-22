@@ -299,3 +299,6 @@
 262	num.relief_mesh_volume	591.21	relief.mesh_volume	base
 263	num.relief_vertex_screen_x	591.22	relief.vertex_screen_x	base
 264	num.relief_vertex_screen_y	591.23	relief.vertex_screen_y	base
+265	logic.assay_meets_bar	491.33	assay.meets_bar	base
+266	num.assay_pass_share_x100	591.24	assay.pass_share_x100	base
+267	num.assay_score_rank	591.25	assay.score_rank	base

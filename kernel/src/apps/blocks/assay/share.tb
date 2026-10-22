@@ -1,0 +1,22 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Each subject's pass share (assay_rules.h AY1), in Trebago: hundredths of
+! a percent of its results that passed, never rounded up. Trebago is exact
+! and has no floor, so the floor is counted: of the steps k = 1 to 10000,
+! those with k * runs <= 10000 * passes, each counted as
+! min(1, max(0, 10000 * passes - k * runs + 1)), which is 1 or 0 for
+! integers. With 0 <= passes <= runs that is floor(10000 * passes / runs).
+! bad counts the rows that are no count: runs below 1 or past 999999999,
+! passes below 0 or past runs; the share is divided by 1 - min(1, bad), so
+! any one of them is a division by zero, refused. share.kron divides as it
+! is: held.
+trebago pass_share
+  in  passes(n), runs(n)
+  out share(n)
+  var bad(n)
+  bad(i) = min(1, max(0, 1 - runs(i))) + min(1, max(0, runs(i) - 999999999)) &
+         + min(1, max(0, 0 - passes(i))) + min(1, max(0, passes(i) - runs(i)))
+  share(i) = sum(k = 1:10000, min(1, max(0, 10000 * passes(i) - k * runs(i) + 1))) &
+           / (1 - min(1, sum(j, bad(j))))
+end

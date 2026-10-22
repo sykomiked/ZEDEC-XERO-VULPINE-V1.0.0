@@ -270,7 +270,10 @@
 #define ALX_SLOT_NUM_RELIEF_MESH_VOLUME          262u /* 591.21 relief.mesh_volume */
 #define ALX_SLOT_NUM_RELIEF_VERTEX_SCREEN_X      263u /* 591.22 relief.vertex_screen_x */
 #define ALX_SLOT_NUM_RELIEF_VERTEX_SCREEN_Y      264u /* 591.23 relief.vertex_screen_y */
-#define ALX_SLOT__COUNT 264u
+#define ALX_SLOT_LOGIC_ASSAY_MEETS_BAR           265u /* 491.33 assay.meets_bar */
+#define ALX_SLOT_NUM_ASSAY_PASS_SHARE_X100       266u /* 591.24 assay.pass_share_x100 */
+#define ALX_SLOT_NUM_ASSAY_SCORE_RANK            267u /* 591.25 assay.score_rank */
+#define ALX_SLOT__COUNT 267u
 /* clang-format on */
 
 #endif
