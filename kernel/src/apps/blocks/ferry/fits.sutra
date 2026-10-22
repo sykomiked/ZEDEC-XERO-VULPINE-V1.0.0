@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The plan fits on the target, in Sutra (ferry_rules.h FR2): the bytes it
+# moves (need) and the bytes the owner keeps free there (spare) together
+# at most what the target may still write (avail). Each fits 9(15) bytes,
+# just under a petabyte: a negative or larger one is refused. fits.kron
+# says the same in KRON, which reads any size.
+record target-fits
+  avail: 9(15)
+  need: 9(15)
+  spare: 9(15)
+  wanted: 9(16)
+procedure
+  compute wanted = need + spare
+  answer wanted <= avail

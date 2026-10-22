@@ -143,7 +143,10 @@
 #define ALX_SLOT_LOGIC_UNDERSTORY_OVER_BUDGET    135u /* 490.63 understory.over_budget */
 #define ALX_SLOT_NUM_UNDERSTORY_ROLLING_TOTAL    136u /* 590.62 understory.rolling_total */
 #define ALX_SLOT_LOGIC_UNDERSTORY_WATER_ENTRY_OK 137u /* 490.64 understory.water_entry_ok */
-#define ALX_SLOT__COUNT 137u
+#define ALX_SLOT_LOGIC_FERRY_MOVE_OK             138u /* 490.65 ferry.move_ok */
+#define ALX_SLOT_LOGIC_FERRY_TARGET_FITS         139u /* 490.66 ferry.target_fits */
+#define ALX_SLOT_NUM_FERRY_TARGET_ROOM           140u /* 590.63 ferry.target_room */
+#define ALX_SLOT__COUNT 140u
 /* clang-format on */
 
 #endif

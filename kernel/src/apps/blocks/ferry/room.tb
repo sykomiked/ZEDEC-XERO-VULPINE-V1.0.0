@@ -1,0 +1,16 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Bytes left on the target after the move, in Trebago (ferry_rules.h FR1):
+! avail - need - spare, exact; below 0 the plan is that many bytes short.
+! ok is 1 when every input is at least 0, else 0, and the answer is
+! divided by it: a negative size is a division by zero, refused. Trebago
+! answers any size to 64 bits; Sutra holds each to 9(15) bytes, so past
+! that the two disagree and the answer is held.
+trebago room
+  in  avail(n), need(n), spare(n)
+  out room(n)
+  var ok(n)
+  ok(i) = min(1, max(0, avail(i) + 1)) * min(1, max(0, need(i) + 1)) * min(1, max(0, spare(i) + 1))
+  room(i) = (avail(i) - need(i) - spare(i)) / ok(i)
+end

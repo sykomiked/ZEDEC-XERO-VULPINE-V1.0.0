@@ -73,6 +73,17 @@ crown	check pool_after opening=100 inflow=50,0,25 granted=120,30,25 = 30,0,0
 crown	check pool_after opening=0 inflow=0,999999999 granted=0,1 = 0,999999998
 crown	check vintner.sale_value bottles=0,40 price=2500,2500 = 0,100000
 crown	check gatehouse.use_ok asked=1,1 granted=1,0 revoked=0,0 = true,false
+ferry	check target_room avail=0,1000,1000,999999999999999,0 need=0,600,600,0,999999999999999 spare=0,400,401,0,999999999999999 = 0,0,-1,999999999999999,-1999999999999998
+ferry	check target_room avail=1000,1000000000000000 need=600,0 spare=400,0 = both
+ferry	check target_fits avail=0,1000,1000,999999999999999,0,5 need=0,600,600,999999999999999,1,0 spare=0,400,401,0,0,5 = true,true,false,true,false,true
+ferry	check target_fits avail=1000,1000000000000000 need=600,0 spare=400,0 = both
+ferry	check move_ok kind=1,2,3,4,4,5,5,0,6 approved=0,0,0,0,1,0,1,1,1 = true,true,true,false,true,false,true,false,false
+ferry	check move_ok kind=1,1 approved=0,10 = both
+ferry	check banker.total size=4096,0,1048576 = 1052672
+ferry	check banker.share size=600,400 total=1000 = 6000,4000
+ferry	check banker.share size=5,11 total=10 = both
+ferry	check used_share.used_x100 total=1000,1000,1000,3 left=1000,400,0,2 = 0,6000,10000,3333
+ferry	check used_share.used_x100 total=1000,1000 left=0,1001 = both
 flint	check cells pixels=0,7,8,1919,65535,65535 cell=8,8,8,8,1,256 = 0,0,1,239,65535,255
 flint	check cells pixels=800,65536 cell=8,8 = both
 flint	check cells pixels=800,800 cell=8,257 = both

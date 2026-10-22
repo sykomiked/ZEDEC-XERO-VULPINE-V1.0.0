@@ -172,3 +172,6 @@
 135	logic.understory_over_budget	490.63	understory.over_budget	base
 136	num.understory_rolling_total	590.62	understory.rolling_total	base
 137	logic.understory_water_entry_ok	490.64	understory.water_entry_ok	base
+138	logic.ferry_move_ok	490.65	ferry.move_ok	base
+139	logic.ferry_target_fits	490.66	ferry.target_fits	base
+140	num.ferry_target_room	590.63	ferry.target_room	base

@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# An item may move to the new machine, in Sutra (ferry_rules.h FR3). Its
+# kind: 1 a file, 2 a space, 3 a setting, 4 a regulated setting, 5 a key.
+# Files, spaces and settings move; a regulated setting or a key moves only
+# with the owner's approval (approved = 1). kind and approved fit one
+# digit: a negative or larger one is refused.
+record move-ok
+  kind: 9
+  approved: 9
+procedure
+  if kind < 1 or kind > 5
+    answer 0 = 1
+  end-if
+  answer kind < 4 or approved = 1

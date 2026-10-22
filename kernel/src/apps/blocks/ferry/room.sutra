@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Bytes left on the target after the move, in Sutra (ferry_rules.h FR1):
+# what it may still write (avail) less the bytes the plan moves (need) and
+# the bytes the owner keeps free (spare); below 0 the plan is that many
+# bytes short. Each input fits 9(15): a negative or larger one is refused.
+record target-room
+  avail: 9(15)
+  need: 9(15)
+  spare: 9(15)
+  room: s9(16)
+procedure
+  compute room = avail - need - spare
+  answer room

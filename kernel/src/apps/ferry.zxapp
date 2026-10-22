@@ -1,0 +1,90 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Ferry, move to a new machine: layer 12 of the matrix. It carries the
+# spaces this node owns (home among them) through Keepsake's backups
+# (backup.run, backup.verify, backup.restore) on a disk or folder the new
+# machine reads, the spaces it joined as their membership (spaces.list,
+# spaces.get, spaces.create, spaces.join), loose files gathered into a
+# carried space first (files.cross, held crossings confirmed by the
+# owner), and its settings: the feature switches (features.get,
+# features.set). The plan rides in home as Ferry/plan.txt (files.write,
+# files.read). The target's room is sys.disk's avail, read there.
+#
+# Advisory and owner-confirmed: a regulated setting or a key moves only
+# with the owner's approval (move_ok). zxvd has no method to export or
+# import a key, to read a peer's disk, or to send a whole space to a peer,
+# so keys are not carried (the rule for them is here, ready) and the
+# carrier is a folder both machines reach; none is invented
+# (ferry_model.h).
+#
+# Reuse, nearer the core: the plan's totals in bytes and in files are
+# banker.total (an exact Trebago sum, refused rather than wrapped), each
+# space's share of the plan is banker.share (share_of_whole), and progress
+# x100 is used_share.used_x100 over the plan's bytes and the bytes still
+# to pack. The task names Caravan (90), built before this one, but its
+# entries are a parcel's weight, girth and carrier limits: none of them is
+# a rule of moving data, so it is not used rather than used for show.
+#
+# 58 later layers lean on this one, so each entry is a general rule
+# registered in CONCEPTS.tsv with Ferry as its owner: the bytes left on a
+# target after a move, whether a move fits on its target, and whether an
+# item may move. Witness pairs are of one kind: target_fits is a truth
+# over a relation across fields (need + spare <= avail), which Eve cannot
+# hold (it checks each field alone), so it is Sutra and KRON as the task
+# asks; target_room is its number, Sutra and Trebago; move_ok relates kind
+# and approval, Sutra and KRON. The model's C (ferry_rules.h) is the third
+# witness of each.
+#
+# Defaults taken (ferry_model.h): 1 GiB kept free on the target when the
+# owner gives no spare; sizes past 9(15) bytes (Sutra's picture, just under
+# a petabyte) are refused, and a target with more room counts as 9(15).
+zxapp 1
+id     ferry
+name   Ferry
+version 1.0.0
+slot   12
+layer  L1
+matrix 12
+icon   icons/l1/012-ferry.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  peers
+needs  backup
+model  apps/ferry_model.c
+use    banker 1       # @num.banker_total @num.banker_share
+use    used_share 1   # @num.used_x100
+
+# Bytes left on the target after the move (FR1): avail - need - spare,
+# below 0 the bytes it is short. Sutra holds 9(15) bytes, Trebago answers
+# to 64 bits: past 9(15) the two disagree and it is held.
+provides target_room num avail need spare
+logic    sutra   target_room apps/blocks/ferry/room.sutra
+logic    trebago target_room apps/blocks/ferry/room.tb
+
+# The move fits on the target (FR2): need + spare at most avail. Sutra
+# holds 9(15) bytes, KRON reads any size: held past them.
+provides target_fits truth avail need spare
+logic    sutra target_fits apps/blocks/ferry/fits.sutra
+logic    kron  target_fits apps/blocks/ferry/fits.kron
+
+# An item may move (FR3): kinds 1 file, 2 space, 3 setting, 4 regulated
+# setting, 5 key; the last two only with the owner's approval. Sutra holds
+# one digit each, KRON reads any approval: held past it.
+provides move_ok truth kind approved
+logic    sutra move_ok apps/blocks/ferry/move.sutra
+logic    kron  move_ok apps/blocks/ferry/move.kron
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check target_room avail=0,1000,1000,999999999999999,0 need=0,600,600,0,999999999999999 spare=0,400,401,0,999999999999999 = 0,0,-1,999999999999999,-1999999999999998
+check target_room avail=1000,1000000000000000 need=600,0 spare=400,0 = both
+check target_fits avail=0,1000,1000,999999999999999,0,5 need=0,600,600,999999999999999,1,0 spare=0,400,401,0,0,5 = true,true,false,true,false,true
+check target_fits avail=1000,1000000000000000 need=600,0 spare=400,0 = both
+check move_ok kind=1,2,3,4,4,5,5,0,6 approved=0,0,0,0,1,0,1,1,1 = true,true,true,false,true,false,true,false,false
+check move_ok kind=1,1 approved=0,10 = both
+check banker.total size=4096,0,1048576 = 1052672
+check banker.share size=600,400 total=1000 = 6000,4000
+check banker.share size=5,11 total=10 = both
+check used_share.used_x100 total=1000,1000,1000,3 left=1000,400,0,2 = 0,6000,10000,3333
+check used_share.used_x100 total=1000,1000 left=0,1001 = both
