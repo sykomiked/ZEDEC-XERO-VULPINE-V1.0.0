@@ -180,3 +180,8 @@
 143	num.homestead_device_energy	590.65	homestead.device_energy	base
 144	logic.homestead_home_device_ok	490.68	homestead.home_device_ok	base
 145	logic.homestead_home_scene_ok	490.69	homestead.home_scene_ok	base
+146	logic.lifeboat_recovery_ok	490.70	lifeboat.recovery_ok	base
+147	num.lifeboat_repair_step	590.66	lifeboat.repair_step	base
+148	logic.lifeboat_restore_fits	490.71	lifeboat.restore_fits	base
+149	num.lifeboat_start_n	590.67	lifeboat.start_n	base
+150	logic.lifeboat_start_ok	490.72	lifeboat.start_ok	base

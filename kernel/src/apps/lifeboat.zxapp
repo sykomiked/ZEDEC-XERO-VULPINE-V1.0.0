@@ -1,0 +1,122 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Lifeboat, recovery: layer 11 of the matrix. Start safe (every feature
+# switch off: features.get, features.set), check the system (journal.verify,
+# ledger.check, sys.disk, backup.list and backup.verify), restore from
+# Keepsake's backups (backup.restore, always as a new item) and check for a
+# signed update (update.check only). Advisory and owner-confirmed: nothing
+# is switched or restored without the owner's approval (lifeboat_model.h
+# LM2, LM4), and nothing is reinstalled at all.
+#
+# zxvd has no method for a bare-metal reinstall, for repairing the Hoard or
+# the journal at boot, for installing an update (update.check only checks)
+# or for posting a notice (the model composes it for the view); none is
+# invented. The view hands the model the Keepsake destination, as
+# Keepsake's own view does.
+#
+#   start_ok     safe to start normally (LB2). The task asks for Forth and
+#                Eve witnessed; Eve answers only truths and Forth (Lingua,
+#                zxapp_lingua.c L2) only the numbers it prints, and a
+#                witnessed pair must answer the same kind, so the rule is
+#                split as Gatehouse's use_ok and use_allowed are: Eve and
+#                KRON witness the truth, Forth and KRON the number
+#                (start_n). Eve checks each field against its own range,
+#                so the free bytes come as their margin over the floor
+#                (room). A flag of 2, or a room past 18 digits, fits KRON's
+#                yes and not Eve's record: held.
+#   start_n      the same rule as a number, 1 or 0 (LB3): Forth, written in
+#                its twin Cairndrake's canonical form (zxlang twin), and
+#                KRON. Forth reads its input from the stack and Lingua's
+#                Forth has no DEPTH, so it takes one row per call: each
+#                check line is one row. Forth refuses a flag that is no
+#                flag, KRON reads it above 0 as yes: held.
+#   repair_step  the next repair step (LB4): 1 free space, 2 test a backup,
+#                3 restore the books, 4 keep the broken journal and tell
+#                the owner, 0 start normally. BASIC (as its twin Hatchling)
+#                and KRON, one row per call (BASIC's INPUT reads the first
+#                four values); BASIC refuses a flag that is no flag, KRON
+#                reads it: held.
+#   restore_fits the bytes a restore needs, with the owner's floor kept
+#                free, at most what may be written (LB5): Sutra and KRON;
+#                Sutra's 9(18) refuses a negative count or a sum past 18
+#                digits, KRON compares it: held.
+#   recovery_ok  a recovery check's record, ^ZXLIFEBOAT, in MYRA (LB6).
+#   used_share   how full the disk holding the Hoard is: the
+#                used_of_capacity concept is used_share's (CONCEPTS.tsv),
+#                so it is used, never written again.
+#
+# Owner approval: the owner_approval concept is Warren's (layer 20), built
+# after this layer in MATRIX_ORDER.tsv, so it is not used; the model keeps
+# its own approval gate in C (LM2, LM4). Planned languages: Elixir owns
+# faults and stands for the repair step (repair_step). Crystal owns typed
+# native machine code: no entry here is machine work, so it is not pending.
+zxapp 1
+id     lifeboat
+name   Lifeboat
+version 1.0.0
+slot   11
+layer  L1
+matrix 11
+icon   icons/l1/011-lifeboat.svg
+budget 233
+needs  sys.read
+needs  fs.read
+needs  fs.write
+needs  backup
+needs  journal
+needs  ledger.read
+needs  notify
+model  apps/lifeboat_model.c
+use    used_share 1   # @num.used_x100
+
+# Safe to start normally (LB2), Eve and KRON.
+provides start_ok truth journal books room tested
+logic    eve  start_ok apps/blocks/lifeboat/start.eve
+logic    kron start_ok apps/blocks/lifeboat/start.kron
+
+# The same rule as a number (LB3). Forth, twin Cairndrake; the line names
+# the runtime "forth", since the Alexandria index numbers runtimes, not
+# twins.
+provides start_n num journal books room tested
+logic    forth start_n apps/blocks/lifeboat/start.fs
+logic    kron  start_n apps/blocks/lifeboat/start_n.kron
+
+# The next repair step (LB4). BASIC, twin Hatchling; the line names the
+# runtime "basic".
+provides repair_step num journal books room tested
+logic    basic repair_step apps/blocks/lifeboat/repair.bas
+logic    kron  repair_step apps/blocks/lifeboat/repair.kron
+pending  Elixir repair_step
+
+# Does a restore fit (LB5), Sutra and KRON.
+provides restore_fits truth need free reserve
+logic    sutra restore_fits apps/blocks/lifeboat/fits.sutra
+logic    kron  restore_fits apps/blocks/lifeboat/fits.kron
+
+# A recovery check's record (LB6), in MYRA.
+provides recovery_ok truth seq step journal books tested room stamp
+logic    myra recovery_ok apps/blocks/lifeboat/rescue.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check start_ok journal=1,1,0,1,1,1,0 books=1,1,1,0,1,1,0 room=1,999999999999999999,5,5,0,5,-5 tested=1,1,1,1,1,0,0 = true,true,false,false,false,false,false
+check start_ok journal=1,2 books=1,1 room=5,5 tested=1,1 = both
+check start_ok journal=1,1 books=1,1 room=5,1000000000000000000 tested=1,1 = both
+check start_n journal=1 books=1 room=1 tested=1 = 1
+check start_n journal=1 books=1 room=0 tested=1 = 0
+check start_n journal=0 books=0 room=-999999999999999999 tested=0 = 0
+check start_n journal=2 books=1 room=5 tested=1 = both
+check start_n journal=1 books=1 room=1000000000000000000 tested=1 = both
+check repair_step journal=1 books=1 room=5 tested=1 = 0
+check repair_step journal=1 books=1 room=0 tested=1 = 1
+check repair_step journal=0 books=0 room=5 tested=0 = 2
+check repair_step journal=0 books=0 room=5 tested=1 = 3
+check repair_step journal=0 books=1 room=999999999999999999 tested=1 = 4
+check repair_step journal=1 books=1 room=5 tested=2 = both
+check repair_step journal=1 books=-1 room=5 tested=1 = both
+check restore_fits need=0,100,101,999999999999999998,0 free=0,200,200,999999999999999999,999999999999999999 reserve=0,100,100,1,999999999999999999 = true,true,false,true,true
+check restore_fits need=1,1 free=10,10 reserve=1,1000000000000000000 = both
+check restore_fits need=1,999999999999999999 free=10,999999999999999999 reserve=1,1 = both
+check restore_fits need=1,-1 free=10,10 reserve=1,1 = both
+check recovery_ok seq=1,999999999,1000000000,1,1 step=0,4,0,10,0 journal=1,0,1,1,1 books=1,0,1,1,1 tested=1,0,1,1,1 room=5,-999999999999999999,5,5,5 stamp=1700000000000,999999999999999,1,1,1000000000000000 = true,true,false,false,false
+check used_share.used_x100 total=1000,1000 left=250,1000 = 7500,0

@@ -151,7 +151,12 @@
 #define ALX_SLOT_NUM_HOMESTEAD_DEVICE_ENERGY     143u /* 590.65 homestead.device_energy */
 #define ALX_SLOT_LOGIC_HOMESTEAD_HOME_DEVICE_OK  144u /* 490.68 homestead.home_device_ok */
 #define ALX_SLOT_LOGIC_HOMESTEAD_HOME_SCENE_OK   145u /* 490.69 homestead.home_scene_ok */
-#define ALX_SLOT__COUNT 145u
+#define ALX_SLOT_LOGIC_LIFEBOAT_RECOVERY_OK      146u /* 490.70 lifeboat.recovery_ok */
+#define ALX_SLOT_NUM_LIFEBOAT_REPAIR_STEP        147u /* 590.66 lifeboat.repair_step */
+#define ALX_SLOT_LOGIC_LIFEBOAT_RESTORE_FITS     148u /* 490.71 lifeboat.restore_fits */
+#define ALX_SLOT_NUM_LIFEBOAT_START_N            149u /* 590.67 lifeboat.start_n */
+#define ALX_SLOT_LOGIC_LIFEBOAT_START_OK         150u /* 490.72 lifeboat.start_ok */
+#define ALX_SLOT__COUNT 150u
 /* clang-format on */
 
 #endif

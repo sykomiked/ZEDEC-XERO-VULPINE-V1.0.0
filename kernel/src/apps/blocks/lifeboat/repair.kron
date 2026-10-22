@@ -1,0 +1,8 @@
+r:1-0|1&room
+t:1-0|1&tested
+b:1-0|1&books
+j:1-0|1&journal
+sj:4*j
+sb:(3*b)+sj*1-b
+st:(2*t)+sb*1-t
+r+st*1-r

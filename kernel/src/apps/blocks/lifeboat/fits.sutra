@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Does a restore fit (lifeboat_rules.h LB5), in Sutra: the bytes it needs,
+# with the floor the owner keeps free (reserve), at most the bytes that may
+# be written (free). Each fits 9(18), and so must need + reserve: a
+# negative count, or one past 18 digits, does not fit its picture and is
+# refused, where fits.kron compares whatever it is given: held.
+record restore-fits
+  need: 9(18)
+  free: 9(18)
+  reserve: 9(18)
+  wanted: 9(18)
+procedure
+  compute wanted = need + reserve
+  answer wanted <= free

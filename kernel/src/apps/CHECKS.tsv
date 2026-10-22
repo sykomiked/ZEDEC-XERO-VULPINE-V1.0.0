@@ -174,6 +174,27 @@ kitling	check gene_strength gene=0,1,127,128,254,255 = 0,4,498,502,996,1000
 kitling	check memory_ok seq=1,999999999,1000000000,1,1 stamp=0,999999999999999,0,1000000000000000,0 emotion=0,7,0,0,10 intensity=0,5,0,0,0 tokens=0,999999999,0,0,0 = true,true,false,false,false
 kitling	check used_share.used_x100 total=450,450,450,1 left=450,0,225,1 = 0,10000,5000,0
 kitling	check used_share.used_x100 total=450,450 left=0,451 = both
+lifeboat	check start_ok journal=1,1,0,1,1,1,0 books=1,1,1,0,1,1,0 room=1,999999999999999999,5,5,0,5,-5 tested=1,1,1,1,1,0,0 = true,true,false,false,false,false,false
+lifeboat	check start_ok journal=1,2 books=1,1 room=5,5 tested=1,1 = both
+lifeboat	check start_ok journal=1,1 books=1,1 room=5,1000000000000000000 tested=1,1 = both
+lifeboat	check start_n journal=1 books=1 room=1 tested=1 = 1
+lifeboat	check start_n journal=1 books=1 room=0 tested=1 = 0
+lifeboat	check start_n journal=0 books=0 room=-999999999999999999 tested=0 = 0
+lifeboat	check start_n journal=2 books=1 room=5 tested=1 = both
+lifeboat	check start_n journal=1 books=1 room=1000000000000000000 tested=1 = both
+lifeboat	check repair_step journal=1 books=1 room=5 tested=1 = 0
+lifeboat	check repair_step journal=1 books=1 room=0 tested=1 = 1
+lifeboat	check repair_step journal=0 books=0 room=5 tested=0 = 2
+lifeboat	check repair_step journal=0 books=0 room=5 tested=1 = 3
+lifeboat	check repair_step journal=0 books=1 room=999999999999999999 tested=1 = 4
+lifeboat	check repair_step journal=1 books=1 room=5 tested=2 = both
+lifeboat	check repair_step journal=1 books=-1 room=5 tested=1 = both
+lifeboat	check restore_fits need=0,100,101,999999999999999998,0 free=0,200,200,999999999999999999,999999999999999999 reserve=0,100,100,1,999999999999999999 = true,true,false,true,true
+lifeboat	check restore_fits need=1,1 free=10,10 reserve=1,1000000000000000000 = both
+lifeboat	check restore_fits need=1,999999999999999999 free=10,999999999999999999 reserve=1,1 = both
+lifeboat	check restore_fits need=1,-1 free=10,10 reserve=1,1 = both
+lifeboat	check recovery_ok seq=1,999999999,1000000000,1,1 step=0,4,0,10,0 journal=1,0,1,1,1 books=1,0,1,1,1 tested=1,0,1,1,1 room=5,-999999999999999999,5,5,5 stamp=1700000000000,999999999999999,1,1,1000000000000000 = true,true,false,false,false
+lifeboat	check used_share.used_x100 total=1000,1000 left=250,1000 = 7500,0
 lockbox	check strength length=0,12,20,40,12 classes=0,2,4,9,1 repeats=0,1,0,0,20 = 0,51,100,100,0
 lockbox	check strength length=12,10000 classes=3,3 repeats=0,0 = both
 lockbox	check days_left expires=86400,172799,0,253402300799 now=0,0,86400,0 = 1,1,0,2932896

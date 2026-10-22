@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Safe to start normally (lifeboat_rules.h LB2), in Eve: the one record
+# that fits is the journal intact (1), the books holding (1), a backup
+# tested (1) and room above the floor (what may be written minus the floor
+# kept free, 1 .. 18 digits). Eve checks each field against its own range,
+# which is why the free bytes come as their margin over the floor. A flag
+# that is no flag, or a room past 18 digits, does not fit: not safe.
+eve lifeboat
+check_passed = 1 .. 1
+room_above_floor = 1 .. 999999999999999999
+
+safe_start {
+  journal: check_passed
+  books: check_passed
+  room: room_above_floor
+  tested: check_passed
+}

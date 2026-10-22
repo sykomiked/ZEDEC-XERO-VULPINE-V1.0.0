@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Lifeboat files one recovery check in MYRA (lifeboat_rules.h LB6): its
+; number, the repair step it named (0 none .. 4), the journal, books and
+; backup results (0 or 1), the room above the floor in bytes (below 1 at or
+; under it) and when it ran (ms since 1970, zxvd's clock).
+^ZXLIFEBOAT(seq:i9) = step:i1! ^ journal:i1! ^ books:i1! ^ tested:i1! ^ room:i18! ^ stamp:i15!
