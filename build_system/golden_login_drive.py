@@ -254,8 +254,9 @@ def toosmall(c, seed, did, digest, question):
     end = time.monotonic() + 5
     while time.monotonic() < end and c.pump():
         pass
-    # The kernel itself must never start.
-    went_on = {"arm64": (b"handing off to ZXV kernel", b"[BOOT_OK]", b"[AI_HANDOFF]"),
+    # The kernel itself must never start. (arm64's loader may stage the boot
+    # model, [AI_HANDOFF], before handoff v2 refuses the window.)
+    went_on = {"arm64": (b"handing off to ZXV kernel", b"[BOOT_OK]"),
                "x86_64": (b"[BOOT_OK]",)}[ARCH]
     for m in went_on:
         if m in c.buf:
