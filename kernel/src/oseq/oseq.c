@@ -133,6 +133,13 @@ int32_t oseq_register_event(oseq_registry_t *reg, uint32_t node_idx,
     if (node_idx >= reg->node_count) return -1;
     if (reg->event_count >= OSEQ_MAX_EVENTS) return -1;
     if (num_parents > OSEQ_MAX_PARENTS) return -1;
+    /* Every parent must be an event already in the table, checked before
+     * anything is written. Storing an unknown parent as 0 (as this once did)
+     * made the first event its own parent: a self-loop that oseq_get_depth
+     * recursed on until the stack ran out, and on any later event a false
+     * edge to event 0. */
+    for (uint8_t i = 0; i < num_parents; i++)
+        if (!parent_ordinals || parent_ordinals[i] >= reg->event_count) return -1;
 
     /* Check replay if payload hash provided */
     if (payload_hash && hash_len > 0) {
@@ -162,14 +169,7 @@ int32_t oseq_register_event(oseq_registry_t *reg, uint32_t node_idx,
     }
 
     /* Copy parent ordinals (these are event indices in our table) */
-    for (uint8_t i = 0; i < num_parents; i++) {
-        if (parent_ordinals && parent_ordinals[i] < reg->event_count) {
-            e->parent_ordinals[i] = parent_ordinals[i];
-        } else {
-            /* Invalid parent — reject */
-            e->parent_ordinals[i] = 0;
-        }
-    }
+    for (uint8_t i = 0; i < num_parents; i++) e->parent_ordinals[i] = parent_ordinals[i];
 
     /* Record in replay window */
     if (payload_hash && hash_len > 0) {

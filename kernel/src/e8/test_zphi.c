@@ -254,6 +254,12 @@ static void test_edges(void)
           "to_double");
     CHECK(fabs(zphi_to_double(zphi_make(-2, 0)) + 2.0) < 1e-12, "to_double of an integer");
     CHECK(zphi_to_double(I) == 0.0, "to_double of invalid");
+    /* the type is public: an invalid value may carry leftover fields, and the
+     * flag alone decides */
+    const zphi_t junk = {7, 3, false};
+    CHECK(zphi_to_double(junk) == 0.0 && !zphi_eq(junk, zphi_make(7, 3)) && !zphi_is_zero(junk) &&
+              !zphi_is_int(junk) && !zphi_add(junk, one).valid,
+          "an invalid value with leftover fields is still invalid");
 #endif
     CHECK(zphi_selfcheck() == 0, "selfcheck passes");
 }

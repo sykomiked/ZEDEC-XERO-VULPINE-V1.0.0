@@ -1,0 +1,54 @@
+{
+ "_note": "classify.py: one differential probe per mutation target (targets.json name). probe: a command run from the tree root that prints a deterministic trace; checker: a regex on the enclosing function name for self-check bodies.",
+ "probes": {
+  "hkdf": {
+   "target": "kernel/src/tls/hkdf.c",
+   "probe": "sh tests/harness/mutator/probe.sh ../tests/harness/mutator/probes/probe_hkdf.c 'src/tls/hkdf.c src/robin_debanks/sha256.c' -Isrc/tls -Isrc/robin_debanks"
+  },
+  "zcapital": {
+   "target": "kernel/src/zcapital/zcapital.c",
+   "probe": "P='sh tests/harness/mutator/probe.sh ../tests/harness/mutator/probes/probe_zcapital.c src/zcapital/zcapital.c -Isrc/zcapital -Isrc/surplus'; $P && $P -DTEST_HOST"
+  },
+  "swarm_budget": {
+   "target": "kernel/src/swarm/swarm_budget.c",
+   "probe": "sh tests/harness/mutator/probe.sh ../tests/harness/mutator/probes/probe_swarm.c 'src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_ledger.c src/swarm/swarm_reserve.c' -Isrc/swarm -Isrc/zcapital -Isrc/surplus"
+  },
+  "swarm_market": {
+   "target": "kernel/src/swarm/swarm_market.c",
+   "probe": "sh tests/harness/mutator/probe.sh ../tests/harness/mutator/probes/probe_swarm.c 'src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_ledger.c src/swarm/swarm_reserve.c' -Isrc/swarm -Isrc/zcapital -Isrc/surplus"
+  },
+  "swarm_ledger": {
+   "target": "kernel/src/swarm/swarm_ledger.c",
+   "probe": "sh tests/harness/mutator/probe.sh ../tests/harness/mutator/probes/probe_swarm.c 'src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_ledger.c src/swarm/swarm_reserve.c' -Isrc/swarm -Isrc/zcapital -Isrc/surplus"
+  },
+  "swarm_reserve": {
+   "target": "kernel/src/swarm/swarm_reserve.c",
+   "probe": "sh tests/harness/mutator/probe.sh ../tests/harness/mutator/probes/probe_swarm.c 'src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_ledger.c src/swarm/swarm_reserve.c' -Isrc/swarm -Isrc/zcapital -Isrc/surplus"
+  },
+  "lpres": {
+   "target": "kernel/src/lpres/lpres.c",
+   "checker": "bringup|selfcheck|self_test",
+   "probe": "sh tests/harness/mutator/probe.sh ../tests/harness/mutator/probes/probe_lpres.c 'src/lpres/lpres.c src/event_space/event_envelope.c src/robin_debanks/sha256.c' -Isrc/lpres -Isrc/event_space -DTEST_HOST"
+  },
+  "oseq": {
+   "target": "kernel/src/oseq/oseq.c",
+   "checker": "bringup|selfcheck|self_test",
+   "probe": "sh tests/harness/mutator/probe.sh ../tests/harness/mutator/probes/probe_oseq.c 'src/oseq/oseq.c src/event_space/event_envelope.c src/robin_debanks/sha256.c' -Isrc/oseq -Isrc/event_space -DTEST_HOST"
+  },
+  "zphi": {
+   "target": "kernel/src/e8/zphi.c",
+   "checker": "bringup|selfcheck|self_test",
+   "probe": "sh tests/harness/mutator/probe.sh ../tests/harness/mutator/probes/probe_zphi.c src/e8/zphi.c -Isrc/e8"
+  },
+  "modbind": {
+   "target": "kernel/src/modbind/modbind.c",
+   "checker": "^modbind_selfcheck$|^mk$|^stub_(un)?pack$",
+   "probe": "sh tests/harness/mutator/probe.sh ../tests/harness/mutator/probes/probe_modbind.c 'src/modbind/modbind.c src/modbind/zxv_decl_gate.c' -Isrc/surplus -DTEST_HOST"
+  },
+  "zxv_decl_gate": {
+   "target": "kernel/src/modbind/zxv_decl_gate.c",
+   "checker": "negative_tests",
+   "probe": "sh tests/harness/mutator/probe.sh ../tests/harness/mutator/probes/probe_modbind.c 'src/modbind/modbind.c src/modbind/zxv_decl_gate.c' -Isrc/surplus -DTEST_HOST"
+  }
+ }
+}

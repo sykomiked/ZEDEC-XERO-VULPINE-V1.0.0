@@ -168,6 +168,14 @@ swarm_status_t swarm_market_credit(swarm_market_t *m, uint32_t model_id, swarm_c
         (is_value_form(form) && __builtin_add_overflow(t->value_cycle, amount, &nv)) ||
         (form == SWARM_CAP_SOCIAL && __builtin_add_overflow(t->social_cycle, amount, &ns)))
         return SWARM_ERR_ARG; /* would wrap: nothing credited */
+    /* M6 splits the dividend by these cycle totals across all traders, and
+     * swarm_split_lr needs the sum of its weights to fit in 64 bits. Holding
+     * each trader's total to UINT64_MAX / SWARM_MAX_MODELS keeps the sum of
+     * up to SWARM_MAX_MODELS of them in range; without it two traders near
+     * 2^63 wrapped the sum and settlement paid out more than it held. */
+    if ((is_value_form(form) && nv > SWARM_MKT_CYCLE_MAX) ||
+        (form == SWARM_CAP_SOCIAL && ns > SWARM_MKT_CYCLE_MAX))
+        return SWARM_ERR_ARG;
     t->cap[form] = nc;
     t->value_cycle = nv;
     t->social_cycle = ns;

@@ -9,6 +9,7 @@
  * whole number of units, so both representations are exact and the same
  * expectations hold. */
 #include <stdio.h>
+#include <string.h>
 #include "zcapital.h"
 
 static int failures = 0;
@@ -216,12 +217,82 @@ static void test_market(void)
     CHECK(!zmarket_match(&m, ZCAP_HUMAN, &c), "a seek with no offer matches nothing");
 }
 
+/* the edges of the book: a dirty struct, a full book compacted while the next
+ * form's book holds live posts, a full book of wash trades, a spent book */
+static void test_book_edges(void)
+{
+    static zmarket_t m;
+    memset(&m, 0xA5, sizeof m);
+    zmarket_init(&m);
+    int clean = 1;
+    for (uint32_t f = 0; f < ZCAP_FORM_COUNT; f++) {
+        clean &= m.offer_count[f] == 0 && m.seek_count[f] == 0;
+        for (uint32_t i = 0; i < ZMARKET_SLOTS; i++)
+            clean &= !m.offers[f][i].active && eq(m.offers[f][i].units, U(0)) &&
+                     m.offers[f][i].party == 0 && !m.seeks[f][i].active &&
+                     eq(m.seeks[f][i].units, U(0)) && m.seeks[f][i].party == 0;
+    }
+    CHECK(clean, "init clears every entry of every form, whatever the memory held");
+
+    /* form 2: 32 offers (parties 20..51), 32 seeks by party 1; form 3 has a
+     * live offer in slot 0, right after form 2's last slot */
+    for (uint32_t i = 0; i < ZMARKET_SLOTS; i++) {
+        zmarket_offer(&m, ZCAP_INTELLECTUAL, U(1), 20 + i);
+        zmarket_seek(&m, ZCAP_INTELLECTUAL, U(1), 1);
+    }
+    CHECK(zmarket_offer(&m, ZCAP_HUMAN, U(4), 77) == 0, "the next form's first post");
+    zcap_commitment_t c;
+    for (int k = 0; k < 5; k++) zmarket_match(&m, ZCAP_INTELLECTUAL, &c);
+    CHECK(zmarket_offer(&m, ZCAP_INTELLECTUAL, U(3), 99) == 27,
+          "a full book compacts: 27 live, the new post at 27");
+    int order = 1;
+    for (uint32_t i = 0; i < 27; i++)
+        order &=
+            m.offers[ZCAP_INTELLECTUAL][i].active && m.offers[ZCAP_INTELLECTUAL][i].party == 25 + i;
+    CHECK(order && m.offers[ZCAP_INTELLECTUAL][27].party == 99 &&
+              m.offer_count[ZCAP_INTELLECTUAL] == 28,
+          "compaction keeps the live posts in order and nothing else");
+    int cleared = 1;
+    for (uint32_t i = 28; i < ZMARKET_SLOTS; i++)
+        cleared &= !m.offers[ZCAP_INTELLECTUAL][i].active &&
+                   m.offers[ZCAP_INTELLECTUAL][i].party == 0 &&
+                   eq(m.offers[ZCAP_INTELLECTUAL][i].units, U(0));
+    CHECK(cleared, "the slots compaction frees are cleared");
+    CHECK(m.offers[ZCAP_HUMAN][0].active && m.offers[ZCAP_HUMAN][0].party == 77 &&
+              eq(m.offers[ZCAP_HUMAN][0].units, U(4)) && m.offer_count[ZCAP_HUMAN] == 1,
+          "compaction never touches the next form's book");
+
+    /* form 6: a full seek book of one party's wash seeks; form 7 holds a
+     * foreign seek just past it */
+    for (uint32_t i = 0; i < ZMARKET_SLOTS; i++) zmarket_seek(&m, ZCAP_CULTURAL, U(5), 9);
+    zmarket_offer(&m, ZCAP_CULTURAL, U(5), 9);
+    zmarket_seek(&m, ZCAP_SPIRITUAL, U(5), 50);
+    CHECK(!zmarket_match(&m, ZCAP_CULTURAL, &c), "a full book of wash seeks matches nothing");
+    CHECK(m.seeks[ZCAP_SPIRITUAL][0].active && eq(m.seeks[ZCAP_SPIRITUAL][0].units, U(5)),
+          "and never reaches into the next form's seeks");
+
+    /* form 0: every offer spent; form 1's first offer is live */
+    for (uint32_t i = 0; i < ZMARKET_SLOTS; i++) {
+        zmarket_offer(&m, ZCAP_FINANCIAL, U(1), 30);
+        zmarket_seek(&m, ZCAP_FINANCIAL, U(1), 31);
+    }
+    for (uint32_t i = 0; i < ZMARKET_SLOTS; i++) zmarket_match(&m, ZCAP_FINANCIAL, &c);
+    zmarket_offer(&m, ZCAP_MANUFACTURED, U(2), 40);
+    zmarket_seek(&m, ZCAP_FINANCIAL, U(1), 31); /* compacts the spent seeks, then posts */
+    CHECK(m.offer_count[ZCAP_FINANCIAL] == ZMARKET_SLOTS && !zmarket_match(&m, ZCAP_FINANCIAL, &c),
+          "a book of spent offers matches nothing, whatever lies past it");
+    CHECK(m.offers[ZCAP_MANUFACTURED][0].active, "the next form's offer is untouched");
+    CHECK(!zmarket_match(&m, (zcap_form_t) ZCAP_FORM_COUNT, &c),
+          "match past the forms, books full");
+}
+
 int main(void)
 {
     printf("test_zcapital_props: nine capital forms, exchange and book\n");
     test_forms();
     test_exchange();
     test_market();
+    test_book_edges();
     printf("%lu checks, %d failures\n", checks, failures);
     if (failures) {
         printf("[FAIL] test_zcapital_props\n");

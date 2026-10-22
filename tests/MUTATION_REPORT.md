@@ -372,3 +372,194 @@ literals between 8-byte matches needs about `tlen / 4.5` ops, so such a
 send was refused with SPACE. Both now use `tlen / 4 + 16`; the tests send
 and rebuild a 90,000-byte target of 20,000 ops through zxvd and the tool
 (both fail with the old bound).
+
+## Survivor classification: positive, negative, equivalent (2026-10-15)
+
+A survival rate says how many mutants lived, not why. Each survivor is one of
+four things, and the next step differs for each:
+
+- **negative**: the original is right and no test notices the change. Add a test
+  that kills it.
+- **positive**: the mutant is more correct than the original. The original is a
+  bug: fix the code, then kill the mutant with a test.
+- **equivalent**: no input can tell the mutant from the original. It is not a
+  fault, and it is argued, not just counted.
+- **checker**: the change is inside a self-check body. It weakens the checker,
+  and nothing can see it while the code under check is correct.
+
+`tests/harness/mutator/classify.py` measures this. It runs a differential probe
+(`tests/harness/mutator/probes/*.c`, built with ASan and UBSan with no recovery)
+against every survivor and compares the probe's trace byte for byte with the
+unmutated tree. The probe is first checked for determinism in two separate
+trees. The result per survivor is CHECKER (the enclosing function matches the
+target's checker pattern in `probes.json`), EQUIVALENT (identical trace and exit
+status) or OPEN (anything differs). Each OPEN mutant was then read against the
+spec and resolved as negative or positive. The exit status is 0 only when no
+target has an OPEN survivor.
+
+Metrics per target:
+
+- raw = killed / valid (mutate.py's score)
+- adjusted = killed / (valid − equivalent)
+- open = OPEN survivors, which must be 0
+
+The mutation commands run each property suite twice, in fast mode and in san
+mode (`targets.json`). A mutant that reads uninitialised stack shows up only in
+fast mode; a mutant that reads out of bounds shows up only in san mode.
+
+```
+python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json \
+    --only lpres,oseq,zphi,swarm_budget,swarm_market,swarm_ledger,swarm_reserve,zcapital,hkdf,modbind,zxv_decl_gate \
+    --phase after --jobs 4 --build-code 3 --out OUT
+python3 tests/harness/mutator/classify.py --results OUT --out OUT/cls --jobs 4
+```
+
+Results, gcc 13.3:
+
+| target | valid | killed | survived | checker | equivalent | open | raw | adjusted |
+|---|---|---|---|---|---|---|---|---|
+| hkdf | 208 | 193 | 15 | 0 | 15 | 0 | 92.8% | 100% |
+| zcapital | 154 | 151 | 3 | 0 | 3 | 0 | 98.0% | 100% |
+| swarm_budget | 314 | 303 | 11 | 0 | 11 | 0 | 96.5% | 100% |
+| swarm_market | 275 | 257 | 18 | 0 | 18 | 0 | 93.5% | 100% |
+| swarm_ledger | 119 | 118 | 1 | 0 | 1 | 0 | 99.2% | 100% |
+| swarm_reserve | 90 | 88 | 2 | 0 | 2 | 0 | 97.8% | 100% |
+| lpres | 206 | 179 | 27 | 17 | 10 | 0 | 86.9% | 91.3% |
+| oseq | 351 | 310 | 41 | 0 | 41 | 0 | 88.3% | 100% |
+| zphi | 189 | 138 | 51 | 51 | 0 | 0 | 73.0% | 73.0% |
+| modbind | 1145 | 906 | 239 | 193 | 45 | 1 | 79.1% | 82.4% |
+| zxv_decl_gate | 432 | 312 | 120 | 50 | 70 | 0 | 72.2% | 86.2% |
+
+Compared with the pass above, raw scores rose from 86.7 / 85.2 / 72.0 / 71.1 /
+48.2 / 87.3 / 82.5 / 91.6 / 87.8 / 90.9 / 88.5% (in the order lpres, oseq, zphi,
+modbind, gate, budget, market, ledger, reserve, zcapital, hkdf).
+
+The one OPEN survivor is modbind #699 (`k = i + 1` to `k = i` in
+`modbind_verify_graph`'s contract check). It turns on owner decision B7: may one
+module provide one capability at two contract versions? The gate's readout has
+the same loop start (`gate_report_all`). Both stay as they are until B7 is
+decided.
+
+### Positive mutants: bugs fixed
+
+Five mutants were more correct than the code they mutated. Each fix is in
+[docs/AUDIT_FINDINGS_2026-10-15.md](../docs/AUDIT_FINDINGS_2026-10-15.md), and
+each test was shown to fail on the old code:
+
+| finding | module | what the mutant exposed |
+|---|---|---|
+| F8 | oseq | invalid parents were stored as 0, which made a self-loop and unbounded recursion |
+| F9 | swarm_market | cross-trader cycle totals could wrap, so settlement created money |
+| F10 | lpres | conjoin/disjoin were not closed over the four states |
+| F11 | zxv_decl_gate | the power sweep dropped edges past the 13th distinct power |
+| F12 | lpres | evidence counters wrapped to 0 |
+
+### Negative mutants: tests added
+
+Every negative mutant is killed by a test that was shown to fail with the
+mutant applied:
+
+- `test_swarm_props.c`: the cycle value bound, a full 64-model roster over a
+  dirty struct, reset state, and witness edges.
+- `test_hkdf_props.c`: a NULL salt longer than a block.
+- `test_lpres_props.c`: evidence saturation.
+- `test_oseq_props.c`: parent refusal.
+- `test_modbind.c`:
+  - registry, hold, verify, compose and full-registry edges;
+  - leftover slots: the registry slot just past `g_n` and the array slots past
+    `n_provides` / `n_requires`, which kills 10 loop-bound mutants;
+  - names compared only up to their NUL, in modbind and in the gate;
+  - withdrawing `""` over a dirty stack;
+  - requirers in rotated order;
+  - the gate's readout line by line: two refused declarations, held modules
+    that never run, and the carrier down at entry.
+- `test_decl_table.c` (new, built at 12 and at 0 declarations):
+  - failed, refused and held names past the 8 slots;
+  - a null slot;
+  - null count pointers;
+  - an empty section that the gate must fail.
+
+### Equivalent mutants: arguments
+
+The probe's EQUIVALENT is a measurement over its inputs, not a proof, so every
+equivalent survivor was also read by hand. That reading found the probe wrong 35
+times, all in modbind (26) and the gate (9):
+
+- 10 loop bounds;
+- 6 name comparisons;
+- 4 null-pointer guards;
+- 1 uninitialised name byte;
+- 2 requirer counts;
+- 12 bound and empty-section guards that only a 12- or 0-entry declaration table
+  reaches.
+
+All 35 are now killed by tests (listed above).
+
+The remaining equivalents fall into these classes. The `#` numbers are
+mutate.py ids, and each class is checked against the code.
+
+- **Redundant guards: a later check refuses the same input.**
+  - hkdf #139–144: an `out_len` over 0xFFFF is also refused by Expand's
+    255×32 limit.
+  - hkdf #23: `sha256_update` ignores a NULL buffer.
+  - hkdf #56: copying 0 bytes.
+  - modbind #1163–1166: `e - s` is already 0.
+  - modbind #223: `modbind_register` refuses a form `>= MB_FORM__COUNT`, so no
+    port carries one.
+  - modbind #481/482, #712/713: `modbind_resolve` resets every module that is
+    not withdrawn anyway.
+- **Unreachable by an invariant.**
+  - hkdf #165–191: every derive call uses fixed labels and non-NULL buffers, so
+    none of them can fail.
+  - oseq #262–266, #311–315: with the visited set (F7), each event is pushed at
+    most once, so the stack cannot overflow.
+  - oseq #234, #261, #269–273, #278, #293/294, #310, #321, #336/337: since F8,
+    every parent index is below `event_count`.
+  - oseq #34, #46, #77, #90: stored names always have a NUL before
+    `OSEQ_MAX_NAME_LEN`.
+  - swarm_budget #155/156 and swarm_market #230/231: commented unreachable.
+  - modbind #8, #169/170, #183/184, #225–228: a form is blocked only when the
+    trit canon is unsound, and the canon is a fixed sound table.
+  - zxv_decl_gate: the `!m` / `!o` / `!r` / `!pv` continues; the `i <= n` loop
+    bounds over `modbind_get`, which returns NULL past the count; the 31-byte
+    name clamp (names are 24 bytes); the threshold-table guards (fewer than 29
+    distinct powers can occur); `#27` (NULL name).
+- **Same value by arithmetic.**
+  - lpres #24–47: the TRUE/FALSE identity shortcuts give what the chain-order
+    table gives.
+  - modbind #494–519: COS13 ±1, because `(1000 + cos) / 2` rounds both values
+    to the same permille, in the direction each mutant moves.
+  - oseq #108: the modular index is congruent.
+  - oseq #342/343: max over the same set.
+  - swarm_market #84, #253/254: only tested against zero, and these sums
+    cannot wrap to 0.
+  - swarm_market #270: `pay_by` mode 3 falls to the same "paid" weights.
+  - swarm_budget #20/21: F(1) = F(2).
+  - swarm_budget #271: equal weights split the same way.
+  - swarm_reserve #70/#88: the NEUTRAL charge is 0, and the total covers slot 0.
+  - The remaining `<` / `<=` pairs that only differ on ties: they assign the
+    same value or pick an equal one (zcapital #148, swarm_budget #306,
+    swarm_market #98, #208, #215, #242, modbind #390, #410–417, #462, #490, #521,
+    gate #160–169, #266, #425).
+- **Initialisers overwritten before they are read.**
+  - swarm_budget #77/78, swarm_ledger #7.
+  - zcapital #122, #135: a negative sentinel that is only tested `< 0`.
+  - modbind #438/440: `cap_by_name`'s contract and alternating fields; only its
+    name is compared.
+  - gate #128–132: each power slot is written when it is first used.
+  - gate #400–402, #419, #435–437.
+  - gp_u32's `rev[11]`/`out[12]` ±1: 10 digits and 10 digits + NUL still fit.
+- **Write-only state.**
+  - modbind #26/28: `mb_module_t.registered` is set but never read.
+  - modbind #570: the carrier is read as `!= 0`.
+  - gate #455: `g_puts` is reset after the gate.
+
+Checker survivors:
+
+- `zphi_selfcheck` (51).
+- `modbind_selfcheck` and its helpers (193).
+- The gate's own negative tests (50).
+- lpres's boot bring-up `zxvd_lpres_attest_bringup` (17). Its "fails on correct
+  code" mutants would print `[FAIL]` at boot, which `ZXV_BOOT_DENY_FAIL` turns
+  into a CI failure on arm64 and x86_64. That is inferred: it was not run per
+  mutant.
