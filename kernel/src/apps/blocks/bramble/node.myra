@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Bramble files one node of a mind map in MYRA (bramble_model.h BR4):
+; the node (its place in the board, 0 .. 511), its parent's place (-1 for
+; the root), its depth, its order on its ring, and where it sits, x across
+; and y down from the board's centre in board units (inside a 2048 canvas,
+; so 4 digits each). Bramble asks whether the numbers fit before it saves.
+^ZXBRAMBLE(node:i3) = parent:i3! ^ depth:i2! ^ order:i3! ^ x:i4! ^ y:i4!

@@ -486,3 +486,7 @@
 449	logic.whetstone_test_record_ok	492.20	whetstone.test_record_ok	base
 450	num.whetstone_test_result_sum	592.23	whetstone.test_result_sum	base
 451	logic.whetstone_test_retry_ok	492.21	whetstone.test_retry_ok	base
+452	logic.bramble_mind_node_ok	492.22	bramble.mind_node_ok	base
+453	logic.bramble_mindmap_limits_ok	492.23	bramble.mindmap_limits_ok	base
+454	num.bramble_ring_place_x	592.24	bramble.ring_place_x	base
+455	num.bramble_ring_place_y	592.25	bramble.ring_place_y	base

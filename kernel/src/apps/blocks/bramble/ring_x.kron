@@ -1,0 +1,6 @@
+r:depth*step
+p:_(order*8*r)%count
+a:0|1&(2*r)-p
+b:0|1&(4*r)-p
+c:0|1&(6*r)-p
+(a*p-r)+((b-a)*r)+((c-b)*(5*r)-p)-(1-c)*r

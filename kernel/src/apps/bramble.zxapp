@@ -1,0 +1,85 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Bramble, whiteboard and mind maps: layer 48 of the matrix. A board is a
+# text file in the Hoard, read with files.read and written with files.write
+# (bramble_model.c): its canvas, its ring step and its nodes, each with its
+# parent and its label. Where each node sits is never stored; it is laid
+# out again from the tree every time, so one board always draws the same.
+#
+# Layer 48 is leaned on by 84 other layers, so each entry is a general rule
+# registered in CONCEPTS.tsv with Bramble as owner:
+#   ring_place_x, ring_place_y   where a node sits on its mind-map ring:
+#            the ring at depth is the integer square of radius
+#            r = depth * step about the centre, 8r units round; the node
+#            order of count sits p = floor(order * 8r / count) units
+#            clockwise from the top-left corner (-r, -r), y down. Exact, no
+#            trigonometry. C++ (as WebAssembly) and KRON, witnessed: the
+#            C++ traps outside depth 0..64, step 1..4096, count 1..65536,
+#            order 0..count-1, where KRON still answers: held (BOTH).
+#   mindmap_limits_ok   a map's node and ring limits: 1..512 nodes, depth
+#            0..15, step 16..256, each field against its own range. Eve,
+#            witnessed by Sutra, which refuses a negative value or one past
+#            its picture where Eve answers false: held.
+#   mind_node_ok   a node fits its ^ZXBRAMBLE record (MYRA).
+#
+# The board's canvas is Gesso's canvas (gesso.canvas_limits_ok, Eve and
+# Sutra: 1..2048 units a side), used rather than written again: a board is
+# drawn on the same canvas an image is. Gesso is nearer the core
+# (MATRIX_ORDER position 38; Bramble is 71). Kept in C, since no runnable
+# language owns it: that the deepest ring fits the canvas (2 * depth * step
+# + 1 at most the shorter side, a relation across fields Eve cannot say),
+# the order of nodes on a ring (by their parents' order, then as added),
+# and reading and writing the board's text.
+#
+# Saving changes kept state, so save and save_as take the owner's word
+# (owner_confirmed); a save_as never writes over a file that is there.
+#
+# Planned languages: PostScript (layout) owns the ring layout; it does not
+# run yet, so C++ and KRON stand in (pending line below). TeX
+# (typesetting) and Perl (text, pattern) have no entry of their kind here:
+# Bramble sets no type and matches no text, so no pending line.
+zxapp 1
+id     bramble
+name   Bramble
+version 1.0.0
+slot   48
+layer  L1
+matrix 48
+icon   icons/l1/048-bramble.svg
+budget 233
+needs  fs.read
+needs  fs.write
+model  apps/bramble_model.c
+use    gesso 1   # @logic.gesso_canvas_limits_ok
+
+provides ring_place_x num depth order count step
+logic    wasm ring_place_x apps/blocks/bramble/ring_x.wasm
+logic    kron ring_place_x apps/blocks/bramble/ring_x.kron
+pending  PostScript ring_place_x
+
+provides ring_place_y num depth order count step
+logic    wasm ring_place_y apps/blocks/bramble/ring_y.wasm
+logic    kron ring_place_y apps/blocks/bramble/ring_y.kron
+
+provides mindmap_limits_ok truth nodes depth step
+logic    eve   mindmap_limits_ok apps/blocks/bramble/limits.eve
+logic    sutra mindmap_limits_ok apps/blocks/bramble/limits.sutra
+
+provides mind_node_ok truth node parent depth order x y
+logic    myra mind_node_ok apps/blocks/bramble/node.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check ring_place_x depth=0,1,1,1,1,1,1,1,1 order=0,0,1,2,3,4,5,6,7 count=1,8,8,8,8,8,8,8,8 step=100,100,100,100,100,100,100,100,100 = 0,-100,0,100,100,100,0,-100,-100
+check ring_place_x depth=2,2,3,64 order=1,2,2,0 count=3,3,5,65536 step=16,16,7,4096 = 32,-10,21,-262144
+check ring_place_x depth=1,1 order=0,8 count=8,8 step=100,100 = both
+check ring_place_x depth=1,-1 order=0,0 count=8,8 step=100,100 = both
+check ring_place_y depth=0,1,1,1,1,1,1,1,1 order=0,0,1,2,3,4,5,6,7 count=1,8,8,8,8,8,8,8,8 step=100,100,100,100,100,100,100,100,100 = 0,-100,-100,-100,0,100,100,100,0
+check ring_place_y depth=2,2,3,64 order=1,2,2,0 count=3,3,5,65536 step=16,16,7,4096 = -11,32,4,-262144
+check ring_place_y depth=1,1 order=0,0 count=8,8 step=100,4097 = both
+check mindmap_limits_ok nodes=1,512,0,513,10,10,10,10 depth=0,15,3,3,16,3,3,3 step=16,256,64,64,64,15,257,100 = true,true,false,false,false,false,false,true
+check mindmap_limits_ok nodes=10,-1 depth=3,3 step=64,64 = both
+check mindmap_limits_ok nodes=10,10 depth=3,3 step=64,10000 = both
+check mind_node_ok node=0,511,999,1000,1 parent=-1,510,-999,0,1000 depth=0,15,99,1,1 order=0,511,999,0,0 x=0,-1023,9999,0,0 y=0,1023,-9999,0,0 = true,true,true,false,false
+check gesso.canvas_limits_ok width=1,2048,0,2049,800 height=1,2048,600,600,0 = true,true,false,false,false
+check gesso.canvas_limits_ok width=800,-1 height=600,600 = both

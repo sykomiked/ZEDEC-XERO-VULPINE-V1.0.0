@@ -457,7 +457,11 @@
 #define ALX_SLOT_LOGIC_WHETSTONE_TEST_RECORD_OK  449u /* 492.20 whetstone.test_record_ok */
 #define ALX_SLOT_NUM_WHETSTONE_TEST_RESULT_SUM   450u /* 592.23 whetstone.test_result_sum */
 #define ALX_SLOT_LOGIC_WHETSTONE_TEST_RETRY_OK   451u /* 492.21 whetstone.test_retry_ok */
-#define ALX_SLOT__COUNT 451u
+#define ALX_SLOT_LOGIC_BRAMBLE_MIND_NODE_OK      452u /* 492.22 bramble.mind_node_ok */
+#define ALX_SLOT_LOGIC_BRAMBLE_MINDMAP_LIMITS_OK 453u /* 492.23 bramble.mindmap_limits_ok */
+#define ALX_SLOT_NUM_BRAMBLE_RING_PLACE_X        454u /* 592.24 bramble.ring_place_x */
+#define ALX_SLOT_NUM_BRAMBLE_RING_PLACE_Y        455u /* 592.25 bramble.ring_place_y */
+#define ALX_SLOT__COUNT 455u
 /* clang-format on */
 
 #endif

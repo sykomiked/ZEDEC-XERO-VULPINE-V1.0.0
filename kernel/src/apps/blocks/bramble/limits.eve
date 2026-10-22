@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a Bramble mind map may be (bramble_model.h BR3), in Eve: 1 to 512
+# nodes, rings 0 to 15 deep (the root is depth 0) and 16 to 256 board units
+# between one ring and the next. Each field is held to its own range; that
+# the deepest ring fits the board's canvas stays in the model.
+eve bramble
+map_nodes = 1 .. 512
+map_depth = 0 .. 15
+ring_step = 16 .. 256
+
+mind_map {
+  nodes: map_nodes
+  depth: map_depth
+  step: ring_step
+}

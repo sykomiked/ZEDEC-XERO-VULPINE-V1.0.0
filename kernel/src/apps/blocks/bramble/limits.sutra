@@ -1,0 +1,13 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A Bramble mind map inside its limits (bramble_model.h BR3), in Sutra:
+# 1 to 512 nodes, rings 0 to 15 deep and 16 to 256 board units between
+# rings. nodes and step fit 9(4), depth 9(3): a negative value, or one past
+# its picture, is refused, where limits.eve answers false: held (BOTH).
+record mind-map
+  nodes: 9(4)
+  depth: 9(3)
+  step: 9(4)
+procedure
+  answer nodes >= 1 and nodes <= 512 and depth <= 15 and step >= 16 and step <= 256
