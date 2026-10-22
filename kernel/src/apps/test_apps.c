@@ -2034,8 +2034,9 @@ static void test_keepsake(void)
           "files");
     keepsake_init(&KS, &LINK);
     int before = sent;
-    CHECK(keepsake_backup(&KS, false, true) == ZXM_E_STATE && keepsake_refresh(&KS) == ZXM_E_STATE &&
-              keepsake_versions(&KS, "a") == ZXM_E_STATE && keepsake_check(&KS, 0) == ZXM_E_STATE &&
+    CHECK(keepsake_backup(&KS, false, true) == ZXM_E_STATE &&
+              keepsake_refresh(&KS) == ZXM_E_STATE && keepsake_versions(&KS, "a") == ZXM_E_STATE &&
+              keepsake_check(&KS, 0) == ZXM_E_STATE &&
               keepsake_restore(&KS, 0, "a", NULL, true) == ZXM_E_STATE &&
               keepsake_prune(&KS, 1, true) == ZXM_E_STATE && sent == before,
           "no destination yet: nothing asked");
@@ -2052,9 +2053,9 @@ static void test_keepsake(void)
     CHECK(!keepsake_tested(&KS), "not tested");
 
     /* back up, change, back up */
-    CHECK(keepsake_backup(&KS, false, true) == ZXM_OK && KS.last.snapshot == 1 && KS.last.files >= 2 &&
-              KS.last.new_files >= 1 && KS.last.new_files <= KS.last.files && KS.nsnaps == 1 &&
-              KS.total == 1 && KS.snap[0].id == 1 && !KS.snap[0].damaged &&
+    CHECK(keepsake_backup(&KS, false, true) == ZXM_OK && KS.last.snapshot == 1 &&
+              KS.last.files >= 2 && KS.last.new_files >= 1 && KS.last.new_files <= KS.last.files &&
+              KS.nsnaps == 1 && KS.total == 1 && KS.snap[0].id == 1 && !KS.snap[0].damaged &&
               KS.snap[0].time == KS.last.time,
           "first: %u files %s", KS.last.files, LINK.err);
     uint32_t files = KS.last.files;
@@ -2084,7 +2085,8 @@ static void test_keepsake(void)
     CHECK(keepsake_check(&KS, 0) == ZXM_OK && KS.check.bad == 1 &&
               !strcmp(KS.check.first_bad, "keep/plan.txt") && !keepsake_tested(&KS),
           "the check finds it: %s", KS.check.first_bad);
-    CHECK(keepsake_backup(&KS, true, true) == ZXM_OK && KS.last.snapshot == 4 && KS.last.new_files == 1,
+    CHECK(keepsake_backup(&KS, true, true) == ZXM_OK && KS.last.snapshot == 4 &&
+              KS.last.new_files == 1,
           "full repairs it: %u", KS.last.new_files);
     CHECK(keepsake_check(&KS, 1) == ZXM_OK && KS.check.snapshot == 1 && !keepsake_tested(&KS) &&
               strstr(LINK.req, "\"snapshot\":1"),
@@ -2112,13 +2114,15 @@ static void test_keepsake(void)
                   0 &&
               gn == 5 && !memcmp(got, "first", 5),
           "the first words");
-    CHECK(keepsake_restore(&KS, 0, "keep", "keep2", true) == ZXM_OK && !strcmp(KS.landed, "keep2") &&
-              strstr(LINK.req, "\"to\":\"keep2\"") && !strstr(LINK.req, "snapshot"),
+    CHECK(keepsake_restore(&KS, 0, "keep", "keep2", true) == ZXM_OK &&
+              !strcmp(KS.landed, "keep2") && strstr(LINK.req, "\"to\":\"keep2\"") &&
+              !strstr(LINK.req, "snapshot"),
           "a folder somewhere new: %s", KS.landed);
-    CHECK(keepsake_restore(&KS, 0, "keep", "keep2", true) == ZXM_E_REMOTE && LINK.err_code == -32014 &&
-              !strcmp(KS.landed, "keep2"),
+    CHECK(keepsake_restore(&KS, 0, "keep", "keep2", true) == ZXM_E_REMOTE &&
+              LINK.err_code == -32014 && !strcmp(KS.landed, "keep2"),
           "never over it");
-    CHECK(keepsake_restore(&KS, 0, "nope.txt", NULL, true) == ZXM_E_REMOTE && LINK.err_code == -32018,
+    CHECK(keepsake_restore(&KS, 0, "nope.txt", NULL, true) == ZXM_E_REMOTE &&
+              LINK.err_code == -32018,
           "not backed up");
     static char longp[KEEPSAKE_PATH + 2];
     memset(longp, 'p', KEEPSAKE_PATH + 1);
@@ -2126,8 +2130,8 @@ static void test_keepsake(void)
               keepsake_restore(&KS, 0, "a", longp, true) == ZXM_E_ARG &&
               keepsake_versions(&KS, longp) == ZXM_E_ARG,
           "too long");
-    CHECK(keepsake_restore(&KS, 0, NULL, NULL, true) == ZXM_OK && !strcmp(KS.landed, "Keepsake 4") &&
-              KS.restored >= files && !strstr(LINK.req, "path"),
+    CHECK(keepsake_restore(&KS, 0, NULL, NULL, true) == ZXM_OK &&
+              !strcmp(KS.landed, "Keepsake 4") && KS.restored >= files && !strstr(LINK.req, "path"),
           "everything: %s %u", KS.landed, KS.restored);
 
     /* prune */
@@ -2136,7 +2140,8 @@ static void test_keepsake(void)
     CHECK(keepsake_prune(&KS, 1, false) == ZXM_E_STATE &&
               keepsake_restore(&KS, 0, "keep", "keep3", false) == ZXM_E_STATE &&
               keepsake_backup(&KS, false, false) == ZXM_E_STATE && sent == before && KS.nsnaps == 4,
-          "no prune, restore or backup without the owner's word: nothing sent, the backups as they were");
+          "no prune, restore or backup without the owner's word: nothing sent, the backups as they "
+          "were");
     CHECK(keepsake_prune(&KS, 1, true) == ZXM_OK && KS.pruned_snaps == 3 && KS.nsnaps == 1 &&
               KS.snap[0].id == 4 && KS.total == 1,
           "pruned: %u, %u objects", KS.pruned_snaps, KS.pruned_objects);
@@ -2231,8 +2236,8 @@ static void test_keepsake(void)
     F.last.snapshot = 5;
     for (size_t i = 0; i < sizeof badrun / sizeof *badrun; i++) {
         CANNED = badrun[i];
-        CHECK(keepsake_backup(&F, false, true) == ZXM_E_PROTOCOL && F.last.snapshot == 5, "bad run %zu",
-              i);
+        CHECK(keepsake_backup(&F, false, true) == ZXM_E_PROTOCOL && F.last.snapshot == 5,
+              "bad run %zu", i);
     }
     CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":6,\"time\":1,\"files\":2,"
              "\"new_files\":2,\"skipped\":3,\"bytes\":9,\"new_bytes\":9}}";
@@ -2338,12 +2343,13 @@ static void test_keepsake(void)
     F.pruned_snaps = 77;
     for (size_t i = 0; i < sizeof badprune / sizeof *badprune; i++) {
         CANNED = badprune[i];
-        CHECK(keepsake_prune(&F, 1, true) == ZXM_E_PROTOCOL && F.pruned_snaps == 77, "bad prune %zu", i);
+        CHECK(keepsake_prune(&F, 1, true) == ZXM_E_PROTOCOL && F.pruned_snaps == 77,
+              "bad prune %zu", i);
     }
     CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshots_removed\":2,"
              "\"objects_removed\":3,\"freed\":18446744073709551615}}";
-    CHECK(keepsake_prune(&F, 1, true) == ZXM_E_PROTOCOL && F.pruned_snaps == 2 && F.pruned_objects == 3 &&
-              F.freed == 18446744073709551615ull,
+    CHECK(keepsake_prune(&F, 1, true) == ZXM_E_PROTOCOL && F.pruned_snaps == 2 &&
+              F.pruned_objects == 3 && F.freed == 18446744073709551615ull,
           "pruned, the list after it does not parse");
     CANNED = NULL;
     CHECK(keepsake_refresh(&F) == ZXM_E_TRANSPORT &&
