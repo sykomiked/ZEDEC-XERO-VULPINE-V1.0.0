@@ -3071,7 +3071,9 @@ int main(int argc, char **argv)
     const char *caps_path = NULL; /* zxv_caps.h; "-" keeps them in memory */
     char caps_buf[520];
     const char *zxsh_path = NULL; /* zxvd_shell.h H7: shell.* stays off without it */
-    char zxsh_buf[1024];
+#    if !defined(_WIN32)
+    char zxsh_buf[1024]; /* only the POSIX lookup beside argv[0] uses it */
+#    endif
     const char *sched_path = NULL; /* zxv_sched.h; "-" keeps them in memory */
     char sched_buf[520];
     bool proc_control = false;      /* zxvd_proc.h P5 */
