@@ -35,8 +35,9 @@ boot.json                                    (tools/web/make_boot_manifest.py RO
 The logos are the gold brand vectors converted with `tools/zxvg/svg2zxvg.py`. For the crest, use the 3-level trace
 `ascw-small.svg`. The full seal's stacked layers exceed the renderer's per-path limit (`ZUI_VEC_MAX_PTS`), so only its
 dark silhouette would draw. `boot.json` lists every file with its size and SHA-256. The page counts each byte as it
-arrives and checks each file against its hash before calling the boot ready. A file that is missing or does not match
-stops the boot where it stands. The gong does not sound, and the page says why. The fox is built into the wasm.
+arrives and checks each file against its hash before calling the boot ready. A file that is missing, cut short, does
+not match, or sends nothing for 15 seconds stops the boot where it stands. The gong does not sound, and the page says
+why. The fox is built into the wasm.
 
 ## The sequence
 

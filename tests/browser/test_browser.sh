@@ -8,13 +8,18 @@
 # (kernel/arch/hosted/write_test_model.c) and the browser root
 # (tools/web/build_web_root.sh), then drives headless Chromium with
 # Playwright (tests/browser/test_browser.cjs). With SHOTS_DIR it saves one
-# screenshot per step there.
+# screenshot per step there. Then the same path under abuse
+# (tests/browser/test_browser_stress.cjs): bad credentials, a broken boot,
+# zxvd killed mid-ask, no or corrupt models, tabs at once, a 100-round soak
+# and the seed looked for everywhere after it is confirmed.
 #
 #   ZXVD=path/to/zxvd        use this zxvd instead of building one
 #   ZXV_BRAND_DIR=DIR        the gold brand SVGs, for the boot screen's logos
 #   ZXV_MODELS_DIR=DIR       ask this folder's model instead of the test model
 #                            (a downloaded GGUF; the test needs one that runs)
 #   PLAYWRIGHT_BROWSERS_PATH where Chromium is (never installed from here)
+#   SOAK_ROUNDS=N            the soak's rounds (default 100)
+#   ZXV_STRESS=0             skip the stress test
 #
 # Needs cc, clang with the wasm32 target, wasm-ld, python3, node and the
 # playwright package (found through `npm root -g` when not on NODE_PATH).
@@ -53,3 +58,7 @@ fi
 NODE_PATH=${NODE_PATH:-$(npm root -g)}
 export NODE_PATH
 node "$R/tests/browser/test_browser.cjs" "$ZXVD" "$MODELS" "$OUT/root" $SHOTS
+if [ "${ZXV_STRESS:-1}" != 0 ]; then
+    mkdir -p "$OUT/stress"
+    node "$R/tests/browser/test_browser_stress.cjs" "$ZXVD" "$MODELS" "$OUT/root" "$OUT/stress"
+fi

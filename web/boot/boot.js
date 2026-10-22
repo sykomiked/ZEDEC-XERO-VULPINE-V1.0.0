@@ -27,6 +27,7 @@ const PHASE = {
     FAILED : 3
 };
 const LOGOS = [ '36n9', 'acoto', 'ascw', 'smic', 'cis' ]; // left to right, the crest in the centre
+const STALL_MS = 15000; // a file that sends nothing for this long has stopped
 
 function say(text)
 {
@@ -50,25 +51,63 @@ async function sha256hex(bytes)
     return Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+// A fetch that is given up when nothing arrives for STALL_MS: arm() each
+// time something does. Its failures come back as words, never as a wait.
+function watched(path)
+{
+    const stop = new AbortController();
+    let timer = 0;
+    const w = {
+        signal : stop.signal,
+        arm()
+        {
+            clearTimeout(timer);
+            timer = setTimeout(() => stop.abort(), STALL_MS);
+        },
+        end()
+        {
+            clearTimeout(timer);
+        },
+        why(err)
+        {
+            if (stop.signal.aborted) return new Error(`${path}: nothing arrived for ${STALL_MS / 1000} s, so the load stopped`);
+            if (err instanceof TypeError) return new Error(`${path}: the connection broke (${err.message})`);
+            return err;
+        }
+    };
+    w.arm();
+    return w;
+}
+
 // Stream one file, reporting every chunk; resolves to its bytes once its
 // hash matches.
 async function fetchChecked(entry, onBytes)
 {
-    const res = await fetch(entry.path, {cache : 'no-cache'});
-    if (!res.ok) throw new Error(`${entry.path}: ${res.status} ${res.statusText}`);
+    const w = watched(entry.path);
     const out = new Uint8Array(entry.size);
     let at = 0;
-    const reader = res.body.getReader();
-    for (;;) {
-        const {done, value} = await reader.read();
-        if (done) break;
-        if (at + value.length > entry.size)
-            throw new Error(`${entry.path}: longer than its ${entry.size} bytes`);
-        out.set(value, at);
-        at += value.length;
-        onBytes(value.length);
+    try {
+        const res = await fetch(entry.path, {cache : 'no-cache', signal : w.signal});
+        if (!res.ok) throw new Error(`${entry.path}: ${res.status} ${res.statusText}`);
+        const reader = res.body.getReader();
+        for (;;) {
+            w.arm();
+            const {done, value} = await reader.read();
+            if (done) break;
+            if (at + value.length > entry.size) {
+                reader.cancel();
+                throw new Error(`${entry.path}: longer than its ${entry.size} bytes`);
+            }
+            out.set(value, at);
+            at += value.length;
+            onBytes(value.length);
+        }
+    } catch (err) {
+        throw w.why(err);
+    } finally {
+        w.end();
     }
-    if (at !== entry.size) throw new Error(`${entry.path}: ${at} of ${entry.size} bytes`);
+    if (at !== entry.size) throw new Error(`${entry.path}: only ${at} of its ${entry.size} bytes arrived`);
     if (entry.sha256 && (await sha256hex(out)) !== entry.sha256.toLowerCase())
         throw new Error(`${entry.path}: does not match its SHA-256`);
     return out;
@@ -142,7 +181,15 @@ async function boot()
     const g = canvas.getContext('2d');
 
     // the boot screen itself
-    const wasm = await WebAssembly.instantiateStreaming(fetch('zxv_boot.wasm'));
+    const ww = watched('zxv_boot.wasm');
+    let wasm;
+    try {
+        wasm = await WebAssembly.instantiateStreaming(fetch('zxv_boot.wasm', {signal : ww.signal}));
+    } catch (err) {
+        throw ww.why(err);
+    } finally {
+        ww.end();
+    }
     const zb = wasm.instance.exports;
     const memory = zb.memory;
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -188,9 +235,17 @@ async function boot()
 
     // the system, from the sealed root
     try {
-        const res = await fetch('boot.json', {cache : 'no-cache'});
-        if (!res.ok) throw new Error(`boot.json: ${res.status} ${res.statusText}`);
-        manifest = await res.json();
+        const wm = watched('boot.json');
+        try {
+            const res = await fetch('boot.json', {cache : 'no-cache', signal : wm.signal});
+            if (!res.ok) throw new Error(`boot.json: ${res.status} ${res.statusText}`);
+            manifest = await res.json();
+        } catch (err) {
+            if (err instanceof SyntaxError) throw new Error('boot.json is not a whole manifest');
+            throw wm.why(err);
+        } finally {
+            wm.end();
+        }
         if (!crypto.subtle)
             throw new Error(
                 'this page needs a secure origin (https or localhost) to check the files');

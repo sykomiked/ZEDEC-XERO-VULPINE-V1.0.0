@@ -21,8 +21,25 @@ zxvd --rpc "$HOME/.zxv/run/zxvd.sock" --web-root /tmp/zxv-web
 The page reaches zxvd only through the window's guarded `/api/rpc`. zxvd adds the launch token to every page it serves,
 as it does for its own window. `zxv_passport.wasm` is checked against `boot.json` before it runs.
 
-`make -C kernel test-passport-wasm` checks the glue against the passport. `tests/browser/test_browser.sh` drives boot,
-login, space and answer in headless Chromium.
+What the page does with what people type and with failures:
+
+- Seed text is read as people paste it: full-width letters, other dashes and line breaks become plain separators.
+  Anything else (control bytes, a NUL, look-alike letters) is refused in words, never skipped. Each typo position is
+  caught by the seed's 16-bit check (a random typo slips past it about once in 65,536 tries; that is the seed format,
+  shared with every other device).
+- A passphrase is up to 256 bytes and at least 16, a handle 1 to 64 bytes, counted as UTF-8 bytes. Longer input is
+  refused, never cut to fit. A passphrase is taken byte for byte, as typed: no trimming and no Unicode normalization,
+  as the passport defines it.
+- After a seed is confirmed or used, it is in no field, storage, URL or console line, and not in the page's JS heap
+  (the page clears the engine's last-match slot, which would otherwise keep the text alive).
+- A boot file or the passport wasm that is missing, cut short, not the manifest's hash, or stops arriving (15 s at the
+  boot, 30 s in the page) stops in words. zxvd going away mid-ask is said in words, and the page asks again once zxvd
+  is back on its port and token.
+
+`make -C kernel test-passport-wasm` checks the glue against the passport, including every one-character mistake in a
+seed. `tests/browser/test_browser.sh` drives boot, login, space and answer in headless Chromium, then
+`test_browser_stress.cjs` the same path under abuse (bad input, broken boot, zxvd killed, corrupt models, tabs at once,
+a 100-round soak, secrets looked for afterwards).
 
 ## Not there yet
 
