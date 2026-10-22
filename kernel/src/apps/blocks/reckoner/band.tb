@@ -1,0 +1,38 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The tax in one band of a banded (marginal) table, in Trebago
+! (reckoner_rules.h RR2), one band per row: floor(t * rate / 10000), t the
+! part of income inside the band, max(0, min(income, hi) - lo), and rate
+! in hundredths of a percent. Trebago is exact and has no floor, so it is
+! counted in integers only: q = floor(t / 10000) three digits at a time,
+! each digit the count of k = 1 to 999 with k * step <= t, which
+! min(1, max(0, t - k * step + 1)) is for integers; then t * rate / 10000
+! is q * rate plus the floor of what is left (r * rate, below 10^8) over
+! 10000, counted the same way. ok is 0 for a negative income or lo, a band
+! upside down (hi below lo), a rate outside 0..10000 or a part past 16
+! digits, and the tax is divided by it: refused. band.sutra holds amounts
+! to 14 digits: past them the two disagree and the answer is held.
+trebago band
+  in  income(n), lo(n), hi(n), rate(n)
+  out tax(n)
+  var t(n), s(n), a(n), b(n), c(n), d(n), e(n), f(n), ok(n)
+  t(i) = max(0, min(income(i), hi(i)) - lo(i))
+  ok(i) = min(1, max(0, income(i) + 1)) * min(1, max(0, lo(i) + 1)) &
+        * min(1, max(0, hi(i) - lo(i) + 1)) * min(1, max(0, rate(i) + 1)) &
+        * min(1, max(0, 10000 - rate(i) + 1)) * min(1, max(0, 9999999999999999 - t(i) + 1))
+  a(i) = sum(k = 1:999, min(1, max(0, t(i) - k * 10000000000000 + 1)))
+  t(i) = t(i) - a(i) * 10000000000000
+  b(i) = sum(k = 1:999, min(1, max(0, t(i) - k * 10000000000 + 1)))
+  t(i) = t(i) - b(i) * 10000000000
+  c(i) = sum(k = 1:999, min(1, max(0, t(i) - k * 10000000 + 1)))
+  t(i) = t(i) - c(i) * 10000000
+  d(i) = sum(k = 1:999, min(1, max(0, t(i) - k * 10000 + 1)))
+  t(i) = t(i) - d(i) * 10000
+  s(i) = t(i) * rate(i)
+  e(i) = sum(k = 1:9, min(1, max(0, s(i) - k * 10000000 + 1)))
+  s(i) = s(i) - e(i) * 10000000
+  f(i) = sum(k = 1:999, min(1, max(0, s(i) - k * 10000 + 1)))
+  tax(i) = ((a(i) * 1000000000 + b(i) * 1000000 + c(i) * 1000 + d(i)) * rate(i) &
+         + e(i) * 1000 + f(i)) / ok(i)
+end

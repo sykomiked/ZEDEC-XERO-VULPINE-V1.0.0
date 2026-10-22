@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One account's statement for a period, in Sutra (reckoner_rules.h RR1),
+# one account per row: the closing balance is the opening balance plus
+# the period's credits minus its debits, in integer minor units, as a
+# camt.053 statement reconciles. credits and debits are totals of one
+# direction each, never below 0: they fit 9(18), so a negative or a total
+# past 18 digits is a size error, refused; the balances fit s9(18) either
+# way. statement.tb says the same in Trebago, which answers to 64 bits:
+# past 18 digits the two disagree and the answer is held.
+record period-statement
+  opening: s9(18)
+  credits: 9(18)
+  debits: 9(18)
+  closing: s9(18)
+procedure
+  compute closing = opening + credits - debits
+  answer closing

@@ -135,7 +135,10 @@
 #define ALX_SLOT_NUM_BURIN_HATCH_GAP             127u /* 590.57 burin.hatch_gap */
 #define ALX_SLOT_NUM_BURIN_HATCH_LINES           128u /* 590.58 burin.hatch_lines */
 #define ALX_SLOT_LOGIC_BURIN_PATH_LIMITS_OK      129u /* 490.60 burin.path_limits_ok */
-#define ALX_SLOT__COUNT 129u
+#define ALX_SLOT_NUM_RECKONER_BAND_TAX           130u /* 590.59 reckoner.band_tax */
+#define ALX_SLOT_LOGIC_RECKONER_REPORT_OK        131u /* 490.61 reckoner.report_ok */
+#define ALX_SLOT_NUM_RECKONER_STATEMENT_CLOSE    132u /* 590.60 reckoner.statement_close */
+#define ALX_SLOT__COUNT 132u
 /* clang-format on */
 
 #endif

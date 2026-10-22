@@ -164,3 +164,6 @@
 127	num.burin_hatch_gap	590.57	burin.hatch_gap	base
 128	num.burin_hatch_lines	590.58	burin.hatch_lines	base
 129	logic.burin_path_limits_ok	490.60	burin.path_limits_ok	base
+130	num.reckoner_band_tax	590.59	reckoner.band_tax	base
+131	logic.reckoner_report_ok	490.61	reckoner.report_ok	base
+132	num.reckoner_statement_close	590.60	reckoner.statement_close	base

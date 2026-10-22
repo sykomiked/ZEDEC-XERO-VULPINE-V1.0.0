@@ -1,0 +1,34 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The tax in one band of a banded (marginal) table, in Sutra
+# (reckoner_rules.h RR2), one band per row: the part of income inside
+# lo..hi, min(income, hi) - lo and never below 0, at rate hundredths of a
+# percent (10000 is all of it), truncated as COMPUTE does: the floor, since
+# nothing here is negative. income, lo and hi fit 9(14) minor units, so a
+# negative or a longer one is a size error, refused. width (hi - lo) and
+# room (10000 - rate) are unsigned: a band upside down or a rate past 100
+# percent does not fit, refused. band.tb says the same in Trebago, which
+# takes amounts to 64 bits: past 14 digits the two disagree, held.
+record tax-band
+  income: 9(14)
+  lo: 9(14)
+  hi: 9(14)
+  rate: 9(5)
+  width: 9(14)
+  room: 9(5)
+  taxed: 9(14)
+  tax: 9(14)
+procedure
+  compute width = hi - lo
+  compute room = 10000 - rate
+  compute taxed = income
+  if taxed > hi
+    compute taxed = hi
+  end-if
+  if taxed <= lo
+    answer 0
+  end-if
+  compute taxed = taxed - lo
+  compute tax = taxed * rate / 10000
+  answer tax

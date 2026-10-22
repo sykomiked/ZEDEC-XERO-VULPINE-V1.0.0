@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! One account's statement for a period, in Trebago (reckoner_rules.h RR1),
+! one account per row: closing = opening + credits - debits, in integer
+! minor units, exact. credits and debits are totals of one direction each:
+! a total below 0 makes ok 0 and the answer a division by zero, refused.
+! A result past 64 bits is refused by Trebago itself, never wrapped.
+! statement.sutra holds 18 digits: past them the two disagree and the
+! answer is held.
+trebago statement
+  in  opening(n), credits(n), debits(n)
+  out closing(n)
+  var ok(n)
+  ok(i) = min(1, max(0, credits(i) + 1)) * min(1, max(0, debits(i) + 1))
+  closing(i) = (opening(i) + credits(i) - debits(i)) / ok(i)
+end

@@ -19,7 +19,7 @@ spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.
 - **In use by an app:** 11 of 108
 - **Can run, no app uses it yet:** 21
 - **Waiting for a front-end (Lingua):** 76
-- **Promised by a pending line in an app:** 14 languages, 19 app places
+- **Promised by a pending line in an app:** 14 languages, 22 app places
 
 | Language | AI twin | Runs as | Best at | Owns | Apps |
 |---|---|---|---|---|---|
@@ -28,10 +28,10 @@ spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.
 | Laning and Zierler | - | waiting | writing equations the way they are written on paper | formula | - |
 | FLOW-MATIC | - | waiting | English-worded business data processing, the ancestor of COBOL | business | - |
 | IPL | - | waiting | list processing and symbolic search | lists | - |
-| FORTRAN | Reckonwyrm | trebago | exact heavy numeric kernels: sums, scans, rationals | numeric, statistics | 001 The Banker (total); 005 Scent (score); 008 Gatehouse (holders); 014 Wake (count); 018 Witness (kind_count); 043 Solstice (month_days, weekday); 054 Burin (hatch_gap, hatch_lines); 055 Birdsong (clip_ms); 062 Kitling (stage, zeck); 073 Coffer (balance, holdings); 075 Crown (allot, draw_at, pool_after); 076 Talisman (earned_n, reach_x100); 089 Wellspring (week); 090 Caravan (charged, fits_n); 091 Vintner (flow_gap); 113 Typecase (coverage_x100, font_ok); 142 Shepherd (week); block number_classics (gcd); example fee_check (total) |
+| FORTRAN | Reckonwyrm | trebago | exact heavy numeric kernels: sums, scans, rationals | numeric, statistics | 001 The Banker (total); 005 Scent (score); 008 Gatehouse (holders); 014 Wake (count); 018 Witness (kind_count); 043 Solstice (month_days, weekday); 054 Burin (hatch_gap, hatch_lines); 055 Birdsong (clip_ms); 062 Kitling (stage, zeck); 073 Coffer (balance, holdings); 075 Crown (allot, draw_at, pool_after); 076 Talisman (earned_n, reach_x100); 083 Reckoner (band_tax, statement_close); 089 Wellspring (week); 090 Caravan (charged, fits_n); 091 Vintner (flow_gap); 113 Typecase (coverage_x100, font_ok); 142 Shepherd (week); block number_classics (gcd); example fee_check (total) |
 | ALGOL 58 | - | waiting | block-structured algorithms as published | formula | - |
 | LISP | Coilwyrm | lisp | symbolic data, trees and self-describing structures | symbolic, lists | - |
-| COBOL | Sutra | sutra | ledgers, money and fixed-size business records, refusing on overflow | money, business | 002 Hollow (shown); 003 Threshold (rights_ok); 009 Lockbox (strength); 010 Keepsake (removed); 015 Tidewatch (cpu_x100); 016 Sounding (rate); 018 Witness (chain_ok); 020 Warren (change_ok); 021 Brazier (minutes_left); 024 Treadle (next_run); 028 Halloo (hms); 071 Gleaner (leave_ok); 073 Coffer (balance, transfer_ok); 075 Crown (allot, draw_at, standing); 076 Talisman (reach_x100); 089 Wellspring (progress_x100); 090 Caravan (charged, girth); 091 Vintner (sale_value); 115 Platen (copies_ok, sheets); 142 Shepherd (left); 144 Stillwater (let_through, quiet_now); block used_share (used_x100); example fee_check (fee, fee_ok) |
+| COBOL | Sutra | sutra | ledgers, money and fixed-size business records, refusing on overflow | money, business | 002 Hollow (shown); 003 Threshold (rights_ok); 009 Lockbox (strength); 010 Keepsake (removed); 015 Tidewatch (cpu_x100); 016 Sounding (rate); 018 Witness (chain_ok); 020 Warren (change_ok); 021 Brazier (minutes_left); 024 Treadle (next_run); 028 Halloo (hms); 071 Gleaner (leave_ok); 073 Coffer (balance, transfer_ok); 075 Crown (allot, draw_at, standing); 076 Talisman (reach_x100); 083 Reckoner (band_tax, statement_close); 089 Wellspring (progress_x100); 090 Caravan (charged, girth); 091 Vintner (sale_value); 115 Platen (copies_ok, sheets); 142 Shepherd (left); 144 Stillwater (let_through, quiet_now); block used_share (used_x100); example fee_check (fee, fee_ok) |
 | JOVIAL | - | waiting | embedded real-time control tables | control | - |
 | RPG | - | waiting | report generation from fixed records | report | - |
 | APT | - | waiting | numerical-control tool paths | toolpath | - |
@@ -54,7 +54,7 @@ spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.
 | B | - | waiting | word-level systems code | machine | - |
 | Forth | Cairndrake | forth | tiny stack programs for devices and boot-time checks | stack, control | 091 Vintner (probe_tenths); block number_classics (gcd) |
 | Pascal | Tutordrake | pascal | structured, strongly typed teaching-grade procedures | stepwise, structure | - |
-| C | - | c | the screen, the model and the zxvd link | view, model, machine | 001 The Banker (view/model); 002 Hollow (view/model); 003 Threshold (view/model); 004 Keystone (view/model); 005 Scent (view/model); 007 Satchel (view/model); 008 Gatehouse (view/model); 009 Lockbox (view/model); 010 Keepsake (view/model); 013 Flint (view/model); 014 Wake (view/model); 015 Tidewatch (view/model); 016 Sounding (view/model); 017 Almanac (view/model); 018 Witness (view/model); 020 Warren (view/model); 021 Brazier (view/model); 022 Spindle (view/model); 024 Treadle (view/model); 028 Halloo (view/model); 034 Signpost (view/model); 037 Quillon (view/model); 043 Solstice (view/model); 049 Glint (view/model); 054 Burin (view/model); 055 Birdsong (view/model); 061 Murmuration (view/model); 062 Kitling (view/model); 071 Gleaner (view/model); 073 Coffer (view/model); 075 Crown (view/model); 076 Talisman (view/model); 085 Waymark (view/model); 089 Wellspring (view/model); 090 Caravan (view/model); 091 Vintner (view/model); 113 Typecase (view/model); 115 Platen (view/model); 142 Shepherd (view/model); 144 Stillwater (view/model); block pce_fin (npv, npv_sign); block pce_prob (bayes, join, verdict); block pce_strat (decide, leader, zopa) |
+| C | - | c | the screen, the model and the zxvd link | view, model, machine | 001 The Banker (view/model); 002 Hollow (view/model); 003 Threshold (view/model); 004 Keystone (view/model); 005 Scent (view/model); 007 Satchel (view/model); 008 Gatehouse (view/model); 009 Lockbox (view/model); 010 Keepsake (view/model); 013 Flint (view/model); 014 Wake (view/model); 015 Tidewatch (view/model); 016 Sounding (view/model); 017 Almanac (view/model); 018 Witness (view/model); 020 Warren (view/model); 021 Brazier (view/model); 022 Spindle (view/model); 024 Treadle (view/model); 028 Halloo (view/model); 034 Signpost (view/model); 037 Quillon (view/model); 043 Solstice (view/model); 049 Glint (view/model); 054 Burin (view/model); 055 Birdsong (view/model); 061 Murmuration (view/model); 062 Kitling (view/model); 071 Gleaner (view/model); 073 Coffer (view/model); 075 Crown (view/model); 076 Talisman (view/model); 083 Reckoner (view/model); 085 Waymark (view/model); 089 Wellspring (view/model); 090 Caravan (view/model); 091 Vintner (view/model); 113 Typecase (view/model); 115 Platen (view/model); 142 Shepherd (view/model); 144 Stillwater (view/model); block pce_fin (npv, npv_sign); block pce_prob (bayes, join, verdict); block pce_strat (decide, leader, zopa) |
 | Prolog | - | waiting | logic rules and searching for every answer that fits | rules, search | - |
 | Smalltalk | - | waiting | live objects and message passing | objects, view | - |
 | ML | - | waiting | typed functional transforms with inference | types, proof | - |
@@ -70,7 +70,7 @@ spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.
 | REXX | - | waiting | readable glue scripts | scripting | - |
 | dBase | - | waiting | small desktop databases | records, query | - |
 | Natural | - | waiting | business queries over records | business, query | - |
-| Ada | Eve | eve | safety limits, contracts and policy that must hold | limits, safety | 002 Hollow (window_ok); 003 Threshold (phrase_ok, skip_ok); 004 Keystone (energy_budget_ok, setting_ok); 007 Satchel (package_ok); 008 Gatehouse (use_ok); 009 Lockbox (secret_ok); 010 Keepsake (keep_ok); 013 Flint (scroll_ok); 020 Warren (approval_ok); 021 Brazier (heat_ok, heat_safe); 022 Spindle (call_ok); 024 Treadle (budget_ok); 028 Halloo (call_ok, ring_ok, ring_wait_ok); 034 Signpost (name_ok); 037 Quillon (size_ok); 043 Solstice (events_overlap); 054 Burin (path_limits_ok); 055 Birdsong (rec_ok); 062 Kitling (grown); 071 Gleaner (dataset_ok); 073 Coffer (transfer_ok); 075 Crown (standing); 076 Talisman (earned); 085 Waymark (place_ok); 089 Wellspring (log_ok, safe_ok); 090 Caravan (fits_ok, ship_ok); 142 Shepherd (limit_ok); 144 Stillwater (schedule_ok); block swarm_shares (within_limits); example fee_check (fee_ok) |
+| Ada | Eve | eve | safety limits, contracts and policy that must hold | limits, safety | 002 Hollow (window_ok); 003 Threshold (phrase_ok, skip_ok); 004 Keystone (energy_budget_ok, setting_ok); 007 Satchel (package_ok); 008 Gatehouse (use_ok); 009 Lockbox (secret_ok); 010 Keepsake (keep_ok); 013 Flint (scroll_ok); 020 Warren (approval_ok); 021 Brazier (heat_ok, heat_safe); 022 Spindle (call_ok); 024 Treadle (budget_ok); 028 Halloo (call_ok, ring_ok, ring_wait_ok); 034 Signpost (name_ok); 037 Quillon (size_ok); 043 Solstice (events_overlap); 054 Burin (path_limits_ok); 055 Birdsong (rec_ok); 062 Kitling (grown); 071 Gleaner (dataset_ok); 073 Coffer (transfer_ok); 075 Crown (standing); 076 Talisman (earned); 083 Reckoner (report_ok); 085 Waymark (place_ok); 089 Wellspring (log_ok, safe_ok); 090 Caravan (fits_ok, ship_ok); 142 Shepherd (limit_ok); 144 Stillwater (schedule_ok); block swarm_shares (within_limits); example fee_check (fee_ok) |
 | PostScript | - | waiting | exact page description and drawing | layout | - |
 | C++ | - | cpp (SDK) | fast typed libraries (through libzxv, or as wasm) | numeric, objects | 001 The Banker (share); 002 Hollow (tile_cell, tile_cols, tile_rows); 008 Gatehouse (use_allowed); 009 Lockbox (days_left); 013 Flint (cells); 017 Almanac (days, hours); 024 Treadle (next_run); 043 Solstice (next_occurrence); 054 Burin (bezier_at); 055 Birdsong (gain); 071 Gleaner (holdout); 091 Vintner (sale_value) |
 | Objective-C | - | waiting | message-based objects | objects, view | - |
@@ -142,17 +142,17 @@ stand-in kept as the second witness.
 
 | Language | Waiting apps (entries) |
 |---|---|
-| RPG | 076 Talisman (reach_x100) |
+| RPG | 076 Talisman (reach_x100); 083 Reckoner (statement_close) |
 | APT | 054 Burin (bezier_at) |
 | JCL | 020 Warren (backoff) |
 | B | 002 Hollow (shown) |
 | SQL | 034 Signpost (cache_ok) |
 | TeX | 113 Typecase (coverage_x100) |
 | Natural | 014 Wake (count) |
-| Eiffel | 073 Coffer (transfer_ok); 075 Crown (standing); 076 Talisman (earned) |
+| Eiffel | 073 Coffer (transfer_ok); 075 Crown (standing); 076 Talisman (earned); 083 Reckoner (report_ok) |
 | LabVIEW | 055 Birdsong (gain) |
 | Racket | 113 Typecase (font_ok) |
 | Clojure | 062 Kitling (gene_strength) |
-| Solidity | 073 Coffer (transfer_ok); 075 Crown (standing); 076 Talisman (earned) |
+| Solidity | 073 Coffer (transfer_ok); 075 Crown (standing); 076 Talisman (earned); 083 Reckoner (report_ok) |
 | Gleam | 028 Halloo (ring_ok) |
 | Mojo | 055 Birdsong (clip_ms); 062 Kitling (gene_strength) |

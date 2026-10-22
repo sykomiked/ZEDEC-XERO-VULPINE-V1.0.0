@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether a period's statements and tax estimate may be rendered, saved
+# and printed, in Eve (reckoner_rules.h RR3): the period is closed
+# (closed = 1: the owner closed it, so no entry may join it) and the books
+# hold as ledger.check answered it last (books = 1). Each is a flag that
+# must be exactly 1; anything else, 0 or no flag at all, does not fit: not
+# allowed. The figures stay advisory; a person files.
+eve reckoner
+flag_on = 1 .. 1
+
+report_rule {
+  closed: flag_on
+  books: flag_on
+}
