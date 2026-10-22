@@ -1,0 +1,1 @@
+(amateur>-1)&(amateur<2)&(sealed>-1)&(sealed<2)&(amateur+sealed)<2

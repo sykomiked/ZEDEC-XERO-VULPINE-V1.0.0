@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# No secrets on amateur radio (aerie_rules.h AR5; docs/P2P_PROTOCOL_TWINS.md
+# P13, 47 CFR 97.113 and 97.309), in Sutra: a message may go out on a
+# private bearer (amateur 0), or on an amateur bearer in the clear (sealed
+# 0); amateur 1 with sealed 1 is refused. Each flag fits 9(1), so a
+# negative flag, or one past 9, does not fit its picture and is refused,
+# where clear.kron reads it as no: held.
+record ham-clear
+  amateur: 9(1)
+  sealed: 9(1)
+  both: 9(2)
+procedure
+  compute both = amateur + sealed
+  answer amateur <= 1 and sealed <= 1 and both <= 1

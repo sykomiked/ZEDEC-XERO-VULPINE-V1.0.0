@@ -1,0 +1,12 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Aerie files one message in its log, in MYRA (aerie_rules.h AR4): its
+; number, its bearer (0 private, sealed on an Endian Hopping band; 1
+; amateur, in the clear), the Endian Hopping band (0 control .. 4 bulk,
+; ehop.bands; 0 on the amateur bearer, which has none), its direction (0
+; in, 1 out), the sender id on the channel (0 .. 2^32 - 1; 0 on the
+; amateur bearer, where the call sign names the station), its bytes (at
+; most 3360, a whole freight) and when (ms since 1970). No piece holds an
+; amount: Aerie carries messages, never money.
+^ZXAERIE(seq:i9) = bearer:i1! ^ band:i1! ^ dir:i1! ^ sender:i10! ^ bytes:i4! ^ stamp:i13!

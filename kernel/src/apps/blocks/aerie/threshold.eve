@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The correlation threshold Aerie resolves a line frame with
+# (aerie_rules.h AR3), in Eve: Q16.16, 1 to 65536. zxvd's harmonic.decode
+# takes 0 to 2^31 - 1; Aerie keeps it above 0, so the faintest correlation
+# is never read as a truth, and at most 1.0, one full-scale word. A limit
+# only, in one language: the model's C (aerie_threshold_ok) is its second
+# reading.
+eve aerie
+threshold_q16 = 1 .. 65536
+
+resolver {
+  thr: threshold_q16
+}

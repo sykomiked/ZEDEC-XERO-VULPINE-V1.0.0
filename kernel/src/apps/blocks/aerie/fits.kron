@@ -1,0 +1,1 @@
+(bytes>-1)&(bytes<2049)&(frame>48)&(frame<2097)&(frame-bytes)>47

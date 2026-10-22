@@ -256,3 +256,8 @@
 219	num.toolchest_version_fits	591.04	toolchest.version_fits	base
 220	logic.twelvefold_lp_entail_kept	491.07	twelvefold.lp_entail_kept	base
 221	logic.twelvefold_lp_limits_ok	491.08	twelvefold.lp_limits_ok	base
+222	logic.aerie_band_fits	491.09	aerie.band_fits	base
+223	num.aerie_frame_tag	591.05	aerie.frame_tag	base
+224	logic.aerie_ham_clear_ok	491.10	aerie.ham_clear_ok	base
+225	logic.aerie_line_threshold_ok	491.11	aerie.line_threshold_ok	base
+226	logic.aerie_radio_msg_ok	491.12	aerie.radio_msg_ok	base

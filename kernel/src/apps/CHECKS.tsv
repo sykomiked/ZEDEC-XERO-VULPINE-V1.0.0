@@ -4,6 +4,23 @@
 # The reviewed check lines of each app (tools/apps/app_checks.py): the trusted
 # copy of its proof. Written only by app_checks.py --freeze, after review.
 # app	check line, verbatim
+aerie	check frame_tag sync=0 shell=0 trunk=0 = 0
+aerie	check frame_tag sync=1 shell=9 trunk=9 = 199
+aerie	check frame_tag sync=1 shell=2 trunk=3 = 123
+aerie	check frame_tag sync=0 shell=0 trunk=9 = 9
+aerie	check frame_tag sync=2 shell=0 trunk=0 = both
+aerie	check frame_tag sync=0 shell=10 trunk=0 = both
+aerie	check frame_tag sync=0 shell=0 trunk=-1 = both
+aerie	check band_fits bytes=0,512,2048,1,2049,-1,0,0 frame=560,560,2096,49,2096,560,48,2097 = true,true,true,true,false,false,false,false
+aerie	check band_fits bytes=600,600 frame=560,2096 = both
+aerie	check band_fits bytes=10,513 frame=560,560 = both
+aerie	check ham_clear_ok amateur=0,0,1,1,2,9,0 sealed=0,1,0,1,0,0,9 = true,true,true,false,false,false,false
+aerie	check ham_clear_ok amateur=1,-1 sealed=0,0 = both
+aerie	check ham_clear_ok amateur=0,0 sealed=0,10 = both
+aerie	check line_threshold_ok thr=1,65536,4096,0,65537,-1 = true,true,true,false,false,false
+aerie	check radio_msg_ok seq=1,999999999,1000000000,1,1,1,1 bearer=0,1,0,10,0,0,0 band=0,4,0,0,10,0,0 dir=0,1,0,0,0,0,0 sender=0,4294967295,0,0,0,10000000000,0 bytes=0,3360,0,0,0,0,10000 stamp=1700000000000,9999999999999,0,0,0,0,0 = true,true,false,false,false,false,false
+aerie	check halloo.quiet_left opens=1320,1320 closes=420,420 now=1400,900 = 460,0
+aerie	check halloo.ring_ok known=1,1,0 blocked=0,0,0 quiet=0,5,0 = true,false,false
 almanac	check days seconds=0,86399,86400,200000 = 0,0,1,2
 almanac	check days seconds=-86401 = both
 almanac	check hours seconds=0,86399,3599,3600 = 0,23,0,1

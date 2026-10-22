@@ -227,7 +227,12 @@
 #define ALX_SLOT_NUM_TOOLCHEST_VERSION_FITS      219u /* 591.04 toolchest.version_fits */
 #define ALX_SLOT_LOGIC_TWELVEFOLD_LP_ENTAIL_KEPT 220u /* 491.07 twelvefold.lp_entail_kept */
 #define ALX_SLOT_LOGIC_TWELVEFOLD_LP_LIMITS_OK   221u /* 491.08 twelvefold.lp_limits_ok */
-#define ALX_SLOT__COUNT 221u
+#define ALX_SLOT_LOGIC_AERIE_BAND_FITS           222u /* 491.09 aerie.band_fits */
+#define ALX_SLOT_NUM_AERIE_FRAME_TAG             223u /* 591.05 aerie.frame_tag */
+#define ALX_SLOT_LOGIC_AERIE_HAM_CLEAR_OK        224u /* 491.10 aerie.ham_clear_ok */
+#define ALX_SLOT_LOGIC_AERIE_LINE_THRESHOLD_OK   225u /* 491.11 aerie.line_threshold_ok */
+#define ALX_SLOT_LOGIC_AERIE_RADIO_MSG_OK        226u /* 491.12 aerie.radio_msg_ok */
+#define ALX_SLOT__COUNT 226u
 /* clang-format on */
 
 #endif

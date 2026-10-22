@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a message on an Endian Hopping band may measure (aerie_rules.h AR2),
+# in Eve: 0 to 2048 bytes of message (EHOP_MAX_PAYLOAD) and a band whose
+# largest frame on the wire is 49 to 2096 bytes (the 48 bytes of header and
+# tags, and at least one byte more). Eve holds each range alone; that the
+# message with its 48 bytes fits inside the band's frame is KRON's half of
+# the witness.
+eve aerie
+message_bytes = 0 .. 2048
+band_frame = 49 .. 2096
+
+band_message {
+  bytes: message_bytes
+  frame: band_frame
+}

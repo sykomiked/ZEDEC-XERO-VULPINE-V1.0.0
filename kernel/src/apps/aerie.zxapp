@@ -1,0 +1,127 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Aerie, radio and ham links: layer 35 of the matrix. Two paths, kept
+# apart (aerie_model.h):
+#
+#   Sealed, for private bearers only (a mesh, a LAN, a cable, a radio
+#   service that is not amateur): messages sealed and opened on the Endian
+#   Hopping bands (ehop.bands, ehop.seal, ehop.open). ehop.seal is
+#   ChaCha20-Poly1305 encryption, and an Endian Hopping band is a message
+#   class (control, settle, media, chat, bulk), not a radio frequency band.
+#   The owner chooses which of them Aerie may use; the settle band carries
+#   payments and is never allowed.
+#
+#   Amateur, cleartext only (docs/P2P_PROTOCOL_TWINS.md P13,
+#   docs/retail/BEARERS.md, kernel/src/bearer/br_ham.h; 47 CFR 97.113 and
+#   97.309): plain emergency text anyone can read, the owner's call sign in
+#   the clear, no encryption, no sessions, no payments, no business. It is
+#   off until the owner gives their call sign and confirms they hold an
+#   amateur licence, and it never calls ehop.seal. zxvd has no method that
+#   signs a ham message in br_ham's form or transmits one, so Aerie
+#   composes the exact bytes br_ham signs and hands them over unsigned and
+#   unsent; none is invented.
+#
+# ham_clear_ok (AR5) is the rule between them, witnessed, and the model
+# applies it before anything is sent: a sealed frame on an amateur bearer
+# is refused. Also line frames (harmonic.encode, harmonic.decode), long
+# messages as freight (freight.pack, freight.unpack) and a bounded log.
+# Messages only, never money: no ledger method, no amount anywhere. zxvd
+# has no method that drives radio hardware, so nothing here transmits.
+#
+# Later layers take its rules with "use aerie 1" (Crier, Chandler, Pharos,
+# Quadrant, Foghorn), so each general one is a concept with Aerie as owner
+# (CONCEPTS.tsv): a line frame's tag from its parts, whether a message fits
+# an Endian Hopping band, a message log record, and no secrets on amateur
+# radio. Nothing nearer the core holds them. Halloo (28) is used for
+# whether a message may alert the owner now (ring_ok, its meaning covers a
+# message) and the quiet minutes it reads (quiet_left). Murmuration (61)
+# is the swarm dashboard: its entries are swarm cycle shares, which no
+# radio rule needs, so it is not used.
+#
+# The task names a "frame tag split": the witnessed entry is the tag the
+# three parts make (AR1), since an entry answers one number; the split back
+# into parts is that rule's inverse in the model's C (aerie_tag_split),
+# which checks every tag harmonic.decode answers against it.
+#
+# Witness pairs are of one kind (zxapp.c run_one B3). Forth (Lingua,
+# zxapp_lingua.c L2) answers the numbers it prints, so the tag is Forth and
+# KRON. Eve answers truths only and checks each field against its own
+# range, so for "fits the band" Eve holds the two ranges and KRON adds the
+# relation between them (bytes + 48 <= frame). ham_clear_ok is a relation
+# across its two flags, which Eve cannot hold, so it is Sutra (whose 9(1)
+# pictures refuse a flag below 0 or past 9) and KRON.
+#
+# zxvd's harmonic.decode takes a threshold of 0..2^31 - 1; Aerie keeps the
+# owner's inside 1..65536 (AR3), narrower and inside zxvd's, defaulting to
+# zxvd's own 4096.
+#
+# Planned languages: Gleam (messaging, types) on radio_msg_ok, the message
+# record; LabVIEW (dataflow, signal) on line_threshold_ok, the line's
+# signal resolver. Perl (text, pattern) has no entry here: Aerie checks
+# bytes of text, it does not match patterns in it.
+zxapp 1
+id     aerie
+name   Aerie
+version 1.0.0
+slot   35
+layer  L1
+matrix 35
+icon   icons/l1/035-aerie.svg
+budget 233
+needs  net
+needs  notify
+model  apps/aerie_model.c
+use    halloo 1   # @num.halloo_quiet_left @logic.halloo_ring_ok
+
+# A line frame's tag from its parts (AR1): 100 * sync + 10 * shell +
+# trunk. Forth, twin Cairndrake; the line names the runtime "forth".
+# Forth reads one frame from its stack per call. Forth refuses a part
+# outside its range, KRON answers it: held.
+provides frame_tag num sync shell trunk
+logic    forth frame_tag apps/blocks/aerie/tag.fs
+logic    kron  frame_tag apps/blocks/aerie/tag.kron
+
+# A message fits an Endian Hopping band's largest frame (AR2), Eve and
+# KRON. The sealed path only.
+provides band_fits truth bytes frame
+logic    eve  band_fits apps/blocks/aerie/fits.eve
+logic    kron band_fits apps/blocks/aerie/fits.kron
+
+# No secrets on amateur radio (AR5): amateur 1 with sealed 1 is refused,
+# and a flag that is no flag fails closed. Sutra and KRON; a flag below 0
+# or past 9 is refused by Sutra and answered by KRON: held.
+provides ham_clear_ok truth amateur sealed
+logic    sutra ham_clear_ok apps/blocks/aerie/clear.sutra
+logic    kron  ham_clear_ok apps/blocks/aerie/clear.kron
+
+# The resolver's threshold inside its limits (AR3), in Eve; the model's C
+# checks it again before keeping the owner's setting.
+provides line_threshold_ok truth thr
+logic    eve line_threshold_ok apps/blocks/aerie/threshold.eve
+pending  LabVIEW line_threshold_ok
+
+# A message fits its log record, ^ZXAERIE (AR4), in MYRA; no piece holds
+# an amount.
+provides radio_msg_ok truth seq bearer band dir sender bytes stamp
+logic    myra radio_msg_ok apps/blocks/aerie/log.myra
+pending  Gleam radio_msg_ok
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check frame_tag sync=0 shell=0 trunk=0 = 0
+check frame_tag sync=1 shell=9 trunk=9 = 199
+check frame_tag sync=1 shell=2 trunk=3 = 123
+check frame_tag sync=0 shell=0 trunk=9 = 9
+check frame_tag sync=2 shell=0 trunk=0 = both
+check frame_tag sync=0 shell=10 trunk=0 = both
+check frame_tag sync=0 shell=0 trunk=-1 = both
+check band_fits bytes=0,512,2048,1,2049,-1,0,0 frame=560,560,2096,49,2096,560,48,2097 = true,true,true,true,false,false,false,false
+check band_fits bytes=600,600 frame=560,2096 = both
+check band_fits bytes=10,513 frame=560,560 = both
+check ham_clear_ok amateur=0,0,1,1,2,9,0 sealed=0,1,0,1,0,0,9 = true,true,true,false,false,false,false
+check ham_clear_ok amateur=1,-1 sealed=0,0 = both
+check ham_clear_ok amateur=0,0 sealed=0,10 = both
+check line_threshold_ok thr=1,65536,4096,0,65537,-1 = true,true,true,false,false,false
+check radio_msg_ok seq=1,999999999,1000000000,1,1,1,1 bearer=0,1,0,10,0,0,0 band=0,4,0,0,10,0,0 dir=0,1,0,0,0,0,0 sender=0,4294967295,0,0,0,10000000000,0 bytes=0,3360,0,0,0,0,10000 stamp=1700000000000,9999999999999,0,0,0,0,0 = true,true,false,false,false,false,false
+check halloo.quiet_left opens=1320,1320 closes=420,420 now=1400,900 = 460,0
+check halloo.ring_ok known=1,1,0 blocked=0,0,0 quiet=0,5,0 = true,false,false
