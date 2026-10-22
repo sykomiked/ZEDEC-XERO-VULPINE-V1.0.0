@@ -32,7 +32,7 @@
 
 #include "zxvd_rpc.h"
 #include "zxvd_ext.h"
-#include "juris.h"
+#include "juris_cp.h"
 #include "zxv_api.h"
 #include "sha256.h"
 #include "web4_web2.h"
@@ -47,6 +47,11 @@
 #include "zxv_journal.h"
 #include "zxv_screen.h"
 #include "zxv_place.h"
+#include "zxv_caps.h"
+#include "zxvd_shell.h"
+#include "zxvd_dns.h"
+#include "zxv_sched.h"
+#include "zxvd_proc.h"
 #include "test_fake_device.h"
 #include "web4_web2.h"
 
@@ -346,6 +351,59 @@ static void test_buf(void)
     zxvd_buf_json_str(&b, "a\"b\\c\n\x1f"
                           "d\x7f");
     CHECK(b.p && !strcmp(b.p, "\"a\\\"b\\\\c\\u000a\\u001fd\x7f\""), "json_str escapes: %s", b.p);
+    {
+        /* JSON is UTF-8: well-formed sequences pass, every other byte is U+FFFD */
+        static const struct {
+            const char *in, *out;
+        } U[] = {
+            {"\xc3\xa9\xe2\x82\xac\xf0\x9f\xa6\x8a", "\"\xc3\xa9\xe2\x82\xac\xf0\x9f\xa6\x8a\""},
+            {"a\x94z", "\"a\xef\xbf\xbdz\""},               /* a lone continuation byte */
+            {"\xe2\x82", "\"\xef\xbf\xbd\xef\xbf\xbd\""},   /* cut at the end */
+            {"\xe2\x82x", "\"\xef\xbf\xbd\xef\xbf\xbdx\""}, /* cut before ASCII */
+            {"\xc0\xaf", "\"\xef\xbf\xbd\xef\xbf\xbd\""},   /* overlong '/' */
+            {"\xe0\x80\xaf", "\"\xef\xbf\xbd\xef\xbf\xbd\xef\xbf\xbd\""}, /* overlong */
+            {"\xed\xa0\x80", "\"\xef\xbf\xbd\xef\xbf\xbd\xef\xbf\xbd\""}, /* a surrogate */
+            {"\xf4\x90\x80\x80", "\"\xef\xbf\xbd\xef\xbf\xbd\xef\xbf\xbd\xef\xbf\xbd\""},
+            {"\xf4\x8f\xbf\xbf", "\"\xf4\x8f\xbf\xbf\""}, /* U+10FFFF */
+            {"\xff\"", "\"\xef\xbf\xbd\\\"\""},
+        };
+        for (size_t i = 0; i < sizeof U / sizeof U[0]; i++) {
+            zxvd_buf_t u = {0};
+            zxvd_buf_json_str(&u, U[i].in);
+            CHECK(u.p && !strcmp(u.p, U[i].out), "json_str UTF-8 case %zu", i);
+            free(u.p);
+        }
+        /* each edge of RFC 3629's table: these pass whole ... */
+        static const char *const WELL[] = {
+            "\xc2\x80",         "\xc2\xbf",         "\xdf\x80",         "\xdf\xbf",
+            "\xe0\xa0\x80",     "\xe0\xbf\xbf",     "\xe1\x80\x80",     "\xe1\xbf\xbf",
+            "\xec\xbf\xbf",     "\xed\x80\x80",     "\xed\x9f\xbf",     "\xee\x80\x80",
+            "\xee\xbf\xbf",     "\xef\xbf\xbf",     "\xf0\x90\x80\x80", "\xf0\xbf\xbf\xbf",
+            "\xf1\x80\x80\x80", "\xf3\xbf\xbf\xbf", "\xf4\x80\x80\x80", "\xf4\x8f\xbf\xbf",
+        };
+        for (size_t i = 0; i < sizeof WELL / sizeof WELL[0]; i++) {
+            zxvd_buf_t u = {0};
+            char want[16];
+            snprintf(want, sizeof want, "\"%s\"", WELL[i]);
+            zxvd_buf_json_str(&u, WELL[i]);
+            CHECK(u.p && !strcmp(u.p, want), "json_str: well-formed edge %zu passes", i);
+            free(u.p);
+        }
+        /* ... and these start with a byte that is not a well-formed start */
+        static const char *const ILL[] = {
+            "\xc0\x80",         "\xc1\xbf",         "\xc2\x7f",         "\xc2\xc0",
+            "\xdf\xc0",         "\xe0\x9f\xbf",     "\xe1\x7f\x80",     "\xe1\xc0\x80",
+            "\xe1\x80\x7f",     "\xe1\x80\xc0",     "\xed\xa0\x80",     "\xef\xc0\x80",
+            "\xf0\x8f\xbf\xbf", "\xf0\x90\x80\x7f", "\xf0\x90\x80\xc0", "\xf0\x90\x7f\x80",
+            "\xf0\x90\xc0\x80", "\xf4\x90\x80\x80", "\xf5\x80\x80\x80", "\xf8\x80\x80\x80",
+        };
+        for (size_t i = 0; i < sizeof ILL / sizeof ILL[0]; i++) {
+            zxvd_buf_t u = {0};
+            zxvd_buf_json_str(&u, ILL[i]);
+            CHECK(u.p && !strncmp(u.p, "\"\xef\xbf\xbd", 4), "json_str: ill-formed edge %zu", i);
+            free(u.p);
+        }
+    }
     size_t before = b.len;
     zxvd_buf_printf(&b, "%d-%s", -42, "x");
     CHECK(b.len == before + 5 && !strcmp(b.p + before, "-42-x"), "printf appends");
@@ -551,7 +609,8 @@ static void test_host_methods(void)
            "\"update.check\",\"currency.enable\","
            "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
            "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"mesh.books\","
-           "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\",\"aipi.put\",\"aipi.get\","
+           "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\",\"jurisdiction.install\","
+           "\"jurisdiction.check\",\"jurisdiction.tax_rate\",\"aipi.put\",\"aipi.get\","
            "\"aipi.publish\",\"aipi.execute\",\"aipi.status\",\"features.get\",\"features.set\","
            "\"files.root\",\"files.list\","
            "\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\","
@@ -561,7 +620,14 @@ static void test_host_methods(void)
            "\"phone.list\",\"phone.revoke\","
            "\"play.catalogue\",\"play.run\",\"play.draft\","
            "\"sys.info\",\"sys.disk\",\"sys.net\","
-           "\"log.tail\",\"journal.query\",\"journal.verify\",\"screen.tick\",\"screen.check\","
+           "\"log.tail\",\"journal.query\",\"journal.verify\","
+           "\"journal.append\",\"notify.send\",\"shell.run\",\"shell.read\",\"shell.write\","
+           "\"shell.kill\",\"shell.jobs\",\"caps.list\",\"caps.check\",\"caps.grant\",\"caps."
+           "revoke\","
+           "\"dns.resolve\",\"dns.reverse\",\"dns.flush\",\"did.parse\",\"did.match\","
+           "\"schedule.add\",\"schedule.list\",\"schedule.cancel\",\"schedule.fired\","
+           "\"proc.list\",\"proc.signal\",\"proc.restart\","
+           "\"screen.tick\",\"screen.check\","
            "\"screen.status\",\"screen.set_limit\",\"screen.clear_limit\",\"screen.grant\","
            "\"screen.lock\",\"place.here\",\"place.set_here\",\"place.forget_here\","
            "\"place.ask\",\"place.permit\",\"place.apps\",\"place.list\",\"place.add\","
@@ -611,9 +677,14 @@ static void test_host_methods(void)
 /* ---------------- spaces.* and files.* in a space (zxv_spaces.h) ---------------- */
 
 /* rpc.discover's names after play.draft: the utilities, Wake, Shepherd,
- * Waymark, Scent, Platen and Keepsake */
+ * Waymark, Scent, Platen and Keepsake, with the app services between */
 #define ZXVD_MINE_TAIL                                                                             \
     "\"sys.info\",\"sys.disk\",\"sys.net\",\"log.tail\",\"journal.query\",\"journal.verify\","     \
+    "\"journal.append\",\"notify.send\",\"shell.run\",\"shell.read\",\"shell.write\",\"shell."     \
+    "kill\",\"shell.jobs\",\"caps.list\",\"caps.check\",\"caps.grant\",\"caps.revoke\","           \
+    "\"dns.resolve\",\"dns.reverse\",\"dns.flush\",\"did.parse\",\"did.match\",\"schedule.add\","  \
+    "\"schedule.list\",\"schedule.cancel\",\"schedule.fired\",\"proc.list\",\"proc.signal\","      \
+    "\"proc.restart\","                                                                            \
     "\"screen.tick\",\"screen.check\",\"screen.status\",\"screen.set_limit\","                     \
     "\"screen.clear_limit\",\"screen.grant\",\"screen.lock\",\"place.here\",\"place.set_here\","   \
     "\"place.forget_here\",\"place.ask\",\"place.permit\",\"place.apps\",\"place.list\","          \
@@ -2218,7 +2289,8 @@ static void test_views(void)
 
 #define JU_LIST                                                                                    \
     "\"standards\":[\"IFRS\",\"US_GAAP\",\"IPSAS\",\"AAOIFI\",\"OHADA\",\"CAS\",\"SAP_INSURER\"]," \
-    "\"in_effect\":true,\"plugins\":0,\"report_standard\":\"\"}"
+    "\"in_effect\":true,\"plugins\":0,\"report_standard\":\"\",\"gateway_key\":null,"              \
+    "\"installed\":[]}"
 
 /* J5: the result as kernel/src/juris reads it */
 static bool ju_parse(const char *req, juris_settings_t *s)
@@ -2452,12 +2524,12 @@ static void test_jurisdiction(void)
         OK("9", "{\"market\":\"closed\",\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"," JU_LIST));
     /* J5: the jurisdiction host follows the settings, across a restart */
     EXPECT(REQ("9", "jurisdiction.set", ",\"params\":{\"standard\":\"IFRS\",\"country\":\"KE\"}"),
-           OK("9",
-              "{\"market\":\"closed\",\"standard\":\"IFRS\",\"country\":\"KE\","
-              "\"standards\":[\"IFRS\",\"US_GAAP\",\"IPSAS\",\"AAOIFI\",\"OHADA\",\"CAS\","
-              "\"SAP_INSURER\"],\"in_effect\":true,\"plugins\":0,\"report_standard\":\"IFRS\"}"));
+           OK("9", "{\"market\":\"closed\",\"standard\":\"IFRS\",\"country\":\"KE\","
+                   "\"standards\":[\"IFRS\",\"US_GAAP\",\"IPSAS\",\"AAOIFI\",\"OHADA\",\"CAS\","
+                   "\"SAP_INSURER\"],\"in_effect\":true,\"plugins\":0,\"report_standard\":\"IFRS\","
+                   "\"gateway_key\":null,\"installed\":[]}"));
     reopen();
-    CHECK(has(REQ("9", "jurisdiction.get", ""), "\"report_standard\":\"IFRS\"}"),
+    CHECK(has(REQ("9", "jurisdiction.get", ""), "\"report_standard\":\"IFRS\","),
           "J5: the host has the replayed settings");
     juris_settings_t js;
     CHECK(ju_parse(REQ("9", "jurisdiction.get", ""), &js) && js.market == JURIS_MARKET_CLOSED &&
@@ -2465,15 +2537,15 @@ static void test_jurisdiction(void)
           "J5: kernel/src/juris reads the result");
     CHECK(
         has(REQ("9", "jurisdiction.set", ",\"params\":{\"standard\":\"AAOIFI\",\"country\":\"\"}"),
-            "\"report_standard\":\"\"}"),
+            "\"report_standard\":\"\","),
         "J5: no country, no report standard");
     CHECK(has(REQ("9", "jurisdiction.set", ",\"params\":{\"country\":\"MY\",\"market\":\"open\"}"),
-              "\"report_standard\":\"AAOIFI\"}") &&
+              "\"report_standard\":\"AAOIFI\",") &&
               ju_parse(REQ("9", "jurisdiction.get", ""), &js) && js.market == JURIS_MARKET_OPEN &&
               js.standard == ACCT_STD_AAOIFI,
           "J5: AAOIFI with a country");
     CHECK(has(REQ("9", "jurisdiction.set", ",\"params\":{\"standard\":\"IPSAS\"}"),
-              "\"report_standard\":\"\"}"),
+              "\"report_standard\":\"\","),
           "J5: a standard with no adapter gives none");
     EXPECT(
         REQ("9", "jurisdiction.set",
@@ -2517,6 +2589,643 @@ static void test_jurisdiction(void)
               has(REQ("11", "jurisdiction.get", ""), "{\"market\":\"closed\""),
           "and is gone after a restart");
     unlink(path);
+    rmdir(tmpl);
+}
+
+/* ---------------- the gateway key and compliance plug-ins (J6-J9) ---------------- */
+
+typedef struct {
+    uint8_t pk[JURIS_GW_PK_LEN], sk[JURIS_GW_SK_LEN];
+} ju_keys_t;
+static ju_keys_t JK1, JK2;
+static char JREQ[ZXVD_RPC_MAX_LINE + 64];
+#define JB64(n) (((n) + 2) / 3 * 4 + 1)
+
+static void ju_b64(const uint8_t *d, size_t n, char *out)
+{
+    static const char A[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    size_t o = 0;
+    for (size_t i = 0; i < n; i += 3) {
+        uint32_t v = (uint32_t) d[i] << 16 | (i + 1 < n ? (uint32_t) d[i + 1] << 8 : 0) |
+                     (i + 2 < n ? d[i + 2] : 0);
+        out[o++] = A[v >> 18 & 63];
+        out[o++] = A[v >> 12 & 63];
+        out[o++] = i + 1 < n ? A[v >> 6 & 63] : '=';
+        out[o++] = i + 2 < n ? A[v & 63] : '=';
+    }
+    out[o] = 0;
+}
+
+static const char *ju_set_key(const uint8_t *pk, size_t n)
+{
+    static const char H[] = "0123456789abcdef";
+    char hex[2 * JURIS_GW_PK_LEN + 1];
+    size_t o = 0;
+    for (size_t i = 0; i < n && o + 2 < sizeof hex; i++) {
+        hex[o++] = H[pk[i] >> 4];
+        hex[o++] = H[pk[i] & 15];
+    }
+    hex[o] = 0;
+    snprintf(JREQ, sizeof JREQ,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"jurisdiction.set\","
+             "\"params\":{\"gateway_key\":\"%s\"}}",
+             hex);
+    return rpc(JREQ);
+}
+
+/* a manifest the test signs: m (the compliance manifest, signed under cpk's
+ * context by csk) and the J3 plug-in manifest over it signed by gsk with
+ * the given hook mask and version (gsk NULL: under cpk's context instead) */
+static uint8_t JM[CAPCTL_MANIFEST_MAX + TAXHOOK_MANIFEST_MAX];
+static size_t JML;
+static uint8_t JSIG[CPK_SIG_LEN], JGSIG[JURIS_GW_SIG_LEN];
+
+static void ju_sign(const juris_plugin_t *p, uint32_t hooks, uint64_t version, const ju_keys_t *ck,
+                    const ju_keys_t *gk, bool gw_ctx)
+{
+    uint8_t msg[CP_MSG_LEN];
+    cp_manifest_msg(JM, JML, msg);
+    cpk_sign(ck->sk, msg, sizeof msg, NULL, JSIG);
+    juris_plugin_t q = *p;
+    q.hooks = hooks;
+    juris_manifest_t m;
+    juris_cp_manifest(&q, version, JM, JML, JGSIG, JURIS_GW_SIG_LEN, &m);
+    uint8_t jm[JURIS_MANIFEST_MSG];
+    juris_manifest_msg(&m, jm);
+    if (gw_ctx)
+        juris_gw_sign(gk->sk, jm, sizeof jm, NULL, JGSIG);
+    else
+        cpk_sign(gk->sk, jm, sizeof jm, NULL, JGSIG);
+}
+
+static const char *ju_install_req(size_t mlen, size_t slen, size_t glen)
+{
+    static char m[JB64(sizeof JM)], sg[JB64(CPK_SIG_LEN)], gs[JB64(JURIS_GW_SIG_LEN)];
+    ju_b64(JM, mlen, m);
+    ju_b64(JSIG, slen, sg);
+    ju_b64(JGSIG, glen, gs);
+    snprintf(JREQ, sizeof JREQ,
+             "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"jurisdiction.install\",\"params\":{"
+             "\"manifest\":\"%s\",\"sig\":\"%s\",\"gateway_sig\":\"%s\"}}",
+             m, sg, gs);
+    return rpc(JREQ);
+}
+
+static const char *ju_install_now(void)
+{
+    return ju_install_req(JML, CPK_SIG_LEN, JURIS_GW_SIG_LEN);
+}
+
+static uint64_t ju_now(void)
+{
+    return (uint64_t) time(NULL);
+}
+
+static void ju_profile(capctl_profile_t *p, const char *cc, uint32_t version, const ju_keys_t *k)
+{
+    memset(p, 0, sizeof *p);
+    p->hdr.kind = CP_KIND_CAPCTL;
+    memcpy(p->hdr.country, cc, 2);
+    p->hdr.version = version;
+    /* +-10 days: an install time or a clock off by 0.1% (20 days) falls outside */
+    p->hdr.not_before = ju_now() - 10 * 86400ull;
+    p->hdr.not_after = ju_now() + 10 * 86400ull;
+    cpk_key_id(k->pk, p->hdr.key_id);
+    p->ccy = 404; /* KES */
+    p->flags = CAPCTL_F_OUTBOUND | CAPCTL_F_INBOUND | CAPCTL_F_DEFAULT_ALLOW;
+    p->per_tx_limit = 1000;
+    p->report_single = 500;
+    JML = capctl_encode(p, JM, sizeof JM);
+}
+
+static void ju_table(taxhook_table_t *t, const char *cc, uint8_t kind, uint32_t ppm,
+                     uint32_t version, const ju_keys_t *k)
+{
+    memset(t, 0, sizeof *t);
+    t->hdr.kind = CP_KIND_TAXTABLE;
+    memcpy(t->hdr.country, cc, 2);
+    t->hdr.version = version;
+    t->hdr.not_before = ju_now() - 10 * 86400ull;
+    t->hdr.not_after = ju_now() + 10 * 86400ull;
+    cpk_key_id(k->pk, t->hdr.key_id);
+    t->kind = kind;
+    t->ccy = 404;
+    t->rounding = TAXHOOK_HALF_UP;
+    t->level = TAXHOOK_PER_LINE;
+    memcpy(t->label, "TEST", 4);
+    t->rate[0].category = TAXHOOK_STANDARD;
+    t->rate[0].rate_ppm = ppm;
+    t->rate[0].from = 20000101;
+    t->n_rates = 1;
+    JML = taxhook_encode(t, JM, sizeof JM);
+}
+
+static juris_plugin_t JP_CAP, JP_VAT, JP_GST;
+
+/* a VAT table for one region of KE, signed for its own plug-in id */
+static const char *ju_region_install(const char *region, uint32_t version, const ju_keys_t *k)
+{
+    static taxhook_t th;
+    static juris_cp_tax_t ta;
+    juris_plugin_t p;
+    taxhook_table_t t;
+    char reg[CP_REGION_LEN] = {0};
+    memcpy(reg, region, strlen(region));
+    juris_cp_tax_plugin(&p, &ta, &th, "KE", reg, TAXHOOK_VAT, NULL, NULL);
+    ju_table(&t, "KE", TAXHOOK_VAT, 160000, version, k);
+    memcpy(t.hdr.region, reg, CP_REGION_LEN);
+    JML = taxhook_encode(&t, JM, sizeof JM);
+    ju_sign(&p, p.hooks, version, k, k, true);
+    return ju_install_now();
+}
+
+static void ju_plugins(void)
+{
+    static capctl_t cc;
+    static juris_cp_capctl_t ca;
+    static taxhook_t th;
+    static juris_cp_tax_t ta, tg;
+    static const char nat[CP_REGION_LEN] = {0};
+    capctl_init(&cc, NULL, NULL, NULL, 0);
+    juris_cp_capctl_plugin(&JP_CAP, &ca, &cc, "KE", NULL, NULL, NULL);
+    juris_cp_tax_plugin(&JP_VAT, &ta, &th, "KE", nat, TAXHOOK_VAT, NULL, NULL);
+    juris_cp_tax_plugin(&JP_GST, &tg, &th, "KE", nat, TAXHOOK_GST, NULL, NULL);
+}
+
+static void test_juris_plugins(void)
+{
+    char tmpl[] = "/tmp/zxvdjplug.XXXXXX", path[200], req[400];
+    uint8_t seed[32];
+    memset(seed, 1, sizeof seed);
+    pqm_mldsa87_keygen(seed, JK1.pk, JK1.sk);
+    memset(seed, 2, sizeof seed);
+    pqm_mldsa87_keygen(seed, JK2.pk, JK2.sk);
+    ju_plugins();
+    CHECK(mkdtemp(tmpl) != NULL, "temp dir");
+    snprintf(path, sizeof path, "%s/books.zxvb", tmpl);
+    zxvd_rpc_books_close();
+    EXPECT(REQ("1", "jurisdiction.install", ",\"params\":{}"),
+           ERR("1", "-32603", "the books are not open"));
+    EXPECT(REQ("1", "jurisdiction.check", ",\"params\":{}"),
+           ERR("1", "-32603", "the books are not open"));
+    EXPECT(REQ("1", "jurisdiction.tax_rate", ",\"params\":{}"),
+           ERR("1", "-32603", "the books are not open"));
+    CHECK(zxvd_rpc_books_file(path) == 0 && zxvd_rpc_books_open() == 0, "books open on a file");
+    char rc0[40], rc1[40], rc2[40], rc3[40];
+    {
+        const char *q = strstr(rpc(REQ("1", "books.file", "")), "\"records\":\"");
+        unsigned long r0 = q ? strtoul(q + 11, NULL, 10) : 0;
+        snprintf(rc0, sizeof rc0, "\"records\":\"%lu\"", r0);
+        snprintf(rc1, sizeof rc1, "\"records\":\"%lu\"", r0 + 1);
+        snprintf(rc2, sizeof rc2, "\"records\":\"%lu\"", r0 + 2);
+        snprintf(rc3, sizeof rc3, "\"records\":\"%lu\"", r0 + 3);
+    }
+    capctl_profile_t pr;
+    ju_profile(&pr, "KE", 2, &JK1);
+    ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+    /* J7: refused while no key is set, and nothing is written */
+    CHECK(has(REQ("2", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":10}"),
+              "\"base\":\"neither\",\"action\":\"wait\",\"proceed\":false,\"reports\":0}"),
+          "J9: no plug-in, no country: wait");
+    CHECK(strstr(ju_install_now(), "{\"code\":-32097,\"message\":\"no gateway key is set"),
+          "J7: no gateway key: refused: %s", OUT.p);
+    /* J6: the key, by hex, checked */
+    CHECK(has(REQ("3", "jurisdiction.set", ",\"params\":{\"gateway_key\":\"abc\"}"),
+              "\"code\":-32602,\"message\":\"\\\"gateway_key\\\" must be \\\"\\\" or an ML-DSA-87 "
+              "public key in hex (5184 digits)"),
+          "J6: odd hex refused");
+    CHECK(strstr(ju_set_key(JK1.pk, JURIS_GW_PK_LEN - 1), "-32602"), "J6: a short key refused");
+    JREQ[strlen(JREQ) - 4] = 'g';
+    CHECK(strstr(rpc(JREQ), "-32602"), "J6: a non-hex digit refused");
+    CHECK(has(REQ("3", "jurisdiction.set", ",\"params\":{\"gateway_key\":7}"), "-32602"),
+          "J6: a number refused");
+    CHECK(has(REQ("3", "books.file", ""), rc0), "nothing written");
+    CHECK(has(REQ("3", "jurisdiction.set", ",\"params\":{\"gateway_key\":\"\"}"),
+              "\"gateway_key\":null") &&
+              has(REQ("3", "books.file", ""), rc0),
+          "J6: clearing an unset key writes nothing");
+    uint8_t kid[32];
+    char kidx[65], want[200];
+    juris_gw_key_id(JK1.pk, kid);
+    for (int i = 0; i < 32; i++) snprintf(kidx + 2 * i, 3, "%02x", kid[i]);
+    snprintf(want, sizeof want, "\"gateway_key\":\"%s\",\"installed\":[]}", kidx);
+    const char *r = ju_set_key(JK1.pk, JURIS_GW_PK_LEN);
+    CHECK(strstr(r, want) && strlen(r) < 600, "J6: get shows the key id, never the key: %s", r);
+    CHECK(has(REQ("3", "books.file", ""), rc1), "J6: one record");
+    ju_set_key(JK1.pk, JURIS_GW_PK_LEN);
+    CHECK(has(REQ("3", "books.file", ""), rc1), "J6: the same key writes nothing");
+    CHECK(strstr(ju_install_now(), "-32097,\"message\":\"no country is set\""),
+          "J7: no country: refused");
+    rpc(REQ("4", "jurisdiction.set", ",\"params\":{\"country\":\"KE\"}"));
+    CHECK(has(REQ("4", "books.file", ""), rc2), "country saved");
+    /* every refusal changes nothing */
+    struct {
+        const char *what, *why;
+        int how;
+    } bad[] = {
+        {"another gateway key", "the gateway signature does not verify", 0},
+        {"the gateway key under ZXV-COMPLIANCE", "the gateway signature does not verify", 1},
+        {"a hook mask other than the plug-in's", "the gateway signature does not verify", 2},
+        {"a version other than the manifest's", "the gateway signature does not verify", 3},
+        {"a truncated gateway signature", "the gateway signature does not verify", 4},
+        {"a compliance signature by an untrusted key", "the compliance signature does not verify",
+         5},
+        {"a truncated compliance signature", "the compliance signature does not verify", 6},
+        {"a manifest outside its window", "the profile is outside its validity window", 7},
+        {"another country's manifest", "the manifest is for another country", 8},
+        {"a manifest cut short", "not a compliance manifest", 9},
+        {"a KYC revocation list",
+         "the manifest is neither a capital-control profile nor a tax table", 10},
+        {"a profile that does not decode", "the profile does not decode", 11},
+        {"a tax table that does not decode", "the tax table does not decode", 12},
+        {"a manifest for KF while the country is KE", "the manifest is for another country", 13},
+        {"a tax table by an untrusted compliance key", "the compliance signature does not verify",
+         14},
+    };
+    for (unsigned i = 0; i < sizeof bad / sizeof bad[0]; i++) {
+        size_t ml = JML, sl = CPK_SIG_LEN, gl = JURIS_GW_SIG_LEN;
+        ju_profile(&pr, "KE", 2, &JK1);
+        switch (bad[i].how) {
+        case 0:
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK2, true);
+            break;
+        case 1:
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, false);
+            break;
+        case 2:
+            ju_sign(&JP_CAP, JURIS_HOOK_TRANSFER, 2, &JK1, &JK1, true);
+            break;
+        case 3:
+            ju_sign(&JP_CAP, JP_CAP.hooks, 3, &JK1, &JK1, true);
+            break;
+        case 4:
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+            gl--;
+            break;
+        case 5:
+            ju_profile(&pr, "KE", 2, &JK2);
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK2, &JK1, true);
+            break;
+        case 6:
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+            sl--;
+            break;
+        case 7:
+            pr.hdr.not_before = ju_now() + 86400;
+            JML = capctl_encode(&pr, JM, sizeof JM);
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+            break;
+        case 8:
+            ju_profile(&pr, "NG", 2, &JK1);
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+            break;
+        case 9:
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+            ml = 40;
+            break;
+        case 10:
+            JM[6] = CP_KIND_KYC_REVOKE;
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+            break;
+        case 11:
+            JM[JML++] = 0;
+            ml++;
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+            break;
+        case 13:
+            ju_profile(&pr, "KF", 2, &JK1);
+            ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+            break;
+        case 14: {
+            taxhook_table_t tt;
+            ju_table(&tt, "KE", TAXHOOK_VAT, 160000, 1, &JK2);
+            ju_sign(&JP_VAT, JP_VAT.hooks, 1, &JK2, &JK1, true);
+            break;
+        }
+        default: {
+            taxhook_table_t tt;
+            ju_table(&tt, "KE", TAXHOOK_VAT, 160000, 1, &JK1);
+            JM[JML++] = 0;
+            ml = JML;
+            ju_sign(&JP_VAT, JP_VAT.hooks, 1, &JK1, &JK1, true);
+        }
+        }
+        if (bad[i].how != 9 && bad[i].how != 11 && bad[i].how != 12) ml = JML;
+        r = ju_install_req(ml, sl, gl);
+        snprintf(want, sizeof want, "{\"code\":-32097,\"message\":\"%s\"}", bad[i].why);
+        CHECK(strstr(r, want) && has(REQ("5", "books.file", ""), rc2) &&
+                  has(REQ("5", "jurisdiction.get", ""), "\"plugins\":0,") &&
+                  has(REQ("5", "jurisdiction.get", ""), "\"installed\":[]}"),
+              "J7: %s refused, nothing changed: %s", bad[i].what, r);
+    }
+    CHECK(
+        strstr(
+            rpc(REQ("5", "jurisdiction.install",
+                    ",\"params\":{\"manifest\":\"!!\",\"sig\":\"AA==\",\"gateway_sig\":\"AA==\"}")),
+            "-32602,\"message\":\"\\\"manifest\\\" must be base64 of 1 to"),
+        "J7: bad base64 refused");
+    CHECK(has(REQ("5", "jurisdiction.install",
+                  ",\"params\":{\"manifest\":\"\",\"sig\":\"AA==\",\"gateway_sig\":\"AA==\"}"),
+              "-32602,\"message\":\"\\\"manifest\\\" must be base64 of 1 to"),
+          "J7: an empty manifest refused as a parameter");
+    CHECK(has(REQ("5", "jurisdiction.install", ",\"params\":{\"manifest\":\"AA==\"}"),
+              "missing string parameter \\\"sig\\\""),
+          "J7: every part required");
+    /* J7: installed */
+    ju_profile(&pr, "KE", 2, &JK1);
+    ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+    r = ju_install_now();
+    CHECK(strstr(r, "\"plugins\":1,") &&
+              strstr(r, "\"installed\":[{\"id\":\"capctl/KE\",\"version\":2,\"loaded\":true}]}"),
+          "J7: a signed capctl profile is a loaded plug-in: %s", r);
+    CHECK(has(REQ("6", "books.file", ""), rc3), "J7: one record");
+    CHECK(strstr(ju_install_now(), "the manifest's version is not above the installed one"),
+          "J8: the same version again refused");
+    /* J9: decisions */
+    CHECK(has(REQ("7", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":100,"
+                  "\"sender\":1,\"receiver\":2}"),
+              "\"base\":\"true\",\"action\":\"proceed\",\"proceed\":true,\"reports\":0}"),
+          "J9: an allowed transfer proceeds");
+    CHECK(has(REQ("7", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":1}"),
+              "\"base\":\"true\""),
+          "J9: one minor unit is a transfer");
+    CHECK(has(REQ("7", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":\"600\"}"),
+              "\"proceed\":true,\"reports\":1}"),
+          "J9: a reported transfer proceeds with its report");
+    CHECK(has(REQ("7", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":1001}"),
+              "\"base\":\"false\",\"action\":\"refuse\",\"proceed\":false,\"reports\":0}"),
+          "J9: over the limit refused");
+    CHECK(has(REQ("7", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":10}"),
+              "\"base\":\"neither\""),
+          "J9: an unknown country waits");
+    CHECK(has(REQ("7", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"VFV\",\"amount\":10}"),
+              "\"base\":\"false\""),
+          "J9: a currency with no ISO 4217 number refused");
+    CHECK(has(REQ("7", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KEN\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":10}"),
+              "-32602") &&
+              has(REQ("7", "jurisdiction.check",
+                      ",\"params\":{\"from\":\"KE\",\"to\":\"NGA\",\"ccy\":\"KES\",\"amount\":10}"),
+                  "-32602") &&
+              has(REQ("7", "jurisdiction.check",
+                      ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KESS\",\"amount\":10}"),
+                  "-32602") &&
+              has(REQ("7", "jurisdiction.check",
+                      ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":0}"),
+                  "\\\"amount\\\" must be above 0") &&
+              has(REQ("7", "jurisdiction.check",
+                      ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\"}"),
+                  "-32602") &&
+              has(REQ("7", "jurisdiction.check",
+                      ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":1,"
+                      "\"sender\":-1}"),
+                  "-32602"),
+          "J9: bad check parameters refused");
+    /* J9: tax tables */
+    taxhook_table_t tt;
+    CHECK(has(REQ("8", "jurisdiction.tax_rate", ",\"params\":{\"kind\":\"vat\"}"),
+              "{\"code\":-32097,\"message\":\"no plug-in gives this rate\"}"),
+          "J9: no tax plug-in, no rate");
+    ju_table(&tt, "KE", TAXHOOK_VAT, 160000, 1, &JK1);
+    ju_sign(&JP_VAT, JP_VAT.hooks, 1, &JK1, &JK1, true);
+    r = ju_install_now();
+    CHECK(strstr(r, "\"plugins\":2,") && strstr(r, "{\"id\":\"taxhook/KE//1\",\"version\":1"),
+          "J7: a signed VAT table: %s", r);
+    EXPECT(REQ("8", "jurisdiction.tax_rate", ",\"params\":{\"kind\":\"vat\"}"),
+           OK("8", "{\"kind\":\"vat\",\"num\":\"160000\",\"den\":\"1000000\"}"));
+    CHECK(has(REQ("8", "jurisdiction.tax_rate", ",\"params\":{\"kind\":\"income\"}"),
+              "no plug-in gives this rate") &&
+              has(REQ("8", "jurisdiction.tax_rate", ",\"params\":{\"kind\":\"withholding\"}"),
+                  "no plug-in gives this rate"),
+          "J9: a VAT table does not know income tax");
+    CHECK(has(REQ("8", "jurisdiction.tax_rate", ",\"params\":{\"kind\":\"VAT\"}"), "-32602") &&
+              has(REQ("8", "jurisdiction.tax_rate", ""), "-32602"),
+          "J9: kind is exact and required");
+    ju_table(&tt, "KE", TAXHOOK_GST, 150000, 1, &JK1);
+    ju_sign(&JP_GST, JP_GST.hooks, 1, &JK1, &JK1, true);
+    CHECK(strstr(ju_install_now(), "\"plugins\":3,"), "a GST table with another rate");
+    CHECK(has(REQ("8", "jurisdiction.tax_rate", ",\"params\":{\"kind\":\"vat\"}"),
+              "{\"code\":-32097,\"message\":\"the plug-ins disagree on the rate\"}"),
+          "J9: two rates: refused, escalate");
+    ju_table(&tt, "KE", TAXHOOK_GST, 160000, 2, &JK1);
+    ju_sign(&JP_GST, JP_GST.hooks, 2, &JK1, &JK1, true);
+    r = ju_install_now();
+    CHECK(strstr(r, "\"plugins\":3,") && strstr(r, "{\"id\":\"taxhook/KE//2\",\"version\":2"),
+          "J7: a newer version replaces in place: %s", r);
+    CHECK(has(REQ("8", "jurisdiction.tax_rate", ",\"params\":{\"kind\":\"vat\"}"),
+              "\"num\":\"160000\""),
+          "and the rates agree");
+    /* restart: replayed */
+    char before[2000];
+    snprintf(before, sizeof before, "%s", rpc(REQ("9", "jurisdiction.get", "")));
+    /* F5: a key or an install the file cannot take */
+    signal(SIGXFSZ, SIG_IGN);
+    struct rlimit old, lim;
+    getrlimit(RLIMIT_FSIZE, &old);
+    lim = old;
+    lim.rlim_cur = (rlim_t) file_size(path);
+    CHECK(setrlimit(RLIMIT_FSIZE, &lim) == 0, "limit the file size");
+    CHECK(strstr(ju_set_key(JK2.pk, JURIS_GW_PK_LEN), "\"name\":\"ZXV_E_IO\"") &&
+              strstr(OUT.p, "this change is not saved"),
+          "F5: a key change that cannot be saved: %s", OUT.p);
+    CHECK(!strcmp(rpc(REQ("9", "jurisdiction.get", "")), before), "J6: and it did not apply");
+    setrlimit(RLIMIT_FSIZE, &old);
+    reopen();
+    lim.rlim_cur = (rlim_t) file_size(path);
+    CHECK(setrlimit(RLIMIT_FSIZE, &lim) == 0, "limit the file size again");
+    ju_table(&tt, "KE", TAXHOOK_GST, 160000, 3, &JK1);
+    ju_sign(&JP_GST, JP_GST.hooks, 3, &JK1, &JK1, true);
+    CHECK(strstr(ju_install_now(), "\"name\":\"ZXV_E_IO\"") &&
+              strstr(OUT.p, "this change is not saved"),
+          "F5: an install that cannot be saved: %s", OUT.p);
+    CHECK(has(REQ("9", "jurisdiction.get", ""), "{\"id\":\"taxhook/KE//2\",\"version\":3"),
+          "F5: it stays for this run only");
+    CHECK(strstr(ju_install_now(), "ZXV_E_IO") && strstr(OUT.p, "read-only"),
+          "F5: and the books take nothing more: %s", OUT.p);
+    setrlimit(RLIMIT_FSIZE, &old);
+    reopen();
+    snprintf(want, sizeof want, "\"gateway_key\":\"%s\"", kidx);
+    r = rpc(REQ("9", "jurisdiction.get", ""));
+    CHECK(!strcmp(r, before) && strstr(r, "\"plugins\":3,") && strstr(r, want),
+          "J6/J7: a restart replays the key and the plug-ins: %s", r);
+    CHECK(has(REQ("9", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":1001}"),
+              "\"proceed\":false") &&
+              has(REQ("9", "jurisdiction.tax_rate", ",\"params\":{\"kind\":\"vat\"}"),
+                  "\"num\":\"160000\""),
+          "and they answer as before");
+    ju_table(&tt, "KE", TAXHOOK_GST, 160000, 2, &JK1);
+    ju_sign(&JP_GST, JP_GST.hooks, 2, &JK1, &JK1, true);
+    CHECK(strstr(ju_install_now(), "version is not above"), "J8: the floor survives a restart");
+    /* J6: another country unloads them, coming back loads them again */
+    r = rpc(REQ("10", "jurisdiction.set", ",\"params\":{\"country\":\"NG\"}"));
+    CHECK(strstr(r, "\"plugins\":0,") && strstr(r, "\"loaded\":false}") &&
+              !strstr(r, "\"loaded\":true"),
+          "J6: another country: installed but not loaded: %s", r);
+    ju_profile(&pr, "KE", 3, &JK1);
+    ju_sign(&JP_CAP, JP_CAP.hooks, 3, &JK1, &JK1, true);
+    CHECK(strstr(ju_install_now(), "the manifest is for another country"),
+          "J7: a KE manifest while the country is NG");
+    r = rpc(REQ("10", "jurisdiction.set", ",\"params\":{\"country\":\"KE\"}"));
+    CHECK(strstr(r, "\"plugins\":3,") && !strstr(r, "\"loaded\":false"),
+          "J6: back to KE, loaded again: %s", r);
+    r = ju_install_now();
+    CHECK(strstr(r, "{\"id\":\"capctl/KE\",\"version\":3,\"loaded\":true}") &&
+              strstr(r, "\"plugins\":3,") && !strstr(strstr(r, "capctl/KE") + 1, "capctl/KE"),
+          "capctl v3 replaces v2 in its slot: %s", r);
+    /* J6: a new key drops every plug-in; the floors stay */
+    long n0;
+    char *b0 = slurp(path, &n0);
+    r = ju_set_key(JK2.pk, JURIS_GW_PK_LEN);
+    CHECK(strstr(r, "\"plugins\":0,") && strstr(r, "\"installed\":[]}") && !strstr(r, kidx),
+          "J6: a new key drops the plug-ins: %s", r);
+    CHECK(has(REQ("11", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":10}"),
+              "\"base\":\"neither\""),
+          "J6: and the host waits again");
+    CHECK(has(REQ("11", "jurisdiction.tax_rate", ",\"params\":{\"kind\":\"vat\"}"),
+              "no plug-in gives this rate"),
+          "no rate either");
+    ju_profile(&pr, "KE", 5, &JK1);
+    ju_sign(&JP_CAP, JP_CAP.hooks, 5, &JK1, &JK1, true);
+    CHECK(strstr(ju_install_now(), "the gateway signature does not verify"),
+          "J6: the old key's manifests no longer verify");
+    ju_profile(&pr, "KE", 3, &JK2);
+    ju_sign(&JP_CAP, JP_CAP.hooks, 3, &JK2, &JK2, true);
+    CHECK(strstr(ju_install_now(), "version is not above"), "J8: the floor survives a key change");
+    ju_profile(&pr, "KE", 4, &JK2);
+    ju_sign(&JP_CAP, JP_CAP.hooks, 4, &JK2, &JK2, true);
+    CHECK(strstr(ju_install_now(), "{\"id\":\"capctl/KE\",\"version\":4,\"loaded\":true}"),
+          "J7: v4 under the new key");
+    reopen();
+    CHECK(has(REQ("12", "jurisdiction.get", ""),
+              "\"installed\":[{\"id\":\"capctl/KE\",\"version\":4,\"loaded\":true}]}"),
+          "J6: the key change and the reinstall replay in order");
+    r = rpc(REQ("12", "jurisdiction.set", ",\"params\":{\"gateway_key\":\"\"}"));
+    CHECK(strstr(r, "\"plugins\":0,\"report_standard\":\"\",\"gateway_key\":null,"
+                    "\"installed\":[]}"),
+          "J6: clearing the key: %s", r);
+    reopen();
+    CHECK(has(REQ("12", "jurisdiction.get", ""), "\"gateway_key\":null"), "kept cleared");
+    /* J7: an install record is judged at its own time: a profile valid then
+     * but expired now replays, then fails closed */
+    zxvd_rpc_books_close();
+    spit(path, b0, n0);
+    {
+        static char rec[ZXVD_RPC_MAX_LINE];
+        static char m64[JB64(sizeof JM)], s64[JB64(CPK_SIG_LEN)], g64[JB64(JURIS_GW_SIG_LEN)];
+        ju_profile(&pr, "KE", 9, &JK1);
+        pr.hdr.not_before = 1000;
+        pr.hdr.not_after = 2000;
+        JML = capctl_encode(&pr, JM, sizeof JM);
+        ju_sign(&JP_CAP, JP_CAP.hooks, 9, &JK1, &JK1, true);
+        ju_b64(JM, JML, m64);
+        ju_b64(JSIG, CPK_SIG_LEN, s64);
+        ju_b64(JGSIG, JURIS_GW_SIG_LEN, g64);
+        snprintf(rec, sizeof rec,
+                 "{\"op\":\"juris_install\",\"manifest\":\"%s\",\"sig\":\"%s\",\"gsig\":\"%s\","
+                 "\"at\":\"1500\"}",
+                 m64, s64, g64);
+        append_chained(path, rec);
+        CHECK(zxvd_rpc_books_open() == 0, "J7: the record replays at its own time");
+        CHECK(has(REQ("13", "jurisdiction.get", ""), "{\"id\":\"capctl/KE\",\"version\":9,"),
+              "installed");
+        CHECK(has(REQ("13", "jurisdiction.check",
+                      ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":10}"),
+                  "\"base\":\"false\""),
+              "C4: expired now: refused");
+        zxvd_rpc_books_close();
+        /* damaged records stop the start */
+        long n1;
+        char *b1 = slurp(path, &n1);
+        snprintf(rec, sizeof rec,
+                 "{\"op\":\"juris_install\",\"manifest\":\"%s\",\"sig\":\"%s\",\"gsig\":\"%s\","
+                 "\"at\":\"1500\"}",
+                 m64, s64, g64);
+        const char *badrec[] = {
+            "{\"op\":\"juris_gw\",\"key\":\"abc\"}",
+            "{\"op\":\"juris_gw\",\"key\":\"00\"}",
+            "{\"op\":\"juris_gw\"}",
+            "{\"op\":\"juris_install\",\"manifest\":\"AA==\",\"sig\":\"AA==\",\"gsig\":\"AA==\"}",
+            "{\"op\":\"juris_install\",\"manifest\":\"!\",\"sig\":\"AA==\",\"gsig\":\"AA==\","
+            "\"at\":\"1\"}",
+            "{\"op\":\"juris_install\",\"manifest\":\"AA==\",\"sig\":\"!\",\"gsig\":\"AA==\","
+            "\"at\":\"1\"}",
+            "{\"op\":\"juris_install\",\"manifest\":\"AA==\",\"sig\":\"AA==\",\"gsig\":\"!\","
+            "\"at\":\"1\"}",
+            "{\"op\":\"juris_install\",\"manifest\":\"AA==\",\"sig\":\"AA==\",\"gsig\":\"AA==\","
+            "\"at\":\"x\"}",
+            rec, /* the same version again: refused by J8 */
+        };
+        for (unsigned i = 0; i < sizeof badrec / sizeof badrec[0]; i++) {
+            spit(path, b1, n1);
+            append_chained(path, badrec[i]);
+            CHECK(zxvd_rpc_books_open() == -1, "a damaged jurisdiction record %u stops the start",
+                  i);
+            zxvd_rpc_books_close();
+        }
+        spit(path, b1, n1);
+        free(b1);
+    }
+    free(b0);
+    CHECK(zxvd_rpc_books_open() == 0, "the good file opens again");
+    /* without a books file: in memory for this run only */
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_file("") == 0 && zxvd_rpc_books_open() == 0, "in memory");
+    CHECK(strstr(ju_set_key(JK1.pk, JURIS_GW_PK_LEN), kidx), "a key without a file");
+    rpc(REQ("14", "jurisdiction.set", ",\"params\":{\"country\":\"KE\"}"));
+    ju_table(&tt, "KE", TAXHOOK_VAT, 160000, 1, &JK1);
+    ju_sign(&JP_VAT, JP_VAT.hooks, 1, &JK1, &JK1, true);
+    CHECK(strstr(ju_install_now(), "\"plugins\":1,"), "and an install");
+    ju_profile(&pr, "KE", 2, &JK1);
+    ju_sign(&JP_CAP, JP_CAP.hooks, 2, &JK1, &JK1, true);
+    CHECK(strstr(ju_install_now(), "\"plugins\":2,"), "capctl in the second slot");
+    CHECK(has(REQ("14", "jurisdiction.check",
+                  ",\"params\":{\"from\":\"KE\",\"to\":\"NG\",\"ccy\":\"KES\",\"amount\":600}"),
+              "\"proceed\":true,\"reports\":1}"),
+          "J9: the report of a capctl plug-in in any slot");
+    r = ju_region_install("NB", 1, &JK1);
+    CHECK(strstr(r, "\"plugins\":3,") && strstr(r, "{\"id\":\"taxhook/KE/NB/1\",\"version\":1,"),
+          "J7: a regional table of the country: %s", r);
+    /* J7: eight slots */
+    static const char *const RG[] = {"R1", "R2", "R3", "R4", "R5", "R6", "S1", "S2",
+                                     "S3", "S4", "S5", "S6", "S7", "S8", "T1"};
+    for (unsigned i = 0; i < 5; i++) {
+        snprintf(want, sizeof want, "\"plugins\":%u,", 4 + i);
+        CHECK(strstr(ju_region_install(RG[i], 1, &JK1), want), "slot %u", 4 + i);
+    }
+    CHECK(strstr(ju_region_install(RG[5], 1, &JK1), "no room for another plug-in"),
+          "J7: a ninth plug-in refused: %s", OUT.p);
+    CHECK(strstr(ju_region_install(RG[0], 2, &JK1), "\"plugins\":8,"),
+          "a newer version of an installed one still fits");
+    /* J8: sixteen ids have floors; a new key frees the slots, not the floors */
+    ju_set_key(JK2.pk, JURIS_GW_PK_LEN);
+    for (unsigned i = 6; i < 14; i++) {
+        snprintf(want, sizeof want, "\"plugins\":%u,", i - 5);
+        CHECK(strstr(ju_region_install(RG[i], 1, &JK2), want), "id %u", i + 3);
+    }
+    ju_set_key(JK1.pk, JURIS_GW_PK_LEN);
+    CHECK(strstr(ju_region_install(RG[14], 1, &JK1), "no room for another plug-in"),
+          "J8: a seventeenth id refused: %s", OUT.p);
+    CHECK(strstr(ju_region_install(RG[0], 3, &JK1), "\"plugins\":1,"), "a known id still installs");
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_open() == 0 &&
+              has(REQ("14", "jurisdiction.get", ""), "\"gateway_key\":null"),
+          "gone after a restart");
+    ju_set_key(JK1.pk, JURIS_GW_PK_LEN);
+    rpc(REQ("14", "jurisdiction.set", ",\"params\":{\"country\":\"KE\"}"));
+    ju_table(&tt, "KE", TAXHOOK_VAT, 160000, 1, &JK1);
+    ju_sign(&JP_VAT, JP_VAT.hooks, 1, &JK1, &JK1, true);
+    CHECK(strstr(ju_install_now(), "\"plugins\":1,"), "the floors went with the run");
+    snprintf(req, sizeof req, "%s/books.zxvb", tmpl);
+    unlink(req);
     rmdir(tmpl);
 }
 
@@ -3492,8 +4201,8 @@ static void test_phone_methods(void)
     PHONE_EXPECT(REQ("6", "phone.link", ",\"params\":{\"on\":false}"), true,
                  ERR("6", "-32015", "not allowed from a phone"));
     PHONE_EXPECT(REQ("6", "peer.serve", ""), true, ERR("6", "-32015", "not allowed from a phone"));
-    static const char *const NEVER[] = {"jurisdiction.set", "aipi.put", "aipi.publish",
-                                        "aipi.execute"};
+    static const char *const NEVER[] = {"jurisdiction.set", "jurisdiction.install", "aipi.put",
+                                        "aipi.publish", "aipi.execute"};
     for (size_t i = 0; i < sizeof NEVER / sizeof NEVER[0]; i++) {
         char req[160];
         snprintf(req, sizeof req, "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"%s\"}", NEVER[i]);
@@ -5810,7 +6519,8 @@ static void test_journal(void)
           "journal.query, off: %s", OUT.p);
     CHECK(strstr(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.verify\"}"),
                  "\"result\":{\"on\":false,\"ok\":false,\"segments\":0,\"entries\":0,"
-                 "\"first_seq\":0,\"last_seq\":0,\"broken_at\":0,\"why\":\"\"}"),
+                 "\"first_seq\":0,\"last_seq\":0,\"broken_at\":0,\"why\":\"\",\"audit\":0,"
+                 "\"sigs_checked\":false,\"key\":null}"),
           "journal.verify, off: %s", OUT.p);
     CHECK(zjr_open(NULL) == 0 && zjr_open("") == 0 && !zjr_on(), "nothing to open");
     static char longdir[ZJR_DIR_MAX + 2];
@@ -5984,13 +6694,12 @@ static void test_journal(void)
              "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.query\",\"params\":{\"max\":2,"
              "\"level\":\"info\",\"text\":\"SIXTY\"}}");
     const char *o = rpc(req);
-    CHECK(
-        strstr(o, "\"result\":{\"on\":true,\"entries\":[{\"seq\":") &&
-            strstr(
-                o,
-                ",\"level\":\"info\",\"source\":\"rpc\",\"text\":\"event number 59 of sixty\"},") &&
-            strstr(o, "],\"more\":true}"),
-        "journal.query: %s", o);
+    CHECK(strstr(o, "\"result\":{\"on\":true,\"entries\":[{\"seq\":") &&
+              strstr(o,
+                     ",\"level\":\"info\",\"source\":\"rpc\",\"text\":\"event number 59 of sixty\","
+                     "\"hash\":\"") &&
+              strstr(o, "],\"more\":true}"),
+          "journal.query: %s", o);
     snprintf(req, sizeof req,
              "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.query\",\"params\":{\"source\":"
              "\"journal\",\"level\":\"warn\",\"since_ms\":1,\"until_ms\":99999999999999,"
@@ -6736,6 +7445,1191 @@ static void test_place(void)
     CHECK(rm_tree(dir) == 0, "cleanup");
 }
 
+/* ---------------- journal.append: signed audit entries (zxv_journal.h J8-J10) ---------------- */
+
+/* Rewrite the last line of journal segment n: its text becomes `text`, with
+ * the hash recomputed so the chain still holds (only a signature can tell). */
+static bool jrelast(uint64_t n, const char *text)
+{
+    static char buf[1 << 20], out[1 << 20];
+    if (jread(jseg(n), buf, sizeof buf) <= 0) return false;
+    size_t len = strlen(buf);
+    if (len < 2 || buf[len - 1] != '\n') return false;
+    buf[len - 1] = 0;
+    char *last = strrchr(buf, '\n');
+    if (!last) return false;
+    *last++ = 0;
+    /* the previous hash: the line before's 5th field, or the header's last */
+    char *pl = strrchr(buf, '\n') ? strrchr(buf, '\n') + 1 : buf;
+    uint8_t prev[32];
+    char ph[65];
+    if (!strncmp(pl, "zxv-journal 1 ", 14)) {
+        memcpy(ph, strrchr(pl, ' ') + 1, 64);
+    } else {
+        const char *q = pl;
+        for (int i = 0; i < 4; i++) q = strchr(q, ' ') + 1;
+        memcpy(ph, q, 64);
+    }
+    ph[64] = 0;
+    for (int i = 0; i < 32; i++) {
+        unsigned v;
+        sscanf(ph + 2 * i, "%2x", &v);
+        prev[i] = (uint8_t) v;
+    }
+    char f[4][32];
+    if (sscanf(last, "%31s %31s %31s %31s", f[0], f[1], f[2], f[3]) != 4) return false;
+    char body[1024];
+    int bn = snprintf(body, sizeof body, "%s %s %s %s %s", f[0], f[1], f[2], f[3], text);
+    sha256_ctx_t c;
+    uint8_t h[32];
+    sha256_init(&c);
+    sha256_update(&c, prev, 32);
+    sha256_update(&c, (const uint8_t *) body, (size_t) bn);
+    sha256_final(&c, h);
+    char hx[65];
+    for (int i = 0; i < 32; i++) snprintf(hx + 2 * i, 3, "%02x", h[i]);
+    size_t at = strlen(buf);
+    memcpy(out, buf, at);
+    snprintf(out + at, sizeof out - at, "\n%.31s %.31s %.31s %.31s %.64s %.400s\n", f[0], f[1],
+             f[2], f[3], hx, text);
+    return jwrite(jseg(n), out);
+}
+
+static uint64_t jnewest(void)
+{
+    uint64_t n = 0;
+    for (uint64_t k = 1; k < 100000; k++)
+        if (bk_exists(jseg(k))) n = k;
+    return n;
+}
+
+static void test_audit(void)
+{
+    zjr_entry_t e[8], a;
+    uint32_t n;
+    bool more;
+    zjr_verify_t v;
+    char req[900], key[ZJR_DIR_MAX + 32], keep[300];
+    const char *tmp = getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp";
+    CHECK(zxvd_rpc_books_open() == 0, "books open: the signer is there");
+    snprintf(JDIR, sizeof JDIR, "%s/zxvd-audit-XXXXXX", tmp);
+    CHECK(mkdtemp(JDIR) != NULL, "a folder");
+    snprintf(key, sizeof key, "%s/audit.key", JDIR);
+    EXPECT(REQ("1", "journal.append", ",\"params\":{\"actor\":\"owner\",\"text\":\"x\"}"),
+           ERR("1", "-32024", "zxvd keeps no journal"));
+    CHECK(zjr_open(JDIR) == 0, "open");
+    CHECK(!bk_exists(key), "no key until the first audit entry");
+    zjr_verify(&v);
+    CHECK(v.ok && !v.sigs_checked && v.audit == 0, "nothing to check yet");
+
+    /* J9 over JSON-RPC */
+    const char *o = rpc(REQ("1", "journal.append",
+                            ",\"params\":{\"actor\":\"owner@home\",\"text\":\"approved the "
+                            "transfer of 12 VFV to Ana\",\"level\":\"warn\"}"));
+    CHECK(strstr(o, "\"result\":{\"seq\":") &&
+              strstr(o, ",\"level\":\"warn\",\"source\":\"audit\",\"text\":\"approved the "
+                        "transfer of 12 VFV to Ana\",\"hash\":\"") &&
+              strstr(o, "\"actor\":\"owner@home\",\"sig\":\"") && strstr(o, "\"key\":\""),
+          "journal.append: %s", o);
+    struct stat st;
+    CHECK(stat(key, &st) == 0 && (st.st_mode & 0777) == 0600 && st.st_size == 81,
+          "J9: the key file, 0600, one line");
+    zjr_query_t q = {0};
+    q.source = "audit";
+    CHECK(zjr_query(&q, e, 8, &n, &more) == 0 && n == 1 && !strcmp(e[0].actor, "owner@home") &&
+              !strcmp(e[0].text, "approved the transfer of 12 VFV to Ana") &&
+              e[0].level == ZXVD_LOG_WARN,
+          "read back as fields: %u %s", n, n ? e[0].text : "");
+    q.source = NULL; /* the newest line, whatever wrote it (the call's own log line) */
+    CHECK(zjr_query(&q, e + 1, 1, &n, &more) == 0 && n == 1 &&
+              zjr_append("owner", "second decision", ZXVD_LOG_INFO, &a) == 0 &&
+              a.seq == e[1].seq + 1 && !memcmp(a.prev, e[1].hash, 32),
+          "J8: the next entry's prev is the last one's hash");
+    zxvd_log(ZXVD_LOG_INFO, "audit", "not an audit entry");
+    q.source = NULL;
+    CHECK(zjr_query(&q, e, 3, &n, &more) == 0 && n == 3 && !strcmp(e[0].source, "audit_") &&
+              !e[0].actor[0] && !strcmp(e[1].actor, "owner") && !memcmp(e[0].prev, e[1].hash, 32) &&
+              !memcmp(e[1].prev, e[2].hash, 32),
+          "zxvd_log cannot write as audit; every entry links to the one before");
+    snprintf(req, sizeof req, "%s",
+             REQ("1", "journal.query", ",\"params\":{\"source\":\"audit\",\"max\":5}"));
+    o = rpc(req);
+    CHECK(strstr(o, "\"actor\":\"owner\",\"sig\":\"") && strstr(o, "\"prev\":\""),
+          "journal.query shows actor, sig, hash and prev: %s", o);
+    o = rpc(REQ("1", "journal.verify", ""));
+    CHECK(strstr(o, "\"ok\":true") && strstr(o, "\"audit\":2,\"sigs_checked\":true,\"key\":\""),
+          "J10: verify checks both signatures: %s", o);
+
+    /* refusals */
+    EXPECT(
+        REQ("1", "journal.append", ",\"params\":{\"actor\":\"two words\",\"text\":\"x\"}"),
+        ERR("1", "-32602",
+            "\\\"actor\\\" is 1 to 32 of letters, digits and . _ - @ : +; \\\"text\\\" is 1 to 200 "
+            "printable bytes"));
+    EXPECT(
+        REQ("1", "journal.append", ",\"params\":{\"actor\":\"a\",\"text\":\"line\\nbreak\"}"),
+        ERR("1", "-32602",
+            "\\\"actor\\\" is 1 to 32 of letters, digits and . _ - @ : +; \\\"text\\\" is 1 to 200 "
+            "printable bytes"));
+    CHECK(has(REQ("1", "journal.append", ",\"params\":{\"text\":\"x\"}"), "\"code\":-32602"),
+          "actor is required");
+    CHECK(has(REQ("1", "journal.append",
+                  ",\"params\":{\"actor\":\"a\",\"text\":\"x\",\"level\":\"loud\"}"),
+              "\"code\":-32602"),
+          "a bad level");
+    memset(keep, 'w', 201);
+    keep[201] = 0;
+    CHECK(
+        zjr_append("a", keep, 0, NULL) == ZJR_E_ARG && zjr_append("", "x", 0, NULL) == ZJR_E_ARG &&
+            zjr_append("a", "", 0, NULL) == ZJR_E_ARG && zjr_append("a", "x", 3, NULL) == ZJR_E_ARG,
+        "zjr_append's own checks");
+    keep[200] = 0;
+    CHECK(zjr_append("abcdefghijklmnopqrstuvwxyz012345", keep, 2, &a) == 0 && strlen(a.text) == 200,
+          "the longest actor and text fit a line");
+    zjr_verify(&v);
+    CHECK(v.ok && v.audit == 3, "and verify: %s", v.why);
+
+    /* J10: a forged signature, though the chain is recomputed */
+    zjr_close();
+    CHECK(zjr_open(JDIR) == 0, "reopen: the key is read again");
+    CHECK(zjr_append("owner", "the real one", 0, &a) == 0, "an entry in the new segment");
+    uint64_t seg = jnewest();
+    char line[400], sh[129];
+    for (int i = 0; i < 64; i++) snprintf(sh + 2 * i, 3, "%02x", a.sig[i]);
+    snprintf(line, sizeof line, "owner %s a forged one", sh);
+    CHECK(jrelast(seg, line), "rewrite it with its chain intact");
+    zjr_verify(&v);
+    CHECK(!v.ok && v.broken_at == a.seq && strstr(v.why, "signature the audit key did not make"),
+          "the forgery is caught: %s", v.why);
+    snprintf(line, sizeof line, "owner nothex a malformed one");
+    CHECK(jrelast(seg, line), "an audit line that does not read");
+    zjr_verify(&v);
+    CHECK(!v.ok && v.broken_at == a.seq && strstr(v.why, "does not read"), "caught: %s", v.why);
+    snprintf(line, sizeof line, "owner %s the real one", sh);
+    CHECK(jrelast(seg, line), "back as it was");
+    zjr_close();
+    CHECK(zjr_open(JDIR) == 0 && zjr_verify(&v) == 0 && v.ok && v.sigs_checked, "whole again: %s",
+          v.why);
+
+    /* a lost key: verify says it cannot check; a new key cannot vouch for old entries */
+    zjr_close();
+    CHECK(remove(key) == 0 && zjr_open(JDIR) == 0, "the key is gone");
+    zjr_verify(&v);
+    CHECK(v.ok && !v.sigs_checked && v.audit >= 4, "J10: chain checked, signatures not");
+    CHECK(has(REQ("1", "journal.verify", ""), "\"sigs_checked\":false,\"key\":null"), "%s", OUT.p);
+    CHECK(zjr_append("owner", "after the loss", 0, NULL) == 0 && bk_exists(key), "a new key");
+    zjr_verify(&v);
+    CHECK(!v.ok && strstr(v.why, "signature"), "older entries fail under it: %s", v.why);
+
+    /* no signer */
+    zjr_set_signer(NULL);
+    EXPECT(REQ("1", "journal.append", ",\"params\":{\"actor\":\"a\",\"text\":\"x\"}"),
+           ERR("1", "-32024", "the journal's audit key could not be made or read"));
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_open() == 0 && zjr_append("a", "x", 0, NULL) == 0,
+          "M6: the signer returns with the books");
+    zjr_close();
+    CHECK(rm_tree(JDIR) == 0, "cleanup");
+}
+
+/* ---------------- notify.send (zxvd_rpc.h N1-N3) ---------------- */
+
+static zxvd_notice_t LAST_NOTE;
+static char LAST_TXT[4][256];
+static uint32_t NOTE_SEQ;
+
+static uint32_t note_post(const zxvd_notice_t *n)
+{
+    LAST_NOTE = *n;
+    const char *s[4] = {n->app, n->title, n->body, n->action};
+    for (int i = 0; i < 4; i++) snprintf(LAST_TXT[i], sizeof LAST_TXT[i], "%s", s[i]);
+    return NOTE_SEQ;
+}
+
+static void test_notify(void)
+{
+    zxvd_rpc_set_notify(NULL);
+    EXPECT(REQ("1", "notify.send", ",\"params\":{\"app\":\"coffer\",\"title\":\"t\"}"),
+           ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_notify(note_post);
+    NOTE_SEQ = 7;
+    EXPECT(REQ("1", "notify.send", ",\"params\":{\"app\":\"coffer\",\"title\":\"Payment sent\"}"),
+           OK("1", "{\"seq\":7,\"stored\":true}"));
+    CHECK(!strcmp(LAST_TXT[0], "coffer") && !strcmp(LAST_TXT[1], "Payment sent") &&
+              !LAST_TXT[2][0] && !LAST_TXT[3][0] && LAST_NOTE.pri == 1 && LAST_NOTE.key == 0,
+          "N1: defaults: normal, no body, no action, no key");
+    NOTE_SEQ = 0;
+    EXPECT(REQ("1", "notify.send",
+               ",\"params\":{\"app\":\"brazier\",\"title\":\"Hot\",\"body\":\"92.5 C\",\"action\":"
+               "\"brazier:temps\",\"level\":\"urgent\",\"key\":\"cpu\"}"),
+           OK("1", "{\"seq\":0,\"stored\":false}"));
+    uint64_t k1 = LAST_NOTE.key;
+    CHECK(LAST_NOTE.pri == 3 && !strcmp(LAST_TXT[2], "92.5 C") &&
+              !strcmp(LAST_TXT[3], "brazier:temps") && k1 != 0,
+          "N1-N2: every field");
+    rpc(REQ("1", "notify.send",
+            ",\"params\":{\"app\":\"brazier\",\"title\":\"x\",\"key\":\"cpu\"}"));
+    CHECK(LAST_NOTE.key == k1, "N2: the same key, the same coalescing key");
+    {
+        uint64_t f = 0xcbf29ce484222325ull; /* FNV-1a 64 of "cpu", worked here */
+        for (const char *q = "cpu"; *q; q++) f = (f ^ (uint8_t) *q) * 0x100000001b3ull;
+        CHECK(k1 == f, "N2: the key is FNV-1a 64 of the text");
+    }
+    rpc(REQ("1", "notify.send",
+            ",\"params\":{\"app\":\"brazier\",\"title\":\"x\",\"key\":\"gpu\"}"));
+    CHECK(LAST_NOTE.key != k1, "a different key");
+    static const char *const LV[] = {"low", "normal", "high", "urgent"};
+    for (int i = 0; i < 4; i++) {
+        char r[200];
+        snprintf(r, sizeof r,
+                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"notify.send\",\"params\":{\"app\":"
+                 "\"a\",\"title\":\"t\",\"level\":\"%s\"}}",
+                 LV[i]);
+        rpc(r);
+        CHECK(LAST_NOTE.pri == i, "level %s", LV[i]);
+    }
+    EXPECT(
+        REQ("1", "notify.send", ",\"params\":{\"app\":\"a\",\"title\":\"t\",\"level\":\"loud\"}"),
+        ERR("1", "-32602", "\\\"level\\\" must be low, normal, high or urgent"));
+    EXPECT(REQ("1", "notify.send", ",\"params\":{\"app\":\"\",\"title\":\"t\"}"),
+           ERR("1", "-32602", "\\\"app\\\" and \\\"title\\\" must not be empty"));
+    CHECK(has(REQ("1", "notify.send", ",\"params\":{\"title\":\"t\"}"), "\"code\":-32602"),
+          "app is required");
+    CHECK(has(REQ("1", "notify.send",
+                  ",\"params\":{\"app\":\"a\",\"title\":"
+                  "\"0123456789012345678901234567890123456789012345678901234567890123\"}"),
+              "\"code\":-32602"),
+          "N1: a 64-byte title is refused, not cut");
+    CHECK(has(REQ("1", "notify.send",
+                  ",\"params\":{\"app\":\"a\",\"title\":"
+                  "\"012345678901234567890123456789012345678901234567890123456789012\"}"),
+              "\"seq\""),
+          "63 bytes fit");
+    /* every field's limit, as the refusal states it */
+    static const struct {
+        const char *field;
+        unsigned max;
+    } LIM[] = {{"app", 23}, {"body", 191}, {"action", 47}, {"key", 64}, {"level", 7}};
+    for (size_t i = 0; i < sizeof LIM / sizeof LIM[0]; i++) {
+        char v[300], q[600], want[80];
+        for (unsigned n = LIM[i].max; n <= LIM[i].max + 1; n++) {
+            memset(v, 'a', n);
+            v[n] = 0;
+            if (!strcmp(LIM[i].field, "app"))
+                snprintf(q, sizeof q,
+                         "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"notify.send\",\"params\":{"
+                         "\"app\":\"%s\",\"title\":\"t\"}}",
+                         v);
+            else
+                snprintf(q, sizeof q,
+                         "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"notify.send\",\"params\":{"
+                         "\"app\":\"a\",\"title\":\"t\",\"%s\":\"%s\"}}",
+                         LIM[i].field, v);
+            snprintf(want, sizeof want, "\\\"%s\\\" must be a string of at most %u bytes",
+                     LIM[i].field, LIM[i].max);
+            bool over = strstr(rpc(q), want) != NULL;
+            CHECK(over == (n > LIM[i].max), "N1: %s of %u bytes %s: %s", LIM[i].field, n,
+                  n > LIM[i].max ? "refused" : "fits", OUT.p);
+        }
+    }
+    zxvd_rpc_set_notify(NULL);
+}
+
+/* ---------------- caps.* (zxv_caps.h K1-K4) ---------------- */
+
+static void test_caps(void)
+{
+    char dir[256], path[300], dmg[320], buf[4096];
+    const char *tmp = getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp";
+    snprintf(dir, sizeof dir, "%s/zxvd-caps-XXXXXX", tmp);
+    CHECK(mkdtemp(dir) != NULL, "a folder");
+    snprintf(path, sizeof path, "%s/caps.zxcp", dir);
+    snprintf(dmg, sizeof dmg, "%s.damaged", path);
+    CHECK(zpl_open(NULL) == 0 && zcp_open(NULL) == 0, "in memory");
+
+    /* K2 */
+    CHECK(zcp_check("brazier", "sys.read") == ZCP_OK && zcp_check("brazier", "notify") == ZCP_OK,
+          "a capability that is not sensitive: allowed");
+    CHECK(zcp_check("flint", "shell") == ZCP_E_PENDING &&
+              zcp_check("flint", "shell") == ZCP_E_PENDING,
+          "a sensitive one waits for the owner");
+    zcp_grant_t g[8];
+    CHECK(zcp_list(NULL, g, 8) == 1 && g[0].pending && g[0].mode == ZCP_DEFAULT &&
+              !strcmp(g[0].cap, "shell"),
+          "one pending ask");
+    CHECK(zcp_set("flint", "shell", ZCP_ONCE) == 0 && zcp_check("flint", "shell") == ZCP_OK &&
+              zcp_check("flint", "shell") == ZCP_E_PENDING,
+          "K1: once, then asked again");
+    CHECK(zcp_set("flint", "shell", ZCP_ALWAYS) == 0 && zcp_check("flint", "shell") == ZCP_OK &&
+              zcp_check("flint", "shell") == ZCP_OK,
+          "always");
+    CHECK(zcp_set("brazier", "notify", ZCP_NEVER) == 0 &&
+              zcp_check("brazier", "notify") == ZCP_E_DENIED,
+          "never, even for one that is not sensitive");
+    CHECK(zcp_set("brazier", "notify", ZCP_DEFAULT) == 0 &&
+              zcp_check("brazier", "notify") == ZCP_OK &&
+              zcp_set("brazier", "notify", ZCP_DEFAULT) == ZCP_E_NOTFOUND,
+          "forget: back to the default");
+    CHECK(zcp_check("a b", "shell") == ZCP_E_ARG && zcp_check("a", "Shell") == ZCP_E_ARG &&
+              zcp_check("a", ".x") == ZCP_E_ARG && zcp_check("a", "x.") == ZCP_E_ARG &&
+              zcp_check("a", "abcdefghijklmnopqrstuvwx") == ZCP_E_ARG &&
+              zcp_set("a", "shell", (zcp_mode_t) 4) == ZCP_E_ARG && zcp_check("", "x") == ZCP_E_ARG,
+          "bad names");
+
+    /* K3: location is place.*'s */
+    CHECK(zcp_check("waymark", "location") == ZCP_E_PENDING && zpl_app_count() == 1 &&
+              zpl_app(0)->pending,
+          "location asks through place");
+    CHECK(zcp_set("waymark", "location", ZCP_ALWAYS) == 0 && zpl_app(0)->mode == ZPL_ALWAYS &&
+              zcp_check("waymark", "location") == ZCP_OK,
+          "and is granted through place (unknown location still counts as allowed)");
+    CHECK(zpl_permit("waymark", ZPL_NEVER) == 0 && zcp_check("waymark", "location") == ZCP_E_DENIED,
+          "place.permit's answer is caps' answer");
+    uint32_t n = zcp_list("waymark", g, 8);
+    CHECK(n == 1 && !strcmp(g[0].cap, "location") && g[0].mode == ZCP_NEVER, "listed: %u", n);
+
+    /* over JSON-RPC */
+    EXPECT(REQ("1", "caps.check", ",\"params\":{\"app\":\"flint\",\"cap\":\"shell\"}"),
+           OK("1", "{\"app\":\"flint\",\"cap\":\"shell\",\"allowed\":true,\"state\":\"allowed\"}"));
+    EXPECT(
+        REQ("1", "caps.check", ",\"params\":{\"app\":\"kiln\",\"cap\":\"camera\"}"),
+        OK("1", "{\"app\":\"kiln\",\"cap\":\"camera\",\"allowed\":false,\"state\":\"pending\"}"));
+    EXPECT(REQ("1", "caps.grant",
+               ",\"params\":{\"app\":\"kiln\",\"cap\":\"camera\",\"mode\":\"once\"}"),
+           OK("1", "{\"app\":\"kiln\",\"cap\":\"camera\",\"mode\":\"once\"}"));
+    EXPECT(REQ("1", "caps.grant", ",\"params\":{\"app\":\"kiln\",\"cap\":\"mic\"}"),
+           OK("1", "{\"app\":\"kiln\",\"cap\":\"mic\",\"mode\":\"always\"}"));
+    EXPECT(REQ("1", "caps.revoke", ",\"params\":{\"app\":\"kiln\",\"cap\":\"mic\"}"),
+           OK("1", "{\"app\":\"kiln\",\"cap\":\"mic\",\"mode\":\"never\"}"));
+    EXPECT(REQ("1", "caps.check", ",\"params\":{\"app\":\"kiln\",\"cap\":\"mic\"}"),
+           OK("1", "{\"app\":\"kiln\",\"cap\":\"mic\",\"allowed\":false,\"state\":\"denied\"}"));
+    EXPECT(
+        REQ("1", "caps.revoke", ",\"params\":{\"app\":\"kiln\",\"cap\":\"mic\",\"forget\":true}"),
+        OK("1", "{\"app\":\"kiln\",\"cap\":\"mic\",\"mode\":\"default\"}"));
+    EXPECT(
+        REQ("1", "caps.revoke", ",\"params\":{\"app\":\"kiln\",\"cap\":\"mic\",\"forget\":true}"),
+        ERR("1", "-32025", "no answer to take back"));
+    EXPECT(
+        REQ("1", "caps.grant", ",\"params\":{\"app\":\"kiln\",\"cap\":\"mic\",\"mode\":\"never\"}"),
+        ERR("1", "-32602", "\\\"mode\\\" must be always or once"));
+    CHECK(has(REQ("1", "caps.grant", ",\"params\":{\"app\":\"kiln\",\"cap\":\"Mic\"}"),
+              "\"code\":-32602") &&
+              has(REQ("1", "caps.check", ",\"params\":{\"app\":\"kiln\"}"), "\"code\":-32602"),
+          "bad parameters");
+    const char *o = rpc(REQ("1", "caps.list", ",\"params\":{\"app\":\"kiln\"}"));
+    CHECK(strstr(o, "\"sensitive\":[\"camera\",\"mic\",\"location\",\"shell\",\"ledger.post\","
+                    "\"journal.write\",\"caps\",\"proc.control\"],\"grants\":[{\"app\":\"kiln\","
+                    "\"cap\":\"camera\","
+                    "\"mode\":\"once\",\"pending\":false,\"asked\":") &&
+              strstr(o, "],\"more\":false}") && !strstr(o, "flint"),
+          "caps.list for one app: %s", o);
+    CHECK(has(REQ("1", "caps.list", ""),
+              "\"app\":\"waymark\",\"cap\":\"location\",\"mode\":\"never\""),
+          "and every app's, location included: %s", OUT.p);
+
+    /* K4: the file keeps lasting answers only */
+    CHECK(zcp_open(path) == 0 && !zcp_was_reset(), "a new file");
+    CHECK(zcp_set("flint", "shell", ZCP_ALWAYS) == 0 && zcp_set("kiln", "camera", ZCP_ONCE) == 0 &&
+              zcp_set("brazier", "notify", ZCP_NEVER) == 0 &&
+              zcp_check("glint", "mic") == ZCP_E_PENDING,
+          "three answers and an ask");
+    struct stat st;
+    CHECK(stat(path, &st) == 0 && (st.st_mode & 0777) == 0600, "0600");
+    zcp_close();
+    CHECK(zcp_open(path) == 0 && zcp_list(NULL, g, 8) >= 2 &&
+              zcp_check("flint", "shell") == ZCP_OK &&
+              zcp_check("brazier", "notify") == ZCP_E_DENIED &&
+              zcp_check("kiln", "camera") == ZCP_E_PENDING,
+          "always and never come back; once and the ask do not");
+    FILE *f = fopen(path, "rb");
+    size_t len = f ? fread(buf, 1, sizeof buf - 1, f) : 0;
+    if (f) fclose(f);
+    buf[len] = 0;
+    CHECK(len > 0 && strstr(buf, "grant\tflint\tshell\talways\n") && !strstr(buf, "camera"),
+          "the file: %s", buf);
+    char *x = strstr(buf, "always");
+    if (x) x[0] = 'A';
+    f = fopen(path, "wb");
+    if (f) {
+        fputs(buf, f);
+        fclose(f);
+    }
+    zcp_close();
+    CHECK(zcp_open(path) == 0 && zcp_was_reset() && bk_exists(dmg) &&
+              zcp_check("flint", "shell") == ZCP_E_PENDING,
+          "an edited file is moved aside; answers start empty");
+    zcp_close();
+    CHECK(zcp_open(NULL) == 0 && zpl_open(NULL) == 0, "back to memory");
+    CHECK(rm_tree(dir) == 0, "cleanup");
+}
+
+/* ---------------- shell.* (zxvd_shell.h H1-H7) ---------------- */
+
+/* shell.read from 0 until the job is done (its whole reply), or "" */
+static const char *shell_wait(uint32_t job, const char *extra)
+{
+    char r[300];
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"shell.read\",\"params\":{\"job\":%u%s}}",
+             job, extra ? extra : "");
+    for (int i = 0; i < 1000; i++) {
+        const char *o = rpc(r);
+        if (strstr(o, "\"done\":true") || strstr(o, "\"error\"")) return o;
+        usleep(5000);
+    }
+    return "";
+}
+
+static uint32_t shell_start(const char *params)
+{
+    char r[1200];
+    snprintf(r, sizeof r, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"shell.run\",\"params\":%s}",
+             params);
+    const char *o = rpc(r), *p = strstr(o, "\"job\":");
+    return p ? (uint32_t) strtoul(p + 6, NULL, 10) : 0;
+}
+
+static void test_shell(void)
+{
+    char r[400];
+    zxvd_shell_enable("");
+    EXPECT(REQ("1", "shell.run", ",\"params\":{\"line\":\"echo hi\"}"),
+           ERR("1", "-32023", "shell.* is off in this zxvd"));
+    EXPECT(REQ("1", "shell.jobs", ""), OK("1", "{\"on\":false,\"jobs\":[]}"));
+    CHECK(zxvd_shell_enable("/bin/sh") == 0, "on, with sh standing in for zxsh (it takes -c too)");
+
+    /* H1, H2, H4: a line, both streams in order, zxsh's exit status */
+    uint32_t j = shell_start("{\"line\":\"echo hi; echo err >&2; printf 'tab\\\\there'; exit 4\"}");
+    CHECK(j > 0, "started: %s", OUT.p);
+    const char *o = shell_wait(j, NULL);
+    CHECK(strstr(o, "\"out\":\"hi\\nerr\\ntab\\u0009here\"") &&
+              strstr(o, "\"exit\":4,\"signal\":null") && strstr(o, "\"verdict\":\"both\"") &&
+              strstr(o, "\"kept\":false"),
+          "a zxsh line: %s", o);
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"shell.read\",\"params\":{\"job\":%u}}", j);
+    CHECK(strstr(rpc(r), "\"code\":-32023"), "H5: read to the end, it is gone: %s", OUT.p);
+    static const struct {
+        const char *line, *verdict;
+    } V[] = {{"exit 0", "true"},
+             {"exit 1", "false"},
+             {"exit 3", "forbidden"},
+             {"exit 5", "neither"},
+             {"exit 2", "false"}};
+    for (size_t i = 0; i < sizeof V / sizeof V[0]; i++) {
+        snprintf(r, sizeof r, "{\"line\":\"%s\"}", V[i].line);
+        char want[64];
+        snprintf(want, sizeof want, "\"verdict\":\"%s\"", V[i].verdict);
+        CHECK(strstr(shell_wait(shell_start(r), NULL), want), "H4: %s is %s: %s", V[i].line,
+              V[i].verdict, OUT.p);
+    }
+
+    /* a program: no shell, PATH searched, zxsh's rule for a process */
+    o = shell_wait(shell_start("{\"argv\":[\"printf\",\"%s|%s\",\"a b\",\"$HOME\"]}"), NULL);
+    CHECK(strstr(o, "\"out\":\"a b|$HOME\"") && strstr(o, "\"verdict\":\"true\""),
+          "argv is passed as is: %s", o);
+    o = shell_wait(shell_start("{\"argv\":[\"/no/such/program\"]}"), NULL);
+    CHECK(strstr(o, "/no/such/program: No such file or directory") && strstr(o, "\"exit\":127") &&
+              strstr(o, "\"verdict\":\"neither\""),
+          "it could not run: %s", o);
+    o = shell_wait(shell_start("{\"argv\":[\"sh\",\"-c\",\"kill -SEGV $$\"]}"), NULL);
+    CHECK(strstr(o, "\"exit\":null,\"signal\":\"SIGSEGV\"") &&
+              strstr(o, "\"verdict\":\"forbidden\""),
+          "a crash is forbidden: %s", o);
+    o = shell_wait(shell_start("{\"argv\":[\"sh\",\"-c\",\"kill -USR1 $$\"]}"), NULL);
+    CHECK(strstr(o, "\"signal\":\"other\"") && strstr(o, "\"verdict\":\"neither\""),
+          "another signal: neither: %s", o);
+
+    /* H6 */
+    o = shell_wait(shell_start("{\"line\":\"pwd; echo $ZXSH_JOB\",\"cwd\":\"/\"}"), NULL);
+    CHECK(strstr(o, "\"out\":\"/\\n"), "cwd: %s", o);
+    EXPECT(REQ("1", "shell.run", ",\"params\":{\"line\":\"pwd\",\"cwd\":\"/no/such/folder\"}"),
+           ERR("1", "-32023", "\\\"cwd\\\" is not a folder"));
+
+    /* H3 */
+    j = shell_start("{\"argv\":[\"cat\"]}");
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"shell.write\",\"params\":{\"job\":%u,"
+             "\"text\":\"one\\ntwo\",\"close\":true}}",
+             j);
+    CHECK(strstr(rpc(r), "\"written\":7,\"closed\":true"), "write and close: %s", OUT.p);
+    CHECK(strstr(rpc(r), "\"code\":-32023"), "input closed: %s", OUT.p);
+    o = shell_wait(j, NULL);
+    CHECK(strstr(o, "\"out\":\"one\\ntwo\"") && strstr(o, "\"verdict\":\"true\""), "cat: %s", o);
+
+    /* H5: kill, time out */
+    j = shell_start("{\"argv\":[\"sleep\",\"30\"]}");
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"shell.kill\",\"params\":{\"job\":%u}}", j);
+    CHECK(strstr(rpc(r), "\"was_running\":true"), "kill: %s", OUT.p);
+    o = shell_wait(j, NULL);
+    CHECK(strstr(o, "\"signal\":\"SIGTERM\"") && strstr(o, "\"killed\":true") &&
+              strstr(o, "\"timed_out\":false"),
+          "ended by kill: %s", o);
+    j = shell_start("{\"line\":\"trap '' TERM; sleep 30\",\"timeout_ms\":50}");
+    o = shell_wait(j, NULL);
+    CHECK(strstr(o, "\"signal\":\"SIGKILL\"") && strstr(o, "\"timed_out\":true"),
+          "late, and deaf to SIGTERM: SIGKILL after two seconds: %s", o);
+    j = shell_start("{\"argv\":[\"true\"]}");
+    shell_wait(j, ",\"max\":1"); /* done, but not read: "" is all, so it is read to the end */
+    j = shell_start("{\"line\":\"echo kept\"}");
+    o = shell_wait(j, ",\"max\":2");
+    CHECK(strstr(o, "\"out\":\"ke\"") && strstr(o, "\"next\":\"2\"") && strstr(o, "\"kept\":true"),
+          "part read: kept: %s", o);
+    CHECK(has(REQ("1", "shell.jobs", ""),
+              "\"what\":\"echo kept\",\"done\":true,\"bytes\":\"5\",\"verdict\":\"true\""),
+          "shell.jobs: %s", OUT.p);
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"shell.kill\",\"params\":{\"job\":%u}}", j);
+    CHECK(strstr(rpc(r), "\"was_running\":false") &&
+              !strstr(rpc(REQ("1", "shell.jobs", "")), "echo kept"),
+          "killing a finished job lets it go");
+
+    /* H2: the window, dropped bytes, UTF-8 */
+    j = shell_start("{\"line\":\"yes a | head -c 300000\"}");
+    o = shell_wait(j, ",\"max\":4");
+    CHECK(
+        strstr(o,
+               "\"out\":\"a\\na\\n\",\"from\":\"37856\",\"next\":\"37860\",\"dropped\":\"37856\""),
+        "only the last 256 KiB are kept: %s", o);
+    o = shell_wait(j, ",\"from\":299999");
+    CHECK(strstr(o, "\"out\":\"\\n\",\"from\":\"299999\",\"next\":\"300000\",\"dropped\":\"0\"") &&
+              strstr(o, "\"kept\":false"),
+          "the end: %s", o);
+    j = shell_start("{\"line\":\"printf 'x\\\\303\\\\251y\\\\377z'\"}");
+    o = shell_wait(j, ",\"max\":2");
+    CHECK(strstr(o, "\"out\":\"x\",\"from\":\"0\",\"next\":\"1\""), "a cut character waits: %s", o);
+    o = shell_wait(j, ",\"from\":1");
+    CHECK(strstr(o, "\"out\":\"\xc3\xa9y\\ufffdz\""), "then whole; a bad byte is U+FFFD: %s", o);
+
+    /* refusals */
+    EXPECT(REQ("1", "shell.run", ",\"params\":{}"),
+           ERR("1", "-32602",
+               "give \\\"line\\\" (a zxsh line) or \\\"argv\\\" (a program), not both"));
+    EXPECT(REQ("1", "shell.run", ",\"params\":{\"line\":\"x\",\"argv\":[\"x\"]}"),
+           ERR("1", "-32602",
+               "give \\\"line\\\" (a zxsh line) or \\\"argv\\\" (a program), not both"));
+    EXPECT(REQ("1", "shell.run", ",\"params\":{\"line\":\"\"}"),
+           ERR("1", "-32602", "\\\"line\\\" is empty"));
+    CHECK(has(REQ("1", "shell.run", ",\"params\":{\"argv\":[]}"), "\"code\":-32602") &&
+              has(REQ("1", "shell.run", ",\"params\":{\"argv\":[\"\"]}"), "\"code\":-32602") &&
+              has(REQ("1", "shell.run", ",\"params\":{\"argv\":[1]}"), "\"code\":-32602") &&
+              has(REQ("1", "shell.run", ",\"params\":{\"argv\":\"ls\"}"), "\"code\":-32602") &&
+              has(REQ("1", "shell.run", ",\"params\":{\"line\":\"x\",\"timeout_ms\":0}"),
+                  "\"code\":-32602") &&
+              has(REQ("1", "shell.run", ",\"params\":{\"line\":\"x\",\"timeout_ms\":86400001}"),
+                  "\"code\":-32602"),
+          "bad parameters");
+    EXPECT(REQ("1", "shell.read", ",\"params\":{\"job\":999999}"),
+           ERR("1", "-32023", "no job 999999 (it ended and was read to the end, or never was)"));
+    CHECK(has(REQ("1", "shell.read", ",\"params\":{}"), "\"code\":-32602") &&
+              has(REQ("1", "shell.kill", ",\"params\":{\"job\":0}"), "\"code\":-32023"),
+          "a job id is needed");
+
+    /* H5: places run out only with running jobs; zxvd_shell_close ends them */
+    uint32_t ids[ZXVD_SHELL_JOBS];
+    for (uint32_t i = 0; i < ZXVD_SHELL_JOBS; i++)
+        ids[i] = shell_start("{\"argv\":[\"sleep\",\"30\"]}");
+    CHECK(ids[ZXVD_SHELL_JOBS - 1] > 0, "sixteen at once");
+    CHECK(has(REQ("1", "shell.run", ",\"params\":{\"argv\":[\"true\"]}"),
+              "\"message\":\"16 jobs are running\""),
+          "a seventeenth waits: %s", OUT.p);
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+    zxvd_shell_close();
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    CHECK(t1.tv_sec - t0.tv_sec < 3 && !has(REQ("1", "shell.jobs", ""), "\"job\""),
+          "close ends them all, quickly");
+    zxvd_shell_enable("");
+}
+
+/* ---------------- dns.* and did.* (zxvd_dns.h D1-D6, I1-I3) ---------------- */
+
+/* dns.resolve or dns.reverse until it is no longer pending (its reply) */
+static const char *dns_wait(const char *req)
+{
+    for (int i = 0; i < 8000; i++) {
+        const char *o = rpc(req);
+        if (!strstr(o, "\"state\":\"pending\"")) return o;
+        usleep(5000);
+    }
+    return "";
+}
+
+static void test_dns(void)
+{
+    zxvd_dns_enable(false);
+    EXPECT(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"localhost\"}"),
+           ERR("1", "-32026", "dns.* is off in this zxvd"));
+    CHECK(has(REQ("1", "dns.reverse", ",\"params\":{\"addr\":\"127.0.0.1\"}"), "\"code\":-32026") &&
+              has(REQ("1", "dns.flush", ""), "\"code\":-32026"),
+          "D6: off until the host turns it on");
+    zxvd_dns_enable(true);
+
+    /* D1: an address is answered at once, in its usual spelling */
+    EXPECT(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"10.0.0.1\"}"),
+           OK("1", "{\"name\":\"10.0.0.1\",\"family\":\"any\",\"state\":\"done\",\"addrs\":[{"
+                   "\"addr\":\"10.0.0.1\",\"family\":\"ipv4\"}],\"ttl_ms\":60000}"));
+    EXPECT(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"0:0::1\",\"family\":\"ipv6\"}"),
+           OK("1", "{\"name\":\"::1\",\"family\":\"ipv6\",\"state\":\"done\",\"addrs\":[{"
+                   "\"addr\":\"::1\",\"family\":\"ipv6\"}],\"ttl_ms\":60000}"));
+    EXPECT(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"10.0.0.1\",\"family\":\"ipv6\"}"),
+           ERR("1", "-32602", "\\\"10.0.0.1\\\" is an IPv4 address"));
+
+    /* D1, D2: a lookup runs beside the loop; the answer is kept */
+    const char *first = rpc(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"LocalHost.\"}"));
+    CHECK(strstr(first, "{\"name\":\"localhost\",\"family\":\"any\",\"state\":\"pending\"}"),
+          "D1, D4: pending at first, the name in lower case without its dot: %s", first);
+    const char *o = dns_wait(
+        REQ("1", "dns.resolve", ",\"params\":{\"name\":\"localhost\",\"family\":\"ipv4\"}"));
+    CHECK(strstr(o, "\"state\":\"done\",\"addrs\":[{\"addr\":\"127.0.0.1\",\"family\":\"ipv4\"}]"),
+          "localhost over IPv4: %s", o);
+    o = dns_wait(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"localhost\"}"));
+    CHECK(strstr(o, "\"state\":\"done\"") && strstr(o, "\"ttl_ms\":") &&
+              (strstr(o, "\"127.0.0.1\"") || strstr(o, "\"::1\"")),
+          "any family: %s", o);
+    o = rpc(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"localhost\"}"));
+    CHECK(strstr(o, "\"state\":\"done\""), "D2: kept: asked again, answered at once: %s", o);
+    o = dns_wait(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"no-such-host.invalid\"}"));
+    CHECK(strstr(o, "\"state\":\"failed\",\"error\":\"") && strstr(o, "\"ttl_ms\":"),
+          "a name that is not there fails: %s", o);
+    o = dns_wait(REQ("1", "dns.reverse", ",\"params\":{\"addr\":\"127.0.0.1\"}"));
+    CHECK(strstr(o, "{\"addr\":\"127.0.0.1\",\"state\":\"") &&
+              (strstr(o, "\"state\":\"done\",\"name\":\"") || strstr(o, "\"state\":\"failed\"")),
+          "D3: a name for an address (or why not): %s", o);
+    CHECK(has(REQ("1", "dns.flush", ""), "{\"forgot\":") &&
+              has(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"localhost\"}"),
+                  "\"state\":\"pending\""),
+          "D2: flush forgets the answers");
+    dns_wait(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"localhost\"}"));
+
+    /* D4: names refused before any lookup */
+    static const char *const BAD[] = {
+        "a..b",  ".a",
+        "-a.b",  "a-.b",
+        "a b",   "a/b",
+        "",      ".",
+        "a.b..", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"};
+    for (size_t i = 0; i < sizeof BAD / sizeof BAD[0]; i++) {
+        char r[300];
+        snprintf(r, sizeof r,
+                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"dns.resolve\",\"params\":{\"name\":"
+                 "\"%s\"}}",
+                 BAD[i]);
+        CHECK(strstr(rpc(r), "\"code\":-32602"), "D4: \"%s\" is not a name", BAD[i]);
+    }
+    char longname[300], r[400];
+    memset(longname, 'a', sizeof longname);
+    for (int i = 63; i < 254; i += 64) longname[i] = '.';
+    longname[253] = 0; /* 253 bytes: the most */
+    snprintf(
+        r, sizeof r,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"dns.resolve\",\"params\":{\"name\":\"%s\"}}",
+        longname);
+    CHECK(!strstr(rpc(r), "\"code\":-32602"), "253 bytes is a name: %s", OUT.p);
+    longname[253] = 'a';
+    longname[254] = 0;
+    snprintf(
+        r, sizeof r,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"dns.resolve\",\"params\":{\"name\":\"%s\"}}",
+        longname);
+    CHECK(strstr(rpc(r), "\"code\":-32602"), "254 is not");
+    CHECK(has(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"a_b-c.d9\"}"), "\"state\"") &&
+              has(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"x\",\"family\":\"ip4\"}"),
+                  "\"code\":-32602") &&
+              has(REQ("1", "dns.reverse", ",\"params\":{\"addr\":\"localhost\"}"),
+                  "\"code\":-32602") &&
+              has(REQ("1", "dns.resolve", ""), "\"code\":-32602"),
+          "underscores are allowed; a bad family, address or nothing is not");
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+    zxvd_dns_close();
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    CHECK(t1.tv_sec - t0.tv_sec < 30, "D5: close waits for the lookups running");
+    CHECK(has(REQ("1", "dns.flush", ""), "{\"forgot\":0}"), "and forgets every answer");
+    zxvd_dns_enable(false);
+
+    /* I1 */
+    EXPECT(
+        REQ("1", "did.parse",
+            ",\"params\":{\"did\":\"did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK\"}"),
+        OK("1", "{\"did\":\"did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK\","
+                "\"method\":\"key\",\"supported\":true,\"type\":\"ed25519\",\"key\":"
+                "\"2e6fcce36701dc791488e0d0b1745cc1e33a4c1c9fcc41c63bd343dbbe0970e6\"}"));
+    EXPECT(
+        REQ("1", "did.parse",
+            ",\"params\":{\"did\":\"did:key:z6MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc9c\"}"),
+        OK("1", "{\"did\":\"did:key:z6MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc9c\","
+                "\"method\":\"key\",\"supported\":true,\"type\":\"ed25519\",\"key\":"
+                "\"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f\"}"));
+    EXPECT(REQ("1", "did.parse",
+               ",\"params\":{\"did\":\"did:zxv:"
+               "jnsxs3vpvgfv3lz23i7butem7i646l4iavuf553onhuny4myw5ra\"}"),
+           OK("1", "{\"did\":\"did:zxv:jnsxs3vpvgfv3lz23i7butem7i646l4iavuf553onhuny4myw5ra\","
+                   "\"method\":\"zxv\",\"supported\":true,\"id\":"
+                   "\"4b65796eafa98b5daf3ada3e1a4c8cfa3dcf2f8805685ef76e69e8dc7198b762\"}"));
+    EXPECT(REQ("1", "did.parse", ",\"params\":{\"did\":\"did:web:example.com:user%20a\"}"),
+           OK("1", "{\"did\":\"did:web:example.com:user%20a\",\"method\":\"web\","
+                   "\"supported\":false}"));
+    static const char *const BADDID[] = {
+        "did:key:z6LSbgC4DpuCf7zxewhFPnYcyBm3YgxjEEovsehvWqZzTm8z",     /* X25519 */
+        "did:key:z16MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc9c",    /* a spare zero */
+        "did:key:6MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc9c",      /* no multibase */
+        "did:key:z6MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc9",      /* short */
+        "did:key:z6MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc90",     /* 0: not base58 */
+        "did:zxv:jnsxs3vpvgfv3lz23i7butem7i646l4iavuf553onhuny4myw5rb", /* spare bits */
+        "did:zxv:jnsxs3vpvgfv3lz23i7butem7i646l4iavuf553onhuny4myw5r",  /* short */
+        "did:zxv:JNSXS3VPVGFV3LZ23I7BUTEM7I646L4IAVUF553ONHUNY4MYW5RA", /* upper case */
+        "did:",
+        "did:key",
+        "did::x",
+        "did:Key:x",
+        "did:web:",
+        "did:web:a b",
+        "dad:web:x",
+    };
+    for (size_t i = 0; i < sizeof BADDID / sizeof BADDID[0]; i++) {
+        snprintf(
+            r, sizeof r,
+            "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"did.parse\",\"params\":{\"did\":\"%s\"}}",
+            BADDID[i]);
+        CHECK(strstr(rpc(r), "\"code\":-32026"), "I1: %s refused: %s", BADDID[i], OUT.p);
+    }
+
+    /* I2 */
+    EXPECT(REQ("1", "did.match",
+               ",\"params\":{\"did\":\"did:key:z6MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc9c\","
+               "\"key\":\"000102030405060708090A0B0C0D0E0F101112131415161718191a1b1c1d1e1f\"}"),
+           OK("1", "{\"did\":\"did:key:z6MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc9c\","
+                   "\"match\":true}"));
+    CHECK(
+        has(REQ("1", "did.match",
+                ",\"params\":{\"did\":\"did:key:z6MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc9c\","
+                "\"key\":\"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1e\"}"),
+            "\"match\":false}"),
+        "another key: no");
+    const char *pk = "00070e151c232a31383f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9e0e7eef5fc"
+                     "030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff"
+                     "060d141b222930373e454c535a61686f767d848b9299a0a7aeb5";
+    char req[1200];
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"did.match\",\"params\":{\"did\":\"did:zxv:"
+             "jnsxs3vpvgfv3lz23i7butem7i646l4iavuf553onhuny4myw5ra\",\"key\":\"%s\"}}",
+             pk);
+    CHECK(strstr(rpc(req), "\"match\":true}"), "did:zxv: its key hashes to the id: %s", OUT.p);
+    char *last = strstr(req, "aeb5\"");
+    last[3] = '4';
+    CHECK(strstr(rpc(req), "\"match\":false}"), "one bit off: no: %s", OUT.p);
+    EXPECT(REQ("1", "did.match", ",\"params\":{\"did\":\"did:web:example.com\",\"key\":\"00\"}"),
+           ERR("1", "-32026", "did:web keys cannot be checked here"));
+    CHECK(
+        has(REQ("1", "did.match",
+                ",\"params\":{\"did\":\"did:key:z6MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc9c\","
+                "\"key\":\"0001\"}"),
+            "an Ed25519 \\\"key\\\" is 32 bytes") &&
+            has(REQ("1", "did.match",
+                    ",\"params\":{\"did\":\"did:zxv:"
+                    "jnsxs3vpvgfv3lz23i7butem7i646l4iavuf553onhuny4myw5ra\",\"key\":\"abc\"}"),
+                "\"code\":-32602") &&
+            has(REQ("1", "did.match",
+                    ",\"params\":{\"did\":\"did:zxv:"
+                    "jnsxs3vpvgfv3lz23i7butem7i646l4iavuf553onhuny4myw5ra\",\"key\":\"zz\"}"),
+                "\"code\":-32602") &&
+            has(REQ("1", "did.match",
+                    ",\"params\":{\"did\":\"did:zxv:"
+                    "jnsxs3vpvgfv3lz23i7butem7i646l4iavuf553onhuny4myw5ra\",\"key\":\"\"}"),
+                "\"code\":-32602") &&
+            has(REQ("1", "did.match", ",\"params\":{\"key\":\"00\"}"), "\"code\":-32602"),
+        "bad keys");
+}
+
+/* ---------------- schedule.* (zxv_sched.h T1-T5) ---------------- */
+
+static int64_t SCHED_NOW;
+static int64_t sched_clock(void)
+{
+    return SCHED_NOW;
+}
+
+static uint32_t SCHED_NOTES;
+static char SCHED_NOTE[200];
+static uint64_t SCHED_KEY;
+static uint32_t sched_note(const zxvd_notice_t *n)
+{
+    SCHED_NOTES++;
+    SCHED_KEY = n->key;
+    snprintf(SCHED_NOTE, sizeof SCHED_NOTE, "%s|%s|%s|%u", n->app, n->title, n->body,
+             (unsigned) n->pri);
+    return SCHED_NOTES;
+}
+
+static void test_sched(void)
+{
+    char dir[256], path[300], dmg[320], buf[8192], r[600];
+    const char *tmp = getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp";
+    const char *tz = getenv("TZ");
+    char old_tz[64] = "";
+    if (tz) snprintf(old_tz, sizeof old_tz, "%s", tz);
+    setenv("TZ", "UTC", 1);
+    tzset();
+    snprintf(dir, sizeof dir, "%s/zxvd-sched-XXXXXX", tmp);
+    CHECK(mkdtemp(dir) != NULL, "a folder");
+    snprintf(path, sizeof path, "%s/schedule.zxsd", dir);
+    snprintf(dmg, sizeof dmg, "%s.damaged", path);
+    zsd_set_clock(sched_clock);
+    SCHED_NOW = INT64_C(1800000000000); /* Friday 15 January 2027, 08:00 UTC */
+    CHECK(zsd_open(NULL) == 0, "in memory");
+    zxvd_rpc_set_notify(sched_note);
+
+    /* T2 */
+    EXPECT(REQ("1", "schedule.add",
+               ",\"params\":{\"app\":\"treadle\",\"name\":\"water\",\"at_ms\":1800000005000,"
+               "\"notify\":true,\"note\":\"the ferns\"}"),
+           OK("1", "{\"id\":1,\"app\":\"treadle\",\"name\":\"water\",\"kind\":\"at\",\"at_ms\":"
+                   "1800000005000,\"notify\":true,\"note\":\"the ferns\",\"next_ms\":1800000005000,"
+                   "\"last_ms\":null,\"fired\":0}"));
+    EXPECT(REQ("1", "schedule.add",
+               ",\"params\":{\"app\":\"treadle\",\"name\":\"tick\",\"every_s\":60}"),
+           OK("1", "{\"id\":2,\"app\":\"treadle\",\"name\":\"tick\",\"kind\":\"every\",\"every_s\":"
+                   "60,\"start_ms\":1800000060000,\"notify\":false,\"note\":\"\",\"next_ms\":"
+                   "1800000060000,\"last_ms\":null,\"fired\":0}"));
+    EXPECT(REQ("1", "schedule.add",
+               ",\"params\":{\"app\":\"kettle\",\"name\":\"tea\",\"daily\":\"07:30\",\"days\":["
+               "\"wed\",\"mon\"]}"),
+           OK("1",
+              "{\"id\":3,\"app\":\"kettle\",\"name\":\"tea\",\"kind\":\"daily\",\"daily\":"
+              "\"07:30\",\"days\":[\"mon\",\"wed\"],\"notify\":false,\"note\":\"\",\"next_ms\":"
+              "1800257400000,\"last_ms\":null,\"fired\":0}"));
+    EXPECT(REQ("1", "schedule.add",
+               ",\"params\":{\"app\":\"kettle\",\"name\":\"late\",\"every_s\":3600,"
+               "\"start_ms\":\"1799999000000\"}"),
+           OK("1", "{\"id\":4,\"app\":\"kettle\",\"name\":\"late\",\"kind\":\"every\",\"every_s\":"
+                   "3600,\"start_ms\":1799999000000,\"notify\":false,\"note\":\"\",\"next_ms\":"
+                   "1800002600000,\"last_ms\":null,\"fired\":0}"));
+    static const char *const BADP[] = {
+        "{\"app\":\"t\",\"name\":\"x\",\"at_ms\":1800000000000}",         /* now: past */
+        "{\"app\":\"t\",\"name\":\"x\",\"at_ms\":253402300800000}",       /* year 10000 */
+        "{\"app\":\"t\",\"name\":\"x\",\"every_s\":59}",                  /* too often */
+        "{\"app\":\"t\",\"name\":\"x\",\"every_s\":31622401}",            /* over a year */
+        "{\"app\":\"t\",\"name\":\"x\",\"daily\":\"24:00\"}",             /* no such minute */
+        "{\"app\":\"t\",\"name\":\"x\",\"daily\":\"7:30\"}",              /* HH:MM */
+        "{\"app\":\"t\",\"name\":\"x\",\"daily\":\"07:30\",\"days\":[]}", /* no day */
+        "{\"app\":\"t\",\"name\":\"x\",\"daily\":\"07:30\",\"days\":[\"mon\",\"mon\"]}",
+        "{\"app\":\"t\",\"name\":\"x\",\"daily\":\"07:30\",\"days\":[\"monday\"]}",
+        "{\"app\":\"t\",\"name\":\"x\",\"daily\":\"07:30\",\"days\":\"mon\"}",
+        "{\"app\":\"t\",\"name\":\"x\",\"every_s\":60,\"daily\":\"07:30\"}",     /* two kinds */
+        "{\"app\":\"t\",\"name\":\"x\"}",                                        /* no kind */
+        "{\"app\":\"t\",\"name\":\"x\",\"at_ms\":1900000000000,\"start_ms\":1}", /* start alone */
+        "{\"app\":\"t\",\"name\":\"x\",\"every_s\":60,\"days\":[\"mon\"]}",      /* days alone */
+        "{\"app\":\"a b\",\"name\":\"x\",\"every_s\":60}",                       /* bad app */
+        "{\"app\":\"t\",\"name\":\"\",\"every_s\":60}",                          /* no name */
+        "{\"app\":\"t\",\"name\":\"a\\tb\",\"every_s\":60}",                     /* a tab */
+        "{\"app\":\"t\",\"name\":\"x\",\"note\":\"a\\nb\",\"every_s\":60}",      /* a line end */
+        "{\"app\":\"t\",\"name\":\"x\",\"every_s\":60,\"start_ms\":-1}",
+    };
+    for (size_t i = 0; i < sizeof BADP / sizeof BADP[0]; i++) {
+        snprintf(r, sizeof r,
+                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"schedule.add\",\"params\":%s}",
+                 BADP[i]);
+        CHECK(strstr(rpc(r), "\"code\":-32602"), "T2: refused: %s: %s", BADP[i], OUT.p);
+    }
+
+    /* T3: firings */
+    EXPECT(REQ("1", "schedule.fired", ""), OK("1", "{\"fired\":[],\"next\":0}"));
+    SCHED_NOW += 5000;
+    zxvd_rpc_tick();
+    EXPECT(REQ("1", "schedule.fired", ",\"params\":{\"app\":\"treadle\"}"),
+           OK("1", "{\"fired\":[{\"seq\":1,\"id\":1,\"app\":\"treadle\",\"name\":\"water\","
+                   "\"due_ms\":1800000005000,\"fired_ms\":1800000005000,\"late\":false,"
+                   "\"missed\":0,\"ended\":true}],\"next\":1}"));
+    CHECK(SCHED_NOTES == 1 && !strcmp(SCHED_NOTE, "treadle|water|the ferns|1"),
+          "T1: a notice in the app's name: %u %s", SCHED_NOTES, SCHED_NOTE);
+    {
+        uint64_t f = 0xcbf29ce484222325ull; /* as notify.send's key "schedule:1" */
+        for (const char *q = "schedule:1"; *q; q++) f = (f ^ (uint8_t) *q) * 0x100000001b3ull;
+        CHECK(SCHED_KEY == f, "T1: its key is the schedule's, so a repeat replaces the notice");
+    }
+    CHECK(!has(REQ("1", "schedule.list", ""), "\"water\""), "an `at` schedule ends when it fires");
+    EXPECT(REQ("1", "schedule.fired", ",\"params\":{\"after\":1}"),
+           OK("1", "{\"fired\":[],\"next\":1}"));
+    SCHED_NOW += 10 * 60000 + 30000; /* 10.5 minutes later: tick was due 9 times */
+    CHECK(strstr(rpc(REQ("1", "schedule.fired", ",\"params\":{\"after\":1}")),
+                 "{\"fired\":[{\"seq\":2,\"id\":2,\"app\":\"treadle\",\"name\":\"tick\","
+                 "\"due_ms\":1800000060000,\"fired_ms\":1800000635000,\"late\":true,"
+                 "\"missed\":9,\"ended\":false}],\"next\":2}"),
+          "T3: missed ones fire once, late, counted: %s", OUT.p);
+    CHECK(has(REQ("1", "schedule.list", ",\"params\":{\"app\":\"treadle\"}"),
+              "\"next_ms\":1800000660000,\"last_ms\":1800000635000,\"fired\":1}"),
+          "and go on from the next time after now: %s", OUT.p);
+    SCHED_NOW = INT64_C(1800257400000); /* Monday 07:30 */
+    zxvd_rpc_tick();
+    CHECK(has(REQ("1", "schedule.list", ",\"params\":{\"app\":\"kettle\"}"),
+              "\"name\":\"tea\",\"kind\":\"daily\",\"daily\":\"07:30\",\"days\":[\"mon\",\"wed\"],"
+              "\"notify\":false,\"note\":\"\",\"next_ms\":1800430200000,"),
+          "daily: Monday's fired, Wednesday's next: %s", OUT.p);
+    CHECK(SCHED_NOTES == 1, "no notice unless asked");
+    uint64_t next = 0;
+    zsd_fired_t fr[8];
+    CHECK(zsd_fired("kettle", 0, fr, 8, &next) == 2 && next == 5 && fr[0].seq < fr[1].seq,
+          "the ring keeps every app's firings in order (%llu)", (unsigned long long) next);
+    CHECK(zsd_fired(NULL, 0, fr, 1, &next) == 1 && next == 1, "a page at a time");
+
+    /* cancel, limits */
+    EXPECT(REQ("1", "schedule.cancel", ",\"params\":{\"id\":2}"),
+           OK("1", "{\"id\":2,\"cancelled\":true}"));
+    EXPECT(REQ("1", "schedule.cancel", ",\"params\":{\"id\":2}"),
+           ERR("1", "-32027", "no such schedule"));
+    for (uint32_t i = 0; i < ZSD_PER_APP; i++) {
+        snprintf(r, sizeof r,
+                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"schedule.add\",\"params\":{\"app\":"
+                 "\"busy\",\"name\":\"n%u\",\"every_s\":%u}}",
+                 i, 60 + i);
+        rpc(r);
+    }
+    CHECK(strstr(OUT.p, "\"id\":"), "32 for one app");
+    CHECK(has(REQ("1", "schedule.add",
+                  ",\"params\":{\"app\":\"busy\",\"name\":\"one more\",\"every_s\":60}"),
+              "\"code\":-32027,\"message\":\"no room for another schedule\""),
+          "T4: a 33rd is refused: %s", OUT.p);
+
+    /* T5: the file */
+    CHECK(zsd_open(path) == 0 && !zsd_was_reset(), "a new file");
+    zsd_entry_t e;
+    memset(&e, 0, sizeof e);
+    snprintf(e.app, sizeof e.app, "treadle");
+    snprintf(e.name, sizeof e.name, "caf\xc3\xa9 run");
+    snprintf(e.note, sizeof e.note, "beans");
+    e.kind = ZSD_EVERY;
+    e.every_s = 600;
+    e.notify = true;
+    uint32_t id = 0;
+    CHECK(zsd_add(&e, &id) == 0 && id == 1, "added");
+    struct stat st;
+    CHECK(stat(path, &st) == 0 && (st.st_mode & 0777) == 0600, "0600");
+    SCHED_NOW += 600000;
+    CHECK(zsd_tick() == 1, "fired once");
+    zsd_close();
+    CHECK(zsd_open(path) == 0 && !zsd_was_reset(), "opened again");
+    zsd_entry_t l[4];
+    CHECK(zsd_list(NULL, l, 4) == 1 && !strcmp(l[0].name, "caf\xc3\xa9 run") && l[0].notify &&
+              l[0].fired == 1 && l[0].next_ms == SCHED_NOW + 600000 && !strcmp(l[0].note, "beans"),
+          "the schedule came back");
+    CHECK(zsd_fired(NULL, 0, fr, 8, &next) == 1 && fr[0].seq == 1 && next == 1, "and its firing");
+    SCHED_NOW += 3 * 600000 + 1;
+    CHECK(zsd_tick() == 1 && zsd_fired(NULL, 1, fr, 8, &next) == 1 && fr[0].seq == 2 &&
+              fr[0].missed == 2 && fr[0].late,
+          "numbers go on across runs; while it was off, missed ones count");
+    CHECK(zsd_add(&e, &id) == 0 && id == 2, "ids go on too");
+    FILE *f = fopen(path, "rb");
+    size_t len = f ? fread(buf, 1, sizeof buf - 1, f) : 0;
+    if (f) fclose(f);
+    buf[len] = 0;
+    CHECK(len > 0 && strstr(buf, "zxv-sched 1\nnext\t3\t3\n") &&
+              strstr(buf, "\tcaf\xc3\xa9 run\t") && strstr(buf, "\nend "),
+          "the file: %s", buf);
+    char *x = strstr(buf, "beans");
+    if (x) x[0] = 'B';
+    f = fopen(path, "wb");
+    if (f) {
+        fputs(buf, f);
+        fclose(f);
+    }
+    zsd_close();
+    CHECK(zsd_open(path) == 0 && zsd_was_reset() && bk_exists(dmg) && zsd_list(NULL, l, 4) == 0,
+          "an edited file is moved aside; schedules start empty");
+    zsd_close();
+    CHECK(zsd_open(NULL) == 0, "back to memory");
+    /* the minute both ways round an hour; no "days" is every day */
+    CHECK(has(REQ("1", "schedule.add",
+                  ",\"params\":{\"app\":\"clock\",\"name\":\"a\",\"daily\":\"07:05\"}"),
+              "\"daily\":\"07:05\",\"days\":[\"sun\",\"mon\",\"tue\",\"wed\",\"thu\",\"fri\","
+              "\"sat\"]"),
+          "T2: 07:05, every day: %s", OUT.p);
+    CHECK(has(REQ("1", "schedule.add",
+                  ",\"params\":{\"app\":\"clock\",\"name\":\"b\",\"daily\":\"23:58\","
+                  "\"days\":[\"sat\",\"sun\"]}"),
+              "\"daily\":\"23:58\",\"days\":[\"sun\",\"sat\"]"),
+          "T2: 23:58, the weekend: %s", OUT.p);
+    zsd_set_clock(NULL);
+    zxvd_rpc_set_notify(NULL);
+    if (old_tz[0])
+        setenv("TZ", old_tz, 1);
+    else
+        unsetenv("TZ");
+    tzset();
+    CHECK(rm_tree(dir) == 0, "cleanup");
+}
+
+/* ---------------- proc.* (zxvd_proc.h P1-P5) ---------------- */
+
+/* the proc.list entry of `pid` (from its "{"), or NULL */
+static const char *proc_entry(long pid, bool all)
+{
+    static char key[48];
+    rpc(all ? REQ("1", "proc.list", ",\"params\":{\"all\":true}") : REQ("1", "proc.list", ""));
+    snprintf(key, sizeof key, "{\"pid\":%ld,", pid);
+    return strstr(OUT.p, key);
+}
+
+static pid_t spawn_sleep(const char *shell_line)
+{
+    pid_t p = fork();
+    if (p == 0) {
+        if (chdir("/") != 0) _exit(126);
+        if (shell_line)
+            execl("/bin/sh", "sh", "-c", shell_line, (char *) NULL);
+        else
+            execlp("sleep", "sleep", "30", (char *) NULL);
+        _exit(127);
+    }
+    usleep(50000);
+    return p;
+}
+
+/* proc.list until restart `id` is no longer stopping (its "restarts" part) */
+static const char *restart_wait(uint32_t id)
+{
+    char key[48];
+    snprintf(key, sizeof key, "{\"restart\":%u,", id);
+    for (int i = 0; i < 1500; i++) {
+        zxvd_proc_service();
+        rpc(REQ("1", "proc.list", ""));
+        const char *p = strstr(OUT.p, key);
+        if (p && !strstr(p, "\"state\":\"stopping\"")) return p;
+        usleep(10000);
+    }
+    return "";
+}
+
+static void test_proc(void)
+{
+    char r[200];
+    const char *e = proc_entry((long) getpid(), false);
+    CHECK(e && strstr(e, "\"name\":\"test_zxvd_rpc") && strstr(e, "\"mine\":true,\"job\":null}") &&
+              strstr(e, "\"state\":\"running\"") && strstr(e, "\"session_owner\":"),
+          "P1: zxvd's own process: %s", e ? e : OUT.p);
+    CHECK(strstr(OUT.p, "],\"count\":") && strstr(OUT.p, "\"control\":false,\"restarts\":[]}"),
+          "with the count and control off: %.80s", strstr(OUT.p, "],\"count\":"));
+    CHECK(has(REQ("1", "proc.list", ",\"params\":{\"all\":true}"), "{\"pid\":1,"),
+          "all: pid 1 too");
+    pid_t kid = spawn_sleep(NULL);
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"proc.signal\",\"params\":{\"pid\":%ld}}",
+             (long) kid);
+    CHECK(strstr(rpc(r), "\"code\":-32028,\"message\":\"process control is off in this zxvd\""),
+          "P5: off until the host turns it on: %s", OUT.p);
+    zxvd_proc_enable(true);
+
+    /* P2 */
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"proc.signal\",\"params\":{\"pid\":%ld,"
+             "\"signal\":\"stop\"}}",
+             (long) kid);
+    CHECK(strstr(rpc(r), "\"signal\":\"stop\",\"sent\":true}"), "stop: %s", OUT.p);
+    usleep(50000);
+    e = proc_entry((long) kid, false);
+    CHECK(e && strstr(e, "\"name\":\"sleep\"") && strstr(e, "\"state\":\"stopped\"") &&
+              strstr(e, "\"ppid\":") && strstr(e, "\"mine\":true"),
+          "stopped: %s", e ? e : "");
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"proc.signal\",\"params\":{\"pid\":%ld,"
+             "\"signal\":\"cont\"}}",
+             (long) kid);
+    rpc(r);
+    usleep(50000);
+    e = proc_entry((long) kid, false);
+    /* not stopped: Linux says sleeping; macOS reports SRUN for a sleep(1) */
+    CHECK(e && (strstr(e, "\"state\":\"sleeping\"") || strstr(e, "\"state\":\"running\"")),
+          "going again: %s", e ? e : "");
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"proc.signal\",\"params\":{\"pid\":%ld,"
+             "\"signal\":\"usr1\"}}",
+             (long) kid);
+    CHECK(strstr(rpc(r), "\"code\":-32602"), "an unknown signal");
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"proc.signal\",\"params\":{\"pid\":%ld}}",
+             (long) kid);
+    CHECK(strstr(rpc(r), "\"signal\":\"term\",\"sent\":true}"), "term by default");
+    int st;
+    CHECK(waitpid(kid, &st, 0) == kid && WIFSIGNALED(st) && WTERMSIG(st) == SIGTERM,
+          "it ended by SIGTERM");
+    CHECK(strstr(rpc(r), "\"code\":-32028,\"message\":\"no process"), "P4: then it is gone");
+
+    /* P4 */
+    long refused[] = {0, 1, (long) getpid(), (long) getppid()};
+    for (size_t i = 0; i < 4; i++) {
+        snprintf(
+            r, sizeof r,
+            "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"proc.signal\",\"params\":{\"pid\":%ld}}",
+            refused[i]);
+        CHECK(strstr(rpc(r), "\"code\":-32028") && strstr(OUT.p, "is not one zxvd acts on"),
+              "P4: never %ld", refused[i]);
+    }
+    CHECK(has(REQ("1", "proc.signal", ",\"params\":{}"), "\"code\":-32602"), "a pid is needed");
+
+    /* P1: a shell job's processes name it */
+    zxvd_shell_enable("/bin/sh");
+    uint32_t j = shell_start("{\"line\":\"sleep 30; true\"}");
+    usleep(100000);
+    rpc(REQ("1", "proc.list", ""));
+    char jk[48];
+    snprintf(jk, sizeof jk, "\"name\":\"sleep\"");
+    const char *sp = strstr(OUT.p, jk);
+    char jobv[32];
+    snprintf(jobv, sizeof jobv, "\"job\":%u}", j);
+    CHECK(j && sp && strstr(sp, jobv), "a job's child names the job: %s", sp ? sp : OUT.p);
+    zxvd_shell_close();
+    zxvd_shell_enable("");
+
+    /* P3 */
+    kid = spawn_sleep(NULL);
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"proc.restart\",\"params\":{\"pid\":%ld}}",
+             (long) kid);
+    CHECK(strstr(rpc(r), "\"restart\":1,") && strstr(OUT.p, "\"state\":\"stopping\"}"),
+          "restart: %s", OUT.p);
+    CHECK(strstr(rpc(r), "\"code\":-32028") && strstr(OUT.p, "is already restarting (1)"),
+          "once at a time: %s", OUT.p);
+    const char *rs = restart_wait(1);
+    long np = 0;
+    const char *npp = strstr(rs, "\"new_pid\":");
+    if (npp) np = strtol(npp + 10, NULL, 10);
+    CHECK(strstr(rs, "\"state\":\"started\"") && np > 0 && np != kid, "started again: %.120s", rs);
+    waitpid(kid, &st, 0);
+    usleep(50000);
+    e = proc_entry(np, false);
+    CHECK(e && strstr(e, "\"name\":\"sleep\"") && strstr(e, "\"mine\":true"),
+          "the same program, on its own: %s", e ? e : "");
+    if (np > 0) kill((pid_t) np, SIGKILL);
+    kid = spawn_sleep("trap '' TERM; while :; do sleep 1; done");
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"proc.restart\",\"params\":{\"pid\":%ld}}",
+             (long) kid);
+    CHECK(strstr(rpc(r), "\"restart\":2,"), "a process deaf to SIGTERM: %s", OUT.p);
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+    for (int i = 0; i < 400 && waitpid(kid, &st, WNOHANG) == 0; i++) {
+        zxvd_proc_service();
+        usleep(10000);
+    }
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    CHECK(WIFSIGNALED(st) && WTERMSIG(st) == SIGKILL && t1.tv_sec - t0.tv_sec >= 1,
+          "P3: SIGKILL two seconds later");
+    rs = restart_wait(2);
+    npp = strstr(rs, "\"new_pid\":");
+    np = npp ? strtol(npp + 10, NULL, 10) : 0;
+    CHECK(strstr(rs, "\"state\":\"started\""), "then started: %.120s", rs);
+    if (np > 0) {
+        kill((pid_t) -np, SIGKILL); /* its own session and group */
+        kill((pid_t) np, SIGKILL);
+    }
+    CHECK(has(REQ("1", "proc.restart", ",\"params\":{\"pid\":1}"), "is not one zxvd acts on"),
+          "P4: restart refuses as signal does");
+    zxvd_proc_close();
+    CHECK(has(REQ("1", "proc.list", ""), "\"restarts\":[]}"), "close forgets the restarts");
+    zxvd_proc_enable(false);
+}
+
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* as zxv_host.c does: a closed peer is an error return */
@@ -6766,10 +8660,18 @@ int main(void)
     test_views();
     test_play();
     test_jurisdiction();
+    test_juris_plugins();
     test_groups();
     test_feature_save();
     test_edges();
     test_ext();
+    test_audit();
+    test_notify();
+    test_caps();
+    test_shell();
+    test_dns();
+    test_sched();
+    test_proc();
     test_socket();
     free(OUT.p);
     if (fails) {

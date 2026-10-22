@@ -14,6 +14,7 @@
  *                                        LoRA adapter file or "-", and the
  *                                        words that route a question to it
  *        log PATH                        append one JSON line per question
+ *        delegate                        answer through H6 (below)
  *      tools/tiamat/make_h1_config.py writes it from the model manifest.
  *   H2 ROUTE. The lead is the cell whose keywords occur most often in the
  *      question (case-insensitive), the first cell on a tie. The witness is
@@ -38,6 +39,23 @@
  *      lead's draft is still held (exact_shown 1 in the trace).
  *   H5 LOG. One JSON line per question: the question, the cells, their
  *      replies, each verdict, the joined verdict and the time in ms.
+ *   H6 DELEGATE (swarm_deleg.h). Orchestration is a position, held for a
+ *      question by the cell whose keywords match it best (its interaction
+ *      circle: every cell with its H2 score and lineage). That cell is
+ *      asked to split the question into at most 4 questions that can be
+ *      answered on their own, one per line, or to say NONE. Each part opens
+ *      its own circle: the position passes to the part's best match (the
+ *      holder keeps it on a tie it is in; a tie across lineages is BOTH,
+ *      logged), and the part runs H2-H4 with that cell as its lead. The
+ *      parts are leaves of one delegation tree under the holder: the
+ *      whole's verdict is the conjoin of theirs (every part must hold; a
+ *      part past the fourth is not run and counts NEITHER), and every BOTH
+ *      stays in the tree. The tree is sealed once every part is closed.
+ *      No split (NONE, one line, or the holder could not answer): the
+ *      question runs H2-H4 as one part, exactly as without H6. The host's
+ *      budget gate prices every ask, so the tree reserves no tokens of its
+ *      own (estimates 0). Each hand-off is returned for the host's
+ *      receipts.
  */
 #ifndef ZXV_TIAMAT_H
 #define ZXV_TIAMAT_H
@@ -45,6 +63,8 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdint.h>
+
+#include "swarm_deleg.h"
 
 #define ZXV_TIAMAT_SLOTS    12u
 #define ZXV_TIAMAT_CELLS    16u
@@ -72,6 +92,7 @@ typedef struct {
     zxv_tiamat_cell_t cell[ZXV_TIAMAT_CELLS];
     uint32_t n_cells;
     char log_path[ZXV_TIAMAT_PATH]; /* "" = no log */
+    int delegate;                   /* 1: answer through H6 */
 } zxv_tiamat_conf_t;
 
 /* H1. Parse a config text. 0, or -1 with "line N: why" in err. */
@@ -133,5 +154,37 @@ int zxv_tiamat_log(const char *path, const char *q, const zxv_tiamat_conf_t *c,
 /* The same JSON line to f, with what the user saw ("seen", omitted when null). */
 void zxv_tiamat_write(FILE *f, const char *q, const zxv_tiamat_conf_t *c,
                       const zxv_tiamat_trace_t *t, const char *seen);
+
+/* ---- H6 ---- */
+#define ZXV_TIAMAT_PARTS  SWD_FANOUT
+#define ZXV_TIAMAT_PART_Q 512u
+
+typedef struct {
+    swd_handoff_t take; /* the position for the whole question (from SWD_NONE) */
+    uint32_t holder;    /* the cell that holds it */
+    int split_rc;       /* the holder's ask result for the split */
+    char split_reply[ZXV_TIAMAT_REPLY];
+    uint32_t n_parts; /* 0: not split, part[0] is the whole question */
+    uint32_t n_lost;  /* parts past the fourth, not run */
+    char part_q[ZXV_TIAMAT_PARTS][ZXV_TIAMAT_PART_Q];
+    swd_handoff_t hand[ZXV_TIAMAT_PARTS];
+    uint32_t node[ZXV_TIAMAT_PARTS];
+    zxv_tiamat_trace_t part[ZXV_TIAMAT_PARTS];
+    int part_shown[ZXV_TIAMAT_PARTS];
+    swd_tree_t tree; /* sealed: tree.root_tv is tv */
+    uint32_t n_conflicts;
+    int tv;
+} zxv_tiamat_deleg_t;
+
+/* H6: the position, the split, the parts, the tree, and what the user sees
+ * into out. Returns the whole's verdict; 1 in *shown when it is TRUE or
+ * NEITHER (held parts show only their reasons, never their drafts). */
+int zxv_tiamat_delegate(const zxv_tiamat_conf_t *c, zxv_tiamat_ask_fn ask, void *ctx, const char *q,
+                        zxv_tiamat_deleg_t *d, char *out, size_t cap, int *shown);
+/* H5 for H6: one JSON line with the position, the split and every part. */
+int zxv_tiamat_log_deleg(const char *path, const char *q, const zxv_tiamat_conf_t *c,
+                         const zxv_tiamat_deleg_t *d);
+void zxv_tiamat_write_deleg(FILE *f, const char *q, const zxv_tiamat_conf_t *c,
+                            const zxv_tiamat_deleg_t *d, const char *seen);
 
 #endif

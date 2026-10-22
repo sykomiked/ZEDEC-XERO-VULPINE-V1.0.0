@@ -56,7 +56,7 @@ case "$($CC -dumpmachine 2>/dev/null)" in
     # later install_name_tool -add_rpath.
     *darwin*|*apple*)
         LIBF=libzxv.dylib
-        OSLIBS="-framework IOKit -framework CoreFoundation" # power.* (zxv_power_host.c)
+        OSLIBS="-framework IOKit -framework CoreFoundation" # power.*, thermal.read (zxv_power_host.c, zxv_thermal_host.c)
         RP='-Wl,-rpath,@loader_path,-rpath,@executable_path/../Frameworks,-headerpad_max_install_names' ;;
     *)                LIBF=libzxv.so;    RP='-Wl,-rpath,$ORIGIN' ;;
 esac
@@ -142,9 +142,13 @@ for d in $(sh "$HERE/app_sources.sh" groupincs); do set -- "$@" "-I$K/$d"; done
 for f in $(sh "$HERE/app_sources.sh" groups); do set -- "$@" "$K/$f"; done
 set -- "$@" "$HERE/zxvd_rpc.c" "$HERE/zxv_files.c" "$HERE/zxv_spaces.c" "$HERE/zxvd_phone.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
 # the utilities, Scent, Platen (with its IPP and eSCL codecs), Keepsake, Wake,
-# Shepherd and Waymark behind zxvd_rpc.c
+# Shepherd, Waymark, Gatehouse's capability answers, the terminal's jobs,
+# Signpost's names, Treadle's schedules and Warren's processes
+# behind zxvd_rpc.c
 set -- "$@" "-I$K/src/print" "$HERE/zxv_sysinfo.c" "$HERE/zxvd_log.c" "$HERE/zxv_search.c" "$HERE/zxv_print_host.c" \
-    "$HERE/zxv_keepsake.c" "$HERE/zxv_journal.c" "$HERE/zxv_screen.c" "$HERE/zxv_place.c" "$K/src/print/ipp.c" "$K/src/print/escl.c"
+    "$HERE/zxv_keepsake.c" "$HERE/zxv_journal.c" "$HERE/zxv_screen.c" "$HERE/zxv_place.c" "$HERE/zxv_caps.c" \
+    "$HERE/zxvd_shell.c" "$HERE/zxvd_dns.c" "$HERE/zxv_sched.c" "$HERE/zxvd_proc.c" \
+    "$K/src/print/ipp.c" "$K/src/print/escl.c"
 # the module methods (app_sources.sh modules): each source not already on
 # the line (srcs and the method groups link several of them) is added once
 for f in $(sh "$HERE/app_sources.sh" modules); do
@@ -158,7 +162,7 @@ done
 # payments (zxvd_pay.h): ident's passkey check and the post-quantum code it
 # links (app_sources.sh already has ML-DSA-65/87, ML-KEM-1024, X25519), and
 # its Argon2id for seats.* (zxvd_seats.c)
-set -- "$@" "-I$K/src/ident" "$HERE/zxvd_pay.c" "$K/src/ident/id_passkey.c" "$K/src/ident/id_core.c" \
+set -- "$@" "-I$K/src/ident" "$HERE/zxvd_pay.c" "$K/src/ident/id_passkey.c" "$K/src/ident/id_core.c" "$K/src/ident/id_mem.c" \
     "$K/src/ident/id_argon2.c"
 for f in pq_matrix pq_hqc5 pq_slh256s; do set -- "$@" "$K/src/pqsec/$f.c"; done
 for f in "$K"/src/pqsec/slhdsa/[a-z]*.c; do set -- "$@" "$f"; done

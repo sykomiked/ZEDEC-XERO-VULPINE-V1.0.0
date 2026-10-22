@@ -137,6 +137,8 @@ static void test_cycles_and_replay(void)
     reg.events[0].parent_ordinals[0] = 2;
     CHECK(oseq_detect_cycle(&reg, 0) && oseq_detect_cycle(&reg, 1) && oseq_detect_cycle(&reg, 2),
           "a 3-loop is a cycle from every member");
+    CHECK(!oseq_is_ancestor(&reg, 1, 1) && !oseq_happens_before(&reg, 0, 0),
+          "happens-before is irreflexive, even on a loop");
     CHECK(!oseq_commit_event(&reg, 1), "a cycle cannot commit");
     CHECK(oseq_get_event(&reg, 1)->status == OSEQ_STATUS_REJECTED && reg.cycles_detected == 1 &&
               reg.rejections == 1,
@@ -145,6 +147,18 @@ static void test_cycles_and_replay(void)
     CHECK(oseq_detect_cycle(&reg, 0), "a self-loop is a cycle");
     reg.events[0].num_parents = 0;
     CHECK(!oseq_detect_cycle(&reg, 2) && oseq_commit_event(&reg, 2), "repaired: commits");
+
+    /* every search starts with nothing visited: e1 <- e0 <- (edited) e3 */
+    oseq_registry_init(&reg);
+    oseq_register_node(&reg, "n", 1);
+    oseq_register_event(&reg, 0, "s", 1, 0, 0, 0, 0);
+    oseq_register_event(&reg, 0, "s", 1, 0, 0, p0, 1);
+    oseq_register_event(&reg, 0, "s", 1, 0, 0, p1, 1);
+    oseq_register_event(&reg, 0, "s", 1, 0, 0, 0, 0);
+    reg.events[0].num_parents = 1;
+    reg.events[0].parent_ordinals[0] = 3;
+    CHECK(!oseq_is_ancestor(&reg, 2, 1), "a search that visits event 0 ...");
+    CHECK(oseq_is_ancestor(&reg, 3, 1), "... leaves nothing behind for the next search through it");
 
     /* replay window: the last OSEQ_REPLAY_WINDOW hashes are refused */
     oseq_registry_init(&reg);
@@ -206,6 +220,11 @@ static void test_edges(void)
     CHECK(oseq_register_node(&reg, longname, 1) == 3 && strlen(reg.nodes[3].name) == 31,
           "a long name is clipped to 31");
     CHECK(reg.nodes[3].active, "a new node is active");
+    int tail_zero = 1;
+    for (uint32_t j = 6; j < OSEQ_MAX_NAME_LEN; j++) tail_zero &= reg.nodes[0].name[j] == 0;
+    CHECK(tail_zero, "a node's name is zero past its end");
+    CHECK(oseq_register_node(&reg, "alphabet", 4) == 1 && reg.node_count == 4,
+          "a known node that is not the first is found again, not added");
     for (uint32_t i = 4; i < OSEQ_MAX_NODES; i++) {
         char nm[16];
         snprintf(nm, sizeof nm, "n%u", i);
@@ -213,6 +232,8 @@ static void test_edges(void)
     }
     CHECK(oseq_register_node(&reg, "one-too-many", 1) == -1, "node table full");
     CHECK(oseq_register_node(&reg, "alpha", 3) == 0, "a known node still re-registers when full");
+    CHECK(oseq_register_node(&reg, "n40", 3) == 40 && reg.nodes[40].incarnation == 3,
+          "any known node, not only the first");
 
     uint32_t five[5] = {0, 0, 0, 0, 0};
     CHECK(oseq_register_event(0, 0, "s", 1, 0, 0, 0, 0) == -1, "event NULL");
@@ -221,12 +242,19 @@ static void test_edges(void)
     CHECK(oseq_register_event(&reg, 0, 0, 1, 0, 0, five, 4) == 2 &&
               oseq_get_event(&reg, 2)->schema[0] == 0,
           "no schema, four parents");
-    uint32_t bad[1] = {99};
-    CHECK(oseq_register_event(&reg, 0, "s", 1, 0, 0, bad, 1) == 3, "a future parent index");
-    CHECK(oseq_get_event(&reg, 3)->parent_ordinals[0] == 0, "is stored as 0 (see the audit)");
-    CHECK(oseq_register_event(&reg, 0, "s", 1, 0, 0, 0, 2) == 4 &&
-              oseq_get_event(&reg, 4)->parent_ordinals[1] == 0,
-          "parents claimed, none given: stored as 0");
+    uint32_t bad[2] = {0, 99};
+    uint64_t ord = reg.next_ordinal, seq = reg.nodes[0].next_sequence;
+    uint32_t cnt = reg.event_count, rc = reg.replay_count;
+    static const uint8_t hb[4] = {9, 8, 7, 6};
+    CHECK(oseq_register_event(&reg, 0, "s", 1, hb, 4, bad, 2) == -1, "a future parent index is refused");
+    CHECK(oseq_register_event(&reg, 0, "s", 1, hb, 4, 0, 2) == -1, "parents claimed, none given: refused");
+    CHECK(reg.event_count == cnt && reg.next_ordinal == ord && reg.nodes[0].next_sequence == seq &&
+              reg.replay_count == rc && reg.rejections == 0 && !oseq_check_replay(&reg, hb, 4),
+          "a refused event writes nothing: no slot, ordinal, sequence or replay entry");
+    CHECK(oseq_register_event(&reg, 0, "s", 1, hb, 4, bad, 1) == 3 &&
+              oseq_get_event(&reg, 3)->parent_ordinals[0] == 0 && oseq_get_depth(&reg, 3) == 1,
+          "the same hash with a real parent is accepted");
+    CHECK(oseq_register_event(&reg, 0, "s", 1, 0, 0, 0, 0) == 4, "next index");
     CHECK(!oseq_commit_event(0, 0) && !oseq_reject_event(0, 0) && !oseq_commit_event(&reg, 99) &&
               !oseq_reject_event(&reg, 99),
           "commit/reject out of range");
@@ -238,6 +266,10 @@ static void test_edges(void)
         oseq_register_event(&reg, 0, "s", 1, 0, 0, 0, 0);
     CHECK(reg.event_count == OSEQ_MAX_EVENTS, "event table filled");
     CHECK(oseq_register_event(&reg, 0, "s", 1, 0, 0, 0, 0) == -1, "event table full");
+    CHECK(!oseq_is_ancestor(&reg, 0, OSEQ_MAX_EVENTS) && !oseq_is_ancestor(&reg, OSEQ_MAX_EVENTS - 1, 0) &&
+              !oseq_happens_before(&reg, 0, OSEQ_MAX_EVENTS) && !oseq_detect_cycle(&reg, OSEQ_MAX_EVENTS - 1) &&
+              !oseq_detect_cycle(&reg, OSEQ_MAX_EVENTS),
+          "queries on a full table stay inside it");
     CHECK(oseq_dag_is_valid_ordinal(1) && !oseq_dag_is_valid_ordinal(0), "0 is the null ordinal");
     CHECK(oseq_dag_is_later(5, 4) && !oseq_dag_is_later(4, 4) && !oseq_dag_is_later(3, 4), "later");
     CHECK(strcmp(oseq_status_name(OSEQ_STATUS_PENDING), "pending") == 0 &&
@@ -262,12 +294,17 @@ static void test_boundaries(void)
               oseq_find_node(&reg, "xc") == -1,
           "find tells them apart");
 
-    /* parent index exactly event_count is the event itself: refused as 0 */
+    /* the first event can have no parent: one would be itself */
+    uint32_t zero[1] = {0};
+    CHECK(oseq_register_event(&reg, 0, "s", 1, 0, 0, zero, 1) == -1 && reg.event_count == 0,
+          "a parent on the first event is refused (it once became a self-loop)");
     CHECK(oseq_register_event(&reg, 0, "s", 1, 0, 0, 0, 0) == 0, "root");
+    /* parent index exactly event_count is the event itself: refused */
     uint32_t self[1] = {1};
-    CHECK(oseq_register_event(&reg, 0, "s", 1, 0, 0, self, 1) == 1 &&
-              oseq_get_event(&reg, 1)->parent_ordinals[0] == 0,
-          "a parent equal to the new index is not stored");
+    CHECK(oseq_register_event(&reg, 0, "s", 1, 0, 0, self, 1) == -1, "a parent equal to the new index is refused");
+    CHECK(oseq_register_event(&reg, 0, "s", 1, 0, 0, zero, 1) == 1 && oseq_get_depth(&reg, 1) == 1 &&
+              !oseq_detect_cycle(&reg, 0) && !oseq_detect_cycle(&reg, 1),
+          "a real parent: depth 1, no cycle anywhere");
     uint32_t n = reg.event_count;
     CHECK(!oseq_commit_event(&reg, n) && !oseq_reject_event(&reg, n) &&
               reg.events[n].status == OSEQ_STATUS_PENDING && reg.commits == 0 && reg.rejections == 0,
@@ -286,6 +323,8 @@ static void test_boundaries(void)
     CHECK(oseq_register_event(&reg, 0, "s", 1, h1, 1, 0, 0) == 3 && oseq_check_replay(&reg, h1, 1),
           "a 1-byte hash is recorded");
     CHECK(oseq_get_event(&reg, 3)->payload_hash[1] == 0, "the event copy stops at hash_len");
+    CHECK(oseq_get_event(&reg, 3)->payload_hash_len == 1 && oseq_get_event(&reg, 3)->payload_hash[0] == 0x5A,
+          "a 1-byte hash is stored on the event");
     CHECK(reg.replay_hashes[(reg.replay_head + OSEQ_REPLAY_WINDOW - 1) % OSEQ_REPLAY_WINDOW][1] == 0,
           "the replay copy stops at hash_len");
     uint8_t g[32];

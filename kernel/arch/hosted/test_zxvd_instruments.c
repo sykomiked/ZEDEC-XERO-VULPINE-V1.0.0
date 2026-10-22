@@ -15,8 +15,19 @@ static test_signer_t GW, AL, BO, WR, BU, LO, SH;
     f " is off: start zxvd with --enable " f ", or call features.set (regulated: test or "         \
       "licensed use only)"
 
+/* zxvd_groups.h: what the Player Card reads from the desk (all practice) */
+static bool practice_is(bool set_up, uint32_t live, uint64_t qty)
+{
+    uint32_t l = 99;
+    uint64_t q = 99;
+    bool o = zxvd_bonds_practice(&l, &q);
+    return o == set_up && l == live && q == qty;
+}
+
 static void test_switches(void)
 {
+    CHECK(practice_is(false, 0, 0) && !zxvd_bonds_practice(NULL, NULL),
+          "practice bonds: none before setup, NULL outputs are fine");
     EXPECT(rpc("bonds.issue", ""), ERRR("-32012", OFF_MSG("bonds")));
     EXPECT(rpc("derivatives.push", ""), ERRR("-32012", OFF_MSG("derivatives")));
     EXPECT(rpc("bonds.status", ""), OKR("{\"set_up\":false,\"keys\":0,\"sandbox\":true}"));
@@ -123,6 +134,7 @@ static void test_bonds(void)
                "\"share_den\":\"2\",\"issuing_enabled\":false}"));
     EXPECT(rpc("bonds.setup", "\"juris\":840,\"gateway\":900"),
            ERRR("-32060", "SET_UP: bonds are set up already (this run)"));
+    CHECK(practice_is(true, 0, 0), "practice bonds: set up, none live");
     /* accounts: 0, 1 the issuers, 2 the lock */
     EXPECT(rpc("bonds.account_open", "\"owner\":1,\"asset\":\"vbill\""),
            OKR("{\"account\":3,\"owner\":1,\"asset\":\"vbill\"}"));
@@ -196,6 +208,7 @@ static void test_bonds(void)
                           "zero amount)"));
     EXPECT(rpc("bonds.issue", "\"owner\":1,\"vbill_account\":3,\"payee\":4,\"qty\":1"),
            ERRR("-32602", "missing integer parameter \\\"k\\\""));
+    CHECK(practice_is(true, 2, 500), "practice bonds: two live, 400 + 100; refusals add none");
 
     /* B2: alice hands bond 1 to bob */
     EXPECT(rpc("bonds.message", "\"kind\":\"transfer\",\"serial\":9,\"to\":2,\"payee\":5"),
@@ -211,6 +224,7 @@ static void test_bonds(void)
                "\"1000\",\"maturity\":\"1233\",\"nonce\":\"1\",\"last_paid_minor\":\"0\"}"));
     EXPECT(rpc("bonds.transfer", "\"serial\":1,\"from\":2,\"to\":2,\"payee\":5,\"sig\":\"%s\"", s),
            ERRR("-32060", "VBOND_ERR_SIG: the signature does not verify"));
+    CHECK(practice_is(true, 2, 500), "practice bonds: a transfer changes neither count nor qty");
 
     /* B4: realised revenue, then the whole pool to the live bonds */
     EXPECT(rpc("bonds.distribute", "\"pool\":8,\"now\":1000"),
@@ -249,6 +263,7 @@ static void test_bonds(void)
     EXPECT(rpc("bonds.redeem", "%s,\"now\":1233", red),
            ERRR("-32060", "VBOND_ERR_NOT_FOUND: no live bond has that serial"));
     HAS(rpc("bonds.account", "\"account\":6"), "\"balance_minor\":\"400\"");
+    CHECK(practice_is(true, 1, 100), "practice bonds: a redeemed bond leaves the figure");
 
     /* X4 / X6: off answers -32012, the state stays */
     rpc("features.set", "\"feature\":\"bonds\",\"enabled\":false");
@@ -269,12 +284,14 @@ static void test_bonds(void)
            OKR("{\"serial\":\"2\",\"returned_qty\":\"100\",\"vbill_account\":3}"));
     HAS(rpc("bonds.status", ""), "\"locked_qty\":\"0\",\"postings\":\"7\",\"bonds\":[],"
                                  "\"check\":true");
+    CHECK(practice_is(true, 0, 0), "practice bonds: all redeemed");
 }
 
 static void test_bond_terms(void)
 {
     /* custom terms on a fresh group */
     zxvd_rpc_groups_reset();
+    CHECK(practice_is(false, 0, 0), "practice bonds: closing the group forgets the desk");
     zxvd_rpc_add_group(zxvd_bonds_group());
     zxvd_rpc_enable("bonds");
     EXPECT(rpc("bonds.setup",

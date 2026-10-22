@@ -1871,6 +1871,81 @@ static void test_registry_fields(void)
     CHECK(!zxapp_cap_known(NULL) && !zxapp_cap_known("") && !zxapp_cap_known("fs") &&
               !zxapp_cap_known("fs.reads") && !zxapp_cap_known("Net"),
           "near misses");
+    /* R3b: the capability each zxvd method needs */
+    static const char *const MC[][2] = {
+        {"log.tail", "journal"},
+        {"journal.query", "journal"},
+        {"journal.verify", "journal"},
+        {"journal.append", "journal.write"},
+        {"notify.send", "notify"},
+        {"shell.run", "shell"},
+        {"shell.read", "shell"},
+        {"caps.grant", "caps"},
+        {"caps.list", "caps"},
+        {"files.read", "fs.read"},
+        {"files.list", "fs.read"},
+        {"files.write", "fs.write"},
+        {"files.trash", "fs.write"},
+        {"ledger.post", "ledger.post"},
+        {"currency.enable", "ledger.post"},
+        {"ledger.balance", "ledger.read"},
+        {"books.file", "ledger.read"},
+        {"swarm.ask", "ai.ask"},
+        {"swarm.state", "swarm"},
+        {"place.ask", "location"},
+        {"print.submit", "print"},
+        {"scan.start", "scan"},
+        {"backup.run", "backup"},
+        {"screen.status", "screen.time"},
+        {"sys.info", "sys.read"},
+        {"search.query", "search"},
+        {"net.command", "net"},
+        {"peer.ask", "peers"},
+        {"power.status", "power.read"},
+        {"power.top", "power.read"},
+        {"thermal.read", "power.read"},
+    };
+    for (unsigned i = 0; i < sizeof MC / sizeof MC[0]; i++) {
+        const char *c = zxapp_method_cap(MC[i][0]);
+        CHECK(c && !strcmp(c, MC[i][1]) && zxapp_cap_known(c), "%s needs %s (%s)", MC[i][0],
+              MC[i][1], c ? c : "none");
+    }
+    CHECK(!zxapp_method_cap("rpc.discover") && !zxapp_method_cap("zxvd.version") &&
+              !zxapp_method_cap("notes.list") && !zxapp_method_cap(NULL) && !zxapp_method_cap("") &&
+              !zxapp_method_cap("files") && !zxapp_method_cap("shellx.run") &&
+              !zxapp_method_cap("logtail"),
+          "R3b: methods any app may call, and near misses");
+    CHECK(parse("zxapp 1\nid flint\nneeds sys.read\nneeds fs.read\n") == ZXAPP_OK, "flint: %s",
+          A.err);
+    CHECK(!zxapp_gate(&A, "log.tail") && !zxapp_gate(&A, "shell.run") &&
+              zxapp_gate(&A, "sys.info") && zxapp_gate(&A, "files.read") &&
+              !zxapp_gate(&A, "files.write") && zxapp_gate(&A, "rpc.discover") &&
+              !zxapp_gate(NULL, "log.tail") && zxapp_gate(NULL, "zxvd.version"),
+          "R3b: without \"needs journal\", no log.tail");
+    CHECK(parse("zxapp 1\nid wake\nneeds journal\nneeds shell\nneeds journal.write\n"
+                "needs caps\nneeds notify\n") == ZXAPP_OK &&
+              zxapp_gate(&A, "log.tail") && zxapp_gate(&A, "journal.append") &&
+              zxapp_gate(&A, "shell.run") && zxapp_gate(&A, "caps.check") &&
+              zxapp_gate(&A, "notify.send"),
+          "with them: %s", A.err);
+    /* R3: the power and heat capability, beside sys.read */
+    CHECK(zxapp_cap_known("power.read") && zxapp_cap_known("sys.read") &&
+              !zxapp_cap_known("power") && !zxapp_cap_known("power.write") &&
+              !zxapp_cap_known("thermal.read"),
+          "power.read is a capability; thermal.read is a method, not one");
+    bool listed = false;
+    for (uint32_t i = 0; i < nc; i++) listed |= !strcmp(caps[i], "power.read");
+    CHECK(listed, "zxapp_caps lists power.read");
+    CHECK(parse("zxapp 1\nid brz\nneeds power.read\nneeds sys.read\n") == ZXAPP_OK &&
+              zxapp_needs(&A, "power.read", NULL),
+          "an app may ask for power.read: %s", A.err);
+    CHECK(zxapp_gate(&A, "power.status") && zxapp_gate(&A, "power.top") &&
+              zxapp_gate(&A, "thermal.read"),
+          "R3b: power.read reaches power.status, power.top and thermal.read");
+    CHECK(parse("zxapp 1\nid old\nneeds sys.read\n") == ZXAPP_OK &&
+              zxapp_gate(&A, "power.status") && !zxapp_gate(&A, "power.top") &&
+              !zxapp_gate(&A, "thermal.read"),
+          "R3: sys.read still reaches power.status, and only that: %s", A.err);
 }
 
 /* ---- wave 0: the built-in apps' own manifests, read from disk ----------------

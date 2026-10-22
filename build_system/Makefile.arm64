@@ -321,6 +321,10 @@ KERNEL_SRCS = \
     kernel/src/pmm/pmm.c \
     kernel/src/crash/crash.c \
     kernel/src/crash/bootctl.c \
+    kernel/src/diskcrypt/adiantum.c \
+    kernel/src/diskcrypt/diskcrypt.c \
+    kernel/src/ident/id_argon2.c \
+    kernel/src/ident/id_mem.c \
     kernel/src/loader/elf.c \
     kernel/src/loader/zsp.c \
     kernel/src/loader/abupdate.c \

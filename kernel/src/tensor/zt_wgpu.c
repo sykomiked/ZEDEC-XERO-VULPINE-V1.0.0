@@ -727,8 +727,18 @@ zt_wgpu_t *zt_wgpu_new(char *err, uint32_t errcap)
     }
     WGPUAdapterInfo info = WGPU_ADAPTER_INFO_INIT;
     if (g->api.AdapterGetInfo(g->adapter, &info) == WGPUStatus_Success) {
-        sv_copy(g->name, sizeof g->name, info.device);
-        if (!g->name[0]) sv_copy(g->name, sizeof g->name, info.description);
+        /* browsers often give only vendor and architecture ("apple",
+         * "metal-3"), or a bare number for the device */
+        char dev[96], ven[64], arch[64];
+        sv_copy(g->name, sizeof g->name, info.description);
+        sv_copy(dev, sizeof dev, info.device);
+        sv_copy(ven, sizeof ven, info.vendor);
+        sv_copy(arch, sizeof arch, info.architecture);
+        if (!g->name[0] && dev[0] && strspn(dev, "0123456789") != strlen(dev))
+            snprintf(g->name, sizeof g->name, "%s", dev);
+        if (!g->name[0] && (ven[0] || arch[0]))
+            snprintf(g->name, sizeof g->name, "%s%s%s", ven, ven[0] && arch[0] ? " " : "", arch);
+        if (!g->name[0]) snprintf(g->name, sizeof g->name, "WebGPU adapter");
         g->api.AdapterInfoFreeMembers(info);
     }
     WGPULimits al = WGPU_LIMITS_INIT;

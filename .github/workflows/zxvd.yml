@@ -89,6 +89,10 @@ jobs:
         env:
           CC: ${{ matrix.cc }}
         run: sh kernel/arch/hosted/test_zxvd_econ.sh
+      - name: Money engines unit test (mint, qnote, fx, vhub, capmkt, market, royalty, cred, dispute)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_money.sh
       - name: Economy groups unit tests (bonds, derivatives, grants, estate; real engines)
         env:
           CC: ${{ matrix.cc }}

@@ -214,3 +214,4 @@ kernel/src/tensor/test_tts_fixture.h
 kernel/src/vaudio/zxva_stft_kern.h
 kernel/src/tensor/zt_wp_tables.h
 kernel/src/tensor/test_bert_fixture.h
+kernel/src/diskcrypt/test_diskcrypt_vectors.h

@@ -36,7 +36,9 @@ APPS_TEST(gatehouse)
           "holders: a count of flags, refused past a flag");
     CHECK(gatehouse_cap_index("net") == 0 &&
               gatehouse_cap_index("location") == GATEHOUSE_LOCATION &&
-              gatehouse_cap_index("notify") == (int32_t) GATEHOUSE_CAPS - 1 &&
+              gatehouse_cap_index("notify") == 18 &&
+              gatehouse_cap_index("proc.control") == 24 &&
+              gatehouse_cap_index("power.read") == (int32_t) GATEHOUSE_CAPS - 1 &&
               gatehouse_cap_index("teleport") == -1 && gatehouse_cap_index("") == -1 &&
               gatehouse_cap_index(NULL) == -1,
           "capability names (GR1)");

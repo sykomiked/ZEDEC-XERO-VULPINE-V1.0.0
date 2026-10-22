@@ -50,7 +50,17 @@ static bool str_eq(const char *a, const char *b) {
  *   T∨anything=T
  *   B∨B=B, B∨⊥=B
  *   ⊥∨⊥=⊥
+ *
+ * A value outside the four (an lpres_state_t is an int; a corrupt record or a
+ * cast can hold anything) is read as ⊥, the same default lpres_negate takes,
+ * so both operators stay closed over the four states. They once passed it
+ * through: T∧5 returned 5, a value no other function in this file names.
  */
+
+static lpres_state_t lpres_norm(lpres_state_t s)
+{
+    return (unsigned) s <= (unsigned) LPRES_STATE_BOTH ? s : LPRES_STATE_NEITHER;
+}
 
 lpres_state_t lpres_negate(lpres_state_t s) {
     switch (s) {
@@ -63,6 +73,8 @@ lpres_state_t lpres_negate(lpres_state_t s) {
 }
 
 lpres_state_t lpres_conjoin(lpres_state_t a, lpres_state_t b) {
+    a = lpres_norm(a);
+    b = lpres_norm(b);
     /* F dominates */
     if (a == LPRES_STATE_FALSE || b == LPRES_STATE_FALSE)
         return LPRES_STATE_FALSE;
@@ -84,6 +96,8 @@ lpres_state_t lpres_conjoin(lpres_state_t a, lpres_state_t b) {
 }
 
 lpres_state_t lpres_disjoin(lpres_state_t a, lpres_state_t b) {
+    a = lpres_norm(a);
+    b = lpres_norm(b);
     /* T dominates */
     if (a == LPRES_STATE_TRUE || b == LPRES_STATE_TRUE)
         return LPRES_STATE_TRUE;
@@ -184,11 +198,11 @@ bool lpres_add_evidence(lpres_registry_t *reg, uint32_t idx, bool positive) {
     lpres_attestation_t *a = &reg->attestations[idx];
     if (a->revoked) return false;
 
-    if (positive) {
-        a->positive_evidence++;
-    } else {
-        a->negative_evidence++;
-    }
+    /* Counts saturate: at UINT32_MAX one more piece of evidence wrapped the
+     * count to 0, and an attestation with only that kind of evidence read as
+     * NEITHER (nothing known) after 2^32 confirmations. */
+    uint32_t *count = positive ? &a->positive_evidence : &a->negative_evidence;
+    if (*count != UINT32_MAX) (*count)++;
 
     /* Recompute state based on evidence counts */
     bool has_pos = a->positive_evidence > 0;

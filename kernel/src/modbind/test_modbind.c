@@ -845,6 +845,485 @@ static void test_selfcheck(void)
     mb_carrier_up();
 }
 
+/* ------------------------------------------- edges found by mutation
+ * Each block kills a surviving mutant that the differential probe saw change
+ * behaviour (tests/MUTATION_REPORT.md). Expected values follow modbind.h. */
+
+static int stub_pack2(const void *l, uint8_t *o, uint32_t m)
+{
+    (void) l;
+    (void) o;
+    (void) m;
+    return 1;
+}
+
+static void test_register_edges(void)
+{
+    mb_carrier_up();
+    modbind_reset();
+    mb_module_t e = blank("");
+    CHECK(!modbind_register(&e), "an empty name is refused");
+    mb_module_t x = blank("x");
+    CHECK(modbind_register(&x), "a one-letter name registers");
+
+    /* names fill all MB_NAME_LEN bytes with no terminator: equal names are a
+     * duplicate whatever the struct holds after the name */
+    modbind_reset();
+    mb_module_t a = blank(""), b;
+    memset(a.name, 'n', MB_NAME_LEN);
+    add_emit(&a, MB_FORM_TRISPACE, 1);
+    b = a;
+    b.emits[0].form = MB_FORM_POLY;
+    CHECK(modbind_register(&a), "a full-length name registers");
+    CHECK(!modbind_register(&b), "the same full-length name is a duplicate");
+
+    /* every port is validated, not only the first */
+    modbind_reset();
+    mb_module_t p = blank("ports");
+    add_emit(&p, MB_FORM_TRISPACE, 1);
+    add_emit(&p, MB_FORM_NONE, 1);
+    CHECK(!modbind_register(&p), "a second emit of form NONE is refused");
+    p = blank("ports");
+    add_ingest(&p, MB_FORM_TRISPACE, 1);
+    add_ingest(&p, MB_FORM__COUNT, 1);
+    CHECK(!modbind_register(&p), "a second ingest past the last form is refused");
+
+    /* every INHERIT capability takes the module's phase, at the full count */
+    mb_module_t ph = blank("phased");
+    ph.phase = 5;
+    for (int i = 0; i < (int) MB_MAX_CAPS; i++) {
+        char nm[8] = {'p', (char) ('0' + i), 0};
+        add_prov(&ph, cap(nm, 1, MB_PHASE_INHERIT, MB_AMP_FULL));
+        nm[0] = 'r';
+        add_req(&ph, cap(nm, 1, MB_PHASE_INHERIT, MB_AMP_FULL));
+    }
+    CHECK(modbind_register(&ph), "four provides and four requires");
+    const mb_module_t *rp = reg("phased");
+    int all5 = 1;
+    for (int i = 0; i < (int) MB_MAX_CAPS; i++)
+    all5 = all5 && rp->provides[i].phase == 5 &&
+           rp->
+               requires[
+                       i]
+                   .phase == 5;
+    CHECK(all5, "every inherited phase resolves to the module's");
+
+    /* a full-length capability name couples to itself */
+    modbind_reset();
+    mb_module_t lp = blank("longprov"), lr = blank("longreq");
+    mb_cap_t lc = cap("", 1, 0, MB_AMP_FULL);
+    memset(lc.name, 'c', MB_CAP_NAME_LEN);
+    add_prov(&lp, lc);
+    add_req(&lr, lc);
+    modbind_register(&lp);
+    modbind_register(&lr);
+    CHECK(modbind_resolve() == 2, "a full-length capability name couples");
+
+    /* the port check reads ports[0..n) only, and at the full count */
+    modbind_reset();
+    mb_module_t em = blank("emitter"), wide = blank("wide");
+    add_emit(&em, MB_FORM_PHASE, 1);
+    for (int i = 0; i < (int) MB_MAX_PORTS; i++)
+        add_ingest(&wide, MB_FORM_BINARY, (uint16_t) (i + 1));
+    modbind_register(&em);
+    modbind_register(&wide);
+    CHECK(modbind_check(reg("emitter")) == MB_ERR_ORPHAN, "nobody ingests PHASE: orphan");
+    modbind_reset();
+    mb_module_t stale = blank("stale");
+    add_ingest(&stale, MB_FORM_BINARY, 1);
+    stale.ingests[1].form = MB_FORM_PHASE; /* past n_ingests: not declared */
+    stale.ingests[1].version = 2;
+    modbind_register(&em);
+    modbind_register(&stale);
+    CHECK(modbind_check(reg("emitter")) == MB_ERR_ORPHAN,
+          "a port past the count is not a version mismatch");
+}
+
+static void test_hold_edges(void)
+{
+    mb_carrier_up();
+    modbind_reset();
+    /* uprov* are held UNPROVIDED, deadp provides a zero-drive capability,
+     * phheld is held OUT OF PHASE, base is ready */
+    mb_module_t base = blank("base"), deadp = blank("deadp");
+    mb_module_t up1 = blank("uprov1"), up2 = blank("uprov2"), phheld = blank("phheld");
+    mb_module_t ba = blank("b_a"), bc = blank("b_c"), bd = blank("b_d"), be = blank("b_e");
+    mb_module_t named1 = blank("named1"), held2 = blank("held2"), r1 = blank("r1"),
+                r2 = blank("r2");
+    add_prov(&base, cap("base", 1, 0, MB_AMP_FULL));
+    add_prov(&deadp, cap("dq", 1, 0, MB_AMP_NONE));
+    add_req(&up1, cap("ghost", 1, 0, MB_AMP_FULL));
+    add_prov(&up1, cap("x", 1, 0, MB_AMP_FULL));
+    add_prov(&up1, cap("z", 1, 0, MB_AMP_FULL));
+    add_req(&up2, cap("ghost", 1, 0, MB_AMP_FULL));
+    add_req(&phheld, cap("dq", 1, 0, MB_AMP_FULL));
+    add_prov(&phheld, cap("other", 1, 0, MB_AMP_FULL));
+    add_prov(&phheld, cap("v", 1, 0, MB_AMP_FULL));
+    add_prov(&phheld, cap("z", 1, 0, MB_AMP_FULL));
+    /* b_a: an inherited UNPROVIDED, then an out-of-phase requirement */
+    add_req(&ba, cap("x", 1, 0, MB_AMP_FULL));
+    add_req(&ba, cap("dq", 1, 0, MB_AMP_FULL));
+    /* b_c: z from uprov1 (UNPROVIDED) and from phheld (PHASE) */
+    add_req(&bc, cap("z", 1, 0, MB_AMP_FULL));
+    /* b_d: out of phase, then a requirement met by a ready provider */
+    add_req(&bd, cap("dq", 1, 0, MB_AMP_FULL));
+    add_req(&bd, cap("base", 1, 0, MB_AMP_FULL));
+    /* b_e: v is phheld's second provide */
+    add_req(&be, cap("v", 1, 0, MB_AMP_FULL));
+    /* the capability sits at provides[1] */
+    add_prov(&named1, cap("zz", 1, 0, MB_AMP_FULL));
+    add_prov(&named1, cap("pc", 1, 0, MB_AMP_NONE));
+    add_req(&r1, cap("pc", 1, 0, MB_AMP_FULL));
+    add_req(&held2, cap("ghost", 1, 0, MB_AMP_FULL));
+    add_prov(&held2, cap("zz2", 1, 0, MB_AMP_FULL));
+    add_prov(&held2, cap("pc2", 1, 0, MB_AMP_FULL));
+    add_req(&r2, cap("pc2", 1, 0, MB_AMP_FULL));
+    mb_module_t *all[] = {&base, &deadp, &up1,    &up2,   &phheld, &ba, &bc,
+                          &bd,   &be,    &named1, &held2, &r1,     &r2};
+    for (uint32_t i = 0; i < sizeof all / sizeof all[0]; i++)
+        CHECK(modbind_register(all[i]), "hold-edge graph registers");
+    modbind_resolve();
+    CHECK(modbind_hold_reason(reg("phheld")) == MB_HOLD_PHASE, "phheld: out of phase");
+    CHECK(modbind_hold_reason(reg("b_a")) == MB_HOLD_UNPROVIDED,
+          "an inherited UNPROVIDED outranks a later PHASE");
+    CHECK(modbind_hold_reason(reg("b_c")) == MB_HOLD_UNPROVIDED,
+          "the strongest reason among held providers, in any order");
+    CHECK(modbind_hold_reason(reg("b_d")) == MB_HOLD_PHASE,
+          "a requirement that is met explains nothing");
+    CHECK(modbind_hold_reason(reg("b_e")) == MB_HOLD_PHASE, "every provide of a provider is read");
+    CHECK(modbind_hold_reason(reg("r1")) == MB_HOLD_PHASE, "named at provides[1]: out of phase");
+    CHECK(modbind_hold_reason(reg("r2")) == MB_HOLD_UNPROVIDED,
+          "coupled at provides[1]: inherits the provider's reason");
+    mb_err_t err;
+    const char *who;
+    /* ghost: uprov1, uprov2, held2 = 3 UNPROVIDED, nothing else */
+    CHECK(modbind_verify_graph(&err, &who) == 3, "three unprovided, no cycle");
+
+    /* a withdrawn provider listed after a held one does not hide the held
+     * one's stronger reason */
+    modbind_reset();
+    mb_module_t a2 = blank("a2"), w = blank("w"), b2 = blank("b2");
+    add_req(&a2, cap("ghost", 1, 0, MB_AMP_FULL));
+    add_prov(&a2, cap("y", 1, 0, MB_AMP_FULL));
+    add_prov(&w, cap("y", 1, 0, MB_AMP_FULL));
+    add_prov(&w, cap("wcap", 1, 0, MB_AMP_FULL));
+    add_req(&b2, cap("y", 1, 0, MB_AMP_FULL));
+    modbind_register(&a2);
+    modbind_register(&w);
+    modbind_register(&b2);
+    modbind_resolve();
+    CHECK(reg("b2")->ready == MB_READY, "b2 ready through w");
+    CHECK(modbind_withdraw("wcap") == 2, "withdrawing wcap un-readies w and b2");
+    CHECK(modbind_hold_reason(reg("b2")) == MB_HOLD_UNPROVIDED,
+          "UNPROVIDED from a2 outranks WITHDRAWN from w");
+
+    /* a module held, then ready: its old reason does not stick */
+    modbind_reset();
+    mb_module_t m0 = blank("m0"), late = blank("late");
+    add_req(&m0, cap("latecap", 1, 0, MB_AMP_FULL));
+    add_prov(&late, cap("latecap", 1, 0, MB_AMP_FULL));
+    modbind_register(&m0);
+    modbind_resolve();
+    CHECK(modbind_hold_reason(reg("m0")) == MB_HOLD_UNPROVIDED, "m0 waits for latecap");
+    CHECK(modbind_verify_graph(&err, &who) == 1 && err == MB_ERR_UNPROVIDED && who &&
+              strcmp(who, "m0") == 0,
+          "the first module's requirement is checked");
+    modbind_register(&late);
+    modbind_resolve();
+    CHECK(modbind_hold_reason(reg("m0")) == MB_HOLD_NONE, "ready now: not held");
+    CHECK(modbind_verify_graph(&err, &who) == 0, "and the graph is sound");
+}
+
+static void test_verify_graph_edges(void)
+{
+    mb_err_t err;
+    const char *who;
+    mb_carrier_up();
+    /* a provider left behind by modbind_reset is not a provider */
+    modbind_reset();
+    mb_module_t filler = blank("filler"), gone = blank("gone");
+    add_prov(&gone, cap("gonecap", 1, 0, MB_AMP_FULL));
+    add_prov(&gone, cap("svc", 2, 0, MB_AMP_FULL));
+    modbind_register(&filler);
+    modbind_register(&gone);
+    modbind_reset();
+    mb_module_t needs = blank("needs");
+    add_req(&needs, cap("gonecap", 1, 0, MB_AMP_FULL));
+    add_prov(&needs, cap("svc", 1, 0, MB_AMP_FULL));
+    modbind_register(&needs);
+    CHECK(modbind_verify_graph(&err, &who) == 1 && err == MB_ERR_UNPROVIDED,
+          "after reset the old provider is gone, and no stale contract clashes");
+    CHECK(modbind_hold_reason(reg("needs")) == MB_HOLD_UNPROVIDED,
+          "after reset nothing names the old capability");
+
+    /* modules left behind by modbind_reset are not held in a cycle */
+    modbind_reset();
+    mb_module_t ya = blank("cyc_ya"), yb = blank("cyc_yb"), one = blank("one");
+    add_prov(&ya, cap("ya", 1, 0, MB_AMP_FULL));
+    add_req(&ya, cap("yb", 1, 0, MB_AMP_FULL));
+    add_prov(&yb, cap("yb", 1, 0, MB_AMP_FULL));
+    add_req(&yb, cap("ya", 1, 0, MB_AMP_FULL));
+    modbind_register(&ya);
+    modbind_register(&yb);
+    CHECK(modbind_verify_graph(&err, &who) == 2 && err == MB_ERR_CYCLE, "a 2-cycle");
+    modbind_reset();
+    modbind_register(&one);
+    CHECK(modbind_verify_graph(&err, &who) == 0, "after reset the old cycle is gone");
+
+    /* a requirement met at provides[1] */
+    modbind_reset();
+    mb_module_t pv = blank("pv"), rq = blank("rq");
+    add_prov(&pv, cap("first", 1, 0, MB_AMP_FULL));
+    add_prov(&pv, cap("second", 1, 0, MB_AMP_FULL));
+    add_req(&rq, cap("second", 1, 0, MB_AMP_FULL));
+    modbind_register(&pv);
+    modbind_register(&rq);
+    CHECK(modbind_verify_graph(&err, &who) == 0, "provides[1] provides");
+
+    /* a contract clash between later modules, at provides[1] on both sides */
+    modbind_reset();
+    mb_module_t c0 = blank("c0"), c1 = blank("c1"), c2 = blank("c2");
+    add_prov(&c0, cap("lone", 1, 0, MB_AMP_FULL));
+    add_prov(&c1, cap("pad1", 1, 0, MB_AMP_FULL));
+    add_prov(&c1, cap("svc", 1, 0, MB_AMP_FULL));
+    add_prov(&c2, cap("pad2", 1, 0, MB_AMP_FULL));
+    add_prov(&c2, cap("svc", 2, 0, MB_AMP_FULL));
+    modbind_register(&c0);
+    modbind_register(&c1);
+    modbind_register(&c2);
+    CHECK(modbind_verify_graph(&err, &who) == 1 && err == MB_ERR_CONTRACT && who &&
+              strcmp(who, "c2") == 0,
+          "a clash between modules 1 and 2 at provides[1]");
+}
+
+static void test_compose_edges(void)
+{
+    mb_carrier_up();
+    modbind_reset();
+    mb_module_t a = blank("ca"), b = blank("cb"), c = blank("cc");
+    add_emit(&a, MB_FORM_PHASE, 1); /* ingested by cb at ingests[1]: internal */
+    add_ingest(&b, MB_FORM_BINARY, 1);
+    add_ingest(&b, MB_FORM_PHASE, 1);
+    add_emit(&b, MB_FORM_POLY, 1);
+    b.xform.pack = stub_pack;
+    add_emit(&c, MB_FORM_TRISPACE, 1);
+    c.xform.pack = stub_pack2;
+    modbind_register(&a);
+    modbind_register(&b);
+    modbind_register(&c);
+    const char *const parts[] = {"ca", "cb", "cc"};
+    mb_module_t out;
+    CHECK(modbind_compose("comp", parts, 3, &out), "compose three parts");
+    CHECK(out.n_emits == 2 && out.emits[0].form == MB_FORM_POLY &&
+              out.emits[1].form == MB_FORM_TRISPACE,
+          "PHASE is internal (ingested at ingests[1]); POLY and TRISPACE surface");
+    CHECK(out.xform.pack == stub_pack, "the composite packs with its first surfacing part");
+}
+
+/* Fill the stack below the caller with a byte, so a local the code under test
+ * forgets to initialise reads that byte instead of whatever zero happens to be
+ * there. */
+static void __attribute__((noinline)) dirty_stack(unsigned char v)
+{
+    volatile unsigned char buf[32768];
+    for (size_t i = 0; i < sizeof buf; i++) buf[i] = v;
+}
+
+static const mb_form_t FOUR_FORMS[4] = {MB_FORM_BINARY, MB_FORM_TRISPACE, MB_FORM_POLY,
+                                        MB_FORM_PHASE};
+
+/* Every array at its bound: MB_MAX_MODULES modules, each with MB_MAX_CAPS
+ * provides and requires and MB_MAX_PORTS emits and ingests, through every
+ * entry point; then the same entry points on a small graph registered over
+ * the leftovers of the big one. Under tiers --mode san a read one past any
+ * count is a failure. */
+static void test_full_registry(void)
+{
+    static mb_module_t big[MB_MAX_MODULES];
+    char nm[MB_NAME_LEN];
+    mb_carrier_up();
+    modbind_reset();
+    for (uint32_t i = 0; i < MB_MAX_MODULES; i++) {
+        snprintf(nm, sizeof nm, "m%u", i);
+        big[i] = blank(nm);
+        for (uint32_t k = 0; k < MB_MAX_CAPS; k++) {
+            snprintf(nm, sizeof nm, "c%u_%u", i, k);
+            add_prov(&big[i], cap(nm, 1, 0, MB_AMP_FULL));
+            if (i) {
+                snprintf(nm, sizeof nm, "c%u_%u", i - 1, k);
+                add_req(&big[i], cap(nm, 1, 0, MB_AMP_FULL));
+            }
+        }
+        for (uint32_t k = 0; k < MB_MAX_PORTS; k++) {
+            add_emit(&big[i], FOUR_FORMS[k], 1);
+            add_ingest(&big[i], FOUR_FORMS[k], 1);
+        }
+        CHECK(modbind_register(&big[i]), "the full registry registers");
+    }
+    mb_module_t extra = blank("extra");
+    CHECK(!modbind_register(&extra), "one past MB_MAX_MODULES is refused");
+    CHECK(modbind_resolve() == MB_MAX_MODULES, "a chain of 192 resolves");
+    CHECK(modbind_hold_reason(reg("m191")) == MB_HOLD_NONE, "the end of the chain is ready");
+    CHECK(modbind_hold_reason(&extra) == MB_HOLD_NONE, "an unregistered module is not held");
+    CHECK(modbind_find("nobody") == 0, "not found among 192");
+    CHECK(modbind_verify_graph(0, 0) == 0, "the full chain is sound");
+    CHECK(modbind_check(reg("m5")) == MB_OK, "every port has a partner");
+    CHECK(modbind_can_bind(reg("m0"), reg("m1"), MB_FORM_PHASE), "m0 -> m1 over PHASE");
+    CHECK(modbind_withdraw("c0_0") == MB_MAX_MODULES, "withdrawing the root drops all 192");
+    CHECK(modbind_hold_reason(reg("m191")) == MB_HOLD_WITHDRAWN, "the end waits on S-");
+    CHECK(modbind_restore("c0_0") == MB_MAX_MODULES, "restoring it brings all 192 back");
+    CHECK(modbind_withdraw("a_capability_name_longer_than_24") == 0,
+          "a long name withdraws nothing");
+    const char *const one[] = {"m1"};
+    mb_module_t out;
+    CHECK(modbind_compose("composite_name_longer_than_24", one, 1, &out) && out.n_provides == 4 &&
+              out.n_requires == 4 && out.n_emits == 0,
+          "a one-part composite: its emits are its own ingests");
+    CHECK(memcmp(out.name, "composite_name_longer_th", MB_NAME_LEN) == 0,
+          "a long composite name is clipped to MB_NAME_LEN");
+
+    /* a small graph over the leftovers */
+    modbind_reset();
+    mb_module_t solo = blank("solo"), e4 = blank("e4"), hungry = blank("hungry");
+    add_req(&solo, cap("c1_0", 1, 0, MB_AMP_FULL)); /* left behind by m1 */
+    for (uint32_t k = 0; k < MB_MAX_PORTS; k++) {
+        add_emit(&e4, FOUR_FORMS[k], 1);
+        add_ingest(&hungry, FOUR_FORMS[k], 9);
+    }
+    modbind_register(&solo);
+    modbind_register(&e4);
+    modbind_register(&hungry);
+    CHECK(modbind_resolve() == 2 && reg("solo")->ready == MB_HELD,
+          "a provider left behind by reset provides nothing");
+    CHECK(modbind_hold_reason(reg("solo")) == MB_HOLD_UNPROVIDED, "and names nothing");
+    CHECK(modbind_verify_graph(0, 0) == 1, "one unprovided requirement");
+    CHECK(modbind_withdraw("c1_0") == 0 && modbind_restore("c1_0") == 0,
+          "nothing left behind is withdrawn or restored");
+    CHECK(modbind_find("m3") == 0, "nor found");
+    CHECK(modbind_check(reg("hungry")) == MB_ERR_VERSION,
+          "every form is there at version 1, not 9");
+    CHECK(!modbind_can_bind(reg("e4"), reg("hungry"), MB_FORM_BINARY), "v1 does not bind to v9");
+    const char *const two[] = {"e4", "hungry"};
+    CHECK(modbind_compose("pair", two, 2, &out) && out.n_emits == 4,
+          "no emit of e4 is ingested inside the pair");
+
+    /* a declaration that counts one port too many is refused, even when the
+     * byte after the last port reads as a valid form */
+    mb_module_t over = blank("over");
+    for (uint32_t k = 0; k < MB_MAX_PORTS; k++) add_emit(&over, FOUR_FORMS[k], 1);
+    over.n_emits = MB_MAX_PORTS + 1;
+    CHECK(!modbind_register(&over), "n_emits past MB_MAX_PORTS is refused");
+    over = blank("over");
+    for (uint32_t k = 0; k < MB_MAX_PORTS; k++) add_ingest(&over, FOUR_FORMS[k], 1);
+    over.n_ingests = MB_MAX_PORTS + 1;
+    CHECK(!modbind_register(&over), "n_ingests past MB_MAX_PORTS is refused");
+
+    /* compose writes every byte of the composite's name */
+    dirty_stack(0x5A);
+    mb_module_t dirty;
+    memset(&dirty, 0x5A, sizeof dirty);
+    CHECK(modbind_compose("", one + 0, 0, &dirty) == false, "no parts: refused");
+    const char *const e4only[] = {"e4"};
+    CHECK(modbind_compose("", e4only, 1, &dirty), "an unnamed composite");
+    int zero = 1;
+    for (uint32_t i = 0; i < MB_NAME_LEN; i++) zero = zero && dirty.name[i] == 0;
+    CHECK(zero, "an empty composite name is all zero");
+}
+
+/* Slots past every count hold real-looking capabilities: the registry slot
+ * just past g_n (left by an earlier, larger registration) and the array slots
+ * just past n_provides / n_requires (a declaration filled in past its count).
+ * Every walk stops at the count, so none of them is seen. */
+static void test_leftover_slots(void)
+{
+    char nm[MB_NAME_LEN];
+    mb_carrier_up();
+    modbind_reset();
+    for (uint32_t i = 0; i < 8; i++) {
+        snprintf(nm, sizeof nm, "s%u", i);
+        mb_module_t m = blank(nm);
+        if (i == 7) {
+            add_prov(&m, cap("lc", 1, 0, MB_AMP_FULL));
+            add_prov(&m, cap("lp", 1, 0, MB_AMP_FULL));
+            add_prov(&m, cap("lq", 1, 0, MB_AMP_FULL));
+            add_prov(&m, cap("lz", 1, 0, MB_AMP_FULL));
+        }
+        CHECK(modbind_register(&m), "the first registration");
+    }
+    CHECK(modbind_resolve() == 8 && reg("s7")->ready == MB_READY, "s7 is ready and provides lc");
+
+    modbind_reset(); /* slot 7 still holds s7, ready, providing all four */
+    mb_module_t x[7];
+    for (uint32_t i = 0; i < 7; i++) {
+        snprintf(nm, sizeof nm, "x%u", i);
+        x[i] = blank(nm);
+    }
+    add_req(&x[0], cap("lp", 1, 0, MB_AMP_FULL));
+    x[0].
+        requires[
+                1] = cap("lz", 1, 0, MB_AMP_FULL);   /* past n_requires = 1 */
+    x[0].provides[0] = cap("lp", 2, 0, MB_AMP_FULL); /* past n_provides = 0: would clash */
+    add_prov(&x[1], cap("lp", 1, 0, MB_AMP_NONE));
+    x[1].provides[1] = cap("lq", 1, 0, MB_AMP_FULL); /* past n_provides = 1 */
+    add_req(&x[2], cap("lc", 1, 0, MB_AMP_FULL));
+    x[2].provides[0] = cap("lp", 1, 0, MB_AMP_FULL); /* past n_provides = 0: would couple lp */
+    add_req(&x[3], cap("lq", 1, 0, MB_AMP_FULL));
+    x[3].provides[0] = cap("lp", 2, 0, MB_AMP_FULL); /* past n_provides = 0: would clash */
+    x[4].provides[0] = cap("lw", 1, 0, MB_AMP_FULL); /* ready, and past n_provides = 0 */
+    add_req(&x[5], cap("lw", 1, 0, MB_AMP_FULL));
+    add_prov(&x[6], cap("lw", 1, 0, MB_AMP_FULL));
+    add_req(&x[6], cap("none_such", 1, 0, MB_AMP_FULL));
+    for (uint32_t i = 0; i < 7; i++)
+        CHECK(modbind_register(&x[i]), "registered over the leftovers");
+    CHECK(modbind_count() == 7, "seven, so slot 7 is the leftover");
+    CHECK(modbind_resolve() == 2 && reg("x1")->ready == MB_READY && reg("x4")->ready == MB_READY,
+          "only x1 and x4 come up");
+    CHECK(modbind_hold_reason(reg("x0")) == MB_HOLD_PHASE,
+          "x0: lp is named by x1 and couples nowhere");
+    CHECK(modbind_hold_reason(reg("x2")) == MB_HOLD_UNPROVIDED, "x2: lc only in the slot past g_n");
+    CHECK(modbind_hold_reason(reg("x3")) == MB_HOLD_UNPROVIDED,
+          "x3: lq only in a slot past n_provides");
+    CHECK(modbind_hold_reason(reg("x6")) == MB_HOLD_UNPROVIDED, "x6: none_such");
+    CHECK(modbind_hold_reason(reg("x5")) == MB_HOLD_UNPROVIDED,
+          "x5 inherits x6's reason: x4's lw is past its count");
+    mb_err_t err = MB_OK;
+    const char *who = 0;
+    CHECK(modbind_verify_graph(&err, &who) == 3 && err == MB_ERR_UNPROVIDED && who &&
+              strcmp(who, "x2") == 0,
+          "three unprovided, the first at x2, and no contract clash");
+    CHECK(modbind_withdraw("lc") == 0 && modbind_withdraw("lq") == 0 &&
+              modbind_withdraw("lz") == 0 && modbind_withdraw("lw") == 0,
+          "withdrawing a leftover takes nothing ready down");
+    CHECK(reg("x1")->ready == MB_READY && reg("x4")->ready == MB_READY, "x1 and x4 untouched");
+    CHECK(modbind_find("s7") == 0, "the slot past g_n is not found");
+    CHECK(modbind_withdraw("lp") == 1 && reg("x1")->ready == MB_WITHDRAWN,
+          "withdrawing lp takes x1 down");
+    CHECK(modbind_hold_reason(reg("x0")) == MB_HOLD_PHASE, "x0 still waits on phase, not S-");
+    CHECK(modbind_restore("lq") == 0 && reg("x1")->ready == MB_WITHDRAWN,
+          "lq is past x1's count: restoring it leaves x1 down");
+    CHECK(modbind_restore("lp") == 1 && reg("x1")->ready == MB_READY,
+          "restoring lp brings x1 back");
+
+    /* withdrawing the empty name matches nothing, whatever is on the stack */
+    modbind_reset();
+    mb_module_t zp = blank("zp");
+    add_prov(&zp, cap("Z", 1, 0, MB_AMP_FULL));
+    CHECK(modbind_register(&zp) && modbind_resolve() == 1, "zp provides Z");
+    dirty_stack(0x5A);
+    CHECK(modbind_withdraw("") == 0 && reg("zp")->ready == MB_READY, "\"\" is not \"Z\"");
+
+    /* a name is compared up to its NUL; what follows it is not the name */
+    modbind_reset();
+    mb_module_t pv = blank("pv"), rq = blank("rq");
+    mb_cap_t padded = cap("pad", 1, 0, MB_AMP_FULL);
+    memset(padded.name + 4, 'Z', MB_CAP_NAME_LEN - 4);
+    add_prov(&pv, padded);
+    add_req(&rq, cap("pad", 1, 0, MB_AMP_FULL));
+    CHECK(modbind_register(&pv) && modbind_register(&rq), "registered");
+    CHECK(modbind_resolve() == 2, "\"pad\" then garbage provides \"pad\"");
+    CHECK(modbind_verify_graph(0, 0) == 0, "and the graph is sound");
+}
+
 /* ---------------------------------------------------- the boot gate */
 
 #if defined(__ELF__) && defined(__x86_64__) || defined(__ELF__) && defined(__aarch64__)
@@ -1076,6 +1555,326 @@ static void test_gate(void)
     CHECK(said("weakest: "), "the weakest edge is named");
     CHECK(said("an edge reached EXACTLY ZERO real power"), "zero power is flagged");
 }
+
+static int count_said(const char *s)
+{
+    int n = 0;
+    for (const char *p = out_buf; (p = strstr(p, s)) != 0; p += strlen(s)) n++;
+    return n;
+}
+
+/* healthy()'s six declarations with every capability cleared */
+static void bare(void)
+{
+    healthy();
+    for (int i = 0; i < NDECL; i++) {
+        char nm[MB_NAME_LEN + 1];
+        memcpy(nm, g_dm[i].name, MB_NAME_LEN);
+        nm[MB_NAME_LEN] = 0;
+        g_dm[i] = blank(nm);
+    }
+}
+
+/* The gate's printed report, line for line, over graphs built so that each
+ * line has exactly one right answer (worked by hand from modbind.h). */
+static void test_gate_readout(void)
+{
+    /* a broken graph: mid requires ghost (UNPROVIDED), top <-> hw (CYCLE),
+     * leaf requires a zero-drive capability (OUT OF PHASE), base and quiet
+     * provide cap_b at two contracts (CONTRACT) */
+    bare();
+    add_prov(&g_dm[0], cap("cap_a", 1, 0, MB_AMP_FULL));
+    add_prov(&g_dm[0], cap("cap_b", 1, 0, MB_AMP_FULL));
+    add_req(&g_dm[1], cap("ghost", 1, 0, MB_AMP_FULL));
+    add_req(&g_dm[1], cap("cap_a", 1, 0, MB_AMP_FULL));
+    add_prov(&g_dm[2], cap("cap_t", 1, 0, MB_AMP_FULL));
+    add_req(&g_dm[2], cap("cap_c", 1, 0, MB_AMP_FULL));
+    add_req(&g_dm[2], cap("cap_a", 1, 0, MB_AMP_FULL));
+    add_prov(&g_dm[3], cap("cap_c", 1, 0, MB_AMP_FULL));
+    add_req(&g_dm[3], cap("cap_t", 1, 0, MB_AMP_FULL));
+    add_req(&g_dm[4], cap("dead", 1, 0, MB_AMP_FULL));
+    add_req(&g_dm[4], cap("cap_b", 1, 0, MB_AMP_FULL));
+    add_prov(&g_dm[5], cap("dead", 1, 0, MB_AMP_NONE));
+    add_prov(&g_dm[5], cap("cap_b", 2, 0, MB_AMP_FULL));
+    /* 1 unprovided + 1 contract + 2 cycle */
+    CHECK(zxv_decl_boot_gate(cap_puts) == 4, "broken graph: four problems");
+    CHECK(said("  coupling: 7 declared edge(s) over 6 module(s); carrier up\n"),
+          "7 edges: mid-cap_a, top-cap_c, top-cap_a, hw-cap_t, leaf-dead, leaf-cap_b x2");
+    CHECK(said("module phases (DERIVED from the DRC layer, none typed): L0=6  -- 1 of 13 phases "
+               "populated\n"),
+          "all six modules at L0");
+    CHECK(said("         dphase  interf permille   edges\n"
+               "              0            1000      7\n         weakest"),
+          "every edge in phase");
+    CHECK(said("         weakest: 'leaf' requires 'dead' <- 'quiet'  L0->L0  P=0/1000\n"
+               "         weakest: 'leaf' requires 'cap_b' <- 'quiet'  L0->L0  P=0/1000\n"
+               "         threshold sweep"),
+          "the two zero-power edges, named, in order");
+    CHECK(count_said("weakest: '") == 2, "and no other edge is named weakest");
+    CHECK(said("would cost:\n           cut at P>0 would drop 2 of 7 edge(s)\n"
+               "           cut at P>1000 would drop 7 of 7 edge(s)\n"
+               "  [FAIL] an edge reached EXACTLY ZERO"),
+          "sweep over the two powers present");
+    CHECK(said("  [FAIL] GATE modbind_verify_graph: the graph is NOT sound\n"
+               "         problems=4  first=UNPROVIDED"),
+          "four problems, the first unprovided");
+    CHECK(said("         UNPROVIDED: module 'mid' requires 'ghost' -- nothing provides it\n"),
+          "the gap is named");
+    CHECK(count_said("UNPROVIDED: module '") == 1, "provided requirements are not reported");
+    CHECK(said("         CYCLE: module 'top' never resolves; its requirements close on themselves "
+               "(cap_c, cap_a)\n"),
+          "top's cycle, every requirement listed");
+    CHECK(said("         CYCLE: module 'hw' never resolves; its requirements close on themselves "
+               "(cap_t)\n"),
+          "hw's cycle");
+    CHECK(count_said("CYCLE: module '") == 2, "only the two in the cycle");
+    CHECK(said("         S0 OUT OF PHASE: a provider exists, delivers no real power: module 'leaf' "
+               "is present and not coupled\n"),
+          "the out-of-phase module is named");
+    CHECK(count_said("is present and not coupled") == 1, "an UNPROVIDED module is not S0");
+    CHECK(said("         CONTRACT: 'cap_b' provided by 'base' at v1 and by 'quiet' at v2\n"),
+          "the clash at provides[1]");
+    CHECK(count_said("CONTRACT: '") == 1, "different capabilities never clash");
+
+    /* a sound phased graph: base requires q_cap from quiet at low drive and
+     * antiphase (P = -250 * 14 / 1000 = -3); mid_cap at phase 2, top at 3
+     * (k = 1, 942), leaf at 2 (k = 0); powers appear in the order 3, 1000, 942 */
+    bare();
+    add_req(&g_dm[0], cap("q_cap", 1, 6, MB_AMP_FULL));
+    add_prov(&g_dm[0], cap("base_cap", 1, 0, MB_AMP_FULL));
+    add_req(&g_dm[1], cap("base_cap", 1, 0, MB_AMP_FULL));
+    add_prov(&g_dm[1], cap("mid_cap", 1, 2, MB_AMP_FULL));
+    add_req(&g_dm[2], cap("mid_cap", 1, 3, MB_AMP_FULL));
+    add_req(&g_dm[3], cap("base_cap", 1, 0, MB_AMP_FULL));
+    add_req(&g_dm[4], cap("mid_cap", 1, 2, MB_AMP_FULL));
+    add_prov(&g_dm[5], cap("q_cap", 1, 0, MB_AMP_LOW));
+    CHECK(zxv_decl_boot_gate(cap_puts) == 0, "phased graph passes");
+    CHECK(said("         dphase  interf permille   edges\n"
+               "              0            1000      3\n"
+               "              1            942      1\n"
+               "              6            14      1\n"),
+          "distances 0, 1 and 6");
+    CHECK(said("         weakest: 'base' requires 'q_cap' <- 'quiet'  L0->L6  P=-3/1000\n"),
+          "a negative power is printed with its sign");
+    CHECK(count_said("weakest: '") == 1, "one weakest edge");
+    CHECK(said("would cost:\n           cut at P>3 would drop 1 of 5 edge(s)\n"
+               "           cut at P>942 would drop 2 of 5 edge(s)\n"
+               "           cut at P>1000 would drop 5 of 5 edge(s)\n  [OK]"),
+          "the sweep, sorted, nothing before or after it");
+
+    /* ten edges at the same power: eight named, two counted */
+    bare();
+    add_prov(&g_dm[0], cap("e0", 1, 0, MB_AMP_FULL));
+    add_prov(&g_dm[0], cap("e1", 1, 0, MB_AMP_FULL));
+    add_prov(&g_dm[1], cap("e0", 1, 0, MB_AMP_FULL));
+    add_prov(&g_dm[1], cap("e1", 1, 0, MB_AMP_FULL));
+    for (int i = 2; i < NDECL; i++) add_req(&g_dm[i], cap("e0", 1, 0, MB_AMP_FULL));
+    add_req(&g_dm[5], cap("e1", 1, 0, MB_AMP_FULL));
+    CHECK(zxv_decl_boot_gate(cap_puts) == 0, "alternative providers pass");
+    CHECK(said("  coupling: 10 declared edge(s)"), "ten edges");
+    CHECK(count_said("weakest: '") == 8, "eight named");
+    CHECK(said("         (+2 more edge(s) at the same floor, not named)\n"), "two counted");
+
+    /* module 0 held, and ready modules not listed as held */
+    bare();
+    add_req(&g_dm[0], cap("deadc", 1, 0, MB_AMP_FULL));
+    add_prov(&g_dm[0], cap("base_cap", 1, 0, MB_AMP_FULL));
+    add_prov(&g_dm[5], cap("deadc", 1, 0, MB_AMP_NONE));
+    add_req(&g_dm[1], cap("base_cap", 1, 0, MB_AMP_FULL));
+    CHECK(zxv_decl_boot_gate(cap_puts) == 0, "an out-of-phase module 0 is S0, not a defect");
+    CHECK(said("S+ ready=4  S0 held=2  of 6 declared\n"
+               "         S0 HELD: 'base' -- OUT OF PHASE: a provider exists, delivers no real "
+               "power\n"
+               "         S0 HELD: 'mid' -- OUT OF PHASE"),
+          "base and mid held, named in order");
+    CHECK(count_said("S0 HELD: '") == 2 && !said("-- not held"), "ready modules are not listed");
+
+    /* two failures named; two held bring-ups named; nothing stale afterwards */
+    healthy();
+    rc_of[3] = -1;
+    rc_of[4] = -1;
+    CHECK(zxv_decl_boot_gate(cap_puts) == 2, "two failed bring-ups");
+    CHECK(said("         BRING-UP FAILED: 'hw' -- its own check returned non-zero\n"
+               "         BRING-UP FAILED: 'leaf' -- its own check returned non-zero\n"),
+          "both failures named");
+    CHECK(!said("further failures"), "all failures fit");
+    healthy();
+    rc_of[4] = MB_BRINGUP_HELD;
+    CHECK(zxv_decl_boot_gate(cap_puts) == 0, "two held bring-ups pass");
+    CHECK(said("S0 HELD (bring-up): 'hw'") && said("S0 HELD (bring-up): 'leaf'") &&
+              count_said("S0 HELD (bring-up)") == 2,
+          "both held bring-ups named, nothing more");
+    healthy();
+    CHECK(zxv_decl_boot_gate(cap_puts) == 0, "healthy again");
+    CHECK(count_said("S0 HELD (bring-up)") == 1, "one held bring-up");
+    CHECK(zxv_decl_held_name(0) && strcmp(zxv_decl_held_name(0), "hw") == 0 &&
+              zxv_decl_held_name(1) == 0 && zxv_decl_failed_name(0) == 0,
+          "names from an earlier run do not survive the next");
+    CHECK(said("         S- withdraw test: capability 'base_cap' chosen from the live graph -- 3 "
+               "module(s) require it\n"),
+          "base_cap: mid, hw and quiet require it");
+
+    /* the gate counts what it refuses. A refused declaration is counted
+     * twice: once as refused, once as a bring-up that failed because it is not
+     * in the registry (AUDIT_FINDINGS section 3). */
+    healthy();
+    g_dm[5].n_emits = MB_MAX_PORTS + 1;
+    CHECK(zxv_decl_boot_gate(cap_puts) == 2, "one refused declaration: refused + not registered");
+    CHECK(said("registered=5 refused=1\n") && said("BRING-UP FAILED: 'quiet'"),
+          "both counts are printed");
+    /* two refused: both named, in order, and neither one's bring-up runs.
+     * An earlier run left 'leaf' in the second failed-name slot. */
+    healthy();
+    g_dm[3].n_emits = MB_MAX_PORTS + 1;
+    g_dm[5].n_emits = MB_MAX_PORTS + 1;
+    CHECK(zxv_decl_boot_gate(cap_puts) == 4,
+          "two refused declarations: 2 refused + 2 not registered");
+    CHECK(said("         bring-up: ran=3 failed=2 held=0 declared-only=1\n"),
+          "the bring-up counts");
+    CHECK(said("         BRING-UP FAILED: 'hw' -- its own check returned non-zero\n"
+               "         BRING-UP FAILED: 'quiet' -- its own check returned non-zero\n") &&
+              count_said("BRING-UP FAILED: '") == 2 && !said("further failures"),
+          "both refused declarations named, nothing stale");
+    CHECK(calls[3] == 0, "a refused declaration's bring-up does not run");
+
+    /* entered with the carrier down: the negative tests see it */
+    healthy();
+    mb_carrier_down();
+    CHECK(zxv_decl_boot_gate(cap_puts) == 2, "carrier down at entry: two negative-test failures");
+    CHECK(said("  [FAIL] carrier up did not restore the graph it took down\n"),
+          "the carrier test fails");
+    CHECK(said("  [FAIL] restore did not return the graph to its entry state\n"),
+          "the withdraw test fails");
+    CHECK(said("         bring-up: ran=1 failed=0 held=5 declared-only=0\n"),
+          "only base is ready; the other five are held");
+    CHECK(calls[0] == 1 && calls[1] == 0 && calls[3] == 0 && calls[4] == 0,
+          "a held module's bring-up does not run");
+    CHECK(mb_carrier(), "the gate leaves the carrier up");
+}
+
+/* More of the gate's report, each graph built for one formatter branch. */
+static void test_gate_readout_edges(void)
+{
+    /* every module at its capability bound, passing and then failing */
+    bare();
+    for (uint32_t k = 0; k < MB_MAX_CAPS; k++) {
+        char p[4] = {'p', (char) ('0' + k), 0}, q[4] = {'q', (char) ('0' + k), 0};
+        add_prov(&g_dm[0], cap(p, 1, 0, MB_AMP_FULL));
+        add_prov(&g_dm[1], cap(q, 1, 0, MB_AMP_FULL));
+        add_prov(&g_dm[2], cap(q, 1, 0, MB_AMP_FULL)); /* alternative, same contract */
+    }
+    /* each requirer lists p0..p3 rotated by its index, so p0 is not always first */
+    for (int i = 1; i < NDECL; i++)
+        for (uint32_t k = 0; k < MB_MAX_CAPS; k++) {
+            char p[4] = {'p', (char) ('0' + (k + (uint32_t) i) % MB_MAX_CAPS), 0};
+            add_req(&g_dm[i], cap(p, 1, 0, MB_AMP_FULL));
+        }
+    CHECK(zxv_decl_boot_gate(cap_puts) == 0, "four capabilities each: passes");
+    CHECK(said("  coupling: 20 declared edge(s)"), "five requirers x four capabilities");
+    CHECK(said("chosen from the live graph -- 5 module(s) require it\n"), "five requirers of p0");
+    set_name(g_dm[5].requires[3].name, MB_CAP_NAME_LEN, "ghost");
+    modbind_reset(); /* the gate registers into the live registry */
+    out_len = 0;
+    out_buf[0] = 0;
+    CHECK(zxv_decl_boot_gate(cap_puts) == 1, "one unprovided requirement");
+    CHECK(said("         UNPROVIDED: module 'quiet' requires 'ghost' -- nothing provides it\n") &&
+              count_said("UNPROVIDED: module '") == 1,
+          "named, once");
+    CHECK(count_said("CONTRACT: '") == 0, "alternative providers at one contract do not clash");
+
+    /* bytes after a capability name's NUL are not part of the name */
+    bare();
+    mb_cap_t padded = cap("pad", 1, 0, MB_AMP_FULL);
+    memset(padded.name + 4, 'Z', MB_CAP_NAME_LEN - 4);
+    add_prov(&g_dm[3], padded);
+    add_req(&g_dm[0], cap("pad", 1, 0, MB_AMP_FULL)); /* module 0 is a requirer too */
+    CHECK(zxv_decl_boot_gate(cap_puts) == 0, "a padded name provides its prefix");
+    CHECK(said("         S- withdraw test: capability 'pad' chosen from the live graph -- 1 "
+               "module(s) require it\n"),
+          "the requirer of the padded name is counted");
+
+    /* names that differ only in their first letter are different */
+    bare();
+    add_prov(&g_dm[0], cap("acap", 1, 0, MB_AMP_FULL));
+    add_req(&g_dm[2], cap("bcap", 1, 0, MB_AMP_FULL));
+    CHECK(zxv_decl_boot_gate(cap_puts) == 1, "bcap is unprovided");
+    CHECK(said("  coupling: 0 declared edge(s) over 6 module(s); carrier up\n"), "no edge");
+    CHECK(said("populated\n         no requirer names a declared capability: there is no edge to "
+               "measure, and that is the measurement\n  [FAIL] GATE"),
+          "and nothing else is measured");
+    CHECK(said("UNPROVIDED: module 'top' requires 'bcap'"), "the gap is named");
+
+    /* full-length names, module and capability: one edge, open by contract */
+    bare();
+    mb_cap_t full = cap("", 1, 0, MB_AMP_FULL);
+    memset(full.name, 'k', MB_CAP_NAME_LEN);
+    add_prov(&g_dm[0], full);
+    full.contract = 2;
+    add_req(&g_dm[1], full);
+    memset(g_dm[1].name, 'm', MB_NAME_LEN);
+    add_emit(&g_dm[1], MB_FORM_PHASE, 1); /* the byte after the name is a form */
+    CHECK(zxv_decl_boot_gate(cap_puts) == 0, "an open circuit is S0, not a defect");
+    CHECK(said("  coupling: 1 declared edge(s) over 6 module(s)"), "one edge by name");
+    CHECK(
+        said("         weakest: 'mmmmmmmmmmmmmmmmmmmmmmmm' requires 'kkkkkkkkkkkkkkkkkkkkkkkk' <- "
+             "'base'  L0->L0  P=0/1000\n"),
+        "full-length names print whole and stop at MB_NAME_LEN");
+
+    /* a clash between neighbours */
+    bare();
+    add_prov(&g_dm[0], cap("x", 1, 0, MB_AMP_FULL));
+    add_prov(&g_dm[1], cap("x", 2, 0, MB_AMP_FULL));
+    CHECK(zxv_decl_boot_gate(cap_puts) == 1, "adjacent providers disagree");
+    CHECK(said("         CONTRACT: 'x' provided by 'base' at v1 and by 'mid' at v2\n"),
+          "the clash between modules 0 and 1 is named");
+
+    /* fourteen distinct powers: FULL and HIGH drive at distances 0..6 */
+    bare();
+    add_prov(&g_dm[0], cap("a0", 1, 0, MB_AMP_FULL));
+    add_prov(&g_dm[0], cap("a1", 1, 0, MB_AMP_HIGH));
+    static const struct {
+        int mod;
+        const char *c;
+        uint8_t ph;
+    } E[14] = {{1, "a0", 0}, {1, "a0", 1}, {1, "a0", 2}, {1, "a0", 3}, {2, "a0", 4},
+               {2, "a0", 5}, {2, "a0", 6}, {2, "a1", 0}, {3, "a1", 1}, {3, "a1", 2},
+               {3, "a1", 3}, {3, "a1", 4}, {4, "a1", 5}, {4, "a1", 6}};
+    for (int i = 0; i < 14; i++) add_req(&g_dm[E[i].mod], cap(E[i].c, 1, E[i].ph, MB_AMP_FULL));
+    CHECK(zxv_decl_boot_gate(cap_puts) == 0, "fourteen powers pass");
+    CHECK(said("  coupling: 14 declared edge(s)"), "fourteen edges");
+    CHECK(count_said("           cut at P>") == 14, "a cut for every distinct power");
+    CHECK(said("           cut at P>10 would drop 1 of 14 edge(s)\n"),
+          "HIGH drive at antiphase: 750 * 14 / 1000 = 10");
+    CHECK(said("           cut at P>1000 would drop 14 of 14 edge(s)\n"),
+          "the last cut drops every edge");
+
+    /* a declaration with no module, and register_all without an out-count */
+    healthy();
+    g_decl[5].mod = 0;
+    CHECK(zxv_decl_boot_gate(cap_puts) == 1, "a declaration with no module is one problem");
+    CHECK(said("collected=6 registered=5 refused=1\n"), "it is refused");
+    healthy();
+    CHECK(zxv_decl_register_all(0) == NDECL, "register_all without an out-count");
+
+    /* the readout starts from zero, whatever the stack held */
+    healthy();
+    {
+        static const uint8_t mph[NDECL] = {0, 3, 0, 12, 6, 0};
+        for (int i = 0; i < NDECL; i++) g_dm[i].phase = mph[i];
+    }
+    dirty_stack(0x5A);
+    CHECK(zxv_decl_boot_gate(cap_puts) == 0, "healthy over a dirty stack");
+    CHECK(
+        said(
+            "module phases (DERIVED from the DRC layer, none typed): L0=3 L3=1 L6=1 L12=1  -- 4 of "
+            "13 phases populated\n"),
+        "phase histogram from zero");
+    CHECK(said("         dphase  interf permille   edges\n"
+               "              0            1000      1\n"
+               "              3            560      3\n"
+               "              12            942      1\n         weakest"),
+          "inherited phases: base_cap@0 to mid@3, hw@12, quiet@0; mid_cap@3 to top@0, leaf@6");
+}
 #endif
 
 int main(void)
@@ -1088,8 +1887,16 @@ int main(void)
     test_hold_reasons();
     test_compose();
     test_selfcheck();
+    test_register_edges();
+    test_hold_edges();
+    test_verify_graph_edges();
+    test_compose_edges();
+    test_full_registry();
+    test_leftover_slots();
 #ifdef GATE_TEST
     test_gate();
+    test_gate_readout();
+    test_gate_readout_edges();
 #else
     printf("  [SKIP] boot gate (needs an ELF x86_64 or aarch64 host for the decl table)\n");
 #endif

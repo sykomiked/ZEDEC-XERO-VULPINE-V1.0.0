@@ -1,0 +1,181 @@
+<!doctype html>
+<!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZXV</title>
+<style>
+  @font-face { font-family: 'ZXV UI'; src: url('ASCW-Golden-Latin2.ttf') format('truetype'); font-display: block; }
+  :root {
+    --ground: #002911; --ground-2: #003a19; --ground-3: #04471f;
+    --text: #D8F5E1; --text-2: #9CC9AA; --gold: #F2C230; --gold-2: #B8901E; --warn: #F2C230; --bad: #FF9E8A;
+    --hair: rgba(242, 194, 48, 0.42);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; background: var(--ground); color: var(--text); overflow: hidden;
+               font: 16px/1.45 'ZXV UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased;
+               user-select: none; -webkit-user-select: none; cursor: default; }
+  ::selection { background: var(--gold); color: var(--ground); }
+  #stage { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px 16px; }
+  .view { width: min(560px, 100%); display: none; flex-direction: column; align-items: center; gap: 18px; }
+  .view.on { display: flex; animation: rise 360ms cubic-bezier(.2,.7,.2,1); }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .view.on { animation: none; } .pulse { animation: none !important; } }
+  .mark { width: 76px; height: 87px; display: block; }
+  .mark.small { width: 34px; height: 39px; }
+  h1 { margin: 0; font-weight: 400; font-size: 26px; letter-spacing: 0.06em; color: var(--gold); }
+  h2 { margin: 0; font-weight: 400; font-size: 19px; letter-spacing: 0.04em; color: var(--text); }
+  p.lead { margin: 0; color: var(--text-2); text-align: center; max-width: 440px; }
+
+  .tabs { display: flex; gap: 0; border: 1px solid var(--hair); border-radius: 999px; padding: 3px; }
+  .tab { appearance: none; border: 0; background: transparent; color: var(--text-2); font: inherit; font-size: 14px;
+         padding: 6px 18px; border-radius: 999px; cursor: pointer; letter-spacing: 0.03em; }
+  .tab[aria-selected="true"] { background: var(--gold); color: var(--ground); }
+
+  .field { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 13px; color: var(--text-2); letter-spacing: 0.04em; }
+  .field input, .field textarea {
+    appearance: none; width: 100%; font: inherit; color: var(--text); background: var(--ground-2);
+    border: 1px solid var(--hair); border-radius: 10px; padding: 11px 14px; outline: none; resize: none;
+    caret-color: var(--gold); user-select: text; -webkit-user-select: text; }
+  .field textarea { font-size: 15px; letter-spacing: 0.08em; line-height: 1.6; height: 84px; text-transform: uppercase; }
+  .field input:focus, .field textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(242,194,48,.16); }
+  .field .hint { font-size: 12.5px; color: var(--text-2); }
+  .row { width: 100%; display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+
+  .btn { appearance: none; font: inherit; letter-spacing: 0.05em; cursor: pointer; border-radius: 10px;
+         padding: 10px 22px; border: 1px solid var(--gold); background: var(--gold); color: var(--ground); }
+  .btn.ghost { background: transparent; color: var(--gold); }
+  .btn:disabled { opacity: 0.45; cursor: default; }
+  .btn:focus-visible, .tab:focus-visible, .tile:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+  .link { appearance: none; border: 0; background: none; color: var(--gold); font: inherit; font-size: 14px;
+          cursor: pointer; padding: 0; text-decoration: underline; text-underline-offset: 3px; }
+
+  .meter { width: 100%; display: none; flex-direction: column; gap: 6px; }
+  .meter.on { display: flex; }
+  .bar { position: relative; height: 4px; border-radius: 2px; background: var(--ground-3); overflow: hidden; }
+  .bar > i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--gold); transition: width 180ms ease-out; }
+  .meter .what { font-size: 13px; color: var(--text-2); }
+  .pulse { animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.45; } }
+
+  .why { min-height: 1.45em; width: 100%; text-align: center; color: var(--bad); font-size: 14px; }
+  .why.ok { color: var(--text-2); }
+  .seedbox { width: 100%; border: 1px dashed var(--gold); border-radius: 10px; padding: 12px 14px; display: none;
+             font-size: 14px; color: var(--text); }
+  .seedbox.on { display: block; }
+  .newstep { width: 100%; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+  .newstep .lead { text-align: center; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); cursor: pointer; }
+  .field .check input { appearance: auto; accent-color: var(--gold); width: 16px; height: 16px; padding: 0; margin: 0; }
+  .seedbox code { display: block; margin-top: 6px; color: var(--gold); letter-spacing: 0.08em; font: inherit;
+                  word-break: break-all; user-select: text; -webkit-user-select: text; }
+
+  .who { width: 100%; display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--hair); }
+  .who .id { flex: 1; min-width: 0; }
+  .who .id b { display: block; font-weight: 400; color: var(--gold); font-size: 13px; letter-spacing: .05em; }
+  .who .id span { display: block; font-size: 13px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tiles { width: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+  .tile { appearance: none; text-align: left; font: inherit; color: var(--text); cursor: pointer;
+          background: linear-gradient(160deg, var(--ground-3), var(--ground-2)); border: 1px solid var(--hair);
+          border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-height: 112px; }
+  .tile:hover { border-color: var(--gold); }
+  .tile svg { width: 30px; height: 30px; }
+  .tile .name { font-size: 16px; }
+  .tile .sub { font-size: 12.5px; color: var(--text-2); }
+  .crumbs { width: 100%; display: flex; align-items: center; gap: 10px; color: var(--text-2); font-size: 14px; }
+  .crumbs .here { color: var(--gold); }
+
+  .answer { width: 100%; border-left: 2px solid var(--gold); padding: 10px 0 10px 14px; display: none; flex-direction: column; gap: 8px; }
+  .answer.on { display: flex; }
+  .answer .text { white-space: pre-wrap; word-break: break-word; max-height: 34vh; overflow: auto; user-select: text; -webkit-user-select: text; }
+  .answer .prov { font-size: 12.5px; color: var(--text-2); }
+  .answer.nomodel { border-left-color: var(--bad); }
+  .thinking { display: none; color: var(--text-2); font-size: 14px; }
+  .thinking.on { display: block; }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <section class="view" id="v-login" aria-labelledby="login-title">
+    <img class="mark" src="fox.svg" alt="">
+    <h1 id="login-title">Your passport</h1>
+    <p class="lead">Your identity is rebuilt here from your seed. Nothing is looked up and nothing leaves this page.</p>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="t-seed" aria-selected="true">Seed</button>
+      <button class="tab" role="tab" id="t-pass" aria-selected="false">Passphrase</button>
+      <button class="tab" role="tab" id="t-new" aria-selected="false">New here</button>
+    </div>
+    <div class="field" id="f-seed">
+      <label for="seed">Seed: 11 groups of five</label>
+      <textarea id="seed" spellcheck="false" autocomplete="off" autocapitalize="characters"
+                placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX"></textarea>
+      <div class="row"><span class="hint">O reads as zero, I and L as one; a typo is caught.</span>
+        <button class="link" id="new-seed" type="button">New here? Make a passport</button></div>
+    </div>
+    <div class="field" id="f-pass" hidden>
+      <label for="handle">Handle</label>
+      <input id="handle" autocomplete="username" spellcheck="false">
+      <label for="pass">Passphrase</label>
+      <input id="pass" type="password" autocomplete="current-password">
+      <span class="hint">At least 16 characters. Stretching it takes 64 MiB of memory and three passes.</span>
+    </div>
+    <div class="field" id="f-new" hidden>
+      <div id="new-make" class="newstep">
+        <p class="lead">Your passport starts as a seed: 32 random bytes made here, by this browser, and never sent anywhere. Whoever has the seed is you, on any device.</p>
+        <button class="btn" id="make" type="button">Make my seed</button>
+      </div>
+      <div id="new-show" class="newstep" hidden>
+        <div class="seedbox on" id="seedbox"><b>Write this down.</b> It is shown only now, and it is the only way back to this identity. Nobody can recover it for you.<code id="seed-new-text"></code></div>
+        <label class="check"><input type="checkbox" id="written-ok"> I have written it down</label>
+        <button class="btn" id="written" type="button" disabled>Continue</button>
+      </div>
+      <div id="new-confirm" class="newstep" hidden>
+        <label for="confirm">Type your seed back, from what you wrote down</label>
+        <textarea id="confirm" spellcheck="false" autocomplete="off" autocapitalize="characters"></textarea>
+        <div class="row"><span class="hint">Groups, spaces and case do not matter.</span>
+          <button class="link" id="remake" type="button">Start over with a new seed</button></div>
+      </div>
+    </div>
+    <div class="meter" id="meter"><div class="bar"><i id="bar"></i></div><span class="what" id="what"></span></div>
+    <div class="why" id="why" role="status" aria-live="polite"></div>
+    <button class="btn" id="enter" type="button" disabled>Enter</button>
+  </section>
+
+  <section class="view" id="v-spaces" aria-labelledby="spaces-title">
+    <div class="who"><img class="mark small" src="fox.svg" alt="">
+      <div class="id"><b>Signed in</b><span id="did"></span></div>
+      <button class="btn ghost" id="sign-out" type="button">Sign out</button></div>
+    <h2 id="spaces-title">Your spaces</h2>
+    <div class="tiles" id="spaces"></div>
+    <div class="why" id="spaces-why" role="status" aria-live="polite"></div>
+  </section>
+
+  <section class="view" id="v-space" aria-labelledby="space-title">
+    <div class="crumbs"><button class="link" id="to-spaces" type="button">Spaces</button><span>/</span>
+      <span class="here" id="space-title"></span></div>
+    <div class="tiles" id="apps"></div>
+    <div class="why ok" id="space-note" role="status" aria-live="polite"></div>
+  </section>
+
+  <section class="view" id="v-ask" aria-labelledby="ask-title">
+    <div class="crumbs"><button class="link" id="to-space" type="button"></button><span>/</span>
+      <span class="here" id="ask-title">Companion</span></div>
+    <p class="lead" id="model-line"></p>
+    <div class="meter" id="ai-meter"><div class="bar"><i id="ai-bar"></i></div><span class="what" id="ai-what"></span></div>
+    <div class="field"><label for="prompt">Ask</label>
+      <textarea id="prompt" spellcheck="true" style="text-transform:none;letter-spacing:0"></textarea></div>
+    <div class="row"><span class="thinking pulse" id="thinking">The companion is working on it on this machine.</span>
+      <span></span><button class="btn" id="ask" type="button" disabled>Ask</button></div>
+    <div class="answer" id="answer"><div class="text" id="answer-text"></div><div class="prov" id="answer-prov"></div></div>
+    <div class="why" id="ask-why" role="status" aria-live="polite"></div>
+  </section>
+
+</div>
+<script src="session.js"></script>
+</body>
+</html>

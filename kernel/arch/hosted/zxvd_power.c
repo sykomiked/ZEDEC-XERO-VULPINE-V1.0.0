@@ -2,7 +2,8 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zxvd_power.c — power.status, power.top and power.budget, and the agents'
  * energy around each model call (zxvd_power.h W1-W8), on the power ledger
- * (kernel/src/power) fed by zxv_power_host.c. Integers only.
+ * (kernel/src/power) fed by zxv_power_host.c; thermal.read (W9) from
+ * zxv_thermal_host.c. Integers only.
  */
 #if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
 #    define _POSIX_C_SOURCE 200809L /* clock_gettime */
@@ -16,6 +17,7 @@
 #include "zxvd_groups.h"
 #include "zxvd_power.h"
 #include "zxv_power_host.h"
+#include "zxv_thermal_host.h"
 
 /* W2: the host reader holds two 4096-entry process tables (~400 KB) */
 static zxv_power_host_t H;
@@ -24,6 +26,15 @@ static bool OPEN;
 static uint16_t SELF; /* zxvd's own app */
 static uint64_t LAST_MS;
 static uint64_t (*CLOCK)(void);
+static char THERMAL_ROOT[ZTH_ROOT_MAX]; /* W9: "" = this machine */
+
+void zxvd_power_set_thermal_root(const char *root)
+{
+    size_t n = root ? strlen(root) : 0;
+    if (n >= sizeof THERMAL_ROOT) n = 0; /* too long for a fixture: this machine */
+    memcpy(THERMAL_ROOT, root ? root : "", n);
+    THERMAL_ROOT[n] = 0;
+}
 
 void zxvd_power_set_clock(uint64_t (*fn)(void))
 {
@@ -170,12 +181,18 @@ static void m_top(zxvd_call_t *c)
             zxvd_buf_printf(b, ",\"parent\":null");
         else
             zxvd_buf_printf(b, ",\"parent\":%u", (unsigned) p->parent);
+        /* W6: a figure only from a meter (TRUE, or BOTH: the larger reading);
+         * NEITHER (nothing measured) and FALSE (a rejected reading) are null */
+        lpres_state_t st = (lpres_state_t) pw_source_truth(p->last_src);
+        if (st == LPRES_STATE_TRUE || st == LPRES_STATE_BOTH)
+            zxvd_buf_printf(b, ",\"uj\":%llu,\"mw\":%llu", (unsigned long long) p->last_uj,
+                            (unsigned long long) p->last_mw);
+        else
+            zxvd_buf_printf(b, ",\"uj\":null,\"mw\":null");
         zxvd_buf_printf(b,
-                        ",\"uj\":%llu,\"mw\":%llu,\"source\":\"%s\",\"lifetime_uj\":%llu,"
-                        "\"cpu_ns\":%llu}",
-                        (unsigned long long) p->last_uj, (unsigned long long) p->last_mw,
-                        pw_source_name(p->last_src), (unsigned long long) p->total_uj,
-                        (unsigned long long) p->total_cpu_ns);
+                        ",\"source\":\"%s\",\"state\":\"%s\",\"lifetime_uj\":%llu,\"cpu_ns\":%llu}",
+                        pw_source_name(p->last_src), lpres_state_name(st),
+                        (unsigned long long) p->total_uj, (unsigned long long) p->total_cpu_ns);
     }
     zxvd_buf_raw(b, "]", 1);
 }
@@ -222,18 +239,34 @@ static void m_budget(zxvd_call_t *c)
     zxvd_buf_printf(zxvd_res(c), "{\"ok\":true}");
 }
 
+/* W9: works whether or not the ledger is open */
+static void m_thermal(zxvd_call_t *c)
+{
+    static zth_report_t rep;
+    static char js[96u * 1024u]; /* ZTH_MAX_READINGS readings fit */
+    zth_read(THERMAL_ROOT, &rep);
+    int n = zth_render_json(&rep, js, sizeof js);
+    if (n < 0) {
+        zxvd_fail(c, ZXVD_E_POWER, "the thermal report does not fit");
+        return;
+    }
+    zxvd_buf_raw(zxvd_res(c), js, (size_t) n);
+}
+
 static const zxvd_group_method_t METHODS[] = {
     {"power.status", m_status, true},
     {"power.top", m_top, true},
     {"power.budget", m_budget, false},
+    {"thermal.read", m_thermal, true},
 };
 
-static const zxvd_group_t GROUP = {"power",
-                                   false,
-                                   "energy per app and agent, battery posture and energy budgets",
-                                   METHODS,
-                                   sizeof METHODS / sizeof METHODS[0],
-                                   zxvd_power_close};
+static const zxvd_group_t GROUP = {
+    "power",
+    false,
+    "energy per app and agent, battery posture, energy budgets and temperatures",
+    METHODS,
+    sizeof METHODS / sizeof METHODS[0],
+    zxvd_power_close};
 
 const zxvd_group_t *zxvd_power_group(void)
 {

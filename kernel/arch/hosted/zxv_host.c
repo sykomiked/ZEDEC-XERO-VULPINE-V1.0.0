@@ -62,6 +62,7 @@
 #    include <ws2tcpip.h>
 #    include <windows.h>
 #    include <shellapi.h>
+#    include <sys/stat.h>
 typedef SOCKET sock_t;
 #    define CLOSESOCK closesocket
 #    define BAD_SOCK  INVALID_SOCKET
@@ -140,7 +141,7 @@ _Static_assert(ZXV_TIAMAT_SLOTS <= ZXV_SLOTS, "every Tiamat slot is a model slot
 #    include "zxvd_pay.h"       /* zxvd: ISO 20022, cards, netting, passkeys, escrow */
 #    include "zxvd_groups.h"    /* netting, cards, ...: method groups behind switches */
 #    include "zxvd_companion.h" /* companion.*: the Chiglet's DNA, generation, mood */
-#    include "zxvd_power.h"     /* power.*: energy per app and agent, budgets */
+#    include "zxvd_power.h"     /* power.*, thermal.read: energy, budgets, heat */
 #    include "zxvd_pspace.h"    /* pspace.*, hall.*: public spaces, the watch hall */
 #    include "zxvd_phone.h"     /* zxvd: the owner's paired phones (--phone-link) */
 #    include "web4_web2.h"      /* the window's /api/rpc reads the method name */
@@ -149,6 +150,11 @@ _Static_assert(ZXV_TIAMAT_SLOTS <= ZXV_SLOTS, "every Tiamat slot is a model slot
 #    include "zxv_screen.h"     /* zxvd: screen time for Shepherd */
 #    include "zxv_place.h"      /* zxvd: location and places for Waymark */
 #    include "zxvd_fab.h"       /* fab.*: file fabrication from public blocks */
+#    include "zxv_caps.h"       /* zxvd: which apps may use which capabilities */
+#    include "zxvd_shell.h"     /* zxvd: shell.* jobs for the terminal */
+#    include "zxv_sched.h"      /* zxvd: the apps' schedules */
+#    include "zxvd_dns.h"       /* zxvd: name lookups */
+#    include "zxvd_proc.h"      /* zxvd: process control */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
 #    endif
@@ -682,6 +688,7 @@ static zxv_receipt_chain_t RCH;
 static FILE *RECEIPTS;                  /* NULL: no receipts (no state dir) */
 static uint64_t ASK_TOKENS;             /* what the current interaction was charged */
 static const zxv_tiamat_trace_t *TRACE; /* the current interaction's Tiamat trace */
+static const zxv_tiamat_deleg_t *DELEG; /* or its H6 delegation */
 static void idle_queue(bool pins);
 
 static uint64_t rnd(void)
@@ -1310,26 +1317,58 @@ static int receipt_sign(void *ctx, const uint8_t hash[32], char *sig, size_t cap
 /* R24: seal one interaction (zxv_receipt.h). Under zxvd the receipt is signed
  * when the chat key is open; otherwise (zxv-host, or zxvd before the chat
  * opens) the chain alone seals it. */
+static void seal_one(const zxv_receipt_t *r)
+{
+    int rc = -1;
+#if defined(ZXVD)
+    rc = zxv_receipt_seal(&RCH, r, receipt_sign, NULL, RECEIPTS, NULL);
+#endif
+    if (rc != 0 && zxv_receipt_seal(&RCH, r, NULL, NULL, RECEIPTS, NULL) != 0)
+        fprintf(stderr, "zxv-host: the receipt could not be written\n");
+}
+
+/* H6: one "handoff" receipt per hand-off of the delegator position (lead =
+ * the cell it came from, witness = the cell it went to, verdict = the claim
+ * "that cell is the best match here"), sealed with the interaction. */
+static void seal_handoff(const char *q, const swd_handoff_t *h, const char *paused)
+{
+    zxv_receipt_t r = {"handoff",
+                       q,
+                       "",
+                       h->from < TIAMAT->n_cells ? TIAMAT->cell[h->from].name : "",
+                       h->to < TIAMAT->n_cells ? TIAMAT->cell[h->to].name : "",
+                       zxv_tiamat_tv_name(h->tv),
+                       S.b.cycle,
+                       0,
+                       paused};
+    seal_one(&r);
+}
+
 static void seal_receipt(const char *kind, const char *q, const char *shown, const char *paused)
 {
     if (!RECEIPTS) return;
     const zxv_tiamat_trace_t *t = TRACE;
+    const zxv_tiamat_deleg_t *d = TIAMAT ? DELEG : NULL;
+    if (d) {
+        seal_handoff(q, &d->take, paused);
+        for (uint32_t i = 0; i < d->n_parts; i++) seal_handoff(d->part_q[i], &d->hand[i], paused);
+        t = d->n_parts ? NULL : &d->part[0];
+    }
     zxv_receipt_t r = {
         kind,
         q,
         shown,
-        t && TIAMAT ? TIAMAT->cell[t->lead].name : "",
+        d             ? TIAMAT->cell[d->holder].name
+        : t && TIAMAT ? TIAMAT->cell[t->lead].name
+                      : "",
         t && TIAMAT && t->witness >= 0 && !t->witness_skipped ? TIAMAT->cell[t->witness].name : "",
-        t ? zxv_tiamat_tv_name(t->tv) : "",
+        d   ? zxv_tiamat_tv_name(d->tv)
+        : t ? zxv_tiamat_tv_name(t->tv)
+            : "",
         S.b.cycle,
         ASK_TOKENS,
         paused};
-    int rc = -1;
-#if defined(ZXVD)
-    rc = zxv_receipt_seal(&RCH, &r, receipt_sign, NULL, RECEIPTS, NULL);
-#endif
-    if (rc != 0 && zxv_receipt_seal(&RCH, &r, NULL, NULL, RECEIPTS, NULL) != 0)
-        fprintf(stderr, "zxv-host: the receipt could not be written\n");
+    seal_one(&r);
 }
 
 /* Open --tiamat's slots and one agent per cell. 0, or -1 with the reason
@@ -1375,6 +1414,7 @@ static int tiamat_batch(const char *path, bool check)
     }
     static char line[8192], out[16384];
     static zxv_tiamat_trace_t t;
+    static zxv_tiamat_deleg_t d;
     while (fgets(line, sizeof line, f)) {
         size_t n = strlen(line);
         while (n && (line[n - 1] == '\n' || line[n - 1] == '\r')) line[--n] = 0;
@@ -1391,6 +1431,15 @@ static int tiamat_batch(const char *path, bool check)
             }
             *tab = 0;
             zxv_tiamat_check(TIAMAT, tiamat_ask, NULL, line, tab + 1, &t, out, sizeof out, &shown);
+        } else if (TIAMAT->delegate) {
+            zxv_tiamat_delegate(TIAMAT, tiamat_ask, NULL, line, &d, out, sizeof out, &shown);
+            zxv_tiamat_log_deleg(TIAMAT->log_path, line, TIAMAT, &d);
+            DELEG = &d;
+            seal_receipt("ask", line, out, paused);
+            DELEG = NULL;
+            zxv_tiamat_write_deleg(stdout, line, TIAMAT, &d, out);
+            fflush(stdout);
+            continue;
         } else {
             zxv_tiamat_answer(TIAMAT, tiamat_ask, NULL, line, &t, out, sizeof out, &shown);
         }
@@ -1409,7 +1458,23 @@ static int tiamat_batch(const char *path, bool check)
 static void tiamat_answer(const char *q, char *out, size_t cap)
 {
     static zxv_tiamat_trace_t t; /* large; answers run one at a time */
+    static zxv_tiamat_deleg_t d;
     int shown = 0;
+    if (TIAMAT->delegate) {
+        int tv = zxv_tiamat_delegate(TIAMAT, tiamat_ask, NULL, q, &d, out, cap, &shown);
+        DELEG = &d;
+        LAST_ANSWER_MODEL = false;
+        for (uint32_t i = 0; i < (d.n_parts ? d.n_parts : 1); i++)
+            if (d.part[i].lead_rc == 1) LAST_ANSWER_MODEL = true;
+        if (zxv_tiamat_log_deleg(TIAMAT->log_path, q, TIAMAT, &d) != 0)
+            fprintf(stderr, "zxv-host: could not write the Tiamat log %s\n", TIAMAT->log_path);
+        char sum[120];
+        snprintf(sum, sizeof sum, "Tiamat: %s delegated %u part%s, %s", TIAMAT->cell[d.holder].name,
+                 (unsigned) (d.n_parts ? d.n_parts : 1), d.n_parts > 1 ? "s" : "",
+                 shown ? zxv_tiamat_tv_name(tv) : "held");
+        note_task(LAST_ANSWER_MODEL, sum);
+        return;
+    }
     int tv = zxv_tiamat_answer(TIAMAT, tiamat_ask, NULL, q, &t, out, cap, &shown);
     TRACE = &t;
     LAST_ANSWER_MODEL = t.lead_rc == 1;
@@ -1431,9 +1496,11 @@ static void answer(const char *q, char *out, size_t cap)
     zxv_idle_describe(&IDLE, paused, sizeof paused);
     ASK_TOKENS = 0;
     TRACE = NULL;
+    DELEG = NULL;
     answer_inner(q, out, cap);
     seal_receipt("ask", q, out, paused);
     TRACE = NULL;
+    DELEG = NULL;
 }
 
 static void answer_inner(const char *q, char *out, size_t cap)
@@ -1692,11 +1759,12 @@ static void state_json(buf_t *b)
     uint64_t rem = cs ? swarm_budget_remaining(&S.b, cs->model_id) : 0;
     bput(b,
          "},\"companion\":{\"cycle_open\":%s,\"allotted\":%llu,\"used\":%llu,\"remaining\":%llu,"
-         "\"exhausted\":%s,\"max_per_answer\":%u,\"asks\":%llu,\"exhausted_asks\":%llu",
+         "\"exhausted\":%s,\"max_per_answer\":%u,\"asks\":%llu,\"exhausted_asks\":%llu,"
+         "\"answered_by_model\":%s",
          S.b.cycle_open ? "true" : "false", (unsigned long long) (cs ? cs->allotted : 0),
          (unsigned long long) (cs ? cs->used : 0), (unsigned long long) rem,
          rem == 0 ? "true" : "false", (unsigned) ZXV_MODEL_MAX_NEW, (unsigned long long) S.asks,
-         (unsigned long long) S.exhausted_asks);
+         (unsigned long long) S.exhausted_asks, ANSWER_REAL ? "true" : "false");
     if (S.have_gate)
         bput(b,
              ",\"last_answer\":{\"remaining_before\":%llu,\"prompt\":%llu,\"allowed\":%u,"
@@ -2042,6 +2110,86 @@ static void send_font(sock_t c, const char *name, size_t n)
     fclose(fp);
 }
 
+/* The browser surface (zxv_http_guard.h G6): with --web-root DIR, GET
+ * /web/<path> serves the sealed root tools/web/build_web_root.sh puts
+ * together (the boot screen, the passport login, the space and the
+ * companion). Its pages talk to this process through the same guarded
+ * /api/ routes as the window, so its HTML gets the window's token plumbing.
+ * They load scripts, a worker and WebAssembly from the root, which the
+ * window's CSP does not allow, so the root has its own: still nothing from
+ * any other origin. */
+static char WEB_ROOT[1024];
+
+static const char WEB_CSP[] =
+    "Content-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline' "
+    "'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' "
+    "data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; "
+    "form-action 'none'\r\n";
+
+static bool web_root_ok(const char *dir)
+{
+    static const char *const NEED[] = {"index.html", "boot.json"};
+    char probe[1100];
+    if (!dir || !dir[0] || strlen(dir) >= sizeof WEB_ROOT) return false;
+    for (size_t i = 0; i < sizeof NEED / sizeof NEED[0]; i++) {
+        snprintf(probe, sizeof probe, "%s/%s", dir, NEED[i]);
+        FILE *fp = fopen(probe, "rb");
+        if (!fp) return false;
+        fclose(fp);
+    }
+    return true;
+}
+
+static void send_web(sock_t c, const char *path, size_t plen)
+{
+    char rel[ZXV_WEB_PATH_MAX], full[sizeof WEB_ROOT + ZXV_WEB_PATH_MAX + 2];
+    if (!WEB_ROOT[0] || zxv_web_path(path, plen, rel, sizeof rel) < 0) {
+        reply(c, "404 Not Found", "text/plain", "not found", 9);
+        return;
+    }
+    const char *type = zxv_web_type(rel);
+    snprintf(full, sizeof full, "%s/%s", WEB_ROOT, rel);
+    /* open first, then look at what was opened: no window between a check
+     * on the name and the read */
+    FILE *fp = fopen(full, "rb");
+    struct stat st;
+    if (!fp || fstat(fileno(fp), &st) != 0 || !S_ISREG(st.st_mode) || st.st_size < 0 ||
+        st.st_size > 64L * 1024 * 1024) {
+        if (fp) fclose(fp);
+        reply(c, "404 Not Found", "text/plain", "not found", 9);
+        return;
+    }
+    size_t len = (size_t) st.st_size;
+    bool html = !strncmp(type, "text/html", 9);
+    char *body = malloc(len ? len : 1);
+    if (!body || fread(body, 1, len, fp) != len) {
+        free(body);
+        fclose(fp);
+        reply(c, "500 Internal Server Error", "text/plain", "read failed", 11);
+        return;
+    }
+    fclose(fp);
+    /* a page gets the token plumbing first thing in its <head> */
+    size_t cut = 0, extra = 0;
+    if (html) {
+        const char *at = NULL;
+        for (size_t i = 0; i + 6 <= len && !at; i++)
+            if (!memcmp(body + i, "<head>", 6)) at = body + i;
+        cut = at ? (size_t) (at - body) + 6 : 0;
+        extra = sizeof TOKEN_SCRIPT - 1;
+    }
+    char head[1024];
+    int n = snprintf(head, sizeof head,
+                     "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %zu\r\n%s" SAFE_HEADERS
+                     "\r\n",
+                     type, len + extra, WEB_CSP);
+    send_all(c, head, (size_t) n);
+    send_all(c, body, cut);
+    if (html) send_all(c, TOKEN_SCRIPT, sizeof TOKEN_SCRIPT - 1);
+    send_all(c, body + cut, len - cut);
+    free(body);
+}
+
 static zxv_guard_t G;
 
 /* A request: the headers and the largest body a route takes, with room for
@@ -2217,6 +2365,11 @@ static void handle(sock_t c)
     } else if (plen > 7 && !memcmp(path, "/fonts/", 7)) {
         if (is_get)
             send_font(c, path + 7, plen - 7);
+        else
+            reply(c, "405 Method Not Allowed", "text/plain", "use GET", 7);
+    } else if (plen >= 5 && !memcmp(path, "/web/", 5)) {
+        if (is_get)
+            send_web(c, path + 5, plen - 5);
         else
             reply(c, "405 Method Not Allowed", "text/plain", "use GET", 7);
     } else if (PATH_IS("/api/state") && is_get) {
@@ -2530,6 +2683,14 @@ static void rpc_shutdown(void)
     S.quit = true;
 }
 
+/* notify.send (zxvd_rpc.h N1-N3): an app's notice on the bus */
+static uint32_t rpc_notify(const zxvd_notice_t *n)
+{
+    zxn_spec_t sp = {ZXN_APP, (zxn_pri_t) n->pri, n->app, n->title,
+                     n->body, n->action,          n->key, (uint64_t) time(NULL) * 1000u};
+    return zxn_post(&S.bus, &sp);
+}
+
 static const zxvd_host_ops_t RPC_OPS = {rpc_state,  rpc_ask,        rpc_model,
                                         rpc_notes,  rpc_notes_read, net_command,
                                         rpc_update, rpc_shutdown,   ZXV_VERSION};
@@ -2748,13 +2909,19 @@ static void rpc_net_offers(zxvd_buf_t *o)
 
 /* zxvd_rpc.h V3: the owner's Player Card (sicily.h S2/S3). Only credibility
  * has a source on this node today; the other inputs are reported as 0 with
- * the reason, so the tier is what the measured inputs earn, never more. */
+ * the reason, so the tier is what the measured inputs earn, never more.
+ * Bond and giving have no real ledger here: the V-Bonds desk (bonds.*) and
+ * the grants desk (grants.*) keep sandbox books of practice units
+ * (zxvd_sandbox.h C1), never money, so they are not tier inputs. The
+ * desk's live practice bonds are shown apart, under "practice", which
+ * nothing evaluates. */
 static void rpc_player_card(zxvd_buf_t *o)
 {
     static qst_view_t qv;
     qst_view(&S.quest, QUEST_OWNER, (uint32_t) (zxv_net_wall_ms() / 86400000u), &qv);
-    uint64_t cred = qv.contributed_units, bond = 0, giving = 0;
-    uint32_t up = 0;
+    uint64_t cred = qv.contributed_units, bond = 0, giving = 0, practice_qty = 0;
+    uint32_t up = 0, practice_live = 0;
+    bool practice_open = zxvd_bonds_practice(&practice_live, &practice_qty);
     sic_tier_table_t tab;
     sic_tier_table_default(&tab);
     sic_tier_t t = sic_tier_eval(&tab, cred, bond, up, giving);
@@ -2762,11 +2929,13 @@ static void rpc_player_card(zxvd_buf_t *o)
                     "{\"tier\":%d,\"metal\":\"%s\",\"stone\":\"%s\",\"inputs\":{"
                     "\"credibility\":{\"value\":\"%llu\",\"source\":\"verified contributions "
                     "from mesh trades\"},"
-                    "\"bond\":{\"value\":\"0\",\"source\":\"not built yet: no bond can be "
-                    "posted\"},"
+                    "\"bond\":{\"value\":\"%llu\",\"source\":\"no real bond ledger on this "
+                    "node: the V-Bonds desk runs on practice units; not counted\"},"
                     "\"uptime_bps\":{\"value\":\"0\",\"source\":\"not measured yet\"},"
-                    "\"giving\":{\"value\":\"0\",\"source\":\"not tracked yet\"}},\"next\":",
-                    (int) t, sic_tier_name(t, 0), sic_tier_name(t, 1), (unsigned long long) cred);
+                    "\"giving\":{\"value\":\"%llu\",\"source\":\"no real giving ledger on this "
+                    "node: the grants desk runs on practice units; not counted\"}},\"next\":",
+                    (int) t, sic_tier_name(t, 0), sic_tier_name(t, 1), (unsigned long long) cred,
+                    (unsigned long long) bond, (unsigned long long) giving);
     if (t >= SIC_TIER_PLATINUM) {
         LIT_RAW(o, "null");
     } else {
@@ -2797,7 +2966,12 @@ static void rpc_player_card(zxvd_buf_t *o)
     const char *sep = "";
     for (size_t i = 0; i < sizeof PERK / sizeof PERK[0]; i++)
         if (perks & PERK[i].bit) zxvd_buf_printf(o, "%s\"%s\"", sep, PERK[i].name), sep = ",";
-    LIT_RAW(o, "]}");
+    zxvd_buf_printf(o,
+                    "],\"practice\":{\"bonds\":{\"value\":\"%llu\",\"live\":%u,\"set_up\":%s,"
+                    "\"source\":\"V-Bonds desk (bonds.*): practice units, not money; never a "
+                    "tier input\"}}}",
+                    (unsigned long long) practice_qty, (unsigned) practice_live,
+                    practice_open ? "true" : "false");
 }
 
 static const zxvd_view_ops_t VIEW_OPS = {rpc_net_peers, rpc_net_offers, rpc_player_card};
@@ -2878,6 +3052,7 @@ int main(int argc, char **argv)
     const char *model = NULL, *models_dir = NULL, *fonts_dir = NULL, *state_dir = NULL;
     const char *receipts = NULL; /* R24: --receipts, else the state folder's */
     const char *tiamat = NULL, *ask_once = NULL, *ask_file = NULL, *check_file = NULL;
+    const char *web_root = NULL;
     bool lan_discovery = true;
     const char *peers[MAX_PEERS_ARG], *gateway = NULL, *notify = "auto";
     int npeers = 0;
@@ -2893,6 +3068,15 @@ int main(int argc, char **argv)
     char screen_buf[520];
     const char *places_path = NULL; /* zxv_place.h; "-" keeps them in memory */
     char places_buf[520];
+    const char *caps_path = NULL; /* zxv_caps.h; "-" keeps them in memory */
+    char caps_buf[520];
+    const char *zxsh_path = NULL; /* zxvd_shell.h H7: shell.* stays off without it */
+#    if !defined(_WIN32)
+    char zxsh_buf[1024]; /* only the POSIX lookup beside argv[0] uses it */
+#    endif
+    const char *sched_path = NULL; /* zxv_sched.h; "-" keeps them in memory */
+    char sched_buf[520];
+    bool proc_control = false;      /* zxvd_proc.h P5 */
     const char *earn_ccy = "SWC";   /* zxvd_rpc.h E1, E6 */
     const char *enable_list = NULL; /* zxvd_ext.h X3: every feature starts off */
     uint64_t earn_rate = 1;
@@ -2932,6 +3116,8 @@ int main(int argc, char **argv)
             receipts = argv[++i];
         else if (!strcmp(argv[i], "--fonts-dir") && i + 1 < argc)
             fonts_dir = argv[++i];
+        else if (!strcmp(argv[i], "--web-root") && i + 1 < argc)
+            web_root = argv[++i];
         else if (!strcmp(argv[i], "--net") && i + 1 < argc) {
             if (zxv_net_mode_parse(argv[++i], &S.net_want) != 0) {
                 fprintf(stderr, "zxv-host: --net takes off, lan or online\n");
@@ -2986,6 +3172,14 @@ int main(int argc, char **argv)
             screen_path = argv[++i];
         else if (!strcmp(argv[i], "--places") && i + 1 < argc)
             places_path = argv[++i];
+        else if (!strcmp(argv[i], "--caps") && i + 1 < argc)
+            caps_path = argv[++i];
+        else if (!strcmp(argv[i], "--zxsh") && i + 1 < argc)
+            zxsh_path = argv[++i];
+        else if (!strcmp(argv[i], "--schedule") && i + 1 < argc)
+            sched_path = argv[++i];
+        else if (!strcmp(argv[i], "--proc-control"))
+            proc_control = true;
         else if (!strcmp(argv[i], "--earnings-ccy") && i + 1 < argc)
             earn_ccy = argv[++i];
         else if (!strcmp(argv[i], "--earnings-rate") && i + 1 < argc)
@@ -3032,6 +3226,16 @@ int main(int argc, char **argv)
                    "  --places FILE       keep saved places and location permissions in\n"
                    "                      FILE (default with --desktop: \"places.zxpl\"\n"
                    "                      beside the books; \"-\" keeps them in memory)\n"
+                   "  --caps FILE         keep the owner's answers on which apps may use\n"
+                   "                      which capabilities in FILE (default with\n"
+                   "                      --desktop: \"caps.zxcp\" beside the books)\n"
+                   "  --zxsh PATH         run shell.* jobs with this zxsh (default with\n"
+                   "                      --desktop: a zxsh beside zxvd; none: shell.* off)\n"
+                   "  --schedule FILE     keep the apps' schedules in FILE (default with\n"
+                   "                      --desktop: \"schedule.zxsd\" beside the books;\n"
+                   "                      \"-\" keeps them in memory)\n"
+                   "  --proc-control      let proc.signal and proc.restart act (on with\n"
+                   "                      --desktop)\n"
                    "  --earnings-ccy CODE private unit for the swarm's own-device credit\n"
                    "                      (default SWC; never VFV or an ISO 4217 currency)\n"
                    "  --earnings-rate N   its minor units per swarm credit (default 1)\n"
@@ -3064,6 +3268,8 @@ int main(int argc, char **argv)
                    "  --receipts FILE     one sealed receipt per answer (zxv_receipt.h);\n"
                    "                      default receipts.jsonl in the state folder\n"
                    "  --fonts-dir DIR     ASCW Golden fonts for the window\n"
+                   "  --web-root DIR      serve the browser surface from DIR at /web/\n"
+                   "                      (tools/web/build_web_root.sh puts it together)\n"
                    "  --exit-with-parent  stop when stdin closes\n"
                    "  --net MODE          off (default), lan or online: the Vinea peer network\n"
                    "  --net-port N        its UDP port (default 8723; 0 = any free port)\n"
@@ -3138,7 +3344,7 @@ int main(int argc, char **argv)
         zxn_host_set_mode(ZXN_HOST_AUTO);
     zxn_subscribe(&S.bus, zxn_host_deliver, NULL,
                   ZXN_KIND_BIT(ZXN_UPDATE) | ZXN_KIND_BIT(ZXN_AI_TASK_FAILED) |
-                      ZXN_KIND_BIT(ZXN_PEER_REQUEST),
+                      ZXN_KIND_BIT(ZXN_PEER_REQUEST) | ZXN_KIND_BIT(ZXN_APP),
                   ZXN_PRI_NORMAL);
     if (zxv_update_init(gateway, &S.bus, ZXU_VERSION(0, 1, 0)) != 0) {
         fprintf(stderr, "zxv-host: --update-gateway must be https://, or http:// to 127.0.0.1\n");
@@ -3196,6 +3402,13 @@ int main(int argc, char **argv)
 #endif
 
     pal_find_fonts(fonts_dir, argc > 0 ? argv[0] : NULL);
+    if (web_root) {
+        if (!web_root_ok(web_root)) {
+            fprintf(stderr, "zxv-host: --web-root %s has no index.html and boot.json\n", web_root);
+            return 2;
+        }
+        snprintf(WEB_ROOT, sizeof WEB_ROOT, "%s", web_root);
+    }
 
     /* the model slot: an explicit file, else the first *.gguf in the
      * models folder, else none (the swarm runs without one) */
@@ -3294,6 +3507,44 @@ int main(int argc, char **argv)
         else if (zpl_was_reset())
             fprintf(stderr, "zxvd: %s was damaged; moved aside, places start empty\n", places_path);
     }
+    if (desktop && !caps_path && pal_beside_books(caps_buf, sizeof caps_buf, "caps.zxcp") == 0)
+        caps_path = caps_buf;
+    if (caps_path && strcmp(caps_path, "-")) {
+        if (zcp_open(caps_path) != 0)
+            fprintf(stderr, "zxvd: cannot write capability answers to %s; keeping them in memory\n",
+                    caps_path);
+        else if (zcp_was_reset())
+            fprintf(stderr, "zxvd: %s was damaged; moved aside, capability answers start empty\n",
+                    caps_path);
+    }
+#    if !defined(_WIN32)
+    if (desktop && !zxsh_path && strchr(argv[0], '/')) { /* the zxsh shipped beside zxvd */
+        size_t dn = (size_t) (strrchr(argv[0], '/') - argv[0]);
+        if (dn + 6 < sizeof zxsh_buf) {
+            memcpy(zxsh_buf, argv[0], dn);
+            memcpy(zxsh_buf + dn, "/zxsh", 6);
+            if (access(zxsh_buf, X_OK) == 0) zxsh_path = zxsh_buf;
+        }
+    }
+#    endif
+    if (zxsh_path && zxvd_shell_enable(zxsh_path) != 0) {
+        fprintf(stderr, "zxvd: --zxsh path too long\n");
+        return 2;
+    }
+    if (desktop && !sched_path &&
+        pal_beside_books(sched_buf, sizeof sched_buf, "schedule.zxsd") == 0)
+        sched_path = sched_buf;
+    if (sched_path && strcmp(sched_path, "-")) {
+        if (zsd_open(sched_path) != 0)
+            fprintf(stderr, "zxvd: cannot write schedules to %s; keeping them in memory\n",
+                    sched_path);
+        else if (zsd_was_reset())
+            fprintf(stderr, "zxvd: %s was damaged; moved aside, schedules start empty\n",
+                    sched_path);
+    }
+    zxvd_dns_enable(true);
+    zxvd_proc_enable(proc_control || desktop);
+    zxvd_rpc_set_notify(rpc_notify);
     if (books_path && !strcmp(books_path, "-")) books_path = NULL;
     if (zxvd_rpc_books_file(books_path) != 0) {
         fprintf(stderr, "zxvd: --books path too long\n");
@@ -3473,6 +3724,7 @@ int main(int argc, char **argv)
                "then open the ZXV-URL below (keep the #token part private)\n",
                port, port);
     printf("ZXV-URL: %s\n", url_tok);
+    if (WEB_ROOT[0]) printf("ZXV-WEB: %sweb/boot.html#token=%s\n", url, G.token);
 #if defined(ZXVD)
     if (zxvd_phone_port())
         printf("ZXVD-PHONE: TCP %u (pair a phone with phone.pair)\n", (unsigned) zxvd_phone_port());

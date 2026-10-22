@@ -304,6 +304,6 @@ const char *zxn_kind_name(zxn_kind_t k)
 {
     static const char *const names[ZXN_KIND_COUNT] = {"ai-task-done",  "ai-task-failed", "message",
                                                       "call-incoming", "call-missed",    "economy",
-                                                      "update",        "peer-request"};
+                                                      "update",        "peer-request",   "app"};
     return (uint32_t) k < ZXN_KIND_COUNT ? names[k] : "unknown";
 }

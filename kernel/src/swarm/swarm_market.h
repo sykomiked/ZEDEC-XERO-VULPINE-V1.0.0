@@ -125,9 +125,15 @@ uint64_t swarm_capped_split(uint64_t total, const uint64_t *w, uint32_t n, uint6
 swarm_status_t swarm_market_begin_cycle(swarm_budget_t *b, swarm_market_t *m,
                                         swarm_emotion_state_t *emo);
 
+/* Most value (or Social) one trader may be credited in one cycle, so the
+ * total over SWARM_MAX_MODELS traders fits in 64 bits. */
+#define SWARM_MKT_CYCLE_MAX (UINT64_MAX / SWARM_MAX_MODELS)
+
 /* Credit earned capital. Financial capital cannot be credited (it is only
  * earned through settlement); value forms count toward M6 income and Social
- * toward the M6 dividend. */
+ * toward the M6 dividend. A credit that would take the trader's cycle value
+ * or Social total past SWARM_MKT_CYCLE_MAX is refused (SWARM_ERR_ARG) and
+ * credits nothing. */
 swarm_status_t swarm_market_credit(swarm_market_t *m, uint32_t model_id, swarm_cap_t form,
                                    uint64_t amount);
 

@@ -589,6 +589,53 @@ def name_after_restart(c):
     d = c.ok('companion.dna')
     check(d['seed'] == NAMED.get('seed') and d['genes'] == NAMED.get('genes'),
           'and has the same personality (%s)' % d)
+# A TEST-ONLY Ed25519 gateway key (seed 32 x 0x42) and its signature over the
+# V-Bonds switch manifest for juris 1, epoch 1, enable (vbond.h B0), made
+# once with the cryptography package so this test needs no signer.
+CARD_GW_PK = '2152f8d19b791d24453242e15f2eab6cb7cffa7b6a5ed30097960e069881db12'
+CARD_SW_MSG = '7a78762f76626f6e642d73772f763101000000010100000000000000'
+CARD_SW_SIG = ('a9dbfeb6cbaae1d2de149cb3152ea8c02696407f2995b5175fbda3598dfb6b8c'
+               '7733d2aa887787af9a858d38d61075b519c1300355065a72ede1e1e8d8191205')
+
+
+def card_practice_checks(c, pc):
+    """player.card (zxvd_rpc.h V3): practice units on the V-Bonds desk are
+    shown under "practice" and never move the tier or fill an input."""
+    pb = pc.get('practice', {}).get('bonds', {})
+    check(pb.get('set_up') is False and pb.get('value') == '0' and pb.get('live') == 0 and
+          'never a tier input' in pb.get('source', '') and
+          'practice units; not counted' in pc['inputs']['bond']['source'] and
+          'practice units; not counted' in pc['inputs']['giving']['source'] and
+          pc['inputs']['giving']['value'] == '0',
+          'player.card: bond and giving name why they are 0; no practice desk yet (%s)' % pc)
+    fs = {f['name']: f for f in c.ok('features.get')['features']}
+    if 'bonds' not in fs:
+        check(True, 'player.card practice bonds: not in this build')
+        return
+    c.ok('features.set', {'feature': 'bonds'})
+    c.ok('bonds.setup', {'juris': 1, 'gateway': 900})
+    c.ok('bonds.key', {'key': 900, 'public_key': CARD_GW_PK})
+    vb = c.ok('bonds.account_open', {'owner': 1, 'asset': 'vbill'})['account']
+    pay = c.ok('bonds.account_open', {'owner': 1, 'asset': 'vino'})['account']
+    # beyond Platinum's bond threshold (sicily.h S2: 1,000,000)
+    c.ok('bonds.fund', {'account': vb, 'amount_minor': '2000000'})
+    m = c.ok('bonds.message', {'kind': 'switch', 'epoch': 1})
+    check(m['message'] == CARD_SW_MSG, 'bonds.message: the switch manifest this test signed')
+    c.ok('bonds.switch', {'epoch': 1, 'sig': CARD_SW_SIG})
+    b = c.ok('bonds.issue', {'owner': 1, 'vbill_account': vb, 'payee': pay, 'qty': '1500000',
+                             'k': 13})
+    check(b['qty'] == '1500000', 'a practice V-Bond of 1,500,000 is live (%s)' % b)
+    p2 = c.ok('player.card')
+    check(p2['practice']['bonds'] == dict(pb, set_up=True, value='1500000', live=1),
+          'player.card: the practice bond is shown apart (%s)' % p2['practice'])
+    check(p2['tier'] == pc['tier'] == 0 and p2['metal'] == 'Copper' and
+          p2['inputs'] == pc['inputs'] and p2['next'] == pc['next'] and p2['perks'] == [],
+          'player.card: practice units move no tier, input or missing list (%s)' % p2)
+    # the switch off keeps the desk; the card still reads it, still uncounted
+    c.ok('features.set', {'feature': 'bonds', 'enabled': False})
+    p3 = c.ok('player.card')
+    check(p3['practice']['bonds']['value'] == '1500000' and p3['tier'] == 0 and
+          p3['inputs']['bond']['value'] == '0', 'player.card with bonds off: the same (%s)' % p3)
 
 
 def companion_checks(c):
@@ -829,7 +876,7 @@ def space_checks(c):
 
 
 def power_checks(c, generates):
-    """power.* (zxvd_power.h W1-W8): the ledger, the companion as an agent
+    """power.* (zxvd_power.h W1-W9): the ledger, thermal.read, the companion as an agent
     under zxvd's own app, and an energy budget that makes it wait."""
     st = c.ok('power.status')
     check(st['host'] in ('linux', 'macos', 'windows') and st['device'] in ('desktop', 'laptop') and
@@ -839,8 +886,23 @@ def power_checks(c, generates):
     apps = c.ok('power.top', {'kind': 'app', 'n': 64})
     me = [a for a in apps if a['name'].lower().startswith('zxvd')]
     check(len(me) == 1 and me[0]['parent'] is None, 'power.top: zxvd is an app (%s)' % me)
+    # W6: a figure only from a meter; with none, state neither and no number
+    check(all(x['state'] in ('true', 'false', 'both', 'neither') and
+              ((x['uj'] is None and x['mw'] is None) == (x['state'] in ('neither', 'false')))
+              for x in apps), 'power.top: figures only where measured (%s)' %
+          sorted({x['state'] for x in apps}))
     r = c.call('power.top', {'kind': 'apps'})
     check(r.get('error', {}).get('code') == -32602, 'power.top: an unknown kind is refused')
+    # thermal.read (zxvd_power.h W9): this machine's real sensors, or NEITHER
+    # with the reason; never a made-up number
+    th = c.ok('thermal.read')
+    accepted = [x for x in th['readings'] if x['state'] == 'true']
+    check(th['state'] in ('true', 'false', 'both', 'neither') and
+          set(th['classes']) == {'cpu', 'gpu', 'case', 'other'} and
+          all(isinstance(x['mdeg'], int) and -50000 <= x['mdeg'] <= 150000 for x in accepted) and
+          all(x['mdeg'] is None and x['reason'] for x in th['readings'] if x['state'] == 'false') and
+          (th['state'] != 'neither' or (not th['readings'] and th['reason'])),
+          'thermal.read: %s, %d readings (%s)' % (th['state'], len(th['readings']), th['reason']))
     r = c.call('power.budget', {'target': 'device', 'window_ms': 0, 'max_uj': 0})
     check(r.get('error', {}).get('code') == -32012, 'power.budget: off until switched on')
     c.ok('features.set', {'feature': 'power', 'on': True})
@@ -1135,7 +1197,7 @@ def main(binary, gguf=None):
                 'companion.name', 'companion.name_preview', 'companion.name_confirm',
                 'seats.list', 'seats.add', 'seats.remove', 'seats.set_lock',
                 'seats.unlock', 'seats.lock', 'seats.auto', 'seats.set_auto', 'power.status',
-                'power.top', 'power.budget', 'pspace.create', 'pspace.find', 'pspace.join',
+                'power.top', 'power.budget', 'thermal.read', 'pspace.create', 'pspace.find', 'pspace.join',
                 'pspace.leave', 'pspace.post', 'pspace.events', 'pspace.members', 'pspace.list',
                 'hall.load', 'hall.play', 'hall.pause', 'hall.seek', 'hall.status'}
         if not WINDOWS:
@@ -1214,8 +1276,12 @@ def main(binary, gguf=None):
                 check(tag.get('tokens', 0) > 0 and tag.get('base') == 'true' and
                       comp.get('quarantined') == 0,
                       'the answer was generated under the budget gate and tagged: %s' % tag)
+                check(comp.get('answered_by_model') is True,
+                      'swarm.state says the model wrote the last answer')
             else:
                 check('tokens' in a, 'without the forward pass the gate still reports tokens')
+                check(comp.get('answered_by_model') is False,
+                      'swarm.state says the model did not write the last answer')
             power_checks(c, mi['can_generate'])
         else:
             check(not mi['loaded'], 'model.info: no model is a normal state')
@@ -1226,6 +1292,8 @@ def main(binary, gguf=None):
                   'swarm.organ: the smith answers: %r' % o)
             check(o['verdict'] == 'neither' and not o['witnessed'] and o['action'] == 'wait',
                   'swarm.organ: no fitted head, so no verdict and no witness: %r' % o)
+            check(c.ok('swarm.state')['companion'].get('answered_by_model') is False,
+                  'with no model, swarm.state says no model wrote the answer')
             power_checks(c, False)
         r = c.call('swarm.organ', {'organ': 'blacksmith', 'prompt': 'x'})
         check(r.get('error', {}).get('code') == -32602, 'swarm.organ with an unknown organ: -32602')
@@ -1249,6 +1317,7 @@ def main(binary, gguf=None):
               pc['perks'] == [] and pc['next']['metal'] == 'Bronze' and
               'bond' in pc['next']['missing'] and pc['inputs']['bond']['value'] == '0',
               'player.card: Copper, Bronze next, bond missing (%s)' % pc)
+        card_practice_checks(c, pc)
         j = c.ok('jurisdiction.get')
         check(j['market'] == 'closed' and j['standard'] == '' and j['in_effect'] is True and j['plugins'] == 0 and j['report_standard'] == '' and
               'AAOIFI' in j['standards'], 'jurisdiction.get: closed clearing by default')

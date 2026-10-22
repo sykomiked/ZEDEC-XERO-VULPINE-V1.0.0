@@ -4,6 +4,9 @@
 #include "allot.h"
 #include "pay_util.h"
 #include "keccak.h"
+#include "vrf.h"
+
+_Static_assert(ALLOT_VRF_PK == VRF_PK_LEN && ALLOT_VRF_PROOF == VRF_PROOF_LEN, "R5 sizes");
 
 /* ===== Little helpers ===== */
 
@@ -534,10 +537,55 @@ allot_status_t allot_reveal(allot_t *r, const uint8_t party[ALLOT_ID_LEN],
     if (!r || !party || !secret) return ALLOT_ERR_ARG;
     if (r->phase != ALLOT_CLOSED) return ALLOT_ERR_PHASE;
     int i = find_party(r, party);
-    if (i < 0 || r->revealed[i]) return ALLOT_ERR_PARTY;
+    if (i < 0 || r->revealed[i] || r->is_vrf[i]) return ALLOT_ERR_PARTY;
     allot_commitment(r->epoch, party, secret, c);
     if (!pay_memeq(c, r->commit[i], ALLOT_HASH_LEN)) return ALLOT_ERR_COMMIT;
     pay_memcpy(r->secret[i], secret, ALLOT_HASH_LEN);
+    r->revealed[i] = true;
+    return ALLOT_OK;
+}
+
+/* R5: the commitment slot of a VRF party binds its key. */
+static void vrf_pk_commitment(uint64_t epoch, const uint8_t party[ALLOT_ID_LEN],
+                              const uint8_t pk[ALLOT_VRF_PK], uint8_t out[ALLOT_HASH_LEN])
+{
+    pre_t p;
+    p.len = 0;
+    pre_str(&p, "ZXV-ALLOT-VRF-PK");
+    pre_u64(&p, epoch);
+    pre_bytes(&p, party, ALLOT_ID_LEN);
+    pre_bytes(&p, pk, ALLOT_VRF_PK);
+    sha3_256(p.buf, p.len, out);
+}
+
+allot_status_t allot_commit_vrf(allot_t *r, const uint8_t party[ALLOT_ID_LEN],
+                                const uint8_t pk[ALLOT_VRF_PK])
+{
+    uint8_t c[ALLOT_HASH_LEN];
+    if (!r || !party || !pk) return ALLOT_ERR_ARG;
+    vrf_pk_commitment(r->epoch, party, pk, c);
+    allot_status_t st = allot_commit(r, party, c);
+    if (st != ALLOT_OK) return st;
+    r->is_vrf[r->n_parties - 1] = true;
+    pay_memcpy(r->vrf_pk[r->n_parties - 1], pk, ALLOT_VRF_PK);
+    return ALLOT_OK;
+}
+
+allot_status_t allot_reveal_vrf(allot_t *r, const uint8_t party[ALLOT_ID_LEN],
+                                const uint8_t pi[ALLOT_VRF_PROOF])
+{
+    uint8_t beta[VRF_OUT_LEN];
+    if (!r || !party || !pi) return ALLOT_ERR_ARG;
+    if (r->phase != ALLOT_CLOSED) return ALLOT_ERR_PHASE;
+    int i = find_party(r, party);
+    if (i < 0 || r->revealed[i] || !r->is_vrf[i]) return ALLOT_ERR_PARTY;
+    if (!vrf_verify(r->vrf_pk[i], r->header_hash, ALLOT_HASH_LEN, pi, beta))
+        return ALLOT_ERR_COMMIT;
+    pre_t p;
+    p.len = 0;
+    pre_str(&p, "ZXV-ALLOT-VRF-BETA");
+    pre_bytes(&p, beta, VRF_OUT_LEN);
+    sha3_256(p.buf, p.len, r->secret[i]);
     r->revealed[i] = true;
     return ALLOT_OK;
 }

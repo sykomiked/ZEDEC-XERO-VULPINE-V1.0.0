@@ -119,8 +119,14 @@ case "${1:-srcs}" in
         # the owner's verified contributions from trades (quest)
         for f in quest quest_coop quest_guard; do echo "src/quest/$f.c"; done
         for f in pay_ledger pay_util pay_assure; do echo "src/pay/$f.c"; done
-        # zxvd's jurisdiction host (zxvd_rpc.h J5) and the accounting names it reads
+        # zxvd's jurisdiction host (zxvd_rpc.h J5) and the accounting names it reads,
+        # its gateway key and the compliance plug-ins (J6-J9: juris_cp.h, capctl,
+        # taxhook, kycwrap and their signed-manifest code; ML-DSA-87 is in vinea)
         echo src/juris/juris.c
+        echo src/juris/juris_cp.c
+        for f in capctl/capctl capctl/cp_common capctl/cpk taxhook/taxhook kycwrap/kycwrap; do
+            echo "src/$f.c"
+        done
         echo src/acct/acct.c
         # the Player Card's tiers (zxvd's player.card)
         echo src/sicily/sicily.c
@@ -184,9 +190,11 @@ case "${1:-srcs}" in
         # Argon2id (id_argon2.c) is added with ident in build_zxvd.sh
         echo arch/hosted/zxvd_seats.c
         echo src/seats/seats.c
-        # power.*: the energy ledger and this machine's readers (docs/POWER.md)
+        # power.* and thermal.read: the energy ledger and this machine's
+        # readers (docs/POWER.md)
         echo arch/hosted/zxvd_power.c
         echo arch/hosted/zxv_power_host.c
+        echo arch/hosted/zxv_thermal_host.c
         echo src/power/power_ledger.c
         # irc.*: the IRC gateway (docs/IRC_GATEWAY.md), its protocol engine
         # and the repo's TLS 1.3 server and verifier (x25519, aead and hkdf
@@ -203,12 +211,20 @@ case "${1:-srcs}" in
         echo arch/hosted/zxvd_fab.c
         echo src/fab/fab.c
         echo src/fab/fab_send.c
+        # the money engines (zxvd_money.c): mint, qnote, fx, vhub, capmkt,
+        # market, royalty, cred, dispute; svault, sicily, lpres, pay and
+        # ed25519_verify are already listed (capmkt.c is also in people, which
+        # skips duplicates, but people is not in every build)
+        echo arch/hosted/zxvd_money.c
+        for f in mint qnote fxepoch vhub capmkt royalty cred dispute vrf; do echo "src/$f/$f.c"; done
+        for f in market mk_order mk_extra mk_pay; do echo "src/market/$f.c"; done
         ;;
     groupincs)
         echo src/cardnet
         echo src/ident
         for d in svault vswap vauction zenny zstats; do echo "src/$d"; done
         for d in src/vbond src/vderiv src/grants src/estate src/web4 src/seats src/power src/tls src/vinea src/fab; do echo "$d"; done
+        for d in mint qnote fxepoch vhub capmkt market royalty cred dispute vrf; do echo "src/$d"; done
         ;;
     rpcdeps)
         # the owner's files and spaces (zxvd_rpc.h F/S), the jurisdiction
@@ -217,13 +233,21 @@ case "${1:-srcs}" in
         echo arch/hosted/zxv_spaces.c
         echo src/chiglet/chg_vocab.c
         echo src/juris/juris.c
+        # J6-J9: the gateway key and the compliance plug-ins (ML-DSA-87 comes
+        # from the module archive: see modules)
+        echo src/juris/juris_cp.c
+        for f in capctl/capctl capctl/cp_common capctl/cpk taxhook/taxhook kycwrap/kycwrap; do
+            echo "src/$f.c"
+        done
         echo src/acct/acct.c
         echo src/lpres/lpres_hex.c
         echo src/lpres/lpres.c
         # the utilities (sys.*, log.tail), Scent's index, Platen's printers
         # and scanners with their IPP and eSCL codecs, Keepsake's backups,
-        # Wake's journal, Shepherd's screen time and Waymark's places
-        for f in zxv_sysinfo zxvd_log zxv_search zxv_print_host zxv_keepsake zxv_journal zxv_screen zxv_place; do
+        # Wake's journal, Shepherd's screen time, Waymark's places, Gatehouse's
+        # capability answers, the terminal's jobs, Signpost's names, Treadle's
+        # schedules and Warren's processes
+        for f in zxv_sysinfo zxvd_log zxv_search zxv_print_host zxv_keepsake zxv_journal zxv_screen zxv_place zxv_caps zxvd_shell zxvd_dns zxv_sched zxvd_proc; do
             echo "arch/hosted/$f.c"
         done
         echo src/print/ipp.c
@@ -240,6 +264,9 @@ case "${1:-srcs}" in
                  ehop/ehop_frame.c tls/aead.c web4/web4_cid.c web4/web4_agent.c pqsec/pq_mldsa65.c; do
             echo "src/$f"
         done
+        # ML-DSA-87 for zxvd_rpc.c's gateway key (rpcdeps' juris_cp.c, cpk.c):
+        # an archive member, so a test that links its own copy first is unaffected
+        echo src/pqsec/pq_mldsa87.c
         for f in src/pqsec/mldsa/[a-z]*.c; do echo "$f"; done
         ;;
     *) echo "usage: $0 [srcs|incs|vinea|update|groups|groupincs|rpcdeps|rpcincs|modules|people|people_deps|people_incs]" >&2; exit 2 ;;

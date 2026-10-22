@@ -459,6 +459,7 @@ SRCS := \
     kernel/src/pqsec/pq_slh256s.c \
     kernel/src/ident/id_argon2.c \
     kernel/src/ident/id_core.c \
+    kernel/src/ident/id_mem.c \
     kernel/src/ident/id_passkey.c \
     kernel/src/ipfs_node/ipfsn_multiformats.c \
     kernel/src/passport/pp_core.c \

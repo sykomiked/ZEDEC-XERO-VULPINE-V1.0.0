@@ -94,6 +94,8 @@ static int parse_line(const char *s, unsigned ln, zxv_tiamat_conf_t *c, char *er
     } else if (!strcmp(word, "log")) {
         if (next_tok(&s, c->log_path, sizeof c->log_path) != 1)
             return fail(err, ecap, ln, "log takes a path");
+    } else if (!strcmp(word, "delegate")) {
+        c->delegate = 1;
     } else if (!strcmp(word, "cell")) {
         if (c->n_cells >= ZXV_TIAMAT_CELLS) return fail(err, ecap, ln, "more than 16 cells");
         zxv_tiamat_cell_t *k = &c->cell[c->n_cells];
@@ -116,7 +118,7 @@ static int parse_line(const char *s, unsigned ln, zxv_tiamat_conf_t *c, char *er
         }
         c->n_cells++;
     } else {
-        return fail(err, ecap, ln, "unknown directive (slot, cell or log)");
+        return fail(err, ecap, ln, "unknown directive (slot, cell, log or delegate)");
     }
     if (next_tok(&s, word, sizeof word) != 0) return fail(err, ecap, ln, "extra words at the end");
     return 0;
@@ -202,13 +204,9 @@ static uint32_t score(const zxv_tiamat_cell_t *k, const char *q)
     return s;
 }
 
-uint32_t zxv_tiamat_route(const zxv_tiamat_conf_t *c, const char *q, int *witness)
+/* the best-scoring cell of another lineage than lead, or -1 */
+static int witness_for(const zxv_tiamat_conf_t *c, const char *q, uint32_t lead)
 {
-    uint32_t lead = 0, best = 0;
-    for (uint32_t i = 0; i < c->n_cells; i++) {
-        uint32_t s = score(&c->cell[i], q);
-        if (s > best) best = s, lead = i;
-    }
     int w = -1;
     uint32_t wbest = 0;
     for (uint32_t i = 0; i < c->n_cells; i++) {
@@ -216,7 +214,17 @@ uint32_t zxv_tiamat_route(const zxv_tiamat_conf_t *c, const char *q, int *witnes
         uint32_t s = score(&c->cell[i], q);
         if (w < 0 || s > wbest) w = (int) i, wbest = s;
     }
-    if (witness) *witness = w;
+    return w;
+}
+
+uint32_t zxv_tiamat_route(const zxv_tiamat_conf_t *c, const char *q, int *witness)
+{
+    uint32_t lead = 0, best = 0;
+    for (uint32_t i = 0; i < c->n_cells; i++) {
+        uint32_t s = score(&c->cell[i], q);
+        if (s > best) best = s, lead = i;
+    }
+    if (witness) *witness = witness_for(c, q, lead);
     return lead;
 }
 
@@ -430,13 +438,15 @@ static size_t put(char *out, size_t cap, size_t at, const char *fmt, const char 
 static int check_lead(const zxv_tiamat_conf_t *c, zxv_tiamat_ask_fn ask, void *ctx, const char *q,
                       zxv_tiamat_trace_t *t, char *out, size_t cap, int *shown);
 
-int zxv_tiamat_answer(const zxv_tiamat_conf_t *c, zxv_tiamat_ask_fn ask, void *ctx, const char *q,
-                      zxv_tiamat_trace_t *t, char *out, size_t cap, int *shown)
+/* H2-H4 with the lead given */
+static int answer_lead(const zxv_tiamat_conf_t *c, zxv_tiamat_ask_fn ask, void *ctx, const char *q,
+                       uint32_t lead_cell, zxv_tiamat_trace_t *t, char *out, size_t cap, int *shown)
 {
     memset(t, 0, sizeof *t);
     *shown = 0;
     out[0] = 0;
-    t->lead = zxv_tiamat_route(c, q, &t->witness);
+    t->lead = lead_cell;
+    t->witness = witness_for(c, q, lead_cell);
     t->witness_tv = t->reckon_tv = -1;
     const char *lead = c->cell[t->lead].name;
 
@@ -455,6 +465,12 @@ int zxv_tiamat_answer(const zxv_tiamat_conf_t *c, zxv_tiamat_ask_fn ask, void *c
         return t->tv;
     }
     return check_lead(c, ask, ctx, q, t, out, cap, shown);
+}
+
+int zxv_tiamat_answer(const zxv_tiamat_conf_t *c, zxv_tiamat_ask_fn ask, void *ctx, const char *q,
+                      zxv_tiamat_trace_t *t, char *out, size_t cap, int *shown)
+{
+    return answer_lead(c, ask, ctx, q, zxv_tiamat_route(c, q, NULL), t, out, cap, shown);
 }
 
 int zxv_tiamat_check(const zxv_tiamat_conf_t *c, zxv_tiamat_ask_fn ask, void *ctx, const char *q,
@@ -604,11 +620,9 @@ int zxv_tiamat_log(const char *path, const char *q, const zxv_tiamat_conf_t *c,
     return fclose(f) == 0 ? 0 : -1;
 }
 
-void zxv_tiamat_write(FILE *f, const char *q, const zxv_tiamat_conf_t *c,
-                      const zxv_tiamat_trace_t *t, const char *seen)
+/* the trace's fields, from ',"lead"' to ',"exact_shown":...' */
+static void write_trace(FILE *f, const zxv_tiamat_conf_t *c, const zxv_tiamat_trace_t *t)
 {
-    fprintf(f, "{\"time\":%llu,\"q\":", (unsigned long long) now_ms());
-    json_str(f, q);
     fputs(",\"lead\":", f);
     json_str(f, c->cell[t->lead].name);
     fprintf(f, ",\"lead_rc\":%d,\"lead_ms\":%llu,\"lead_reply\":", t->lead_rc,
@@ -640,9 +654,234 @@ void zxv_tiamat_write(FILE *f, const char *q, const zxv_tiamat_conf_t *c,
     fputs(",\"verdict\":", f);
     json_str(f, zxv_tiamat_tv_name(t->tv));
     fprintf(f, ",\"exact_shown\":%s", t->exact_shown ? "true" : "false");
+}
+
+void zxv_tiamat_write(FILE *f, const char *q, const zxv_tiamat_conf_t *c,
+                      const zxv_tiamat_trace_t *t, const char *seen)
+{
+    fprintf(f, "{\"time\":%llu,\"q\":", (unsigned long long) now_ms());
+    json_str(f, q);
+    write_trace(f, c, t);
     if (seen) {
         fputs(",\"seen\":", f);
         json_str(f, seen);
     }
     fputs("}\n", f);
+}
+
+/* ---- H6 delegate ---- */
+
+/* The interaction circle of text: every cell with its H2 score, in config
+ * order (the lead triad first); a lineage is numbered by its first cell. */
+static void circle(const zxv_tiamat_conf_t *c, const char *text, swd_cand_t *k)
+{
+    for (uint32_t i = 0; i < c->n_cells; i++) {
+        uint32_t lin = i;
+        for (uint32_t j = 0; j < i; j++)
+            if (!strcmp(c->cell[j].lineage, c->cell[i].lineage)) {
+                lin = j;
+                break;
+            }
+        k[i].cell = i;
+        k[i].score = score(&c->cell[i], text);
+        k[i].lineage = lin;
+        k[i].resident = true;
+    }
+}
+
+/* One part per line of the holder's reply: list marks ("1.", "2)", "-",
+ * "*") and spaces trimmed, empty lines and a lone NONE skipped. Stores up
+ * to ZXV_TIAMAT_PARTS; returns how many lines were parts. */
+static uint32_t split_lines(const char *r, char part[][ZXV_TIAMAT_PART_Q])
+{
+    uint32_t n = 0;
+    while (*r) {
+        const char *e = r;
+        while (*e && *e != '\n') e++;
+        const char *a = r, *b = e, *m;
+        while (a < b && isspace((unsigned char) *a)) a++;
+        for (m = a; m < b && isdigit((unsigned char) *m); m++) {
+        }
+        if (m > a && m < b &&
+            (*m == ')' || (*m == '.' && (m + 1 == b || isspace((unsigned char) m[1])))))
+            a = m + 1;
+        else if (a < b && (*a == '-' || *a == '*'))
+            a++;
+        while (a < b && isspace((unsigned char) *a)) a++;
+        while (b > a && isspace((unsigned char) b[-1])) b--;
+        size_t len = (size_t) (b - a);
+        bool none = len == 4;
+        for (size_t i = 0; none && i < 4; i++) none = tolower((unsigned char) a[i]) == "none"[i];
+        if (len && !none) {
+            if (n < ZXV_TIAMAT_PARTS) {
+                char tmp[ZXV_TIAMAT_REPLY];
+                size_t k = len < sizeof tmp ? len : sizeof tmp - 1;
+                memcpy(tmp, a, k);
+                tmp[k] = 0;
+                excerpt(part[n], ZXV_TIAMAT_PART_Q, tmp, ZXV_TIAMAT_PART_Q - 4);
+            }
+            n++;
+        }
+        r = *e ? e + 1 : e;
+    }
+    return n;
+}
+
+int zxv_tiamat_delegate(const zxv_tiamat_conf_t *c, zxv_tiamat_ask_fn ask, void *ctx, const char *q,
+                        zxv_tiamat_deleg_t *d, char *out, size_t cap, int *shown)
+{
+    swd_cand_t k[ZXV_TIAMAT_CELLS];
+    uint32_t root;
+    memset(d, 0, sizeof *d);
+    *shown = 0;
+    out[0] = 0;
+    circle(c, q, k);
+    swd_position(k, c->n_cells, SWD_NONE, &d->take);
+    d->holder = d->take.moved ? d->take.to : zxv_tiamat_route(c, q, NULL);
+    swd_init(&d->tree, 1, 0);
+    swd_open(&d->tree, SWD_NONE, d->holder, 0, SWD_CONJ, &root);
+
+    char qx[ZXV_TIAMAT_REPLY - 400], *prompt = malloc(ZXV_TIAMAT_REPLY);
+    excerpt(qx, sizeof qx, q, sizeof qx - 4);
+    if (prompt) {
+        snprintf(prompt, ZXV_TIAMAT_REPLY,
+                 "Split this question into at most 4 separate questions that can each be "
+                 "answered on their own, one per line. If it is one question, reply with the "
+                 "one word NONE.\nQuestion: %s",
+                 qx);
+        d->split_rc = ask(ctx, d->holder, prompt, d->split_reply, sizeof d->split_reply);
+        free(prompt);
+    } else {
+        snprintf(d->split_reply, sizeof d->split_reply, "out of memory");
+    }
+    uint32_t lines = d->split_rc == 1 ? split_lines(d->split_reply, d->part_q) : 0;
+
+    if (lines < 2) { /* one part: H2-H4 as without H6 */
+        d->n_parts = 0;
+        swd_turn(&d->tree);
+        d->tv = answer_lead(c, ask, ctx, q, d->holder, &d->part[0], out, cap, &d->part_shown[0]);
+        swd_witness(&d->tree, root, (lpres_state_t) d->tv);
+        swd_close(&d->tree, root);
+        swd_seal(&d->tree);
+        d->n_conflicts = swd_conflicts(&d->tree, NULL, 0);
+        *shown = d->part_shown[0];
+        return d->tv;
+    }
+
+    /* outward: each part to its circle's best match */
+    d->n_parts = lines < ZXV_TIAMAT_PARTS ? lines : ZXV_TIAMAT_PARTS;
+    for (uint32_t i = 0; i < lines; i++) {
+        uint32_t id;
+        if (i < d->n_parts) {
+            circle(c, d->part_q[i], k);
+            swd_position(k, c->n_cells, d->holder, &d->hand[i]);
+            swd_open(&d->tree, root, d->hand[i].to, 0, SWD_CONJ, &d->node[i]);
+        } else {
+            swd_open(&d->tree, root, d->holder, 0, SWD_CONJ, &id); /* no slot: lost */
+        }
+    }
+    d->n_lost = d->tree.node[root].n_lost;
+    swd_turn(&d->tree);
+
+    /* inward: each part answered and checked, then the whole */
+    size_t pcap = ZXV_TIAMAT_REPLY + 1024, at = 0;
+    char *pout = malloc(pcap);
+    for (uint32_t i = 0; i < d->n_parts; i++) {
+        int pv;
+        if (pout) {
+            pv = answer_lead(c, ask, ctx, d->part_q[i], d->hand[i].to, &d->part[i], pout, pcap,
+                             &d->part_shown[i]);
+            at = put(out, cap, at, "%s %s\n",
+                     i == 0   ? "1."
+                     : i == 1 ? "2."
+                     : i == 2 ? "3."
+                              : "4.",
+                     d->part_q[i], "");
+            at = put(out, cap, at, "%s\n\n", pout, "", "");
+        } else {
+            pv = ZXV_TV_NEITHER;
+        }
+        swd_witness(&d->tree, d->node[i], (lpres_state_t) pv);
+        swd_close(&d->tree, d->node[i]);
+    }
+    free(pout);
+    swd_close(&d->tree, root);
+    swd_seal(&d->tree);
+    d->tv = d->tree.root_tv;
+    d->n_conflicts = swd_conflicts(&d->tree, NULL, 0);
+
+    char nparts[16], nlost[16];
+    snprintf(nparts, sizeof nparts, "%u", (unsigned) d->n_parts);
+    snprintf(nlost, sizeof nlost, "%u", (unsigned) d->n_lost);
+    at = put(out, cap, at,
+             "[Tiamat] %s split the question into %s parts, each answered and checked on its "
+             "own; the whole holds only if every part does: %s.",
+             c->cell[d->holder].name, nparts, zxv_tiamat_tv_name(d->tv));
+    if (d->n_lost)
+        at = put(out, cap, at, " %s further part%s not run (NEITHER).", nlost,
+                 d->n_lost == 1 ? " was" : "s were", "");
+    (void) at;
+    *shown = d->tv == ZXV_TV_TRUE || d->tv == ZXV_TV_NEITHER;
+    return d->tv;
+}
+
+static void write_hand(FILE *f, const zxv_tiamat_conf_t *c, const swd_handoff_t *h)
+{
+    fputs("{\"from\":", f);
+    if (h->from < c->n_cells)
+        json_str(f, c->cell[h->from].name);
+    else
+        fputs("null", f);
+    fputs(",\"to\":", f);
+    if (h->to < c->n_cells)
+        json_str(f, c->cell[h->to].name);
+    else
+        fputs("null", f);
+    fprintf(f,
+            ",\"score_from\":%u,\"score_to\":%u,\"moved\":%s,\"claim\":", (unsigned) h->score_from,
+            (unsigned) h->score_to, h->moved ? "true" : "false");
+    json_str(f, zxv_tiamat_tv_name(h->tv));
+    fputc('}', f);
+}
+
+void zxv_tiamat_write_deleg(FILE *f, const char *q, const zxv_tiamat_conf_t *c,
+                            const zxv_tiamat_deleg_t *d, const char *seen)
+{
+    fprintf(f, "{\"time\":%llu,\"q\":", (unsigned long long) now_ms());
+    json_str(f, q);
+    fputs(",\"position\":", f);
+    write_hand(f, c, &d->take);
+    fputs(",\"holder\":", f);
+    json_str(f, c->cell[d->holder].name);
+    fprintf(f, ",\"split_rc\":%d,\"split_reply\":", d->split_rc);
+    json_str(f, d->split_reply);
+    fprintf(f, ",\"lost\":%u,\"parts\":[", (unsigned) d->n_lost);
+    uint32_t n = d->n_parts ? d->n_parts : 1;
+    for (uint32_t i = 0; i < n; i++) {
+        fputs(i ? ",{\"q\":" : "{\"q\":", f);
+        json_str(f, d->n_parts ? d->part_q[i] : q);
+        if (d->n_parts) {
+            fputs(",\"hand\":", f);
+            write_hand(f, c, &d->hand[i]);
+        }
+        write_trace(f, c, &d->part[i]);
+        fputc('}', f);
+    }
+    fprintf(f, "],\"conflicts\":%u,\"verdict\":", (unsigned) d->n_conflicts);
+    json_str(f, zxv_tiamat_tv_name(d->tv));
+    if (seen) {
+        fputs(",\"seen\":", f);
+        json_str(f, seen);
+    }
+    fputs("}\n", f);
+}
+
+int zxv_tiamat_log_deleg(const char *path, const char *q, const zxv_tiamat_conf_t *c,
+                         const zxv_tiamat_deleg_t *d)
+{
+    if (!path || !path[0]) return 0;
+    FILE *f = fopen(path, "ab");
+    if (!f) return -1;
+    zxv_tiamat_write_deleg(f, q, c, d, NULL);
+    return fclose(f) == 0 ? 0 : -1;
 }

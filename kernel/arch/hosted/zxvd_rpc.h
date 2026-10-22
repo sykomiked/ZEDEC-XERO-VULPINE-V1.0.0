@@ -56,6 +56,36 @@
  *       register their own methods behind feature switches that start off;
  *       features.get lists the switches and features.set flips one for this
  *       run. A method whose feature is off answers ZXVD_E_OFF (-32012).
+ *   M6  The journal's audit entries (journal.append, zxv_journal.h J9) are
+ *       signed with Ed25519 through a second libzxv capability that holds
+ *       CRYPTO_SIGN alone, made when the books open and used for nothing
+ *       else; never on the wire either. Its seed is the journal's
+ *       audit.key file, not a libzxv secret.
+ *
+ * APP NOTICES (notify.send; zxvd_rpc_set_notify)
+ *   N1  An app tells the person something: "app" (its name, 1-23 bytes),
+ *       "title" (1-63), "body" (up to 191), "action" (up to 47: what a click
+ *       opens) and "level" (low, normal (default), high, urgent). A value
+ *       too long is refused (-32602), never cut.
+ *   N2  "key" (up to 64 bytes): notices from the same app with the same key
+ *       collapse into one unread notice with a count (zx_notify.h N2).
+ *   N3  It goes on the notification bus as kind "app" (zx_notify.h), so it
+ *       shows in notes.list and the window's panel, and the OS notifier
+ *       gets it unless do-not-disturb holds it. "seq" is the notice's
+ *       number; "stored": false when the bus had no room (N3 there: urgent
+ *       unread notices are never pushed out by lesser ones).
+ *
+ * CAPABILITY ANSWERS (caps.*; zxv_caps.h K1-K4): which apps may use which
+ *   manifest capabilities, for Gatehouse; location shares place.permit's
+ *   answers. A refusal other than a bad parameter is ZXVD_E_CAPS.
+ *
+ * NAMES, TIMERS AND PROCESSES (docs/APP_SERVICES.md)
+ *   dns.* and did.* (zxvd_dns.h D1-D6, I1-I3) for Signpost: a lookup runs
+ *   beside the loop and dns.resolve answers "pending" until it is done.
+ *   schedule.* (zxv_sched.h T1-T5) for Treadle: zxvd records a firing and
+ *   may post a notice, never runs anything; zxvd_rpc_service fires what is
+ *   due. proc.* (zxvd_proc.h P1-P5) for Warren: proc.signal and
+ *   proc.restart stay off until the host turns them on.
  *
  * SWARM EARNINGS (the owner's books mirror the swarm's internal credit)
  *   E1  At start the books get one private unit for the mirror, SWC by
@@ -133,7 +163,7 @@
  *       the seller refused (zxv_peer_host.h) is not a settled request and
  *       is not posted. mesh.books reports the three accounts and counts.
  *
- * THE JURISDICTION BRIDGE (jurisdiction.get / jurisdiction.set)
+ * THE JURISDICTION BRIDGE (jurisdiction.get, .set, .install, .check, .tax_rate)
  *   J1  country: an ISO 3166-1 alpha-2 code (two capital letters) or "".
  *   J2  market: "closed" (closed clearing, the default) or "open" (the open
  *       batch-auction market, a per-deployment switch).
@@ -145,12 +175,47 @@
  *       it survives a restart; an unchanged setting writes nothing.
  *   J5  in_effect is true: the jurisdiction host (kernel/src/juris) gets
  *       the settings at start and at every change. plugins counts the
- *       plug-ins it has loaded: none until the deployment configures a
- *       jurisdiction gateway key, so until then its answers fail closed
- *       (wait). report_standard is the framework reports follow: the chosen
- *       standard when an adapter is built for it (IFRS, US_GAAP, AAOIFI)
- *       and a country is set, else "". No payment path asks the host yet,
- *       and an adapter does not replace an accountant or a Shariah board.
+ *       plug-ins it has loaded: none until a gateway key is set and a
+ *       signed manifest installed (J6, J7), so until then its answers fail
+ *       closed (wait). report_standard is the framework reports follow: the
+ *       chosen standard when an adapter is built for it (IFRS, US_GAAP,
+ *       AAOIFI) and a country is set, else "". No payment path asks the
+ *       host yet, and an adapter does not replace an accountant or a
+ *       Shariah board.
+ *   J6  The gateway key: jurisdiction.set gateway_key takes an ML-DSA-87
+ *       public key in hex ("" clears it), saved as one "juris_gw" record
+ *       before it applies. It is the host's verify hook (juris_cp.h JC1,
+ *       context "ZXV-JURIS-GATEWAY") and the one key trusted to sign
+ *       compliance manifests (cpk.h, context "ZXV-COMPLIANCE"). get reports
+ *       gateway_key as the key id (SHA-256 of the key, hex) or null, never
+ *       the key. A new key, or none, drops every installed plug-in and
+ *       their tables. Any settings change rebuilds the host from the
+ *       settings and the installed plug-ins: those for another country stay
+ *       installed but are not loaded; the quarantine log and a halt carry
+ *       over.
+ *   J7  jurisdiction.install {manifest, sig, gateway_sig} (base64) installs
+ *       a capital-control profile (capctl.h) or a tax table (taxhook.h) as a
+ *       plug-in for the settings' country. sig is the manifest's own
+ *       signature (cp_common.h M2), gateway_sig the J3 plug-in manifest
+ *       (juris.h) signed by the gateway key: id "capctl/CC" or
+ *       "taxhook/CC/REGION/KIND", the plug-in's hook mask, version = the
+ *       manifest header's version, image = the manifest bytes. Refused, with
+ *       nothing changed, while no key or no country is set, for another
+ *       country, another kind, any signature that does not verify, a
+ *       manifest outside its validity window now, or no room. A done install
+ *       is one "juris_install" record with its time; a restart replays it
+ *       judged at that time, so a table that has since expired still loads
+ *       and then refuses (C4, X3). Base64, not hex: two ML-DSA-87 signatures
+ *       in hex do not fit one request (T3).
+ *   J8  A plug-in id's version must be above every version installed under
+ *       it before, across restarts and key changes; a newer one replaces it
+ *       in place.
+ *   J9  jurisdiction.check {from, to, ccy, amount, sender?, receiver?}
+ *       answers the host's tag for a transfer (base, action, proceed, and
+ *       the capital-control reports it would file) and commits nothing;
+ *       jurisdiction.tax_rate {kind: income | vat | withholding} answers the
+ *       rate the plug-ins agree on (num/den) or -32097. Plug-ins judge with
+ *       the wall clock.
  */
 #ifndef ZXVD_RPC_H
 #define ZXVD_RPC_H
@@ -230,7 +295,10 @@ void zxvd_rpc_set_organ_ops(const zxvd_organ_ops_t *ops);
  *                  has not accepted, or a buy the seller has not committed).
  *   V3 player.card the owner's earned tier (sicily.h S2) from the inputs this
  *                  node can measure, each with its source, the next tier's
- *                  thresholds and what is missing, and the perks. */
+ *                  thresholds and what is missing, and the perks; plus
+ *                  "practice":{"bonds":{"value","live","set_up","source"}},
+ *                  the V-Bonds desk's practice units (zxvd_sandbox.h C1),
+ *                  shown and never a tier input. */
 typedef struct {
     void (*peers)(zxvd_buf_t *out);
     void (*offers)(zxvd_buf_t *out);
@@ -323,10 +391,15 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
  *        -32072 the chiglet's name (companion.name*)
  *        -32080 seats   -32090 Web4 feed
  *        -32095 power (zxvd_power.h)   -32096 IRC gateway (zxvd_irc.h)
+ *        -32097 jurisdiction install, tax rate (J7, J9)
  *        -32032 public spaces and the watch hall (zxvd_pspace.h)
  *        -32018 backups   -32019 screen time   -32021 places
  *        -32022 printers and scanners (zxv_print_host.h)
  *        -32085 file fabrication (zxvd_fab.h)
+ *        -32023 shell jobs (zxvd_shell.h)   -32024 the journal (journal.append)
+ *        -32025 capability answers (zxv_caps.h)
+ *        -32026 names and DIDs (zxvd_dns.h)   -32027 schedules (zxv_sched.h)
+ *        -32028 processes (zxvd_proc.h)
  *   X5 zxvd_libzxv_ok turns a libzxv status into error -32000 exactly as
  *      the book methods report it (M2: data status, name, class).
  *   X6 zxvd_books_cap / zxvd_books_ctx are the books' root capability and
@@ -406,6 +479,29 @@ int32_t zxvd_books_post(uint32_t from, uint32_t to, int64_t amount, const char *
 /* place.* (zxv_place.h): no such place, a name taken, no room, or the file
  * could not be written; the message says which. */
 #define ZXVD_E_PLACE (-32021)
+
+/* journal.append: no journal, the audit key could not be made or read, or
+ * the disk refused the line. */
+#define ZXVD_E_JOURNAL (-32024)
+/* caps.*: no room for another answer, the file could not be written, or no
+ * answer to take back. */
+#define ZXVD_E_CAPS (-32025)
+/* schedule.*: no room (or the app holds its most), the file could not be
+ * written, or no such schedule. dns.* is ZXVD_E_DNS (-32026, zxvd_dns.h)
+ * and proc.* ZXVD_E_PROC (-32028, zxvd_proc.h). */
+#define ZXVD_E_SCHED (-32027)
+
+/* notify.send (N1-N3): the host posts the notice and returns its number, 0
+ * when it was not stored. Unset, notify.send answers -32601. */
+typedef struct {
+    const char *app, *title, *body, *action; /* body and action may be "" */
+    uint8_t pri;                             /* 0 low, 1 normal, 2 high, 3 urgent */
+    uint64_t key;                            /* N2; 0 never collapses */
+} zxvd_notice_t;
+void zxvd_rpc_set_notify(uint32_t (*post)(const zxvd_notice_t *n));
+/* Name lookups, restarts and schedules due (zxvd_dns.h, zxvd_proc.h,
+ * zxv_sched.h T3): zxvd_rpc_service calls it on every turn of the loop. */
+void zxvd_rpc_tick(void);
 
 /* phone.* (zxvd_phone.h): the phone link and pairing the owner's phones,
  * set by zxvd_phone_init. Unset, the methods answer -32601. link, pair and

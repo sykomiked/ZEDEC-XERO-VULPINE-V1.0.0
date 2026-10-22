@@ -46,7 +46,13 @@
 #include "zxv_journal.h"      /* journal.*: Wake's history across restarts */
 #include "zxv_screen.h"       /* screen.*: Shepherd's screen time */
 #include "zxv_place.h"        /* place.*: Waymark's location and places */
+#include "zxv_caps.h"         /* caps.*: Gatehouse's answers for each app */
+#include "zxvd_shell.h"       /* shell.*: programs for the terminal (Flint) */
+#include "zxvd_dns.h"         /* dns.*, did.*: names and addresses (Signpost) */
+#include "zxv_sched.h"        /* schedule.*: timers apps register (Treadle) */
+#include "zxvd_proc.h"        /* proc.*: the machine's processes (Warren) */
 #include "juris.h"            /* J5: the jurisdiction host (kernel/src/juris) */
+#include "juris_cp.h"         /* J6-J9: the gateway key, capctl and taxhook as plug-ins */
 #include "../../src/chiglet/chg_vocab.h" /* swarm.organ: the organ names */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
@@ -63,6 +69,7 @@
 #define E_PARAMS   (-32602)
 #define E_INTERNAL (-32603)
 #define E_LIBZXV   (-32000) /* a libzxv status: data = {status, name, class} */
+#define E_JURIS    (-32097) /* J7-J9: a jurisdiction step refused (message says why) */
 
 /* ===================== output buffer ===================== */
 
@@ -103,19 +110,56 @@ void zxvd_buf_printf(zxvd_buf_t *b, const char *fmt, ...)
     b->len += (size_t) n;
 }
 
+/* The length of the well-formed UTF-8 sequence at s (RFC 3629: no overlong
+ * form, no surrogate, nothing above U+10FFFF), or 0. */
+static uint32_t utf8_seq(const unsigned char *s)
+{
+    unsigned char c = s[0];
+    uint32_t n;
+    unsigned char lo = 0x80, hi = 0xBF; /* the second byte's range */
+    if (c >= 0xC2 && c <= 0xDF)
+        n = 2;
+    else if (c >= 0xE0 && c <= 0xEF) {
+        n = 3;
+        if (c == 0xE0) lo = 0xA0; /* overlong */
+        if (c == 0xED) hi = 0x9F; /* surrogates */
+    } else if (c >= 0xF0 && c <= 0xF4) {
+        n = 4;
+        if (c == 0xF0) lo = 0x90; /* overlong */
+        if (c == 0xF4) hi = 0x8F; /* above U+10FFFF */
+    } else
+        return 0;
+    if (s[1] < lo || s[1] > hi) return 0;
+    for (uint32_t i = 2; i < n; i++)
+        if (s[i] < 0x80 || s[i] > 0xBF) return 0;
+    return n;
+}
+
 void zxvd_buf_json_str(zxvd_buf_t *b, const char *s)
 {
     zxvd_buf_raw(b, "\"", 1);
-    for (; *s; s++) {
+    while (*s) {
         unsigned char c = (unsigned char) *s;
         if (c == '"' || c == '\\') {
             char e[2] = {'\\', (char) c};
             zxvd_buf_raw(b, e, 2);
         } else if (c < 0x20) {
             zxvd_buf_printf(b, "\\u%04x", c);
-        } else {
+        } else if (c < 0x80) {
             zxvd_buf_raw(b, s, 1);
+        } else {
+            /* JSON is UTF-8 (RFC 8259): a model writes byte tokens, so an
+             * answer can hold a cut or invalid sequence; each byte that does
+             * not start a well-formed one is sent as U+FFFD */
+            uint32_t n = utf8_seq((const unsigned char *) s);
+            if (n) {
+                zxvd_buf_raw(b, s, n);
+                s += n;
+                continue;
+            }
+            zxvd_buf_raw(b, "\xEF\xBF\xBD", 3);
         }
+        s++;
     }
     zxvd_buf_raw(b, "\"", 1);
 }
@@ -125,6 +169,31 @@ void zxvd_buf_json_str(zxvd_buf_t *b, const char *s)
 static const zxvd_host_ops_t *OPS;
 static zxv_ctx *CTX;
 static zxv_cap *CAP; /* LEDGER_READ | LEDGER_POST, never more (zxvd_rpc.h M2) */
+static zxv_cap *SIGN_CAP; /* CRYPTO_SIGN only: the journal's audit key (M6) */
+
+/* M6: the journal's audit entries are signed through libzxv's Ed25519 */
+static bool jr_keygen(void *ctx, uint8_t pub[32], uint8_t seed[32])
+{
+    (void) ctx;
+    return SIGN_CAP && zxv_ed25519_keygen(SIGN_CAP, pub, seed) == ZXV_OK;
+}
+static bool jr_pub(void *ctx, const uint8_t seed[32], uint8_t pub[32])
+{
+    (void) ctx;
+    return SIGN_CAP && zxv_ed25519_public(SIGN_CAP, seed, pub) == ZXV_OK;
+}
+static bool jr_sign(void *ctx, const uint8_t seed[32], const uint8_t msg[32], uint8_t sig[64])
+{
+    (void) ctx;
+    return SIGN_CAP && zxv_ed25519_sign(SIGN_CAP, seed, msg, 32, sig) == ZXV_OK;
+}
+static bool jr_verify(void *ctx, const uint8_t pub[32], const uint8_t msg[32],
+                      const uint8_t sig[64])
+{
+    (void) ctx;
+    return SIGN_CAP && zxv_ed25519_verify(SIGN_CAP, pub, msg, 32, sig) == ZXV_OK;
+}
+static const zjr_signer_t JR_SIGNER = {jr_keygen, jr_pub, jr_sign, jr_verify, NULL};
 
 void zxvd_rpc_set_ops(const zxvd_host_ops_t *ops)
 {
@@ -154,12 +223,19 @@ int zxvd_rpc_books_open(void)
         return -1;
     }
     mesh_open();
+    if (zxv_cap_create(CTX, 2, NULL, ZXV_CAP_CRYPTO_SIGN, &SIGN_CAP) == ZXV_OK)
+        zjr_set_signer(&JR_SIGNER); /* else journal.append answers that it cannot sign */
     return 0;
 }
 
 static void books_close(void)
 {
     bf_close();
+    if (SIGN_CAP) {
+        zjr_set_signer(NULL);
+        zxv_cap_destroy(SIGN_CAP);
+        SIGN_CAP = NULL;
+    }
     if (CAP) zxv_cap_destroy(CAP);
     if (CTX) zxv_ctx_destroy(CTX);
     CAP = NULL;
@@ -190,7 +266,9 @@ static void books_close(void)
 #define BF_MAGIC "{\"op\":\"books\",\"v\":1}"
 #define LIT(b, s)                                                                                  \
     zxvd_buf_raw((b), "" s, sizeof("" s) - 1) /* a string literal only: anything else fails */
-#define BF_MAX_LINE 1024u                     /* a record is far smaller; longer is damage */
+#define BF_MAX_LINE                                                                                \
+    16384u /* the largest record (J7: a manifest and two ML-DSA-87 signatures in base64) is        \
+              about 13.5 KB; longer is damage */
 
 static char BF_PATH[1024];  /* "" = the books live in memory only (F1) */
 static int BF = -1;         /* the open file */
@@ -357,11 +435,52 @@ static bool JU_OPEN;    /* J2: false = closed clearing (the default) */
 static uint32_t JU_IDX; /* J3: index in JU_STD; 0 = not chosen */
 static char JU_CC[3];   /* J1: ISO 3166-1 alpha-2, or "" */
 
-/* J5: the jurisdiction host holds the same settings. No gateway key is
- * configured, so no plug-in can register and its answers fail closed. */
+/* J5: the jurisdiction host holds the same settings. J6: its verify hook
+ * checks the gateway key (juris_cp.h JC1); with no key set every plug-in is
+ * refused and the host's answers fail closed (wait). */
 static lpx_qrec_t JU_QLOG[64];
 static juris_host_t JU_HOST;
 
+/* J6-J9: the gateway key, the compliance engines behind the plug-ins and
+ * the installed plug-ins (each with what J3 needs to register it again) */
+#define JU_MAN_MAX                                                                                 \
+    (CAPCTL_MANIFEST_MAX > TAXHOOK_MANIFEST_MAX ? CAPCTL_MANIFEST_MAX : TAXHOOK_MANIFEST_MAX)
+#define JU_TALLIES 16u
+static juris_gw_t JU_GW;
+static cpk_ring_t JU_RING; /* J7: the gateway key, trusted to sign capctl profiles and tax tables */
+static capctl_t JU_CAP;
+static capctl_tally_t JU_TALLY[JU_TALLIES];
+static taxhook_t JU_TAX;
+typedef struct {
+    bool used;
+    juris_plugin_t p;
+    juris_cp_capctl_t cap;
+    juris_cp_tax_t tax;
+    uint32_t version;
+    uint8_t m[JU_MAN_MAX];
+    size_t mlen;
+    uint8_t gsig[JURIS_GW_SIG_LEN];
+} ju_pl_t;
+static ju_pl_t JU_PL[JURIS_MAX_PLUGINS];
+/* J8: the highest version installed per plug-in id, kept across key changes */
+static char JU_FID[JURIS_MAX_IDS][JURIS_ID_LEN];
+static uint32_t JU_FV[JURIS_MAX_IDS], JU_NF;
+
+/* J9: plug-ins judge with the wall clock */
+static uint64_t ju_clock(void *ctx)
+{
+    (void) ctx;
+    return zxvd_now_ms() / 1000u;
+}
+
+static bool ju_ccy(const char *alpha, uint16_t *num)
+{
+    return zxv_iso4217_by_alpha(alpha, num, NULL, NULL) == ZXV_OK;
+}
+
+/* J6: the host again from the settings and every installed plug-in (those
+ * for another country stay installed but not loaded); the quarantine log
+ * and a halt carry over unless reset */
 static void ju_host_sync(bool reset)
 {
     juris_settings_t s;
@@ -370,10 +489,128 @@ static void ju_host_sync(bool reset)
     s.standard = (uint8_t) acct_std_from_name(JU_STD[JU_IDX]);
     if (JU_CC[0]) memcpy(s.country, JU_CC, sizeof JU_CC); /* "" may leave old bytes after it */
     s.in_effect = true;
-    if (reset)
-        juris_host_init(&JU_HOST, &s, NULL, NULL, JU_QLOG, 64);
-    else
-        (void) juris_host_apply_settings(&JU_HOST, &s);
+    lpx_qlog_t q = JU_HOST.qlog;
+    bool halted = JU_HOST.halted;
+    juris_host_init(&JU_HOST, &s, juris_gw_verify, &JU_GW, JU_QLOG,
+                    (uint32_t) (sizeof JU_QLOG / sizeof JU_QLOG[0]));
+    for (uint32_t i = 0; i < JURIS_MAX_PLUGINS; i++) {
+        ju_pl_t *pl = &JU_PL[i];
+        juris_manifest_t m;
+        if (!pl->used) continue;
+        juris_cp_manifest(&pl->p, pl->version, pl->m, pl->mlen, pl->gsig, JURIS_GW_SIG_LEN, &m);
+        (void) juris_host_register(&JU_HOST, &pl->p, &m, pl->m, pl->mlen);
+    }
+    if (!reset) {
+        JU_HOST.qlog = q;
+        JU_HOST.halted = halted;
+    }
+}
+
+/* J6: a new gateway key (or none) drops every installed plug-in and the
+ * engines' tables; J8's version floors stay */
+static void ju_gw_apply(const uint8_t *pk)
+{
+    juris_gw_init(&JU_GW);
+    cpk_init(&JU_RING);
+    /* both refuse a NULL key: no key leaves no gateway and an empty ring */
+    juris_gw_set(&JU_GW, pk, JURIS_GW_PK_LEN);
+    cpk_add(&JU_RING, pk, (1u << CP_KIND_CAPCTL) | (1u << CP_KIND_TAXTABLE), "**");
+    capctl_init(&JU_CAP, cpk_verify, &JU_RING, JU_TALLY, JU_TALLIES);
+    taxhook_init(&JU_TAX, cpk_verify, &JU_RING);
+    memset(JU_PL, 0, sizeof JU_PL);
+}
+
+static uint32_t *ju_floor(const char id[JURIS_ID_LEN])
+{
+    for (uint32_t i = 0; i < JU_NF; i++)
+        if (!memcmp(JU_FID[i], id, JURIS_ID_LEN)) return &JU_FV[i];
+    return NULL;
+}
+
+static const char *const CAPCTL_WHY[] = {"",
+                                         "bad argument",
+                                         "the profile does not decode",
+                                         "the compliance signature does not verify",
+                                         "the profile is outside its validity window",
+                                         "the profile is not above the installed version",
+                                         "the profile is below the required version",
+                                         "no room for another profile"};
+static const char *const TAX_WHY[] = {"",
+                                      "bad argument",
+                                      "the tax table does not decode",
+                                      "the compliance signature does not verify",
+                                      "the tax table is outside its validity window",
+                                      "the tax table is not above the installed version",
+                                      "no room for another tax table"};
+
+/* J7: install a compliance manifest (capctl profile or tax table) the
+ * gateway signed, as a plug-in, judged at `at`; NULL or why it is refused.
+ * Every check runs before anything changes; the engine's install is the
+ * last check and changes nothing when it refuses. */
+static const char *ju_install(const uint8_t *m, size_t mlen, const uint8_t *sig, size_t slen,
+                              const uint8_t *gsig, size_t glen, uint64_t at)
+{
+    static ju_pl_t nw;
+    static taxhook_table_t tt;
+    static capctl_t scratch; /* names a capctl plug-in without touching JU_CAP */
+    cp_hdr_t h;
+    cp_r_t r = {m, mlen, 0, false};
+    if (!JU_GW.set) return "no gateway key is set (jurisdiction.set gateway_key)";
+    if (!JU_CC[0]) return "no country is set";
+    if (!cp_hdr_get(&r, &h, false)) return "not a compliance manifest";
+    if (memcmp(h.country, JU_CC, 2)) return "the manifest is for another country";
+    memset(&nw, 0, sizeof nw);
+    if (h.kind == CP_KIND_CAPCTL) {
+        capctl_init(&scratch, NULL, NULL, NULL, 0);
+        juris_cp_capctl_plugin(&nw.p, &nw.cap, &scratch, h.country, ju_clock, NULL, ju_ccy);
+    } else if (h.kind == CP_KIND_TAXTABLE) {
+        if (taxhook_decode(m, mlen, &tt) != TAXHOOK_OK) return TAX_WHY[2];
+        juris_cp_tax_plugin(&nw.p, &nw.tax, &JU_TAX, h.country, h.region, tt.kind, ju_clock, NULL);
+    } else {
+        return "the manifest is neither a capital-control profile nor a tax table";
+    }
+    /* J8: strictly above every version installed under this id */
+    uint32_t *fl = ju_floor(nw.p.id);
+    if (fl && h.version <= *fl) return "the manifest's version is not above the installed one";
+    ju_pl_t *slot = NULL;
+    for (uint32_t i = 0; i < JURIS_MAX_PLUGINS && !slot; i++)
+        if (JU_PL[i].used && !memcmp(JU_PL[i].p.id, nw.p.id, JURIS_ID_LEN)) slot = &JU_PL[i];
+    for (uint32_t i = 0; i < JURIS_MAX_PLUGINS && !slot; i++)
+        if (!JU_PL[i].used) slot = &JU_PL[i];
+    if (!slot || (!fl && JU_NF >= JURIS_MAX_IDS)) return "no room for another plug-in";
+    /* J3: the gateway signs the plug-in manifest over this compliance manifest */
+    juris_manifest_t jm;
+    uint8_t msg[JURIS_MANIFEST_MSG];
+    juris_cp_manifest(&nw.p, h.version, m, mlen, gsig, (uint32_t) glen, &jm);
+    juris_manifest_msg(&jm, msg);
+    if (!juris_gw_verify(&JU_GW, msg, sizeof msg, gsig, (uint32_t) glen))
+        return "the gateway signature does not verify";
+    if (h.kind == CP_KIND_CAPCTL) {
+        capctl_status_t st = capctl_install(&JU_CAP, m, mlen, sig, slen, at);
+        if (st != CAPCTL_OK) return CAPCTL_WHY[-st];
+        capctl_enable(&JU_CAP, true);
+        /* C4: from now on this country's profile is required (a requirement is
+         * only added with an installed profile, so there is always room) */
+        juris_cp_capctl_plugin(&nw.p, &nw.cap, &JU_CAP, h.country, ju_clock, NULL, ju_ccy);
+    } else {
+        taxhook_status_t st = taxhook_install(&JU_TAX, m, mlen, sig, slen, at);
+        if (st != TAXHOOK_OK) return TAX_WHY[-st];
+        taxhook_enable(&JU_TAX, true);
+    }
+    nw.used = true;
+    nw.version = h.version;
+    memcpy(nw.m, m, mlen);
+    nw.mlen = mlen;
+    memcpy(nw.gsig, gsig, JURIS_GW_SIG_LEN);
+    *slot = nw;
+    slot->p.ctx = h.kind == CP_KIND_CAPCTL ? (void *) &slot->cap : (void *) &slot->tax;
+    if (!fl) {
+        memcpy(JU_FID[JU_NF], nw.p.id, JURIS_ID_LEN);
+        fl = &JU_FV[JU_NF++];
+    }
+    *fl = h.version;
+    ju_host_sync(false);
+    return NULL;
 }
 
 static int ju_std(const char *s)
@@ -404,6 +641,42 @@ static int32_t bk_juris(bool open, uint32_t idx, const char *cc)
     memcpy(JU_CC, cc, strlen(cc) + 1);
     ju_host_sync(false);
     return ZXV_OK;
+}
+
+static void b64_put(zxvd_buf_t *b, const uint8_t *d, size_t n);
+static int64_t b64_get(const char *s, size_t n, uint8_t *out, size_t cap);
+
+/* J6: a new gateway key, or none (pk NULL); saved first, then applied; the
+ * same key again writes nothing. Its one caller (m_juris_set) runs
+ * bk_juris first, which refuses books that are not writable. */
+static int32_t bk_gw(const uint8_t *pk)
+{
+    static char hx[2 * JURIS_GW_PK_LEN + 1];
+    int32_t st;
+    if (pk ? JU_GW.set && !memcmp(JU_GW.pk, pk, JURIS_GW_PK_LEN) : !JU_GW.set) return ZXV_OK;
+    hx[0] = 0;
+    if (pk) w4_hex_encode(pk, JURIS_GW_PK_LEN, hx, sizeof hx);
+    zxvd_buf_t r = {0};
+    zxvd_buf_printf(&r, "{\"op\":\"juris_gw\",\"key\":\"%s\"}", hx);
+    if ((st = saved(&r)) != ZXV_OK) return st;
+    ju_gw_apply(pk);
+    ju_host_sync(false);
+    return ZXV_OK;
+}
+
+/* J7: the install is applied (ju_install), then saved with its time */
+static int32_t bk_install(const uint8_t *m, size_t ml, const uint8_t *sig, size_t sl,
+                          const uint8_t *gsig, size_t gl, uint64_t at)
+{
+    zxvd_buf_t r = {0};
+    LIT(&r, "{\"op\":\"juris_install\",\"manifest\":");
+    b64_put(&r, m, ml);
+    LIT(&r, ",\"sig\":");
+    b64_put(&r, sig, sl);
+    LIT(&r, ",\"gsig\":");
+    b64_put(&r, gsig, gl);
+    zxvd_buf_printf(&r, ",\"at\":\"%llu\"}", (unsigned long long) at);
+    return saved(&r);
 }
 
 /* X7: a feature switch, saved so a restart keeps the owner's choice */
@@ -499,6 +772,31 @@ static const char *bf_apply(const char *js, size_t n)
         ju_host_sync(false);
         return NULL;
     }
+    if (w4_json_str_eq(js, &t[op], "juris_gw")) {
+        static char hx[2 * JURIS_GW_PK_LEN + 1];
+        static uint8_t pk[JURIS_GW_PK_LEN];
+        if (w4_json_get_str(js, t, k, 0, "key", hx, sizeof hx) < 0 ||
+            (hx[0] && w4_hex_decode(hx, (uint32_t) strlen(hx), pk, sizeof pk) != JURIS_GW_PK_LEN))
+            return "bad gateway key record";
+        ju_gw_apply(hx[0] ? pk : NULL);
+        ju_host_sync(false);
+        return NULL;
+    }
+    if (w4_json_str_eq(js, &t[op], "juris_install")) {
+        static char in[BF_MAX_LINE];
+        static uint8_t m[JU_MAN_MAX], sg[CPK_SIG_LEN], gs[JURIS_GW_SIG_LEN];
+        int64_t ml, sl, gl;
+        if (w4_json_get_str(js, t, k, 0, "manifest", in, sizeof in) != W4_OK ||
+            (ml = b64_get(in, strlen(in), m, sizeof m)) <= 0 ||
+            w4_json_get_str(js, t, k, 0, "sig", in, sizeof in) != W4_OK ||
+            (sl = b64_get(in, strlen(in), sg, sizeof sg)) <= 0 ||
+            w4_json_get_str(js, t, k, 0, "gsig", in, sizeof in) != W4_OK ||
+            (gl = b64_get(in, strlen(in), gs, sizeof gs)) <= 0 ||
+            w4_json_get_str(js, t, k, 0, "at", a, sizeof a) != W4_OK ||
+            sscanf(a, "%llu", (unsigned long long *) &x) != 1)
+            return "bad jurisdiction install record";
+        return ju_install(m, (size_t) ml, sg, (size_t) sl, gs, (size_t) gl, x);
+    }
     if (w4_json_str_eq(js, &t[op], "feat")) {
         int32_t on = w4_json_get(js, t, k, 0, "on");
         bool v;
@@ -525,6 +823,8 @@ static int bf_load(void)
     JU_OPEN = false;
     JU_IDX = 0;
     JU_CC[0] = 0;
+    ju_gw_apply(NULL);
+    JU_NF = 0;
     ju_host_sync(true);
     memset(BF_HEAD, 0, sizeof BF_HEAD);
     if (!BF_PATH[0]) return 0;
@@ -2113,6 +2413,21 @@ static bool p_level(call_t *c, uint8_t *min)
     return true;
 }
 
+/* J8, J9: an entry's own hash, the one before it, and an audit entry's
+ * actor and signature */
+static void entry_links(zxvd_buf_t *b, const zjr_entry_t *e)
+{
+    LIT(b, ",\"hash\":");
+    zxvd_buf_hex(b, e->hash, 32);
+    LIT(b, ",\"prev\":");
+    zxvd_buf_hex(b, e->prev, 32);
+    if (!e->actor[0]) return;
+    LIT(b, ",\"actor\":");
+    zxvd_buf_json_str(b, e->actor);
+    LIT(b, ",\"sig\":");
+    zxvd_buf_hex(b, e->sig, 64);
+}
+
 static void m_journal_query(call_t *c)
 {
     static zjr_entry_t e[JOURNAL_MAX];
@@ -2142,6 +2457,7 @@ static void m_journal_query(call_t *c)
         zxvd_buf_json_str(c->res, e[i].source);
         LIT(c->res, ",\"text\":");
         zxvd_buf_json_str(c->res, e[i].text);
+        entry_links(c->res, &e[i]);
         LIT(c->res, "}");
     }
     zxvd_buf_printf(c->res, "],\"more\":%s}", more ? "true" : "false");
@@ -2158,7 +2474,337 @@ static void m_journal_verify(call_t *c)
                     (unsigned long long) v.entries, (unsigned long long) v.first_seq,
                     (unsigned long long) v.last_seq, (unsigned long long) v.broken_at);
     zxvd_buf_json_str(c->res, v.why);
+    uint8_t pub[32];
+    zxvd_buf_printf(c->res,
+                    ",\"audit\":%llu,\"sigs_checked\":%s,\"key\":", (unsigned long long) v.audit,
+                    v.sigs_checked ? "true" : "false");
+    if (v.sigs_checked && zjr_audit_key(pub) == 0)
+        zxvd_buf_hex(c->res, pub, 32);
+    else
+        LIT(c->res, "null");
     LIT(c->res, "}");
+}
+
+/* M6: a signed audit entry (zxv_journal.h J9) */
+static void m_journal_append(call_t *c)
+{
+    char actor[ZJR_ACTOR_MAX + 1], text[ZJR_AUDIT_MAX + 1];
+    uint8_t level;
+    if (!p_str(c, "actor", actor, sizeof actor, true) ||
+        !p_str(c, "text", text, sizeof text, true) || !p_level(c, &level))
+        return;
+    zjr_entry_t e;
+    uint8_t pub[32];
+    int r = zjr_append(actor, text, level, &e);
+    if (r == ZJR_E_ARG)
+        return fail(c, E_PARAMS,
+                    "\"actor\" is 1 to %u of letters, digits and . _ - @ : +; \"text\" is 1 to %u "
+                    "printable bytes",
+                    ZJR_ACTOR_MAX, ZJR_AUDIT_MAX);
+    if (r == ZJR_E_OFF) return fail(c, ZXVD_E_JOURNAL, "zxvd keeps no journal");
+    if (r == ZJR_E_SIGNER || zjr_audit_key(pub) != 0)
+        return fail(c, ZXVD_E_JOURNAL, "the journal's audit key could not be made or read");
+    if (r != 0) return fail(c, ZXVD_E_JOURNAL, "the disk refused the entry; the journal stopped");
+    zxvd_buf_printf(
+        c->res, "{\"seq\":%llu,\"time_ms\":%llu,\"level\":\"%s\",\"source\":\"audit\",\"text\":",
+        (unsigned long long) e.seq, (unsigned long long) e.ms,
+        zxvd_log_level_name((zxvd_log_level_t) e.level));
+    zxvd_buf_json_str(c->res, e.text);
+    entry_links(c->res, &e);
+    LIT(c->res, ",\"key\":");
+    zxvd_buf_hex(c->res, pub, 32);
+    LIT(c->res, "}");
+}
+
+/* ----- notify.send: an app's notice to the person (zxvd_rpc.h N1-N3) ----- */
+
+static uint32_t (*NOTIFY)(const zxvd_notice_t *n);
+
+void zxvd_rpc_set_notify(uint32_t (*post)(const zxvd_notice_t *n))
+{
+    NOTIFY = post;
+}
+
+static void m_notify_send(call_t *c)
+{
+    char app[24] = "", title[64], body[192], action[48], lv[8], key[65];
+    if (!NOTIFY) return fail(c, E_METHOD, "not available");
+    if (!p_str(c, "app", app, sizeof app, true) || !p_str(c, "title", title, sizeof title, true) ||
+        !p_str(c, "body", body, sizeof body, false) ||
+        !p_str(c, "action", action, sizeof action, false) ||
+        !p_str(c, "level", lv, sizeof lv, false) || !p_str(c, "key", key, sizeof key, false))
+        return;
+    if (!app[0] || !title[0]) return fail(c, E_PARAMS, "\"app\" and \"title\" must not be empty");
+    static const char *const LV[] = {"low", "normal", "high", "urgent"};
+    int pri = lv[0] ? -1 : 1;
+    for (int i = 0; i < 4 && pri < 0; i++)
+        if (!strcmp(lv, LV[i])) pri = i;
+    if (pri < 0) return fail(c, E_PARAMS, "\"level\" must be low, normal, high or urgent");
+    uint64_t k = 0; /* N2: FNV-1a of the key; 0 never coalesces */
+    if (key[0]) {
+        k = 0xcbf29ce484222325ull;
+        for (const char *q = key; *q; q++) k = (k ^ (uint8_t) *q) * 0x100000001b3ull;
+        if (!k) k = 1;
+    }
+    zxvd_notice_t n = {app, title, body, action, (uint8_t) pri, k};
+    uint32_t seq = NOTIFY(&n);
+    zxvd_buf_printf(c->res, "{\"seq\":%u,\"stored\":%s}", seq, seq ? "true" : "false");
+}
+
+/* ----- caps.*: Gatehouse (zxv_caps.h K1-K4) ----- */
+
+static bool caps_done(call_t *c, int r)
+{
+    if (r == ZCP_OK) return true;
+    fail(c, r == ZCP_E_ARG ? E_PARAMS : ZXVD_E_CAPS, "%s", zcp_strerror(r));
+    return false;
+}
+
+static bool p_app_cap(call_t *c, char app[ZCP_APP_MAX + 1], char cap[ZCP_CAP_MAX + 1])
+{
+    return p_str(c, "app", app, ZCP_APP_MAX + 1, true) &&
+           p_str(c, "cap", cap, ZCP_CAP_MAX + 1, true);
+}
+
+static void m_caps_list(call_t *c)
+{
+    static zcp_grant_t g[ZCP_GRANTS + 64];
+    char app[ZCP_APP_MAX + 1];
+    if (!p_str(c, "app", app, sizeof app, false)) return;
+    uint32_t n = zcp_list(app, g, ZCP_GRANTS + 64), k = n < ZCP_GRANTS + 64 ? n : ZCP_GRANTS + 64;
+    LIT(c->res, "{\"sensitive\":[\"camera\",\"mic\",\"location\",\"shell\",\"ledger.post\","
+                "\"journal.write\",\"caps\",\"proc.control\"],\"grants\":[");
+    for (uint32_t i = 0; i < k; i++) {
+        if (i) LIT(c->res, ",");
+        LIT(c->res, "{\"app\":");
+        zxvd_buf_json_str(c->res, g[i].app);
+        zxvd_buf_printf(c->res, ",\"cap\":\"%s\",\"mode\":\"%s\",\"pending\":%s,\"asked\":%lld}",
+                        g[i].cap, zcp_mode_name((zcp_mode_t) g[i].mode),
+                        g[i].pending ? "true" : "false", (long long) g[i].asked);
+    }
+    zxvd_buf_printf(c->res, "],\"more\":%s}", n > k ? "true" : "false");
+}
+
+static void m_caps_check(call_t *c)
+{
+    char app[ZCP_APP_MAX + 1], cap[ZCP_CAP_MAX + 1];
+    if (!p_app_cap(c, app, cap)) return;
+    int r = zcp_check(app, cap);
+    if (r != ZCP_OK && r != ZCP_E_PENDING && r != ZCP_E_DENIED && !caps_done(c, r)) return;
+    LIT(c->res, "{\"app\":");
+    zxvd_buf_json_str(c->res, app);
+    zxvd_buf_printf(c->res, ",\"cap\":\"%s\",\"allowed\":%s,\"state\":\"%s\"}", cap,
+                    r == ZCP_OK ? "true" : "false",
+                    r == ZCP_OK          ? "allowed"
+                    : r == ZCP_E_PENDING ? "pending"
+                                         : "denied");
+}
+
+static void caps_answer(call_t *c, const char *app, const char *cap, zcp_mode_t m)
+{
+    if (!caps_done(c, zcp_set(app, cap, m))) return;
+    LIT(c->res, "{\"app\":");
+    zxvd_buf_json_str(c->res, app);
+    zxvd_buf_printf(c->res, ",\"cap\":\"%s\",\"mode\":\"%s\"}", cap, zcp_mode_name(m));
+}
+
+static void m_caps_grant(call_t *c)
+{
+    char app[ZCP_APP_MAX + 1], cap[ZCP_CAP_MAX + 1], mode[8] = "";
+    if (!p_app_cap(c, app, cap) || !p_str(c, "mode", mode, sizeof mode, false)) return;
+    int m = mode[0] ? zcp_mode_parse(mode) : ZCP_ALWAYS;
+    if (m != ZCP_ALWAYS && m != ZCP_ONCE)
+        return fail(c, E_PARAMS, "\"mode\" must be always or once");
+    caps_answer(c, app, cap, (zcp_mode_t) m);
+}
+
+static void m_caps_revoke(call_t *c)
+{
+    char app[ZCP_APP_MAX + 1], cap[ZCP_CAP_MAX + 1];
+    bool forget = false;
+    if (!p_app_cap(c, app, cap) || !p_bool(c, "forget", false, &forget)) return;
+    caps_answer(c, app, cap, forget ? ZCP_DEFAULT : ZCP_NEVER);
+}
+
+/* ----- schedule.*: Treadle (zxv_sched.h T1-T5) ----- */
+
+static bool sched_done(call_t *c, int r)
+{
+    if (r == ZSD_OK) return true;
+    fail(c, r == ZSD_E_ARG ? E_PARAMS : ZXVD_E_SCHED, "%s", zsd_strerror(r));
+    return false;
+}
+
+/* T1: a firing with "notify" posts the schedule's notice in its app's name */
+static void sched_fired(void *ctx, const zsd_fired_t *f, const zsd_entry_t *e)
+{
+    (void) ctx;
+    if (!e->notify || !NOTIFY) return;
+    char key[32];
+    snprintf(key, sizeof key, "schedule:%u", f->id);
+    uint64_t k = 0xcbf29ce484222325ull; /* as notify.send's key */
+    for (const char *q = key; *q; q++) k = (k ^ (uint8_t) *q) * 0x100000001b3ull;
+    zxvd_notice_t n = {e->app, e->name, e->note, "", 1, k ? k : 1};
+    NOTIFY(&n);
+}
+
+static const char *const DAY[] = {"sun", "mon", "tue", "wed", "thu", "fri", "sat"};
+
+static void sched_json(zxvd_buf_t *b, const zsd_entry_t *e)
+{
+    zxvd_buf_printf(b, "{\"id\":%u,\"app\":", e->id);
+    zxvd_buf_json_str(b, e->app);
+    LIT(b, ",\"name\":");
+    zxvd_buf_json_str(b, e->name);
+    zxvd_buf_printf(b, ",\"kind\":\"%s\"", zsd_kind_name((zsd_kind_t) e->kind));
+    if (e->kind == ZSD_AT) zxvd_buf_printf(b, ",\"at_ms\":%lld", (long long) e->at_ms);
+    if (e->kind == ZSD_EVERY)
+        zxvd_buf_printf(b, ",\"every_s\":%u,\"start_ms\":%lld", e->every_s, (long long) e->at_ms);
+    if (e->kind == ZSD_DAILY) {
+        zxvd_buf_printf(b, ",\"daily\":\"%02u:%02u\",\"days\":[", e->minute / 60u, e->minute % 60u);
+        for (int d = 0, k = 0; d < 7; d++)
+            if (e->days & (1u << d)) zxvd_buf_printf(b, "%s\"%s\"", k++ ? "," : "", DAY[d]);
+        LIT(b, "]");
+    }
+    zxvd_buf_printf(b, ",\"notify\":%s,\"note\":", e->notify ? "true" : "false");
+    zxvd_buf_json_str(b, e->note);
+    zxvd_buf_printf(b, ",\"next_ms\":%lld,\"last_ms\":", (long long) e->next_ms);
+    if (e->last_ms)
+        zxvd_buf_printf(b, "%lld", (long long) e->last_ms);
+    else
+        LIT(b, "null");
+    zxvd_buf_printf(b, ",\"fired\":%u}", e->fired);
+}
+
+/* "days": an array of sun..sat; absent = every day */
+static bool p_days(call_t *c, uint8_t *mask)
+{
+    zxvd_json_t a;
+    *mask = 0x7f;
+    if (!zxvd_param_json(c, "days", &a)) return true;
+    const w4_jtok_t *t = a.tok;
+    if (t[a.at].type != W4_J_ARR || t[a.at].size < 1 || t[a.at].size > 7) {
+        fail(c, E_PARAMS, "\"days\" must be 1 to 7 of sun, mon, tue, wed, thu, fri, sat");
+        return false;
+    }
+    *mask = 0;
+    for (uint32_t i = 0; i < t[a.at].size; i++) {
+        char d[4];
+        int32_t k = w4_json_at(t, a.n, a.at, i);
+        int32_t got = k >= 0 && t[k].type == W4_J_STR ? w4_json_str(a.js, &t[k], d, sizeof d) : -1;
+        int bit = -1;
+        for (int j = 0; got == 3 && j < 7 && bit < 0; j++)
+            if (!strcmp(d, DAY[j])) bit = j;
+        if (bit < 0 || (*mask & (1u << bit))) {
+            fail(c, E_PARAMS, "\"days\" must be 1 to 7 of sun, mon, tue, wed, thu, fri, sat");
+            return false;
+        }
+        *mask |= (uint8_t) (1u << bit);
+    }
+    return true;
+}
+
+static void m_schedule_add(call_t *c)
+{
+    zsd_entry_t e;
+    char daily[8] = "";
+    int64_t at = -1, start = 0;
+    uint32_t every = 0;
+    bool notify = false;
+    memset(&e, 0, sizeof e);
+    if (!p_str(c, "app", e.app, sizeof e.app, true) ||
+        !p_str(c, "name", e.name, sizeof e.name, true) ||
+        !p_str(c, "note", e.note, sizeof e.note, false) || !p_bool(c, "notify", false, &notify) ||
+        !zxvd_param_amount(c, "at_ms", &at, false) ||
+        !zxvd_param_u32(c, "every_s", &every, false) ||
+        !zxvd_param_amount(c, "start_ms", &start, false) ||
+        !p_str(c, "daily", daily, sizeof daily, false) || !p_days(c, &e.days))
+        return;
+    zxvd_json_t j;
+    bool has_at = zxvd_param_json(c, "at_ms", &j), has_every = zxvd_param_json(c, "every_s", &j),
+         has_daily = daily[0] != 0;
+    if (has_at + has_every + has_daily != 1)
+        return fail(c, E_PARAMS, "give one of \"at_ms\", \"every_s\" or \"daily\"");
+    if (zxvd_param_json(c, "start_ms", &j) && !has_every)
+        return fail(c, E_PARAMS, "\"start_ms\" goes with \"every_s\"");
+    if (zxvd_param_json(c, "days", &j) && !has_daily)
+        return fail(c, E_PARAMS, "\"days\" goes with \"daily\"");
+    e.notify = notify;
+    if (has_at) {
+        e.kind = ZSD_AT;
+        e.at_ms = at;
+    } else if (has_every) {
+        e.kind = ZSD_EVERY;
+        e.every_s = every;
+        e.at_ms = start;
+        if (start < 0) return fail(c, E_PARAMS, "\"start_ms\" must not be negative");
+    } else {
+        int m = zsd_minute_parse(daily);
+        if (m < 0) return fail(c, E_PARAMS, "\"daily\" is HH:MM, 00:00 to 23:59");
+        e.kind = ZSD_DAILY;
+        e.minute = (uint16_t) m;
+    }
+    uint32_t id;
+    if (!sched_done(c, zsd_add(&e, &id))) return;
+    sched_json(c->res, &e);
+}
+
+static void m_schedule_list(call_t *c)
+{
+    static zsd_entry_t e[ZSD_ENTRIES];
+    char app[ZSD_APP_MAX + 1];
+    if (!p_str(c, "app", app, sizeof app, false)) return;
+    zsd_tick();
+    uint32_t n = zsd_list(app, e, ZSD_ENTRIES);
+    LIT(c->res, "{\"schedules\":[");
+    for (uint32_t i = 0; i < n; i++) {
+        if (i) LIT(c->res, ",");
+        sched_json(c->res, &e[i]);
+    }
+    LIT(c->res, "]}");
+}
+
+static void m_schedule_cancel(call_t *c)
+{
+    uint32_t id = 0;
+    if (!zxvd_param_u32(c, "id", &id, true)) return;
+    if (!sched_done(c, zsd_cancel(id))) return;
+    zxvd_buf_printf(c->res, "{\"id\":%u,\"cancelled\":true}", id);
+}
+
+static void m_schedule_fired(call_t *c)
+{
+    static zsd_fired_t f[ZSD_FIRED];
+    char app[ZSD_APP_MAX + 1];
+    int64_t after = 0;
+    if (!p_str(c, "app", app, sizeof app, false) || !zxvd_param_amount(c, "after", &after, false))
+        return;
+    if (after < 0) return fail(c, E_PARAMS, "\"after\" must not be negative");
+    zsd_tick();
+    uint64_t next = 0;
+    uint32_t n = zsd_fired(app, (uint64_t) after, f, ZSD_FIRED, &next);
+    LIT(c->res, "{\"fired\":[");
+    for (uint32_t i = 0; i < n; i++) {
+        zxvd_buf_printf(c->res, "%s{\"seq\":%llu,\"id\":%u,\"app\":", i ? "," : "",
+                        (unsigned long long) f[i].seq, f[i].id);
+        zxvd_buf_json_str(c->res, f[i].app);
+        LIT(c->res, ",\"name\":");
+        zxvd_buf_json_str(c->res, f[i].name);
+        zxvd_buf_printf(c->res,
+                        ",\"due_ms\":%lld,\"fired_ms\":%lld,\"late\":%s,\"missed\":%u,"
+                        "\"ended\":%s}",
+                        (long long) f[i].due_ms, (long long) f[i].fired_ms,
+                        f[i].late ? "true" : "false", f[i].missed, f[i].ended ? "true" : "false");
+    }
+    zxvd_buf_printf(c->res, "],\"next\":%llu}", (unsigned long long) next);
+}
+
+void zxvd_rpc_tick(void)
+{
+    zxvd_dns_service();
+    zxvd_proc_service();
+    zsd_set_hook(sched_fired, NULL);
+    zsd_tick(); /* zxv_sched.h T3 */
 }
 
 static void stats_json(zxvd_buf_t *b, const zsr_stats_t *st)
@@ -3213,15 +3859,47 @@ static void m_books(call_t *c)
                     (unsigned long long) BF_RECS, hx, BF_BROKEN ? "false" : "true");
 }
 
-/* ----- jurisdiction.* (J1-J5) ----- */
+/* ----- jurisdiction.* (J1-J9) ----- */
+static bool ju_loaded(const juris_plugin_t *p)
+{
+    for (uint32_t i = 0; i < JU_HOST.n; i++)
+        if (JU_HOST.plug[i] == p) return true;
+    return false;
+}
+
 static void ju_put(zxvd_buf_t *o)
 {
     zxvd_buf_printf(o, "{\"market\":\"%s\",\"standard\":\"%s\",\"country\":\"%s\",\"standards\":[",
                     JU_OPEN ? "open" : "closed", JU_STD[JU_IDX], JU_CC);
     for (uint32_t i = 1; i < JU_NSTD; i++)
         zxvd_buf_printf(o, "%s\"%s\"", i > 1 ? "," : "", JU_STD[i]);
-    zxvd_buf_printf(o, "],\"in_effect\":true,\"plugins\":%u,\"report_standard\":\"%s\"}",
+    zxvd_buf_printf(o, "],\"in_effect\":true,\"plugins\":%u,\"report_standard\":\"%s\"",
                     (unsigned) JU_HOST.n, acct_std_name(juris_host_standard(&JU_HOST)));
+    /* J6: the key's id, never the key */
+    if (JU_GW.set) {
+        uint8_t id[32];
+        char hx[65];
+        juris_gw_key_id(JU_GW.pk, id);
+        hex32(id, hx);
+        zxvd_buf_printf(o, ",\"gateway_key\":\"%s\",\"installed\":[", hx);
+    } else {
+        LIT(o, ",\"gateway_key\":null,\"installed\":[");
+    }
+    bool first = true;
+    for (uint32_t i = 0; i < JURIS_MAX_PLUGINS; i++) {
+        const ju_pl_t *pl = &JU_PL[i];
+        char id[JURIS_ID_LEN + 1];
+        if (!pl->used) continue;
+        memcpy(id, pl->p.id, JURIS_ID_LEN);
+        id[JURIS_ID_LEN] = 0;
+        if (!first) LIT(o, ",");
+        LIT(o, "{\"id\":");
+        zxvd_buf_json_str(o, id);
+        zxvd_buf_printf(o, ",\"version\":%u,\"loaded\":%s}", (unsigned) pl->version,
+                        ju_loaded(&pl->p) ? "true" : "false");
+        first = false;
+    }
+    zxvd_buf_raw(o, "]}", 2);
 }
 
 static void m_juris_get(call_t *c)
@@ -3231,9 +3909,12 @@ static void m_juris_get(call_t *c)
 
 static void m_juris_set(call_t *c)
 {
+    static char gk[2 * JURIS_GW_PK_LEN + 1];
+    static uint8_t pk[JURIS_GW_PK_LEN];
     char m[16], sd[16], cc[8];
     if (!books(c) || !p_str(c, "market", m, sizeof m, false) ||
-        !p_str(c, "standard", sd, sizeof sd, false) || !p_str(c, "country", cc, sizeof cc, false))
+        !p_str(c, "standard", sd, sizeof sd, false) || !p_str(c, "country", cc, sizeof cc, false) ||
+        !p_str(c, "gateway_key", gk, sizeof gk, false))
         return;
     bool open = JU_OPEN;
     int ix = (int) JU_IDX;
@@ -3250,7 +3931,95 @@ static void m_juris_set(call_t *c)
         memcpy(cc, JU_CC, sizeof JU_CC);
     else if (!ju_cc(cc))
         return fail(c, E_PARAMS, "\"country\" must be \"\" or two capital letters (ISO 3166-1)");
-    if (zok(c, bk_juris(open, (uint32_t) ix, cc))) ju_put(c->res);
+    bool gset = param(c, "gateway_key") >= 0;
+    if (gset && gk[0] && w4_hex_decode(gk, (uint32_t) strlen(gk), pk, sizeof pk) != JURIS_GW_PK_LEN)
+        return fail(c, E_PARAMS,
+                    "\"gateway_key\" must be \"\" or an ML-DSA-87 public key in hex (%u digits)",
+                    2u * JURIS_GW_PK_LEN);
+    if (zok(c, bk_juris(open, (uint32_t) ix, cc)) && (!gset || zok(c, bk_gw(gk[0] ? pk : NULL))))
+        ju_put(c->res);
+}
+
+/* J7: a gateway-signed compliance manifest becomes a plug-in */
+static bool p_b64(call_t *c, const char *key, uint8_t *out, size_t cap, int64_t *n)
+{
+    static char in[ZXVD_RPC_MAX_LINE + 1];
+    if (!p_str(c, key, in, sizeof in, true)) return false;
+    if ((*n = b64_get(in, strlen(in), out, cap)) <= 0) {
+        fail(c, E_PARAMS, "\"%s\" must be base64 of 1 to %u bytes", key, (unsigned) cap);
+        return false;
+    }
+    return true;
+}
+
+static void m_juris_install(call_t *c)
+{
+    static uint8_t m[JU_MAN_MAX], sg[CPK_SIG_LEN], gs[JURIS_GW_SIG_LEN];
+    int64_t ml, sl, gl;
+    int32_t st;
+    if (!books(c) || !p_b64(c, "manifest", m, sizeof m, &ml) ||
+        !p_b64(c, "sig", sg, sizeof sg, &sl) || !p_b64(c, "gateway_sig", gs, sizeof gs, &gl))
+        return;
+    if (!writable(&st)) return (void) zok(c, st);
+    uint64_t at = zxvd_now_ms() / 1000u;
+    const char *why = ju_install(m, (size_t) ml, sg, (size_t) sl, gs, (size_t) gl, at);
+    if (why) return fail(c, E_JURIS, "%s", why);
+    if (zok(c, bk_install(m, (size_t) ml, sg, (size_t) sl, gs, (size_t) gl, at))) ju_put(c->res);
+}
+
+/* J9: ask the host about a transfer (nothing is posted or committed) */
+static void m_juris_check(call_t *c)
+{
+    char from[4], to[4], ccy[8];
+    int64_t amount;
+    uint32_t sender = 0, receiver = 0;
+    if (!books(c) || !p_str(c, "from", from, sizeof from, true) ||
+        !p_str(c, "to", to, sizeof to, true) || !p_str(c, "ccy", ccy, sizeof ccy, true) ||
+        !p_amount(c, "amount", &amount) || !zxvd_param_u32(c, "sender", &sender, false) ||
+        !zxvd_param_u32(c, "receiver", &receiver, false))
+        return;
+    if (strlen(from) > 2 || strlen(to) > 2 || strlen(ccy) > 3)
+        return fail(c, E_PARAMS, "\"from\" and \"to\" are ISO 3166-1 alpha-2, \"ccy\" ISO 4217");
+    if (amount <= 0) return fail(c, E_PARAMS, "\"amount\" must be above 0 (minor units)");
+    juris_transfer_t t;
+    memset(&t, 0, sizeof t);
+    memcpy(t.from_country, from, strlen(from));
+    memcpy(t.to_country, to, strlen(to));
+    memcpy(t.ccy, ccy, strlen(ccy));
+    t.amount = (uint64_t) amount;
+    t.sender = sender;
+    t.receiver = receiver;
+    lpx_t g = juris_check_transfer(&JU_HOST, &t);
+    uint32_t reports = 0;
+    for (uint32_t i = 0; i < JURIS_MAX_PLUGINS; i++) {
+        capctl_result_t r;
+        if (JU_PL[i].used && ju_loaded(&JU_PL[i].p) && juris_cp_capctl_report(&JU_PL[i].cap, &r))
+            reports += r.n_reports;
+    }
+    lpx_action_t act = lpx_action(g);
+    zxvd_buf_printf(c->res,
+                    "{\"tag\":%u,\"base\":\"%s\",\"action\":\"%s\",\"proceed\":%s,"
+                    "\"reports\":%u}",
+                    (unsigned) g, lpx_base_name(lpx_base(g)), lpx_action_name(act),
+                    act == LPX_ACT_PROCEED ? "true" : "false", (unsigned) reports);
+}
+
+/* J9: the tax rate the plug-ins agree on */
+static void m_juris_tax_rate(call_t *c)
+{
+    static const char *const K[JURIS_TAX_COUNT] = {"income", "vat", "withholding"};
+    char kind[16];
+    if (!books(c) || !p_str(c, "kind", kind, sizeof kind, true)) return;
+    int k = -1;
+    for (int i = 0; i < (int) JURIS_TAX_COUNT; i++)
+        if (!strcmp(kind, K[i])) k = i;
+    if (k < 0) return fail(c, E_PARAMS, "\"kind\" must be income, vat or withholding");
+    uint64_t num, den;
+    juris_status_t st = juris_host_tax_rate(&JU_HOST, (juris_tax_kind_t) k, &num, &den);
+    if (st == JURIS_E_CONFLICT) return fail(c, E_JURIS, "the plug-ins disagree on the rate");
+    if (st != JURIS_OK) return fail(c, E_JURIS, "no plug-in gives this rate");
+    zxvd_buf_printf(c->res, "{\"kind\":\"%s\",\"num\":\"%llu\",\"den\":\"%llu\"}", kind,
+                    (unsigned long long) num, (unsigned long long) den);
 }
 
 /* ----- views from the host (V1-V3) ----- */
@@ -3330,6 +4099,9 @@ static const method_t METHODS[] = {
     {"books.file", m_books, PH_READ},
     {"jurisdiction.get", m_juris_get, PH_READ},
     {"jurisdiction.set", m_juris_set, PH_NO},
+    {"jurisdiction.install", m_juris_install, PH_NO},
+    {"jurisdiction.check", m_juris_check, PH_READ},
+    {"jurisdiction.tax_rate", m_juris_tax_rate, PH_READ},
     {"aipi.put", m_aipi_put, PH_NO},
     {"aipi.get", m_aipi_get, PH_READ},
     {"aipi.publish", m_aipi_publish, PH_NO},
@@ -3368,6 +4140,29 @@ static const method_t METHODS[] = {
     {"log.tail", m_log_tail, PH_NO},
     {"journal.query", m_journal_query, PH_NO},
     {"journal.verify", m_journal_verify, PH_NO},
+    {"journal.append", m_journal_append, PH_NO},
+    {"notify.send", m_notify_send, PH_NO},
+    {"shell.run", zxvd_shell_run, PH_NO},
+    {"shell.read", zxvd_shell_read, PH_NO},
+    {"shell.write", zxvd_shell_write, PH_NO},
+    {"shell.kill", zxvd_shell_kill, PH_NO},
+    {"shell.jobs", zxvd_shell_jobs, PH_NO},
+    {"caps.list", m_caps_list, PH_NO},
+    {"caps.check", m_caps_check, PH_NO},
+    {"caps.grant", m_caps_grant, PH_NO},
+    {"caps.revoke", m_caps_revoke, PH_NO},
+    {"dns.resolve", zxvd_dns_resolve, PH_NO},
+    {"dns.reverse", zxvd_dns_reverse, PH_NO},
+    {"dns.flush", zxvd_dns_flush, PH_NO},
+    {"did.parse", zxvd_did_parse, PH_NO},
+    {"did.match", zxvd_did_match, PH_NO},
+    {"schedule.add", m_schedule_add, PH_NO},
+    {"schedule.list", m_schedule_list, PH_NO},
+    {"schedule.cancel", m_schedule_cancel, PH_NO},
+    {"schedule.fired", m_schedule_fired, PH_NO},
+    {"proc.list", zxvd_proc_list, PH_NO},
+    {"proc.signal", zxvd_proc_signal, PH_NO},
+    {"proc.restart", zxvd_proc_restart, PH_NO},
     {"screen.tick", m_screen_tick, PH_NO},
     {"screen.check", m_screen_check, PH_NO},
     {"screen.status", m_screen_status, PH_NO},
@@ -4050,7 +4845,7 @@ int zxvd_rpc_fds(void *set)
             FD_SET(CL[i].fd, s);
             if (CL[i].fd > mx) mx = CL[i].fd;
         }
-    return mx;
+    return zxvd_shell_fds(s, mx); /* the jobs' output (zxvd_shell.h H1) */
 }
 
 static void drop(client_t *c)
@@ -4104,6 +4899,8 @@ void zxvd_rpc_service(void *set, uint64_t now_ms)
 {
     fd_set *s = set;
     if (LS < 0) return;
+    zxvd_shell_service(s);
+    zxvd_rpc_tick();
     for (int i = 0; i < ZXVD_RPC_MAX_CLIENTS; i++) {
         client_t *c = &CL[i];
         if (c->fd < 0) continue;
@@ -4135,6 +4932,9 @@ void zxvd_rpc_service(void *set, uint64_t now_ms)
 
 void zxvd_rpc_close(void)
 {
+    zxvd_shell_close();
+    zxvd_dns_close();
+    zxvd_proc_close();
     for (int i = 0; i < ZXVD_RPC_MAX_CLIENTS; i++)
         if (CL[i].fd >= 0) drop(&CL[i]);
     if (LS >= 0) {

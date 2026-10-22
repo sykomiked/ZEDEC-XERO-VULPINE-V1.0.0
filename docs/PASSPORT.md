@@ -114,7 +114,7 @@ To end a session early, add a revocation for the grant or the session key. Spend
 - **There is no mnemonic word list.** The seed is typed as checksummed base32.
 - **The topic hides who, not that.** Someone watching the network sees one topic being polled. Topics change every epoch.
 - **Quarantined spends already left.** The merge cannot take them back. It tells both sides the voucher is contested.
-- **Not wired in yet.** zxvd methods, the login screen (seats and zui) and keeping the seed in hwkey's sealed storage on the user's own devices are the next steps.
+- **Wired in so far: the browser.** The browser surface (`web/session`) logs in with a seed or a passphrase and handle: `pp_core` runs in the page as WebAssembly and gives the same DID as the native build. zxvd methods, the native login screen (seats and zui), linking the browser's identity to zxvd's session, and keeping the seed in hwkey's sealed storage on the user's own devices are the next steps.
 
 ## Build and test
 

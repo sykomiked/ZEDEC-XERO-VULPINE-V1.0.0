@@ -115,6 +115,12 @@ that for app launches. Launch sounds are **on by default**, with a setting to tu
   and plays the end. A failed step or a cancel never does. A warm open plays only the end.
   Test: `kernel/src/zui/test_zui_launch_theme.c` (in `make verify-all`); the block mapping is unit-tested in
   `test_zxl_launch.c` (`zxl_launch_blocks`, `zxl_launch_screen_p`).
+- `kernel/src/zui/zui_apphost.{h,c}`: the desktop session's app opener. Attaches the launch screens to the window
+  manager, opens the app's window on its screen, then drives a `zxm_open_t` (`kernel/src/apps/zxm_open.h`) on
+  the app's recipe one step a frame, each answer passed straight onto `zui_launch_theme_load`. Done tells the
+  desktop where the app was written; a failure tells it why (zxvd's own words) and closes the window; closing a
+  window that is still loading cancels the receive. Test: `kernel/src/zui/test_zui_apphost.c` (in
+  `make verify-all`, ASan+UBSan), against a scripted zxvd.
 - `kernel/src/launch/zxl_synth.{h,c}`: the sounds, made live in integers the moment each cue is called for, from
   the app's theme: the same notes, timbres, pans, echoes and fades as `launch_sounds.py` (the six hand-made apps
   keep their own recipes). Every other app's phrase carries a quiet layer in its tier's material: dry wood
@@ -164,7 +170,7 @@ python3 tools/launch/launch_catalogue.py render APP_CATALOG_407.csv out --new   
    read at once). It sets `cfg.vec` to an adapter over `zui_vec_draw_simple` with a static `zui_vec_work_t`
    once the toolkit's renderer is on main, and the installer puts the 407 icons' and five logos' `.zxvg`
    beside the PNGs.
-2. The app host that opens an app from its recipe runs the `fab.receive.start` / `fab.receive.step` loop and
-   feeds each answer to `zui_launch_theme_load` (an error answer or a cancel as `ZUI_LT_FAILED`, then it says
-   why and closes the window).
+2. The desktop session makes one `zui_apphost_t` with its window manager, its `zui_launch_shell` and its zxvd
+   link, opens apps from their recipes with `zui_ah_open` (warm ones with `zui_ah_open_warm`), calls `zui_ah_pump`
+   once a frame, and shows `done`'s reason when an open fails.
 3. Hand-make more apps' sounds where the generated phrase is not enough.

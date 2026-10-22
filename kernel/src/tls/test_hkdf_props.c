@@ -37,6 +37,7 @@ static const struct {
     {"hmac_empty", "d0d6d58c87cbf4a52bfab018ab92a073effa0bffba4fde91df30c8278175d293"},
     {"extract_nosalt", "27b32344b5942e4939f2236c68ab245460f0dc477af0e1fa183fc14d2c89441d"},
     {"extract_salt", "4c1b914ef9e0837d350d86c566679fdcb08d77d17b98ad08b95bc747659ba15e"},
+    {"extract_salt1", "d3a4ad4076cc963c0e88baaf14a8c06bc8cc787a7e3f040e870e6e6ac05327f0"},
     {"expand_1", "77"},
     {"expand_31", "771f7237f965562ac3a429ffda161018ae48b023a94019cee6f18b3de2c22d"},
     {"expand_32", "771f7237f965562ac3a429ffda161018ae48b023a94019cee6f18b3de2c22dee"},
@@ -59,6 +60,7 @@ static const struct {
     {"label_300", "912de0ac71bc3c447ae2585eda6f8aae"},
     {"label_ctx", "963bcdd6d1a39a4cbcf57bed95ea64a3f86fce0e00e95812f7a20b540306c795"},
     {"label_64", "8e33e0367600e6647732b9be10ef5452ba11d277e0a6d5a9b6cd98e3f0b6efec"},
+    {"label_empty", "e872b3c402aedc65e7af154f008c5cf3fad39c2b65a8a1bf71e952eac0a2fb7e"},
     {"early_psk", "bd208e4cd5d524f3e7bb2edbb9d325a597a9e9771644875eb4bf125eec2d26dd"},
     {"early_zero", "33ad0a1c607ec03b09e6cd9893680ce210adf300aa1f2660e1b22e10f170f92a"},
     {"hs", "659be510b78e81ad7431a983a294b162ef56c957cac9da6f166393fcb3c01e43"},
@@ -119,12 +121,22 @@ static void test_hmac_extract(void)
     CHECK(is(out, "hmac_empty"), "an empty message");
     hmac_sha256(key, 20, 0, 0, out);
     CHECK(is(out, "hmac_empty"), "a NULL message is the empty message");
+    hmac_sha256(key, 20, 0, 5, out);
+    CHECK(is(out, "hmac_empty"), "a NULL message with a length is still the empty message");
+    hmac_sha256(0, 5, msg, 100, out);
+    CHECK(is(out, "hmac_k0"), "a NULL key with a length is still the empty key");
 
     uint8_t salt[32], ikm[22], prk[32];
     pat(ikm, 22, 1);
     pat(salt, 13, 5);
     hkdf_extract(salt, 13, ikm, 22, prk);
     CHECK(is(prk, "extract_salt"), "Extract with a salt");
+    hkdf_extract(salt, 1, ikm, 22, prk);
+    CHECK(is(prk, "extract_salt1"), "a one-byte salt is a salt, not no salt");
+    hkdf_extract(0, 32, ikm, 22, prk);
+    CHECK(is(prk, "extract_nosalt"), "a NULL salt with a length is no salt");
+    hkdf_extract(0, 100, ikm, 22, prk); /* longer than a block: never read */
+    CHECK(is(prk, "extract_nosalt"), "a NULL salt longer than a block is no salt");
     hkdf_extract(0, 0, ikm, 22, prk);
     CHECK(is(prk, "extract_nosalt"), "no salt is 32 zero bytes");
     hkdf_extract(salt, 0, ikm, 22, prk);
@@ -159,6 +171,9 @@ static void test_expand(void)
     CHECK(hkdf_expand(prk, info, 479, big, 40) && is(big, "expand_info479_tail"),
           "the longest info (479 bytes) still expands correctly");
     CHECK(!hkdf_expand(prk, info, 480, big, 40), "480 bytes of info are refused");
+    uint8_t a[40], b[40];
+    CHECK(hkdf_expand(prk, 0, 3, a, 40) && hkdf_expand(prk, 0, 0, b, 40) && memcmp(a, b, 40) == 0,
+          "NULL info with a length is empty info");
 }
 
 static void test_label(void)
@@ -190,6 +205,11 @@ static void test_label(void)
     hkdf_extract(salt, 13, ikm, 22, prk);
     CHECK(tls13_expand_label(prk, "key", 0, 0, out, 300) && is(out + 300 - 16, "label_300"),
           "an output length past 255 sets the high length byte");
+    static const char empty_then_junk[4] = {0, 'z', 'z', 'z'};
+    CHECK(tls13_hkdf_label(enc, sizeof enc, 32, empty_then_junk, 0, 0) == 10 && enc[2] == 6 &&
+              enc[9] == 0,
+          "an empty label is just the prefix (the bytes after its NUL are not read)");
+    CHECK(tls13_expand_label(prk, "", 0, 0, out, 32) && is(out, "label_empty"), "empty label");
     CHECK(tls13_expand_label(prk, "c hs traffic", ctx, 32, out, 32) && is(out, "label_ctx"),
           "a 32-byte context");
     memset(lab, 'a', 64);
@@ -246,6 +266,8 @@ static void test_schedule(void)
     memset(key, 0, 16);
     CHECK(tls13_traffic_keys(s.s_hs_traffic, key, 16, 0, 12) && is(key, "key16"), "key alone");
     CHECK(!tls13_traffic_keys(0, key, 16, iv, 12), "NULL secret refused");
+    CHECK(!tls13_traffic_keys(0, 0, 0, 0, 0), "NULL secret refused even with nothing to derive");
+    CHECK(!tls13_finished(0, th, fin), "Finished needs a secret");
     CHECK(!tls13_traffic_keys(s.s_hs_traffic, big, 255 * 32 + 1, 0, 0) &&
               !tls13_traffic_keys(s.s_hs_traffic, 0, 0, big, 255 * 32 + 1),
           "an impossible key or iv length is refused");

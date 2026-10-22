@@ -66,6 +66,7 @@ def main():
     # Extract: no salt is HashLen zeros
     rows.append(("extract_nosalt", extract(b"", pat(22, 1))))
     rows.append(("extract_salt", extract(pat(13, 5), pat(22, 1))))
+    rows.append(("extract_salt1", extract(pat(1, 5), pat(22, 1))))
     # Expand: lengths across block edges and the 255-block maximum
     prk = extract(pat(13, 5), pat(22, 1))
     for n in (1, 31, 32, 33, 64, 65, 300):
@@ -76,6 +77,7 @@ def main():
     rows.append(("label_300", expand_label(prk, b"key", b"", 300)[-16:]))
     rows.append(("label_ctx", expand_label(prk, b"c hs traffic", pat(32, 6), 32)))
     rows.append(("label_64", expand_label(prk, b"a" * 64, pat(32, 6), 32)))
+    rows.append(("label_empty", expand_label(prk, b"", b"", 32)))
     # the whole schedule with a PSK, a DHE secret and two transcripts
     psk, dhe = pat(32, 11), pat(32, 12)
     t1, t2 = pat(200, 13), pat(500, 14)

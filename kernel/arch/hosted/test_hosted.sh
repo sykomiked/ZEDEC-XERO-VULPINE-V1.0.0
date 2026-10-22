@@ -73,7 +73,35 @@ if [ -n "$DEFS" ]; then
     for f in "$K"/src/tensor/zt*.c; do set -- "$@" "$f"; done
     "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN $DEFS -I"$HERE" -I"$K/src/tensor" -I"$K/include" -I"$K/src/modbind" "$@" -lpthread \
         -o "$T/test_swarm_slots"
-    "$T/test_swarm_slots" "$T"
+    "$T/test_swarm_slots" "$T" keep
+    # H6 end to end: two cells of two lineages on the test model, the
+    # delegator position, its hand-off receipts in the sealed chain (run
+    # twice: the second run resumes the chain only if it verifies)
+    M="$T/zxv_swarm_test_model.gguf"
+    mkdir -p "$T/h6/state"
+    printf 'slot 0 %s\nslot 1 %s\ncell Alpha 0 aaa - what\ncell Beta 1 bbb - why\nlog %s\ndelegate\n' \
+        "$M" "$M" "$T/h6/log.jsonl" > "$T/h6/conf"
+    printf 'what and why\n' > "$T/h6/q"
+    for run in 1 2; do
+        ASAN_OPTIONS=detect_leaks=0 "$T/zxv-host" --tiamat "$T/h6/conf" --ask-file "$T/h6/q" \
+            --state-dir "$T/h6/state" > "$T/h6/out$run.jsonl" 2> "$T/h6/err"
+    done
+    python3 - "$T/h6" <<'PY'
+import json, sys
+d = sys.argv[1]
+for run in (1, 2):
+    o = json.loads(open(f"{d}/out{run}.jsonl", encoding="utf-8", errors="replace").readline())
+    assert o["position"]["to"] == "Alpha" and o["position"]["claim"] == "BOTH", o["position"]
+    assert o["holder"] == "Alpha" and o["parts"] and o["verdict"] in ("TRUE", "FALSE", "BOTH", "NEITHER")
+r = [json.loads(l) for l in open(f"{d}/state/receipts.jsonl")]
+kinds = [x["kind"] for x in r]
+assert kinds[:2] == ["handoff", "ask"] and kinds.count("ask") == 2, kinds
+assert [x["seq"] for x in r] == list(range(1, len(r) + 1))
+h = r[0]
+assert h["lead"] == "" and h["witness"] == "Alpha" and h["verdict"] == "BOTH", h
+assert sum(1 for l in open(f"{d}/log.jsonl", "rb")) == 2
+print("[PASS] H6 end to end: the position (a tie across lineages, BOTH), hand-off receipts in the chain, resumed")
+PY
     # the models on the GPU this machine has (G7: Metal on a Mac; CUDA, HIP
     # or Vulkan elsewhere), every reply equal to the CPU's; with no GPU both
     # runs are on the CPU and the test says so
@@ -106,14 +134,16 @@ run_cc "$T/test_tag"
 "$T/test_tag"
 
 # talking to several Tiamat cells at once (zxv_tiamat.h, harness H1)
-printf '%s\n' arch/hosted/test_zxv_tiamat.c arch/hosted/zxv_tiamat.c > "$T/tiamat"
+printf '%s\n' arch/hosted/test_zxv_tiamat.c arch/hosted/zxv_tiamat.c src/swarm/swarm_deleg.c \
+    src/lpres/lpres.c > "$T/tiamat"
 args "$T/tiamat"
 run_cc "$T/test_tiamat"
 "$T/test_tiamat" "$T"
 
 # R24: idle self-work in slices and one sealed receipt per interaction
 printf '%s\n' arch/hosted/test_zxv_idle.c arch/hosted/zxv_idle.c arch/hosted/zxv_receipt.c \
-    arch/hosted/zxv_tiamat.c src/robin_debanks/sha256.c > "$T/idle"
+    arch/hosted/zxv_tiamat.c src/swarm/swarm_deleg.c src/lpres/lpres.c src/robin_debanks/sha256.c \
+    > "$T/idle"
 args "$T/idle"
 run_cc "$T/test_idle"
 mkdir -p "$T/idle_dir"

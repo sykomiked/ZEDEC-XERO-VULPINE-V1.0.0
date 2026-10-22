@@ -328,6 +328,9 @@ int main(void)
     test_dnd_overflow();
     test_task_hook();
     test_bridge();
+    CHECK(!strcmp(zxn_kind_name(ZXN_APP), "app") && ZXN_APP + 1 == ZXN_KIND_COUNT &&
+              !strcmp(zxn_kind_name(ZXN_KIND_COUNT), "unknown"),
+          "an app's own notice is the last kind, named \"app\"");
     printf("\n%d passed, %d failed\n", passes, failures);
     return failures ? 1 : 0;
 }

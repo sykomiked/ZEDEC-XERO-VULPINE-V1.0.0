@@ -840,6 +840,307 @@ static void test_ledger_reserve_edges(void)
     CHECK(swarm_reserve_audit(&r, &b, &e), "and it audits");
 }
 
+/* -------------------------------------------------- edges found by mutation
+ * Each block below kills a surviving mutant that the differential probe saw
+ * change behaviour (tests/MUTATION_REPORT.md). */
+
+/* M6 splits the pot by the sum of every trader's cycle value. Two traders
+ * near the top of uint64 used to wrap that sum, and settlement then paid out
+ * more than the pot held (F9). */
+static void test_cycle_value_bound(void)
+{
+    swarm_budget_t b;
+    swarm_market_t m;
+    swarm_budget_init(&b, 2, 1000);
+    swarm_market_init(&m);
+    swarm_budget_register(&b, 1, 0);
+    swarm_budget_register(&b, 2, 1);
+    swarm_market_join(&m, 1, 1000);
+    swarm_market_join(&m, 2, 1000);
+    swarm_market_join(&m, 3, 1000); /* holds the M7 cap above both payees */
+    swarm_market_bid(&m, 1, 30);
+    swarm_market_bid(&m, 2, 20);
+    CHECK(swarm_market_begin_cycle(&b, &m, 0) == SWARM_OK && m.pot == 50, "two bids fill the pot");
+    const uint64_t top = SWARM_MKT_CYCLE_MAX;
+    CHECK(top == UINT64_MAX / SWARM_MAX_MODELS, "cycle cap is UINT64_MAX / SWARM_MAX_MODELS");
+    CHECK(swarm_market_credit(&m, 1, SWARM_CAP_INTELLECTUAL, UINT64_MAX) == SWARM_ERR_ARG &&
+              m.t[0].value_cycle == 0 && m.t[0].cap[SWARM_CAP_INTELLECTUAL] == 0,
+          "a value credit past the cycle cap is refused and credits nothing");
+    CHECK(swarm_market_credit(&m, 1, SWARM_CAP_SOCIAL, (uint64_t) 1 << 63) == SWARM_ERR_ARG &&
+              m.t[0].social_cycle == 0 && m.t[0].cap[SWARM_CAP_SOCIAL] == 0,
+          "a Social credit past the cycle cap is refused and credits nothing");
+    CHECK(swarm_market_credit(&m, 1, SWARM_CAP_HUMAN, top) == SWARM_OK && m.t[0].value_cycle == top,
+          "a credit up to the cap is taken");
+    CHECK(swarm_market_credit(&m, 1, SWARM_CAP_SYSTEM, 1) == SWARM_ERR_ARG &&
+              m.t[0].value_cycle == top && m.t[0].cap[SWARM_CAP_SYSTEM] == 0,
+          "one past the cap is refused");
+    CHECK(swarm_market_credit(&m, 1, SWARM_CAP_NATURAL, UINT64_MAX - 1000) == SWARM_OK,
+          "forms outside M6 are not held to the cycle cap");
+    CHECK(swarm_market_credit(&m, 2, SWARM_CAP_INTELLECTUAL, 2) == SWARM_OK, "a small credit");
+    uint64_t f1 = m.t[0].cap[SWARM_CAP_FINANCIAL], f2 = m.t[1].cap[SWARM_CAP_FINANCIAL];
+    swarm_market_settle(&m);
+    CHECK(money_sum(&m) == m.money_supply && m.money_supply == 3000, "settlement conserves money");
+    uint64_t p1 = m.t[0].cap[SWARM_CAP_FINANCIAL] - f1, p2 = m.t[1].cap[SWARM_CAP_FINANCIAL] - f2;
+    uint64_t wv[2] = {top, 2}, want[2];
+    ref_lr(50, wv, 2, want);
+    CHECK(p1 == want[0] && p2 == want[1] && p1 + p2 == 50, "the pot is split by value, exactly");
+    CHECK(swarm_market_credit(&m, 2, SWARM_CAP_SOCIAL, top) == SWARM_OK &&
+              m.t[1].social_cycle == top,
+          "a Social credit up to the cap is taken");
+    CHECK(swarm_market_credit(&m, 2, SWARM_CAP_SOCIAL, 1) == SWARM_ERR_ARG &&
+              m.t[1].social_cycle == top,
+          "one Social past the cap is refused");
+
+    /* the split's own guard: weights that break the documented precondition
+     * (sum fits in 64 bits) still write only out[0..n) and return */
+    uint64_t w[3] = {(uint64_t) 1 << 63, (uint64_t) 1 << 63, 1}, out[4] = {0, 0, 0, 0x5EED};
+    swarm_split_lr(10, w, 3, out);
+    CHECK(out[3] == 0x5EED, "split_lr never writes past n");
+}
+
+/* every array loop at its bound: a 64-model swarm over 8 levels, one model
+ * with no feeling, lookups for an id nobody has. The sanitizer build (tiers
+ * --mode san) turns any read or write one past the end into a failure. */
+static void test_full_roster(void)
+{
+    static swarm_budget_t b, pre_b;
+    static swarm_market_t m, pre_m;
+    static swarm_emotion_state_t e, pre_e;
+    static swarm_ledger_t led;
+    /* dirty first: init clears the fields, not the padding after num_slots,
+     * which is where a slot one past the end would be read from */
+    memset(&b, 0xA5, sizeof b);
+    CHECK(swarm_budget_init(&b, SWARM_MAX_LEVELS, 100000) == SWARM_OK, "init 8 levels");
+    swarm_market_init(&m);
+    swarm_emotion_init(&e);
+    uint32_t lvl = 0, in = 0;
+    for (uint32_t id = 1; id <= SWARM_MAX_MODELS; id++) {
+        if (in == swarm_level_capacity(lvl)) {
+            lvl++;
+            in = 0;
+        }
+        CHECK(swarm_budget_register(&b, id, lvl) == SWARM_OK, "register into the full roster");
+        in++;
+        CHECK(swarm_market_join(&m, id, id == 1 ? 100000 : 10) == SWARM_OK, "join");
+        swarm_market_bid(&m, id, id == 1 ? 0 : 1 + id % 3);
+        if (id > 1) {
+            swarm_feeling_t f = {(swarm_emotion_t) (id % SWARM_EMO_COUNT), (uint8_t) (id % 4)};
+            CHECK(swarm_emotion_set_feeling(&e, id, f) == SWARM_OK, "feeling");
+        }
+    }
+    swarm_feeling_t stranger = {SWARM_EMO_JOY, 3};
+    CHECK(swarm_emotion_set_feeling(&e, 1000, stranger) == SWARM_OK && e.num == SWARM_MAX_MODELS,
+          "64 feelings, model 1 has none");
+    CHECK(b.num_slots == SWARM_MAX_MODELS && m.n == SWARM_MAX_MODELS, "full roster");
+    CHECK(swarm_budget_register(&b, 999, 7) == SWARM_ERR_FULL, "a 65th model is refused");
+    CHECK(swarm_market_join(&m, 999, 1) == SWARM_ERR_FULL, "a 65th trader is refused");
+    CHECK(swarm_market_trader(&m, 999) == 0 && swarm_market_bid(&m, 999, 0) == SWARM_ERR_NO_MODEL,
+          "an unknown trader is not found");
+    CHECK(swarm_budget_set_active(&b, 999, false) == SWARM_ERR_NO_MODEL, "unknown model");
+
+    pre_b = b;
+    pre_m = m;
+    pre_e = e;
+    uint64_t supply = m.money_supply;
+    CHECK(swarm_market_begin_cycle(&b, &m, &e) == SWARM_OK, "a full cycle opens");
+    uint64_t sum = 0;
+    for (uint32_t i = 0; i < b.num_slots; i++) sum += b.slots[i].allotted;
+    CHECK(sum == b.tokens_per_cycle, "R5 over 64 models");
+    CHECK(swarm_budget_remaining(&b, 999) == 0, "nothing remains for an unknown model");
+    uint64_t g = 0;
+    CHECK(swarm_budget_consume(&b, 999, 1, &g) == SWARM_ERR_NO_MODEL,
+          "unknown model spends nothing");
+    for (uint32_t id = 1; id <= SWARM_MAX_MODELS; id += 2) swarm_budget_consume(&b, id, 3, &g);
+
+    swarm_witness_t wit[SWARM_MAX_MODELS];
+    uint32_t nw = swarm_witness_cycle(&b, &pre_b, &pre_m, &pre_e, wit);
+    CHECK(nw == SWARM_MAX_MODELS, "a witness per model");
+    uint32_t honest = 0;
+    for (uint32_t k = 0; k < nw; k++) honest += wit[k].verdict == SWARM_WIT_TRUE;
+    CHECK(honest == nw, "an honest full cycle witnesses TRUE");
+    CHECK(swarm_witness_for(&b, SWARM_MAX_MODELS) == 0, "no slot 64");
+    CHECK(swarm_witness_for(&b, SWARM_MAX_MODELS - 1) != 0, "the last slot has a witness");
+    swarm_ledger_init(&led);
+    uint64_t imag = 0;
+    for (uint32_t i = 0; i < b.num_slots; i++) imag += b.slots[i].allotted_im;
+    CHECK(swarm_ledger_post_cycle(&led, &b, &m, imag, wit, nw) && led.settled_cycles == 1,
+          "an honest full cycle settles");
+    CHECK(led.posted == 3u * SWARM_MAX_MODELS, "two entries per slot, one per witness");
+
+    swarm_reserve_t r;
+    CHECK(swarm_reserve_build(&b, &e, 999, &r) == SWARM_ERR_NO_MODEL, "unknown owner");
+    CHECK(swarm_reserve_build(&b, &e, 1, &r) == SWARM_OK && r.num_peers == 1 &&
+              r.peer[0].emotion == SWARM_EMO_NEUTRAL && r.peer[0].intensity == 0,
+          "a model with no feeling is neutral at intensity 0");
+    CHECK(swarm_reserve_audit(&r, &b, &e), "full reserve audits");
+    CHECK(swarm_reserve_build(&b, &e, SWARM_MAX_MODELS, &r) == SWARM_OK &&
+              swarm_reserve_audit(&r, &b, &e),
+          "reserve from the last level");
+
+    for (uint32_t id = 2; id <= SWARM_MAX_MODELS; id++) {
+        swarm_market_credit(&m, id, SWARM_CAP_INTELLECTUAL, id);
+        swarm_market_credit(&m, id, SWARM_CAP_SOCIAL, 1);
+    }
+    swarm_witness_reward(&m, wit, nw);
+    swarm_market_credit_frugality(&m, &b);
+    CHECK(swarm_market_settle(&m) == SWARM_OK, "settle 64 traders");
+    CHECK(money_sum(&m) == supply && m.money_supply == supply, "money conserved over 64 traders");
+    uint64_t cap = md(supply, SWARM_MKT_FLOOR_NUM, SWARM_MKT_DEN);
+    for (uint32_t k = 0; k < m.n; k++)
+        CHECK(m.t[k].cap[SWARM_CAP_FINANCIAL] <= cap, "M7: nobody above the wealth cap");
+    CHECK(m.t[0].cap[SWARM_CAP_FINANCIAL] == cap, "the rich model is cut to the cap");
+    CHECK(swarm_budget_end_cycle(&b) == SWARM_OK, "end");
+
+    uint64_t w[SWARM_MAX_MODELS], out[SWARM_MAX_MODELS];
+    for (uint32_t i = 0; i < SWARM_MAX_MODELS; i++) w[i] = 1 + i % 5;
+    uint64_t unsold = swarm_capped_split(1000, w, SWARM_MAX_MODELS, 10, out);
+    uint64_t given = 0;
+    for (uint32_t i = 0; i < SWARM_MAX_MODELS; i++) {
+        given += out[i];
+        CHECK(out[i] <= 10, "capped split respects the cap");
+    }
+    CHECK(given + unsold == 1000, "capped split over 64 weights conserves");
+}
+
+/* state the API leaves behind: init over dirty memory, slots a register or
+ * end_cycle hands back, two markets' worth of begin_cycle without settling */
+static void test_reset_state(void)
+{
+    swarm_budget_t b;
+    swarm_market_t m;
+    memset(&b, 0xA5, sizeof b);
+    CHECK(swarm_budget_init(&b, 3, 50) == SWARM_OK, "init over dirty memory");
+    bool clean = b.last_unused == 0 && b.num_slots == 0 && b.cycle == 0;
+    for (uint32_t d = 0; d < SWARM_MAX_LEVELS; d++) clean = clean && b.level_budget[d] == 0;
+    for (uint32_t i = 0; i < SWARM_MAX_MODELS; i++) {
+        const swarm_slot_t *s = &b.slots[i];
+        clean = clean && s->model_id == 0 && s->level == 0 && !s->active && s->allotted == 0 &&
+                s->allotted_im == 0 && s->allotted_mk == 0 && s->used == 0;
+    }
+    CHECK(clean, "budget init clears every field");
+    memset(&m, 0xA5, sizeof m);
+    swarm_market_init(&m);
+    clean = m.n == 0 && m.money_supply == 0 && m.pot == 0 && m.levied == 0 && m.last_floor == 0 &&
+            m.last_market == 0 && m.last_unsold == 0;
+    for (uint32_t i = 0; i < SWARM_MAX_MODELS; i++) {
+        const swarm_trader_t *t = &m.t[i];
+        clean = clean && t->model_id == 0 && t->bid == 0 && t->won == 0 && t->paid == 0 &&
+                t->value_cycle == 0 && t->social_cycle == 0;
+        for (uint32_t f = 0; f < SWARM_CAP_COUNT; f++) clean = clean && t->cap[f] == 0;
+    }
+    CHECK(clean, "market init clears every field");
+
+    CHECK(swarm_budget_set_rate(&b, SWARM_MAX_TOKENS_PER_CYCLE) == SWARM_OK &&
+              b.tokens_per_cycle == SWARM_MAX_TOKENS_PER_CYCLE,
+          "the largest rate is accepted");
+    CHECK(swarm_budget_set_rate(&b, SWARM_MAX_TOKENS_PER_CYCLE + 1) == SWARM_ERR_ARG,
+          "and no more");
+    swarm_budget_set_rate(&b, 50);
+
+    swarm_budget_register(&b, 1, 0);
+    swarm_budget_register(&b, 2, 1);
+    swarm_market_join(&m, 1, 100);
+    swarm_market_join(&m, 2, 100);
+    swarm_market_join(&m, 3, 100); /* a trader with no budget slot */
+    swarm_market_bid(&m, 1, 5);
+    swarm_market_bid(&m, 2, 4);
+    CHECK(swarm_market_begin_cycle(0, &m, 0) == SWARM_ERR_ARG &&
+              swarm_market_begin_cycle(&b, 0, 0) == SWARM_ERR_ARG,
+          "begin_cycle needs both");
+    CHECK(swarm_market_begin_cycle(&b, &m, 0) == SWARM_OK && m.t[0].won && m.t[0].paid == 5,
+          "model 1 wins");
+    CHECK(m.t[2].won == 0 && m.t[2].paid == 0, "a trader with no slot wins nothing");
+    CHECK(swarm_budget_register(&b, 3, 1) == SWARM_OK && b.slots[2].allotted == 0 &&
+              b.slots[2].allotted_im == 0 && b.slots[2].allotted_mk == 0 && b.slots[2].used == 0 &&
+              swarm_budget_remaining(&b, 3) == 0,
+          "a model joining mid-cycle starts with nothing");
+    /* the same market opened by a second budget that model 1 is not in:
+     * last cycle's wins and payments do not carry over */
+    swarm_budget_t b2;
+    swarm_budget_init(&b2, 1, 50);
+    swarm_budget_register(&b2, 2, 0);
+    CHECK(swarm_market_begin_cycle(&b2, &m, 0) == SWARM_OK, "second budget");
+    CHECK(m.t[0].won == 0 && m.t[0].paid == 0 && m.t[1].won == 0 && m.t[1].paid == 0,
+          "begin_cycle resets every trader's win and payment");
+    CHECK(swarm_budget_end_cycle(&b) == SWARM_OK, "end");
+    bool expired = true;
+    for (uint32_t i = 0; i < b.num_slots; i++)
+        expired = expired && b.slots[i].allotted == 0 && b.slots[i].allotted_im == 0 &&
+                  b.slots[i].allotted_mk == 0;
+    CHECK(expired, "R6: end_cycle expires every allotment part");
+}
+
+/* witness and ledger edges: a forged extra slot, a short witness list, the
+ * kernel as witness (id 0), a model with no trader */
+static void test_witness_edges(void)
+{
+    swarm_budget_t b, posted;
+    swarm_market_t m;
+    swarm_ledger_t led;
+    swarm_budget_init(&b, 2, 100);
+    swarm_market_init(&m);
+    swarm_budget_register(&b, 7, 0);
+    swarm_budget_register(&b, 8, 1);
+    swarm_budget_register(&b, 9, 1);
+    swarm_market_join(&m, 0, 10); /* a trader whose id is 0 */
+    swarm_market_join(&m, 7, 10);
+    swarm_market_join(&m, 8, 10);
+    swarm_budget_t pre = b;
+    swarm_market_t pre_m = m;
+    swarm_market_begin_cycle(&b, &m, 0);
+
+    /* the posted budget carries an extra active slot the honest replay does
+     * not have: model 0, zero tokens, so the totals still add up */
+    posted = b;
+    posted.slots[3] = (swarm_slot_t){0};
+    posted.slots[3].active = true;
+    posted.num_slots = 4;
+    swarm_witness_t w[SWARM_MAX_MODELS];
+    CHECK(swarm_witness_cycle(&posted, &pre, &pre_m, 0, w) == 4, "four verdicts");
+    CHECK(w[0].verdict == SWARM_WIT_TRUE && w[3].verdict == SWARM_WIT_GLUT,
+          "a slot the replay does not have is a GLUT");
+
+    /* reward reads exactly n witnesses; witness id 0 (the kernel) credits
+     * nobody, not even a trader whose id is 0 */
+    swarm_witness_t rw[3] = {
+        {7, 0, SWARM_WIT_TRUE}, {8, 7, SWARM_WIT_TRUE}, {9, 8, SWARM_WIT_TRUE}};
+    swarm_witness_reward(&m, rw, 2);
+    CHECK(m.t[0].cap[SWARM_CAP_SOCIAL] == 0, "the kernel's witness credits nobody");
+    CHECK(m.t[1].cap[SWARM_CAP_SOCIAL] == 1, "model 7 witnessed once");
+    CHECK(m.t[2].cap[SWARM_CAP_SOCIAL] == 0, "w[n] is not read");
+
+    swarm_ledger_init(&led);
+    swarm_ledger_post_cycle(&led, &b, &m, 0, 0, 0);
+    CHECK(led.e[4].model_id == 9 && led.e[4].ledger == SWARM_LEDGER_FINANCIAL && led.e[4].paid == 0,
+          "a model with no trader paid nothing");
+
+    /* the reserve: built over a dirty out, and a charge moved inside one
+     * level that is neither 0 nor the owner's */
+    swarm_emotion_state_t e;
+    swarm_emotion_init(&e);
+    swarm_feeling_t joy = {SWARM_EMO_JOY, 5}, calm = {SWARM_EMO_CALM, 3};
+    swarm_emotion_set_feeling(&e, 8, joy);
+    swarm_emotion_set_feeling(&e, 9, calm);
+    swarm_reserve_t clean, dirty;
+    memset(&clean, 0, sizeof clean);
+    memset(&dirty, 0xA5, sizeof dirty);
+    CHECK(swarm_reserve_build(&b, &e, 7, &clean) == SWARM_OK &&
+              swarm_reserve_build(&b, &e, 7, &dirty) == SWARM_OK,
+          "reserve for 7");
+    bool same = clean.total == dirty.total && clean.num_peers == dirty.num_peers;
+    for (uint32_t d = 0; d < SWARM_MAX_LEVELS; d++)
+        for (uint32_t k = 0; k < SWARM_EMO_COUNT; k++)
+            same = same && clean.summary[d][k] == dirty.summary[d][k];
+    CHECK(same, "build writes every summary cell");
+    CHECK(clean.level == 0 && clean.summary[1][SWARM_EMO_JOY] == 8 &&
+              clean.summary[1][SWARM_EMO_CALM] == swarm_feeling_charge(calm),
+          "level 1 summarised");
+    swarm_reserve_t t = clean;
+    t.summary[1][SWARM_EMO_JOY]--;
+    t.summary[1][SWARM_EMO_CALM]++;
+    CHECK(!swarm_reserve_audit(&t, &b, &e), "charge moved inside level 1 is caught");
+}
+
 int main(void)
 {
     printf("test_swarm_props: swarm economy invariants over random swarms\n");
@@ -848,6 +1149,10 @@ int main(void)
     test_market_edges();
     test_ledger_reserve_edges();
     test_market_random();
+    test_cycle_value_bound();
+    test_full_roster();
+    test_reset_state();
+    test_witness_edges();
     printf("%lu checks, %d failures\n", checks, failures);
     if (failures) {
         printf("[FAIL] test_swarm_props\n");

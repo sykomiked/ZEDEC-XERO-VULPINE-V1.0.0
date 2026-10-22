@@ -1,0 +1,21 @@
+<!doctype html>
+<!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZXV</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #002911; overflow: hidden; }
+  #screen { display: block; width: 100vw; height: 100vh; }
+  #why { position: fixed; left: 0; right: 0; bottom: 24px; text-align: center;
+         color: #D8F5E1; font: 15px/1.4 system-ui, sans-serif; padding: 0 16px; }
+</style>
+</head>
+<body>
+<canvas id="screen" aria-label="ZXV is starting"></canvas>
+<div id="why" role="status" aria-live="polite"></div>
+<script src="boot.js"></script>
+</body>
+</html>

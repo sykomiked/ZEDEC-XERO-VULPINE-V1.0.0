@@ -82,4 +82,25 @@ zxv_guard_verdict_t zxv_guard_check(const zxv_guard_t *g, const char *req, bool 
 /* A short reason for logs and the 403 body. */
 const char *zxv_guard_reason(zxv_guard_verdict_t v);
 
+/* G6 WEB ROOT. With --web-root, GET /web/<path> serves a file from that
+ * folder: the browser surface (web/boot, web/session; the root is put
+ * together by tools/web/build_web_root.sh). The page holds no secret, so,
+ * like GET /, it needs no token; G2 to G5 still apply. Only these paths
+ * are served, never a path the request makes up:
+ *   - segments of A-Z a-z 0-9 . _ - separated by single slashes, none empty
+ *     and none starting with '.', so no "..", no hidden file, no
+ *     percent-escape, no backslash, no drive letter;
+ *   - at most ZXV_WEB_DEPTH segments and ZXV_WEB_PATH_MAX - 1 bytes in all;
+ *   - "" and a path ending in "/" mean that folder's index.html;
+ *   - only the file types zxv_web_type knows.
+ * zxv_web_path writes the relative file path (NUL-terminated) to out and
+ * returns its length, or -1 when the path is refused (out is then ""). */
+#define ZXV_WEB_PATH_MAX 192u
+#define ZXV_WEB_DEPTH    8u
+int zxv_web_path(const char *path, size_t len, char *out, size_t cap);
+
+/* The Content-Type for a served file, from its extension: html, js, wasm,
+ * json, css, zxvg, ttf, otf, svg. NULL for any other (not served). */
+const char *zxv_web_type(const char *rel);
+
 #endif /* ZXV_HTTP_GUARD_H */

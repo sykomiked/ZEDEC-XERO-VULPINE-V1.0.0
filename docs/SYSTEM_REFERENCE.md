@@ -2264,9 +2264,9 @@ Gaps: Default-admit for unsealed ports is a policy choice that callers must know
 Status: WORKING (tested in verify-all)
 What it does: power_ledger is a pure integer ledger fed by a platform layer. It takes cumulative energy meters (whole device, parts, sub-parts), rejects impossible samples, settles each interval (marking disagreeing meters as a conflict and using the larger figure), and splits the total among apps, agents and the system by metered energy or CPU and GPU time so the figures add up exactly. It also derives battery health, time left and a power posture, and admits work against energy budgets. power_rapl.c converts x86 RAPL MSR readings for bare metal.
 Main entry points: pw_init, pw_meter_add/sample, pw_consumer_add, pw_note_activity/energy, pw_settle, pw_battery_set, pw_posture, pw_budget_set, pw_admit, pw_top, pw_render_json, pw_rapl_to_uj.
-Tests: test-power in verify-all: test_power.c (304 checks), arch/hosted test_zxv_power_host.c (55 checks), mobile/core test_zxv_mobile_power.c (29 checks) and a freestanding check.
-Used by: zxvd's power group (power.status, power.top, power.budget in kernel/arch/hosted/zxvd_power.c, listed in app_sources.sh), the zxpower tool (kernel/arch/hosted/zxpower.c), and the mobile core (mobile/core/zxv_mobile_power.c, build_mobile_core.sh). Not in any kernel image.
-Gaps: power_rapl.c has no caller; RAPL is not wired into a boot image (no fault-safe rdmsr), and bare metal has no ACPI battery, thermal zones, sleep states or frequency scaling. The Brazier power app is not built. Windows reads no battery design capacity. [POWER.md](POWER.md) still says zxvd is wired "on PR #109, not in this PR", but zxvd_power.c is now in the tree.
+Tests: test-power in verify-all: test_power.c (304 checks), arch/hosted test_zxv_power_host.c (55 checks), mobile/core test_zxv_mobile_power.c (29 checks), test-thermal (arch/hosted test_zxv_thermal_host.c, the temperature reader on a sysfs fixture) and a freestanding check.
+Used by: zxvd's power group (power.status, power.top, power.budget and thermal.read in kernel/arch/hosted/zxvd_power.c, listed in app_sources.sh; apps ask for them with the power.read capability), the zxpower tool (kernel/arch/hosted/zxpower.c), and the mobile core (mobile/core/zxv_mobile_power.c, build_mobile_core.sh). Not in any kernel image.
+Gaps: power_rapl.c has no caller; RAPL is not wired into a boot image (no fault-safe rdmsr), and bare metal has no ACPI battery, thermal zones, sleep states or frequency scaling. The Brazier power app is not built. Windows reads no battery design capacity. thermal.read's macOS readers (zxv_thermal_host.c) are not compiled or tested in CI; see [POWER.md](POWER.md), "Temperatures".
 
 ### pqsec — post-quantum signatures and KEM (ML-DSA, SLH-DSA, ML-KEM, HQC)
 Status: WORKING (tested in verify-all)
@@ -2557,7 +2557,7 @@ What it does: three pieces on pay_ledger. sic_view sums one owner's accounts int
 Main entry points: sic_view, sic_view_compute, sic_tier_table_default, sic_tier_eval, sic_steward_init/propose/approve/cancel/execute/state, sic_org_open/deposit/sweep/join/leave/award/redeem.
 Tests: src/sicily/test_sicily.c, 315 passed, via test-econ in verify-all.
 Used by: zxvd's player.card method (zxv_host.c rpc_player_card, tier evaluation only) and kernel/src/cred (cred.c calls sic_tier_eval). The steward threshold, the organisation programs and sic_view have no caller outside the tests.
-Gaps: player.card feeds only credibility (from quest); bond and giving are reported as 0, so tiers above what credibility alone earns are not reachable today. Signatures go through the caller's verify hook. Described briefly in [ZXVD.md](ZXVD.md#peers-offers-and-the-player-card).
+Gaps: player.card feeds only credibility (from quest); uptime is not measured, and bond and giving have no real ledger on the node (the V-Bonds and grants desks run on practice units), so they are reported as 0 with that reason and tiers above what credibility alone earns are not reachable today. The card shows the live practice V-Bonds under `practice`, never as a tier input. Signatures go through the caller's verify hook. Described briefly in [ZXVD.md](ZXVD.md#peers-offers-and-the-player-card).
 
 ### situation — all-domain situation/risk modeller
 Status: PARTIAL

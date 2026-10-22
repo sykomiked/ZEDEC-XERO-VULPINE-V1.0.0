@@ -74,7 +74,8 @@ static int map_file(const char *path, file_map_t *f)
                           FILE_ATTRIBUTE_NORMAL, NULL);
     if (f->file == INVALID_HANDLE_VALUE) return -1;
     LARGE_INTEGER sz;
-    if (!GetFileSizeEx(f->file, &sz) || sz.QuadPart <= 0) return -1;
+    if (!GetFileSizeEx(f->file, &sz)) return -1;
+    if (sz.QuadPart <= 0) return -2;
     f->mapping = CreateFileMappingA(f->file, NULL, PAGE_READONLY, 0, 0, NULL);
     if (!f->mapping) return -1;
     f->map = (const uint8_t *) MapViewOfFile(f->mapping, FILE_MAP_READ, 0, 0, 0);
@@ -85,9 +86,13 @@ static int map_file(const char *path, file_map_t *f)
     int fd = open(path, O_RDONLY | O_CLOEXEC);
     if (fd < 0) return -1;
     struct stat st;
-    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) || st.st_size <= 0) {
+    if (fstat(fd, &st) != 0) {
         close(fd);
         return -1;
+    }
+    if (!S_ISREG(st.st_mode) || st.st_size <= 0) {
+        close(fd);
+        return -2;
     }
     void *p = mmap(NULL, (size_t) st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
     close(fd); /* the mapping keeps the file */
@@ -128,9 +133,15 @@ static int open_model_file(const char *path, file_map_t *f, zt_gguf_t *g, zt_tok
 {
     memset(I, 0, sizeof *I);
     snprintf(I->path, sizeof I->path, "%s", path);
-    if (map_file(path, f) != 0) {
+    int m = map_file(path, f);
+    if (m != 0) {
         unmap_file(f);
-        snprintf(I->status, sizeof I->status, "Could not open the model file %s.", base_name(path));
+        if (m == -2)
+            snprintf(I->status, sizeof I->status,
+                     "The model file %s is empty or not a regular file.", base_name(path));
+        else
+            snprintf(I->status, sizeof I->status, "Could not open the model file %s.",
+                     base_name(path));
         return -1;
     }
     int32_t r = zt_gguf_open(g, f->map, f->size);
