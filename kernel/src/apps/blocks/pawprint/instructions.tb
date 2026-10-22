@@ -1,0 +1,13 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The instructions a debugging session ran (pawprint_rules.h PR3), in
+! Trebago: insns(i) is what step i ran, and the total is their exact sum,
+! from the first step. A sum past 64 bits is the pillar's refusal, never
+! wrapped; a negative count is no count, and the sum is divided by 1 -
+! min(1, how many there are), a division by zero, refused.
+trebago stepped_insns
+  in  insns(n)
+  out total
+  total = sum(i, insns(i)) / (1 - min(1, sum(i, min(1, max(0, 0 - insns(i))))))
+end

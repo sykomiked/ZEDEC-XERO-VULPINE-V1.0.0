@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Pawprint files a breakpoint, in MYRA (pawprint_rules.h PR5): the file
+; it is in (its place among the files opened), its line, its condition (the
+; hits to pass before it stops, 0 every time) and the hits so far. Pawprint
+; asks whether the numbers fit before it lists them.
+^ZXBREAK(file:i2, line:i7) = condition:i9! ^ hits:i9!

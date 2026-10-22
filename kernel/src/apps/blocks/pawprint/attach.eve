@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# May the debugger attach (pawprint_rules.h PR1), in Eve: the program is
+# the owner's own (own 1), the owner approved this attach (approved 1),
+# and it is not a system process (system 0). Each flag has one value it
+# may take, so a request fits only when all three are as said; a flag of
+# any other value (2, -1) is no flag at all and does not fit.
+eve pawprint
+own_flag = 1 .. 1
+approved_flag = 1 .. 1
+user_process = 0 .. 0
+
+attach_request {
+  own: own_flag
+  approved: approved_flag
+  system: user_process
+}

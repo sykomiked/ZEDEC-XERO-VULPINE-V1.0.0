@@ -1,0 +1,21 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Is this line a breakpoint (pawprint_rules.h PR2), in Trebago: stops are
+! a file's breakpoint lines, sorted and each once, and the line is hit
+! when one of them equals it: 1 - |stops(i) - line| is 1 there and at
+! most 0 elsewhere, so the sum of its positive parts is the hits, at most
+! 1. bad counts what PR2 refuses: a neighbour not strictly rising, a stop
+! or the line outside 1 .. 9999999, more than 256 stops; the answer is
+! divided by 1 - min(1, bad), a division by zero, refused. One line for
+! the call: two are refused here, where hit.kron sums them (held).
+trebago breakpoint_hit
+  in  stops(n), line
+  out hit
+  var bad
+  bad = sum(i = 1:n-1, min(1, max(0, stops(i) - stops(i+1) + 1))) &
+      + sum(i, min(1, max(0, 1 - stops(i))) + min(1, max(0, stops(i) - 9999999))) &
+      + min(1, max(0, n - 256)) + min(1, max(0, 1 - line)) + min(1, max(0, line - 9999999))
+  hit = min(1, sum(i, max(0, 1 - max(stops(i) - line, line - stops(i))))) &
+      / (1 - min(1, bad))
+end

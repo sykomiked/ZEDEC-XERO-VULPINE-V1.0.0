@@ -404,3 +404,8 @@
 367	logic.isobar_wx_site_node_ok	491.80	isobar.wx_site_node_ok	base
 368	logic.lore_ai_read_ok	491.81	lore.ai_read_ok	base
 369	logic.lore_leave_record_ok	491.82	lore.leave_record_ok	base
+370	logic.pawprint_break_record_ok	491.83	pawprint.break_record_ok	base
+371	num.pawprint_breakpoint_hit	591.79	pawprint.breakpoint_hit	base
+372	logic.pawprint_debug_limits_ok	491.84	pawprint.debug_limits_ok	base
+373	logic.pawprint_may_attach	491.85	pawprint.may_attach	base
+374	num.pawprint_stepped_insns	591.80	pawprint.stepped_insns	base

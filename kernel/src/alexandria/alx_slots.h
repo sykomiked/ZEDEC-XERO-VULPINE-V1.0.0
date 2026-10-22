@@ -375,7 +375,12 @@
 #define ALX_SLOT_LOGIC_ISOBAR_WX_SITE_NODE_OK    367u /* 491.80 isobar.wx_site_node_ok */
 #define ALX_SLOT_LOGIC_LORE_AI_READ_OK           368u /* 491.81 lore.ai_read_ok */
 #define ALX_SLOT_LOGIC_LORE_LEAVE_RECORD_OK      369u /* 491.82 lore.leave_record_ok */
-#define ALX_SLOT__COUNT 369u
+#define ALX_SLOT_LOGIC_PAWPRINT_BREAK_RECORD_OK  370u /* 491.83 pawprint.break_record_ok */
+#define ALX_SLOT_NUM_PAWPRINT_BREAKPOINT_HIT     371u /* 591.79 pawprint.breakpoint_hit */
+#define ALX_SLOT_LOGIC_PAWPRINT_DEBUG_LIMITS_OK  372u /* 491.84 pawprint.debug_limits_ok */
+#define ALX_SLOT_LOGIC_PAWPRINT_MAY_ATTACH       373u /* 491.85 pawprint.may_attach */
+#define ALX_SLOT_NUM_PAWPRINT_STEPPED_INSNS      374u /* 591.80 pawprint.stepped_insns */
+#define ALX_SLOT__COUNT 374u
 /* clang-format on */
 
 #endif

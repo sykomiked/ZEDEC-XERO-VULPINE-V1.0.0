@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a debugging session may hold (pawprint_rules.h PR4), in Eve: at
+# most 256 breakpoints, and a stack view of at most 64 frames. Each is
+# checked against its own range; nothing relates them.
+eve pawprint
+breakpoint_count = 0 .. 256
+frame_count = 0 .. 64
+
+debug_view {
+  breakpoints: breakpoint_count
+  frames: frame_count
+}

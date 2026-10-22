@@ -1,0 +1,94 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pawprint, the debugger: step, break and inspect a Playground program
+# (play.run, its four-valued verdict and each refused step's line and
+# column) and read zxvd's events beside it (log.tail live, journal.query
+# kept on disk). zxvd has no attach, breakpoint or step method, and none is
+# invented: a run is made by play.run, and Pawprint replays it line by line
+# on its own side, stopping at the breakpoints the owner set. Attaching is
+# advisory and owner-confirmed: the owner approves each attach, and
+# nothing in zxvd is changed.
+#
+#   may_attach            the debugger may attach: the program is the
+#                         owner's own, the owner approved, and it is not
+#                         a system process (each flag 0 or 1).
+#   breakpoint_hit        a line is one of a file's breakpoint lines,
+#                         sorted and each once, 1..9999999, at most 256:
+#                         1 hit, 0 not.
+#   stepped_insns  the instructions a session ran, one count a
+#                         step, summed exactly; negative or past int64
+#                         refused.
+#   debug_limits_ok       at most 256 breakpoints and a stack view of at
+#                         most 64 frames.
+#   break_record_ok  a breakpoint (file, line, condition, hits) fits
+#                         ^ZXBREAK.
+#
+# An instruction is a source line the replay passes: zxvd reports no
+# instruction counts, so a step that passed runs every line of its file,
+# a refused step runs up to its refusal's line, and a step that never ran
+# runs none (pawprint_model.h PM3).
+#
+# Witness pairs are of one kind (zxapp.c B3). "May attach" is a truth in
+# Eve and KRON: Eve gives each flag the one value it may take, KRON reads
+# a flag above 0 as yes, so a flag that is no flag (2, -1) is held. The
+# breakpoint hit is a number (1 or 0) in KRON and Trebago: Trebago refuses
+# breakpoints that are not strictly rising, out of range or too many, and
+# more than one line, where KRON answers: held. Everything is anchored here
+# (nothing earlier attaches, breaks or steps): Compositor, Loupe and
+# Penumbra use these through "use pawprint 1".
+#
+# COBOL owns no decision here; it is left out. Planned languages: JCL owns
+# jobs, and a debugging session's steps counted are a job's steps:
+# pending on stepped_insns. OCaml owns types and parse: no entry
+# here is a typed transform or a parser (the run's result is read in C),
+# so it is not pending.
+zxapp 1
+id     pawprint
+name   Pawprint
+version 1.0.0
+slot   122
+layer  L1
+matrix 122
+icon   icons/l1/122-pawprint.svg
+budget 233
+needs  sys.read
+needs  journal
+model  apps/pawprint_model.c
+
+# May the debugger attach (PR1): Ada as Eve, APL as KRON, witnessed.
+provides may_attach truth own approved system
+logic    eve  may_attach apps/blocks/pawprint/attach.eve
+logic    kron may_attach apps/blocks/pawprint/attach.kron
+
+# Is the line a breakpoint (PR2): KRON and Trebago, witnessed.
+provides breakpoint_hit num stops line
+logic    kron    breakpoint_hit apps/blocks/pawprint/hit.kron
+logic    trebago breakpoint_hit apps/blocks/pawprint/hit.tb
+
+# The instructions stepped (PR3): FORTRAN as Trebago, exact.
+provides stepped_insns num insns
+logic    trebago stepped_insns apps/blocks/pawprint/instructions.tb
+pending  JCL stepped_insns
+
+# The session's limits (PR4), in Eve.
+provides debug_limits_ok truth breakpoints frames
+logic    eve debug_limits_ok apps/blocks/pawprint/limits.eve
+
+# A breakpoint's record (PR5), MUMPS as MYRA.
+provides break_record_ok truth file line condition hits
+logic    myra break_record_ok apps/blocks/pawprint/breakpoint.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check may_attach own=1,0,1,1,0 approved=1,1,0,1,0 system=0,0,0,1,1 = true,false,false,false,false
+check may_attach own=1,2 approved=1,1 system=0,0 = both
+check may_attach own=1,1 approved=1,1 system=0,-1 = both
+check breakpoint_hit stops=3,10,42 line=10 = 1
+check breakpoint_hit stops=3,10,42 line=11 = 0
+check breakpoint_hit stops=1,9999999 line=9999999 = 1
+check breakpoint_hit stops=10,3 line=10 = both
+check breakpoint_hit stops=3,10 line=0 = both
+check stepped_insns insns=0,5,1000000,999999999 = 1001000004
+check stepped_insns insns=0,0 = 0
+check debug_limits_ok breakpoints=0,256,257,-1,10,10 frames=0,64,0,0,65,-1 = true,true,false,false,false,false
+check break_record_ok file=0,99,100,-99,1,1 line=1,9999999,1,-1,10000000,1 condition=0,999999999,0,0,0,1000000000 hits=0,999999999,0,0,0,0 = true,true,false,true,false,false
