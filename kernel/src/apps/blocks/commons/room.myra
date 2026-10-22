@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Commons indexes one room in MYRA (commons_rules.h CR4): its number
+; in the model's list (3 digits), its kind (0 this node's chat, 1 a group,
+; 2 a space across nodes), the posts known there and the posts the owner
+; has read (12 digits each) and its members (6 digits). Commons asks
+; whether the numbers fit before it keeps a room.
+^ZXCOMMONS(room:i3) = kind:i1! ^ newest:i12! ^ seen:i12! ^ members:i6!

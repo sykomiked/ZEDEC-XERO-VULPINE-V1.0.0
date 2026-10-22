@@ -1,0 +1,107 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Commons, chat: layer 27 of the matrix. Rooms on this node (chat.post,
+# chat.feed, chat.thread, chat.react, chat.follow, chat.me), groups
+# (social.groups, social.group_create, social.join, social.leave,
+# social.post), rooms across nodes (pspace.create, pspace.join,
+# pspace.list, pspace.post, pspace.events, pspace.members) and the IRC
+# bridge (irc.status, irc.bridge, irc.record).
+#
+# Feeds keep the daemon's ranking: chat.feed's order is shown as it comes,
+# and nothing is re-ranked by likes, replies or views (commons_model.h
+# CM2). Bridging a channel to a public IRC network carries the owner's
+# lines off the node, so irc.bridge is called only on the owner's
+# confirmed word (CM6). zxvd has no notification method, so the notice of
+# new posts is only composed (CM7). zxvd has no method for a direct
+# message (no private post to one NodeID, in chat.*, social.* or
+# pspace.*), and chat records are not exchanged with peers yet; neither is
+# invented.
+#
+# Built on what is nearer the core: how many of a space's new events are
+# posts by others is Witness's kind_count (each event coded 0 mine, 1 a
+# post, 2 a watch-hall change; want 1), used as it is. Kitling, which the
+# matrix says this layer leans on, keeps the companion's growth, genes and
+# memories: Commons decides nothing of that kind, so none of its entries
+# is used.
+#
+# Four later layers lean on this one, so every entry is a general rule
+# registered in CONCEPTS.tsv with Commons as owner: may a room be posted
+# in, a message's and a reaction's length, a room's unread posts, and a
+# room's and a message's index records.
+#
+# Witness pairs are of one kind: room_post_ok is a truth over three flags,
+# each against its own range, which is what Eve holds; KRON witnesses it,
+# reading any flag above 0 as yes where Eve holds a flag to exactly 1:
+# held. room_unread is a number, KRON and Trebago; Trebago refuses a count
+# outside 0..12 digits where KRON answers: held.
+#
+# Kept in C, since no runnable language owns it: whether a text holds
+# something besides spaces, NodeID and CID text checks, and reading zxvd's
+# answers.
+#
+# Planned languages: Erlang (messaging) owns whether a room may be posted
+# in, Icon (text) a message's length, and Java (typed objects) a room's
+# record; none runs here yet, so the blocks below stand in (pending).
+zxapp 1
+id     commons
+name   Commons
+version 1.0.0
+slot   27
+layer  L1
+matrix 27
+icon   icons/l1/027-commons.svg
+budget 233
+needs  peers
+needs  net
+needs  notify
+model  apps/commons_model.c
+use    witness 1   # @num.witness_kind_count
+
+# May the owner post in this room (CR1): member, joined and the switch on,
+# each exactly 1. Eve's ranges, witnessed by KRON; a flag past 1 is held.
+provides room_post_ok truth member joined enabled
+logic    eve  room_post_ok apps/blocks/commons/post.eve
+logic    kron room_post_ok apps/blocks/commons/post.kron
+# Erlang (fault-tolerant messaging) owns this; it does not run yet.
+pending  Erlang room_post_ok
+
+# A message is 1..1024 bytes, a reaction 1..32 (CR2), in Eve.
+provides message_text_ok truth bytes
+logic    eve message_text_ok apps/blocks/commons/message.eve
+# Icon (string scanning) owns a text's limits; it does not run yet.
+pending  Icon message_text_ok
+
+provides reaction_text_ok truth bytes
+logic    eve reaction_text_ok apps/blocks/commons/reaction.eve
+
+# A room's unread posts (CR3): newest - seen, never below 0; Trebago
+# refuses a count outside 0..12 digits, KRON answers it: held.
+provides room_unread num newest seen
+logic    kron    room_unread apps/blocks/commons/unread.kron
+logic    trebago room_unread apps/blocks/commons/unread.tb
+
+# A room makes a ^ZXCOMMONS record (CR4), in MYRA.
+provides room_record_ok truth room kind newest seen members
+logic    myra room_record_ok apps/blocks/commons/room.myra
+# Java (typed business objects) owns a room's record; no runtime in the kernel yet.
+pending  Java room_record_ok
+
+# A message makes a ^ZXCOMMONSMSG record (CR5), in MYRA.
+provides message_record_ok truth room pos lamport stamp bytes
+logic    myra message_record_ok apps/blocks/commons/message.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check room_post_ok member=1,0,1,1,0,-1 joined=1,1,0,1,0,1 enabled=1,1,1,0,0,1 = true,false,false,false,false,false
+check room_post_ok member=1,2 joined=1,1 enabled=1,1 = both
+check room_post_ok member=1,1 joined=1,1 enabled=1,5 = both
+check message_text_ok bytes=0,1,512,1024,1025,-1 = false,true,true,true,false,false
+check reaction_text_ok bytes=0,1,32,33,-1 = false,true,true,false,false
+check room_unread newest=0,5,5,3,999999999999 seen=0,0,5,7,0 = 0,5,0,0,999999999999
+check room_unread newest=5,5 seen=0,-1 = both
+check room_unread newest=5,1000000000000 seen=0,0 = both
+check room_record_ok room=0,999,1000,1,1 kind=0,2,0,1,10 newest=0,999999999999,0,1000000000000,0 seen=0,999999999999,0,0,0 members=1,999999,0,0,0 = true,true,false,false,false
+check message_record_ok room=0,999,1,1,1 pos=0,999999999999,1,1,1 lamport=1,999999999999999999,1,1,1 stamp=0,9999999999999,10000000000000,0,0 bytes=1,1024,1,10000,1 = true,true,false,false,true
+# Posts by others among a space's new events, Witness's count: two posts, one mine, one hall change
+check witness.kind_count kind=1,0,2,1 want=1 = 2
+check witness.kind_count kind=1,2 want=1,1 = both

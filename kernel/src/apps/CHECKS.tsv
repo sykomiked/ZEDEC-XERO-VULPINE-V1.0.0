@@ -79,6 +79,18 @@ coffer	check transfer_ok amount=1,9007199254740991,0,5,5,5 after=0,0,0,-1,0,0 ro
 coffer	check transfer_ok amount=5,5 after=0,1000000000000000000 room=0,0 gap=0,0 = both
 coffer	check holdings balance=100,250,-50,0 = 300
 coffer	check holdings balance=9223372036854775807,0 = 9223372036854775807
+commons	check room_post_ok member=1,0,1,1,0,-1 joined=1,1,0,1,0,1 enabled=1,1,1,0,0,1 = true,false,false,false,false,false
+commons	check room_post_ok member=1,2 joined=1,1 enabled=1,1 = both
+commons	check room_post_ok member=1,1 joined=1,1 enabled=1,5 = both
+commons	check message_text_ok bytes=0,1,512,1024,1025,-1 = false,true,true,true,false,false
+commons	check reaction_text_ok bytes=0,1,32,33,-1 = false,true,true,false,false
+commons	check room_unread newest=0,5,5,3,999999999999 seen=0,0,5,7,0 = 0,5,0,0,999999999999
+commons	check room_unread newest=5,5 seen=0,-1 = both
+commons	check room_unread newest=5,1000000000000 seen=0,0 = both
+commons	check room_record_ok room=0,999,1000,1,1 kind=0,2,0,1,10 newest=0,999999999999,0,1000000000000,0 seen=0,999999999999,0,0,0 members=1,999999,0,0,0 = true,true,false,false,false
+commons	check message_record_ok room=0,999,1,1,1 pos=0,999999999999,1,1,1 lamport=1,999999999999999999,1,1,1 stamp=0,9999999999999,10000000000000,0,0 bytes=1,1024,1,10000,1 = true,true,false,false,true
+commons	check witness.kind_count kind=1,0,2,1 want=1 = 2
+commons	check witness.kind_count kind=1,2 want=1,1 = both
 crown	check standing uptime=0,1,0,0,0 dropped=0,0,0,0,0 routing=0,0,1,0,0 audit=0,0,0,0,0 fraud=0,0,0,1,0 volume=0,0,0,0,0 stake=0,0,0,0,0 invalid=0,0,0,0,1 = true,false,false,false,false
 crown	check standing uptime=0,-1 dropped=0,0 routing=0,0 audit=0,0 fraud=0,0 volume=0,0 stake=0,0 invalid=0,0 = both
 crown	check allot units=7 weight=5,3,2 total=10 extra=1,0,0 = 4,2,1

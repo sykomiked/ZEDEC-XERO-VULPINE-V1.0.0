@@ -1,0 +1,13 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A message's length in bytes of UTF-8 (commons_rules.h CR2), in Eve:
+# 1..1024, zxvd's own limit for chat.post, social.post and pspace.post.
+# Whether the text holds something besides spaces is text work, kept in C
+# (commons_model.c), as zxvd's chat.post asks it too.
+eve commons
+message_bytes = 1 .. 1024
+
+message_text {
+  bytes: message_bytes
+}

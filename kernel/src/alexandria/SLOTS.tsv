@@ -239,3 +239,9 @@
 202	num.sealwax_fill_order	590.97	sealwax.fill_order	base
 203	logic.sealwax_sign_ready	490.95	sealwax.sign_ready	base
 204	logic.cellar_repair_safe_ok	490.96	cellar.repair_safe_ok	base
+205	logic.commons_message_record_ok	490.97	commons.message_record_ok	base
+206	logic.commons_message_text_ok	490.98	commons.message_text_ok	base
+207	logic.commons_reaction_text_ok	490.99	commons.reaction_text_ok	base
+208	logic.commons_room_post_ok	491.01	commons.room_post_ok	base
+209	logic.commons_room_record_ok	491.02	commons.room_record_ok	base
+210	num.commons_room_unread	590.98	commons.room_unread	base

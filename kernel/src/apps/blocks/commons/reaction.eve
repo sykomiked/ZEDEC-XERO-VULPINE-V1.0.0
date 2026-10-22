@@ -1,0 +1,12 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A reaction's length in bytes of UTF-8 (commons_rules.h CR2), in Eve:
+# 1..32, an emoji or a word, zxvd's own limit for chat.react and
+# social.react.
+eve commons
+reaction_bytes = 1 .. 32
+
+reaction_text {
+  bytes: reaction_bytes
+}

@@ -210,7 +210,13 @@
 #define ALX_SLOT_NUM_SEALWAX_FILL_ORDER          202u /* 590.97 sealwax.fill_order */
 #define ALX_SLOT_LOGIC_SEALWAX_SIGN_READY        203u /* 490.95 sealwax.sign_ready */
 #define ALX_SLOT_LOGIC_CELLAR_REPAIR_SAFE_OK     204u /* 490.96 cellar.repair_safe_ok */
-#define ALX_SLOT__COUNT 204u
+#define ALX_SLOT_LOGIC_COMMONS_MESSAGE_RECORD_OK 205u /* 490.97 commons.message_record_ok */
+#define ALX_SLOT_LOGIC_COMMONS_MESSAGE_TEXT_OK   206u /* 490.98 commons.message_text_ok */
+#define ALX_SLOT_LOGIC_COMMONS_REACTION_TEXT_OK  207u /* 490.99 commons.reaction_text_ok */
+#define ALX_SLOT_LOGIC_COMMONS_ROOM_POST_OK      208u /* 491.01 commons.room_post_ok */
+#define ALX_SLOT_LOGIC_COMMONS_ROOM_RECORD_OK    209u /* 491.02 commons.room_record_ok */
+#define ALX_SLOT_NUM_COMMONS_ROOM_UNREAD         210u /* 590.98 commons.room_unread */
+#define ALX_SLOT__COUNT 210u
 /* clang-format on */
 
 #endif

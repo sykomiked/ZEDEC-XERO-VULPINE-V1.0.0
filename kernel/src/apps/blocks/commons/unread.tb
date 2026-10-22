@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Each room's unread posts (commons_rules.h CR3), in Trebago: newest, the
+! posts known in the room, less seen, the posts the owner has read, never
+! below 0. For integers min(1, max(0, m + 1)) is 1 exactly when m >= 0, so
+! ok is 1 when both counts are 0..999999999999 (12 digits, the room
+! record's), else 0, and the answer is divided by it: a count outside is a
+! division by zero, refused, where unread.kron answers: held.
+trebago unread
+  in  newest(n), seen(n)
+  out unread(n)
+  var ok(n)
+  ok(i) = min(1, max(0, newest(i) + 1)) * min(1, max(0, 999999999999 - newest(i) + 1)) &
+        * min(1, max(0, seen(i) + 1)) * min(1, max(0, 999999999999 - seen(i) + 1))
+  unread(i) = max(0, newest(i) - seen(i)) / ok(i)
+end

@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# May the owner post in this room (commons_rules.h CR1), in Eve: three
+# flags, each exactly 1. member: the owner holds a role that speaks there
+# (always on this node; a group's member, admin or owner; a space this node
+# is in). joined: the room is joined (a group held with a role, a space in
+# the "in" phase). enabled: its feature switch is on (pspace's network).
+# A flag of 2 is no flag: Eve answers no, where post.kron reads any flag
+# above 0 as yes: held.
+eve commons
+room_flag = 1 .. 1
+
+room_post {
+  member: room_flag
+  joined: room_flag
+  enabled: room_flag
+}
