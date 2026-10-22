@@ -9,6 +9,7 @@
  *
  *   sh kernel/arch/hosted/test_hosted.sh runs it (with ASan/UBSan where the
  *   compiler has them). */
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -84,6 +85,7 @@ static int write_file(const char *path, const uint8_t *b, uint64_t n)
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "/tmp";
+    bool keep = argc > 2 && !strcmp(argv[2], "keep");
     const mf_variant_t *v = &MF_VARIANTS[0]; /* qwen2 */
     const lf_variant_t *lv = &LF_VARIANTS[0];
     mf_variant_t la = *v; /* the adapter, rebuilt with the same generator */
@@ -234,7 +236,7 @@ int main(int argc, char **argv)
     zxv_slot_close(0);
     CHECK(zxv_agent_slot(0) == -1 && zxv_agent_slot(1) == -1 && !zxv_slot_info(0)->loaded,
           "closing the slot closes its agents");
-    remove(mpath);
+    if (!keep) remove(mpath); /* "keep": test_hosted.sh runs H6 end to end on it */
     remove(lpath);
 
     zxv_zt_release();
