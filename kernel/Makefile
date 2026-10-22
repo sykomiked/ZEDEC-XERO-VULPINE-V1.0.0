@@ -1900,7 +1900,7 @@ test-pdx-ledger:
 # build that may only call the modules it builds on.
 PASSPORT_SRCS := src/passport/pp_core.c src/passport/pp_state.c src/passport/pp_cafe.c \
 	src/passport/pp_console.c
-PASSPORT_DEPS := src/ident/id_argon2.c src/ident/id_core.c src/ident/id_passkey.c \
+PASSPORT_DEPS := src/ident/id_argon2.c src/ident/id_core.c src/ident/id_mem.c src/ident/id_passkey.c \
 	src/robin_debanks/sha256.c src/tls/x25519.c src/tls/aead.c src/ipfs_node/ipfsn_multiformats.c \
 	src/tensor/zt.c $(PQM_SRCS) $(PQSIG_SRCS) src/mlkem/keccak.c src/mlkem/mlkem768.c \
 	src/mlkem/mlkem_encode.c src/mlkem/mlkem_sample.c src/mlkem/mlkem_ntt.c src/mlkem/mlkem_kpe.c
