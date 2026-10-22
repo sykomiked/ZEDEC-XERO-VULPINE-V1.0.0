@@ -86,7 +86,7 @@ void main() {
     expect(store.has('swarm.ask'), true);
     expect(store.state.integer('tokens_per_cycle'), greaterThan(0));
     expect(store.accounts, isNotEmpty); // the swarm earnings accounts
-    expect(store.earnings.str('currency'), 'VFV');
+    expect(store.earnings.str('currency'), 'SWC'); // own-device books post in SWC, never VFV
     await store.ask('hello from the phone');
     expect(store.chat.last.mine, false);
     expect(store.chat.last.text, isNot(contains('could not answer')));
