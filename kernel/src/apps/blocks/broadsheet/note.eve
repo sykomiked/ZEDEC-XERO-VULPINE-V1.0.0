@@ -1,0 +1,23 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What an annotation may say (broadsheet_rules.h BR4), in Eve: a number of
+# 1 to 9999, a page of 1 to 999999, a place 0 to 99999 points across and
+# up, one of the three kinds (1 a highlight, 2 a note, 3 an underline) and
+# a time of at most 15 digits of ms since 1970. note.myra holds only the
+# digits: a kind or a number MYRA fits but Broadsheet does not know is held.
+eve broadsheet
+note_number = 1 .. 9999
+page_number = 1 .. 999999
+page_point = 0 .. 99999
+note_kind = 1 .. 3
+millis = 0 .. 999999999999999
+
+annotation {
+  note: note_number
+  page: page_number
+  x: page_point
+  y: page_point
+  kind: note_kind
+  stamp: millis
+}

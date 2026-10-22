@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Broadsheet files an annotation in MYRA (broadsheet_rules.h BR4): its
+; number in the document's notes file, the page it is on, where on the page
+; (points from the page's lower left corner, across and up), its kind and
+; when it was made (ms since 1970). MYRA holds the digits only; note.eve
+; holds the kinds and the ranges.
+^ZXBROAD(note:i4) = page:i6! ^ x:i5! ^ y:i5! ^ kind:i1! ^ stamp:i15!

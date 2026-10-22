@@ -31,6 +31,17 @@ brazier	check heat_ok temp=-1,0,450,451,-2732 = false,true,true,false,false
 brazier	check heat_safe temp=-201,-200,600,601,250 = false,true,true,false,true
 brazier	check used_share.used_x100 total=50000,50000,50000,1 left=0,35700,50000,1 = 10000,2860,0,0
 brazier	check used_share.used_x100 total=50000,50000 left=0,50001 = both
+broadsheet	check well_formed header=1,1,1,1,0,1,1,1 off=0,268435455,0,4999,0,-1,5000,5001 room=1,1,268435456,1,5000,5001,0,-1 = true,true,true,true,false,false,false,false
+broadsheet	check well_formed header=1,2 off=0,0 room=10,10 = both
+broadsheet	check well_formed header=1,1 off=0,268435456 room=10,1 = both
+broadsheet	check form_fault header=1,1,1,0,0,1,1,1 off=0,268435455,4999,0,-1,-1,5000,5001 room=1,1,1,5000,5001,5001,0,-1 = 0,0,0,1,1,2,2,2
+broadsheet	check form_fault header=1,2 off=0,0 room=10,10 = both
+broadsheet	check form_fault header=1,1 off=0,0 room=10,268435457 = both
+broadsheet	check fit_zoom pagew=816,816,1,99999,816,1056,3 pageh=1056,1056,1,99999,1056,816,7 vieww=816,1600,99999,0,408,99999,2 viewh=1056,900,99999,99999,1056,99999,5 = 10000,8522,999990000,0,5000,946960,6666
+broadsheet	check fit_zoom pagew=816,816 pageh=1056,1056 vieww=816,100000 viewh=1056,1056 = both
+broadsheet	check note_ok note=1,9999,10000,1,1,1,1,1 page=1,999999,1,1000000,1,1,1,1 x=0,99999,0,0,100000,0,0,0 y=0,99999,0,0,0,0,0,0 kind=1,3,1,1,1,10,2,1 stamp=0,999999999999999,0,0,0,0,1700000000000,1000000000000000 = true,true,false,false,false,false,true,false
+broadsheet	check note_ok note=1,1 page=1,1 x=0,0 y=0,0 kind=1,4 stamp=0,0 = both
+broadsheet	check note_ok note=1,0 page=1,1 x=0,0 y=0,0 kind=1,1 stamp=0,0 = both
 burin	check bezier_at pa=0,0,0,-1000000,0,0 pb=100,0,0,1000000,0,0 pc=200,0,0,1000000,100,0 pd=300,1,-1,1000000,100,1000000 step=1,1,1,0,1,1024 steps=3,2,2,1024,2,1024 = 100,0,-1,-1000000,50,1000000
 burin	check bezier_at pa=0,2000000 pb=0,0 pc=0,0 pd=0,0 step=1,1 steps=2,2 = both
 burin	check bezier_at pa=0,0 pb=0,0 pc=0,0 pd=8,8 step=1,1 steps=2,2000 = both

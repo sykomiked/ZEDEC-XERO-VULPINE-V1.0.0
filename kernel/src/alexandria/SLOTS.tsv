@@ -227,3 +227,7 @@
 190	logic.furrow_formula_ok	490.90	furrow.formula_ok	base
 191	num.furrow_money_cell	590.90	furrow.money_cell	base
 192	num.furrow_range_total	590.91	furrow.range_total	base
+193	num.broadsheet_fit_zoom	590.92	broadsheet.fit_zoom	base
+194	num.broadsheet_form_fault	590.93	broadsheet.form_fault	base
+195	logic.broadsheet_note_ok	490.91	broadsheet.note_ok	base
+196	logic.broadsheet_well_formed	490.92	broadsheet.well_formed	base

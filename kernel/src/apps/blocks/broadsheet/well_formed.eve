@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One cross-reference offset of a document is well formed (broadsheet_rules.h
+# BR1), in Eve: the header is present (header 1), the offset is 0 to one
+# byte short of zxvd's largest file (256 MiB) and room, the file's size
+# less the offset, is 1 to 256 MiB, so the offset lies inside the file.
+# Eve holds each range alone, so the relation of offset to size comes as
+# room; well_formed.kron reads any header above 0 as present and holds no
+# upper bound, so a header that is no flag, or an offset past zxvd's
+# largest file, is held.
+eve broadsheet
+header_present = 1 .. 1
+xref_offset = 0 .. 268435455
+xref_room = 1 .. 268435456
+
+cross_reference {
+  header: header_present
+  off: xref_offset
+  room: xref_room
+}

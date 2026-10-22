@@ -1,0 +1,22 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The zoom that fits a whole page in a view (broadsheet_rules.h BR3), in
+# hundredths of a percent (10000 shows the page at its own size), never
+# rounded up: the lesser of view over page across and down. Every side is a
+# count of pixels that fits 9(5), so a side past 99999 or below 0 is
+# refused, and a page side of 0 is a division Sutra refuses.
+record fit-zoom
+  pagew: 9(5)
+  pageh: 9(5)
+  vieww: 9(5)
+  viewh: 9(5)
+  across: 9(9)
+  down: 9(9)
+procedure
+  compute across = vieww * 10000 / pagew
+  compute down = viewh * 10000 / pageh
+  if down < across
+    answer down
+  end-if
+  answer across

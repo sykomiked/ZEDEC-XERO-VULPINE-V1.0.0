@@ -198,7 +198,11 @@
 #define ALX_SLOT_LOGIC_FURROW_FORMULA_OK         190u /* 490.90 furrow.formula_ok */
 #define ALX_SLOT_NUM_FURROW_MONEY_CELL           191u /* 590.90 furrow.money_cell */
 #define ALX_SLOT_NUM_FURROW_RANGE_TOTAL          192u /* 590.91 furrow.range_total */
-#define ALX_SLOT__COUNT 192u
+#define ALX_SLOT_NUM_BROADSHEET_FIT_ZOOM         193u /* 590.92 broadsheet.fit_zoom */
+#define ALX_SLOT_NUM_BROADSHEET_FORM_FAULT       194u /* 590.93 broadsheet.form_fault */
+#define ALX_SLOT_LOGIC_BROADSHEET_NOTE_OK        195u /* 490.91 broadsheet.note_ok */
+#define ALX_SLOT_LOGIC_BROADSHEET_WELL_FORMED    196u /* 490.92 broadsheet.well_formed */
+#define ALX_SLOT__COUNT 196u
 /* clang-format on */
 
 #endif
