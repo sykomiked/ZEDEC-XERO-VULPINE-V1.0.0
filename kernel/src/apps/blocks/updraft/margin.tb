@@ -1,0 +1,27 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A link's margin in whole dB (updraft_rules.h UR1), in Trebago: transmit
+! power (dBm) minus the path loss of the distance step on the radio band,
+! minus the receiver's floor (dBm). The loss comes from an integer dB table
+! (free space at 1, 2, 5, 10, 20, 50, 100 and 200 km on 2 m, 10 dB less on
+! 6 m and 9 dB more on 70 cm, each worked out once and rounded), picked by
+! max(0, 1 - abs(step - k)), which is 1 exactly when step is k. ok is 0 for
+! a power outside 0..61, a step outside 0..7, a band outside 0..2 or a floor
+! outside -150..-60, and the margin is divided by it: refused. margin.kron
+! reads power and floor unbounded: past them the two disagree, held.
+trebago link_margin_db
+  in  power(n), step(n), rf(n), rxfloor(n)
+  out margin(n)
+  var loss(n), ok(n)
+  ok(i) = min(1, max(0, power(i) + 1)) * min(1, max(0, 61 - power(i) + 1)) &
+        * min(1, max(0, step(i) + 1)) * min(1, max(0, 7 - step(i) + 1)) &
+        * min(1, max(0, rf(i) + 1)) * min(1, max(0, 2 - rf(i) + 1)) &
+        * min(1, max(0, rxfloor(i) + 151)) * min(1, max(0, -60 - rxfloor(i) + 1))
+  loss(i) = 76 * max(0, 1 - abs(step(i))) + 82 * max(0, 1 - abs(step(i) - 1)) &
+          + 90 * max(0, 1 - abs(step(i) - 2)) + 96 * max(0, 1 - abs(step(i) - 3)) &
+          + 102 * max(0, 1 - abs(step(i) - 4)) + 110 * max(0, 1 - abs(step(i) - 5)) &
+          + 116 * max(0, 1 - abs(step(i) - 6)) + 122 * max(0, 1 - abs(step(i) - 7)) &
+          - 10 * max(0, 1 - abs(rf(i))) + 9 * max(0, 1 - abs(rf(i) - 2))
+  margin(i) = (power(i) - loss(i) - rxfloor(i)) / ok(i)
+end

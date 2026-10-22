@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# May the operator transmit at this power (updraft_rules.h UR2), in Eve.
+# Eve checks each field against its own range, so the licence comes as its
+# margin: headroom = the band's licensed maximum - the power, in dB. Power
+# 0 to 61 dBm (1.26 kW), headroom 0 to 61; a headroom below 0 is power past
+# the licence. transmit.kron reads any headroom at or above 0 as allowed: a
+# headroom past 61 is no licence Updraft knows, held. Advice only: the
+# operator keys the transmitter.
+eve updraft
+tx_power = 0 .. 61
+licence_headroom = 0 .. 61
+
+transmit_power {
+  power: tx_power
+  headroom: licence_headroom
+}

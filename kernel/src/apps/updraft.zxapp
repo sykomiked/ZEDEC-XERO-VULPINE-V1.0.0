@@ -1,0 +1,132 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Updraft, signal station: L2, slot 214. It runs a radio and mesh signal
+# station: pairs relay stations into the owner's mesh (devmesh.invite,
+# devmesh.join, devmesh.confirm_sas), relays messages through Aerie's
+# model (ehop.bands, ehop.seal, ehop.open, harmonic.encode,
+# harmonic.decode) and watches each peer's link (net.peers): when it was
+# last heard, frames heard a second, and each link's margin. See
+# updraft_model.h UM1-UM8 and updraft_rules.h UR1-UR6.
+#
+# Transmit only within the operator's licence; the operator keys the
+# transmitter. zxvd has no method that drives radio hardware, so Updraft
+# keys nothing: "transmit allowed" is advice the view shows before the
+# operator keys. Sealed relaying is for private bearers only; on amateur
+# radio a message goes in the clear, composed by Aerie and never sealed
+# (aerie.ham_clear_ok, docs/P2P_PROTOCOL_TWINS.md P13). Every change it
+# keeps (the licence, a pairing, a relayed message) takes the owner's
+# confirmed word. Messages only, never money.
+#
+# Composed, not written again (four uses of ZXAPP_USES 8; its own 6 logic
+# lines and its parts' 24 are 30 of ZXAPP_LOGIC_MAX 128, the test counts
+# them; each part carries version 1.0.0 and its provides lines):
+#   aerie.frame_tag       a line frame's tag from its parts (the split
+#                         back is Aerie's model, aerie_tag_split)
+#   aerie.band_fits       "fits the band" for every sealed relay
+#   aerie.radio_msg_ok    the message log record of every relayed message
+#   aerie.ham_clear_ok    no secrets on amateur radio, before any relay
+#   sounding.rate         frames heard a second from each peer
+#   trellis.peers_in_state  peers live (active) and stale (waiting)
+#   trellis.peer_record_ok  a relay station's roster record
+#   commons.room_post_ok  "may I post here" for the station's bulletin room
+#
+# matrix: zxapp.c takes 0..144 and slot 214 is no matrix layer; an L2 app
+# sits on the layer of its part outermost in MATRIX_ORDER.tsv: Aerie
+# (place 59, layer 35), past Commons (16) and Trellis (9); Sounding (16)
+# is a wave 0 app, nearer the core.
+#
+# Witness pairs are of one kind (zxapp.c run_one B3). The link margin is a
+# number: FORTRAN as Trebago and APL as KRON; Trebago refuses a power or a
+# floor past its range, KRON answers it: held. "Transmit allowed" is a
+# truth: Eve checks each field against its own range alone, so the licence
+# comes as its margin, headroom = licmax - power, worked out by the model;
+# KRON reads any headroom at or above 0 as allowed: a headroom past 61 dB
+# is held. The link matrix is APL as KRON; the relay tree MUMPS as MYRA,
+# and the message log is Aerie's (aerie.radio_msg_ok), used as it is.
+# Kept in C: the BOTH of one frame two relays heard two ways (UR5, joined
+# with lpres_kjoin: kept until a third relay or its checksum settles it),
+# the Fletcher-32 of a payload, NodeID and device id text, zxvd's answers.
+#
+# Later layers (Pharos, Vesper, Buckram, Hydrophone, Macrame, Quadrant,
+# Seine) use the link margin and "transmit allowed", so both are
+# registered in CONCEPTS.tsv with Updraft as owner.
+#
+# Planned (no runtime yet): LabVIEW (dataflow, signal) waits on the link
+# margin, a signal budget; Gleam (messaging, types) on the relay node
+# record. TRAC (macro text) has no entry here: Updraft decides numbers and
+# records, it processes no text.
+zxapp 1
+id     updraft
+name   Updraft
+version 1.0.0
+slot   214
+layer  L2
+matrix 35
+icon   icons/l2/214-updraft.svg
+budget 233
+needs  net
+needs  peers
+needs  notify
+model  apps/updraft_model.c
+use    aerie 1      # @num.aerie_frame_tag @logic.aerie_band_fits @logic.aerie_radio_msg_ok @logic.aerie_ham_clear_ok
+use    sounding 1   # @num.sounding_rate
+use    trellis 1    # @num.trellis_peers_in_state @logic.trellis_peer_record_ok
+use    commons 1    # @logic.commons_room_post_ok
+# what it exports, so apps built from it can use them too (C1)
+provides aerie.frame_tag num sync shell trunk
+provides aerie.band_fits truth bytes frame
+provides aerie.radio_msg_ok truth seq bearer band dir sender bytes stamp
+provides aerie.ham_clear_ok truth amateur sealed
+provides sounding.rate num now was dt
+provides trellis.peers_in_state num state want
+provides trellis.peer_record_ok truth peer state role admin held since
+provides commons.room_post_ok truth member joined enabled
+
+# A link's margin in whole dB (UR1, critical): power - path loss (integer
+# dB table) - receiver floor. FORTRAN as Trebago, APL as KRON; a power or
+# a floor past Trebago's range is held.
+provides link_margin_db num power step rf rxfloor
+logic    trebago link_margin_db apps/blocks/updraft/margin.tb
+logic    kron    link_margin_db apps/blocks/updraft/margin.kron
+pending  LabVIEW link_margin_db
+
+# Transmit allowed (UR2, critical): the power at most the band's licensed
+# maximum, as its margin. Ada as Eve, APL as KRON.
+provides transmit_power_ok truth power headroom
+logic    eve  transmit_power_ok apps/blocks/updraft/transmit.eve
+logic    kron transmit_power_ok apps/blocks/updraft/transmit.kron
+
+# The link matrix (UR3): each directed link down, one-way or two-way. APL as KRON.
+provides radio_link_state num src dst margin
+logic    kron radio_link_state apps/blocks/updraft/matrix.kron
+
+# The relay tree (UR4): ^ZXUPDRAFT(frame, relay) = parent ^ hops ^ payload ^ state. MUMPS as MYRA.
+provides relay_node_ok truth frame relay parent hops payload state
+logic    myra relay_node_ok apps/blocks/updraft/relay.myra
+pending  Gleam relay_node_ok
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check link_margin_db power=30,0,61,30,30,30 step=0,7,0,3,3,7 rf=1,2,0,1,1,2 rxfloor=-120,-150,-60,-120,-60,-60 = 74,19,55,54,-6,-41
+check link_margin_db power=30,62 step=0,0 rf=1,1 rxfloor=-120,-120 = both
+check link_margin_db power=30,30 step=0,0 rf=1,1 rxfloor=-120,-151 = both
+check transmit_power_ok power=0,61,30,30,-1,62,30 headroom=0,0,31,-1,5,0,61 = true,true,true,false,false,false,true
+check transmit_power_ok power=30,30 headroom=5,62 = both
+check radio_link_state src=0,1,0,2,3 dst=1,0,2,0,4 margin=10,5,8,-3,0 = 2,2,1,0,1
+check radio_link_state src=0,7 dst=7,0 margin=-1,-1 = 0,0
+check relay_node_ok frame=31,999999999,1000000000,31,31,31 relay=1,999,1,1000,1,1 parent=0,999,0,0,0,0 hops=1,99,1,1,100,1 payload=4294967295,9999999999,0,0,0,10000000000 state=1,3,1,1,1,1 = true,true,false,false,false,false
+# The parts: a line frame, a band, a log record, the amateur rule, a rate, peers, a room
+check aerie.frame_tag sync=1 shell=2 trunk=3 = 123
+check aerie.frame_tag sync=2 shell=0 trunk=0 = both
+check aerie.band_fits bytes=0,2048,2049 frame=560,2096,2096 = true,true,false
+check aerie.band_fits bytes=600,600 frame=560,2096 = both
+check aerie.radio_msg_ok seq=31,1000000000 bearer=0,0 band=3,0 dir=1,0 sender=11,0 bytes=200,0 stamp=1700000000000,0 = true,false
+check aerie.ham_clear_ok amateur=0,1,1 sealed=1,0,1 = true,true,false
+check aerie.ham_clear_ok amateur=1,-1 sealed=0,0 = both
+check sounding.rate now=5000,1,4 was=0,0,5 dt=1000,1001,10 = 5000,0,-1
+check sounding.rate now=1000000000000000000 was=0 dt=1 = both
+check trellis.peers_in_state state=1,1,3,3,1 want=1,1,1,1,1 = 3
+check trellis.peers_in_state state=1,4 want=1,1 = both
+check trellis.peer_record_ok peer=1,10 state=1,1 role=2,2 admin=0,0 held=0,0 since=4,1 = true,false
+check commons.room_post_ok member=1,0,1,1 joined=1,1,0,1 enabled=1,1,1,0 = true,false,false,false
+check commons.room_post_ok member=1,2 joined=1,1 enabled=1,1 = both

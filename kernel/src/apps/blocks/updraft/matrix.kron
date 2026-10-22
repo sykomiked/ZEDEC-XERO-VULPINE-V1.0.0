@@ -1,0 +1,3 @@
+ok:0|1&1+margin
+k:(ok*1+(1000*src)+dst)-1
+ok*1+1&+/1-1&abs k-\:(1000*dst)+src

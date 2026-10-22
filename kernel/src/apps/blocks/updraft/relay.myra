@@ -1,0 +1,10 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Updraft files what one relay heard of one frame in its relay tree, in
+; MYRA (updraft_rules.h UR4): the frame and the relay that heard it, then
+; the relay it heard it from (its parent, 0 this station), the hops from
+; the sender, the Fletcher-32 of the payload it heard and the frame's
+; four-valued state in the kernel's codes (0 NEITHER, 1 TRUE, 2 FALSE,
+; 3 BOTH). The message itself is Aerie's log record (aerie.radio_msg_ok).
+^ZXUPDRAFT(frame:i9, relay:i3) = parent:i3! ^ hops:i2! ^ payload:i10! ^ state:i1!

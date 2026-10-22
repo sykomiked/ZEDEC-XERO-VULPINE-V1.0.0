@@ -554,7 +554,11 @@
 #define ALX_SLOT_NUM_TINTYPE_EXPOSURE_EV_THIRDS  546u /* 592.73 tintype.exposure_ev_thirds */
 #define ALX_SLOT_LOGIC_TINTYPE_PHOTO_DECODE_OK   547u /* 492.67 tintype.photo_decode_ok */
 #define ALX_SLOT_LOGIC_TINTYPE_RIGHTS_RECORD_OK  548u /* 492.68 tintype.rights_record_ok */
-#define ALX_SLOT__COUNT 548u
+#define ALX_SLOT_NUM_UPDRAFT_LINK_MARGIN_DB      549u /* 592.74 updraft.link_margin_db */
+#define ALX_SLOT_NUM_UPDRAFT_RADIO_LINK_STATE    550u /* 592.75 updraft.radio_link_state */
+#define ALX_SLOT_LOGIC_UPDRAFT_RELAY_NODE_OK     551u /* 492.69 updraft.relay_node_ok */
+#define ALX_SLOT_LOGIC_UPDRAFT_TRANSMIT_POWER_OK 552u /* 492.70 updraft.transmit_power_ok */
+#define ALX_SLOT__COUNT 552u
 /* clang-format on */
 
 #endif
