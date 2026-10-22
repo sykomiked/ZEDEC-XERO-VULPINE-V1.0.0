@@ -258,7 +258,9 @@
 #define ALX_SLOT_LOGIC_KINDRED_CONTACT_RECORD_OK 250u /* 491.26 kindred.contact_record_ok */
 #define ALX_SLOT_LOGIC_KINDRED_NAME_INDEX_OK     251u /* 491.27 kindred.name_index_ok */
 #define ALX_SLOT_NUM_KINDRED_NAME_PREFIX_HIT     252u /* 591.16 kindred.name_prefix_hit */
-#define ALX_SLOT__COUNT 252u
+#define ALX_SLOT_NUM_LODESTONE_LATENCY_MEAN_MS   253u /* 591.17 lodestone.latency_mean_ms */
+#define ALX_SLOT_LOGIC_LODESTONE_NET_CONTACT_OK  254u /* 491.28 lodestone.net_contact_ok */
+#define ALX_SLOT__COUNT 254u
 /* clang-format on */
 
 #endif

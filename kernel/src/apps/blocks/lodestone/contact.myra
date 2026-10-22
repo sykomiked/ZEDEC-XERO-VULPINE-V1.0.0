@@ -1,0 +1,11 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Lodestone files one contact of net.peers' routing table in MYRA
+; (lodestone_rules.h LR4): its place in the list (net.peers holds at most
+; 256), its Kademlia bucket, whether it advertised UBH-168, when it was
+; last seen in ms since 1970, whether the mesh book has an account for it,
+; whether the owner admitted it to the commons, and the receipts still
+; outstanding with it. The rules say what the values may mean; this says
+; whether they make a record.
+^ZXLODESTONE(contact:i3) = bucket:i3! ^ ubh:i1! ^ seen:i15! ^ book:i1! ^ member:i1! ^ pending:i9!

@@ -287,3 +287,5 @@
 250	logic.kindred_contact_record_ok	491.26	kindred.contact_record_ok	base
 251	logic.kindred_name_index_ok	491.27	kindred.name_index_ok	base
 252	num.kindred_name_prefix_hit	591.16	kindred.name_prefix_hit	base
+253	num.lodestone_latency_mean_ms	591.17	lodestone.latency_mean_ms	base
+254	logic.lodestone_net_contact_ok	491.28	lodestone.net_contact_ok	base

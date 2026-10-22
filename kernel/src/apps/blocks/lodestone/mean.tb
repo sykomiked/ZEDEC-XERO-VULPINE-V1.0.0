@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The mean latency (lodestone_rules.h LR2), in Trebago: the sum of the
+! latencies measured over their count, an exact reduced rational of
+! milliseconds, never rounded (1, 2 and 2 ms are 5/3). Every latency is
+! 0..3600000 (Retort's range, RT2): ok is 1 when there is at least one and
+! none is outside, and 0 otherwise, and the answer is divided by it, so a
+! latency outside the range is a division by zero, refused.
+trebago latency_mean_ms
+  in  ms(n)
+  out avg
+  var ok
+  ok = min(1, max(0, n)) * (1 - min(1, sum(j, min(1, max(0, 0 - ms(j))) &
+     + min(1, max(0, ms(j) - 3600000)))))
+  avg = sum(j, ms(j)) / n / ok
+end
