@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Cupel files one simulation run in MYRA (cupel_rules.h CR7): the
+; run's number, the model it ran, the steps it took, its energy at the end
+; and how far that drifted from the start (in the model's fixed-point
+; units), and 1 when its bounds halted it. Retort's ^ZXRETORT holds the
+; same run as a contestant (retort.run_record_ok); this holds its physics.
+^ZXCUPELRUN(run:i3) = model:i2! ^ steps:i7! ^ energy:i18! ^ drift:i18! ^ halted:i1!

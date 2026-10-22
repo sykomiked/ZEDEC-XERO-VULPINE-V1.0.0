@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A run's precision bounds (cupel_rules.h CR4), in Eve: the fixed-point
+# scale (positions in 1/scale of a length unit) 1 .. 1000000, the steps
+# left (the declared steps less the steps taken) 0 .. 1000000, and the
+# drift's room (the bound less how far the energy has drifted from its
+# start) 0 .. 9999999999999999. Each field is held to its own range: a
+# run past its declared steps, or one whose energy has drifted past its
+# bound, does not fit, and the model halts it. bounds.kron reads the same
+# three with no top: past a range it is held.
+eve cupel
+fixed_scale = 1 .. 1000000
+steps_room = 0 .. 1000000
+drift_room = 0 .. 9999999999999999
+
+sim_precision_ok {
+  scale: fixed_scale
+  stepgap: steps_room
+  driftgap: drift_room
+}

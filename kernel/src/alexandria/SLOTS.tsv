@@ -525,3 +525,10 @@
 488	num.fieldguide_key_next_lead	592.43	fieldguide.key_next_lead	base
 489	num.fieldguide_match_order_key	592.44	fieldguide.match_order_key	base
 490	num.fieldguide_species_caution	592.45	fieldguide.species_caution	base
+491	num.cupel_lattice_site_index	592.46	cupel.lattice_site_index	base
+492	num.cupel_leapfrog_position	592.47	cupel.leapfrog_position	base
+493	num.cupel_leapfrog_velocity	592.48	cupel.leapfrog_velocity	base
+494	num.cupel_pair_force_net	592.49	cupel.pair_force_net	base
+495	logic.cupel_sim_precision_ok	492.39	cupel.sim_precision_ok	base
+496	logic.cupel_sim_run_record_ok	492.40	cupel.sim_run_record_ok	base
+497	logic.cupel_sim_tree_node_ok	492.41	cupel.sim_tree_node_ok	base

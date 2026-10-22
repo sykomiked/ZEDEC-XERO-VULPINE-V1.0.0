@@ -1,0 +1,4 @@
+a:ix-side*_ix%side
+b:iy-side*_iy%side
+c:iz-side*_iz%side
+c+side*b+side*a

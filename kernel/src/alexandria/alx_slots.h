@@ -496,7 +496,14 @@
 #define ALX_SLOT_NUM_FIELDGUIDE_KEY_NEXT_LEAD    488u /* 592.43 fieldguide.key_next_lead */
 #define ALX_SLOT_NUM_FIELDGUIDE_MATCH_ORDER_KEY  489u /* 592.44 fieldguide.match_order_key */
 #define ALX_SLOT_NUM_FIELDGUIDE_SPECIES_CAUTION  490u /* 592.45 fieldguide.species_caution */
-#define ALX_SLOT__COUNT 490u
+#define ALX_SLOT_NUM_CUPEL_LATTICE_SITE_INDEX    491u /* 592.46 cupel.lattice_site_index */
+#define ALX_SLOT_NUM_CUPEL_LEAPFROG_POSITION     492u /* 592.47 cupel.leapfrog_position */
+#define ALX_SLOT_NUM_CUPEL_LEAPFROG_VELOCITY     493u /* 592.48 cupel.leapfrog_velocity */
+#define ALX_SLOT_NUM_CUPEL_PAIR_FORCE_NET        494u /* 592.49 cupel.pair_force_net */
+#define ALX_SLOT_LOGIC_CUPEL_SIM_PRECISION_OK    495u /* 492.39 cupel.sim_precision_ok */
+#define ALX_SLOT_LOGIC_CUPEL_SIM_RUN_RECORD_OK   496u /* 492.40 cupel.sim_run_record_ok */
+#define ALX_SLOT_LOGIC_CUPEL_SIM_TREE_NODE_OK    497u /* 492.41 cupel.sim_tree_node_ok */
+#define ALX_SLOT__COUNT 497u
 /* clang-format on */
 
 #endif

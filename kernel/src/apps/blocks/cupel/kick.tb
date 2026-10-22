@@ -1,0 +1,19 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The leapfrog kick (cupel_rules.h CR2), in Trebago, one atom and axis a
+! row: the half-step velocity v + force * dt, exact, in reduced units (a
+! unit mass, so a force is an acceleration and nothing is divided). v
+! and force are -1000000 .. 1000000 and dt 1 .. 1000 ticks: ok is 1
+! inside all three and 0 outside, and the answer is divided by it, so
+! anything else is a division by zero, refused, where kick.kron answers:
+! held.
+trebago leapfrog_velocity
+  in  v(n), force(n), dt(n)
+  out vnew(n)
+  var ok(n)
+  ok(i) = min(1, max(0, v(i) + 1000001)) * min(1, max(0, 1000001 - v(i))) &
+        * min(1, max(0, force(i) + 1000001)) * min(1, max(0, 1000001 - force(i))) &
+        * min(1, max(0, dt(i))) * min(1, max(0, 1001 - dt(i)))
+  vnew(i) = (v(i) + force(i) * dt(i)) / ok(i)
+end

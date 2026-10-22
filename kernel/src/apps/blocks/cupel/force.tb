@@ -1,0 +1,20 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The net force on one atom from the pair table (cupel_rules.h CR1), in
+! Trebago, one entry of the table per row: the pair (p, q) and the force
+! on p along one axis, q taking the opposite. A row adds its force when
+! its p is want (both 1 + p - want and 1 + want - p at least 1) and takes
+! it away when its q is want, exact, added from the first. Each force is
+! -1000000 .. 1000000: bad counts those outside, and the sum is divided
+! by 1 - min(1, bad), so any one is a division by zero, refused, never
+! added. force.kron adds every row as it is: held.
+trebago pair_force_net
+  in  want, p(n), q(n), force(n)
+  out net
+  var bad(n)
+  bad(i) = min(1, max(0, 0 - force(i) - 1000000)) + min(1, max(0, force(i) - 1000000))
+  net = sum(i, (max(0, min(1, 1 + p(i) - want)) * max(0, min(1, 1 + want - p(i))) &
+        - max(0, min(1, 1 + q(i) - want)) * max(0, min(1, 1 + want - q(i)))) * force(i)) &
+        / (1 - min(1, sum(i, bad(i))))
+end

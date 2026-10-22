@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Cupel files a model's tree in MYRA (cupel_rules.h CR6): under the
+; model, its molecule and the atom's place in the model, the atom's
+; element (its atomic number) and its position, x, y and z in 1/scale of
+; a length unit. Cupel asks whether the numbers fit before it saves a
+; model.
+^ZXCUPEL(model:i2, molecule:i4, atom:i3) = element:i3! ^ x:i7! ^ y:i7! ^ z:i7!
