@@ -532,3 +532,8 @@
 495	logic.cupel_sim_precision_ok	492.39	cupel.sim_precision_ok	base
 496	logic.cupel_sim_run_record_ok	492.40	cupel.sim_run_record_ok	base
 497	logic.cupel_sim_tree_node_ok	492.41	cupel.sim_tree_node_ok	base
+498	logic.nutshell_flash_deck_ok	492.42	nutshell.flash_deck_ok	base
+499	num.nutshell_flash_due_count	592.50	nutshell.flash_due_count	base
+500	logic.nutshell_flash_review_ok	492.43	nutshell.flash_review_ok	base
+501	num.nutshell_leitner_due_day	592.51	nutshell.leitner_due_day	base
+502	num.nutshell_leitner_next_box	592.52	nutshell.leitner_next_box	base

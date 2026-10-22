@@ -1,0 +1,98 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Nutshell, flashcards: layer 106 of the matrix. Decks of cards are kept
+# in the Banker, one file per deck (Nutshell/<deck>.deck), read with
+# files.read and written with files.write (a new deck with exclusive set,
+# so no deck is written over); see nutshell_model.h NM1-NM5 and
+# nutshell_rules.h NS1-NS5. Each card sits in a Leitner box, 1 to 5: a
+# right answer moves it up one box, a wrong one sends it back to box 1,
+# and a card in box b is shown again 2^(b - 1) days after it was
+# answered. Adding a card and answering one change the deck, so each
+# takes the owner's confirmation (owner_confirmed) before anything is
+# sent.
+#
+# An anchor of the matrix: its layer leans on no other layer's code yet.
+# What is nearer the core is used, never written again: how many cards
+# each box holds is Witness's count of a kind. The next box and the due
+# day are what later layers lean on (Lectern and Hornbook use "next box
+# and due day for a card"), so both, and the count of cards due, are
+# concepts with Nutshell as their owner (CONCEPTS.tsv). The deck and
+# review records are Nutshell's own.
+#
+# Kept in C, since no runnable language owns it: a card's text (its two
+# sides, checked as UTF-8 without control bytes), the deck file, and which
+# due card is shown first.
+#
+# Logo (twin Kiteling) runs now and owns geometry, but Nutshell has no
+# geometry, and Lingua's Logo refuses readword and readlist (zl_logo.c),
+# so a Logo block could not take an entry's arguments (zxapp_lingua.c
+# L1); there is no logo line. Mojo (numeric, ai) is planned: the count of
+# cards due is a numeric kernel over a vector of days, so it has the
+# pending line.
+zxapp 1
+id     nutshell
+name   Nutshell
+version 1.0.0
+slot   106
+layer  L1
+matrix 106
+icon   icons/l1/106-nutshell.svg
+budget 233
+needs  fs.read
+needs  fs.write
+model  apps/nutshell_model.c
+use    witness 1    # @num.witness_kind_count
+
+# A card's next Leitner box (NS1, critical): up one on a right answer,
+# never past 5, back to 1 on a wrong one. BASIC, twin Hatchling, and
+# KRON. A Lingua block reads one row per call (zxapp_lingua.c L1), so each
+# check line has one row. A box outside 1..5 or a right that is no flag:
+# BASIC refuses, KRON answers: held.
+provides leitner_next_box num box right
+# BASIC, twin Hatchling
+logic    hatchling leitner_next_box apps/blocks/nutshell/next_box.bas
+logic    kron      leitner_next_box apps/blocks/nutshell/next_box.kron
+
+# The day a card answered today is shown again (NS2, critical): today +
+# 2^(next box - 1), never past 9999-12-31. BASIC, twin Hatchling, and
+# KRON; a due day past 9999-12-31 is held (BASIC refuses, KRON answers).
+provides leitner_due_day num box right today
+# BASIC, twin Hatchling
+logic    hatchling leitner_due_day apps/blocks/nutshell/due_day.bas
+logic    kron      leitner_due_day apps/blocks/nutshell/due_day.kron
+
+# How many cards are due on today (NS3): due on or before it. APL as KRON;
+# today is one value, given once per row (its largest is taken).
+provides flash_due_count num due today
+logic    kron flash_due_count apps/blocks/nutshell/due_count.kron
+pending  Mojo flash_due_count
+
+# A deck makes a ^ZXNUTSHELL record (NS4), in MYRA.
+provides flash_deck_ok truth deck cards made reviewed
+logic    myra flash_deck_ok apps/blocks/nutshell/deck.myra
+
+# A card's reviews make a ^ZXNUTCARD record (NS5), in MYRA.
+provides flash_review_ok truth deck card box due right wrong
+logic    myra flash_review_ok apps/blocks/nutshell/review.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check leitner_next_box box=1 right=1 = 2
+check leitner_next_box box=4 right=1 = 5
+check leitner_next_box box=5 right=1 = 5
+check leitner_next_box box=5 right=0 = 1
+check leitner_next_box box=1 right=0 = 1
+check leitner_next_box box=6 right=1 = both
+check leitner_next_box box=3 right=2 = both
+check leitner_due_day box=1 right=1 today=0 = 2
+check leitner_due_day box=4 right=1 today=20745 = 20761
+check leitner_due_day box=5 right=0 today=20745 = 20746
+check leitner_due_day box=3 right=1 today=2932888 = 2932896
+check leitner_due_day box=5 right=1 today=2932896 = both
+check leitner_due_day box=0 right=0 today=100 = both
+check flash_due_count due=20745,20746,20750,0 today=20746,20746,20746,20746 = 3
+check flash_due_count due=20747,20750 today=20746,20746 = 0
+check flash_deck_ok deck=1,999999,1000000,1,1,1 cards=0,9999,0,10000,0,0 made=0,9999999,0,0,10000000,0 reviewed=0,9999999,0,0,0,10000000 = true,true,false,false,false,false
+check flash_review_ok deck=1,999999,1,1,1,1 card=1,9999,10000,1,1,1 box=1,9,1,10,1,1 due=0,9999999,0,0,10000000,0 right=0,999999,0,0,0,1000000 wrong=0,999999,0,0,0,0 = true,true,false,false,false,false
+check witness.kind_count kind=1,2,2,5,3 want=2 = 2
+check witness.kind_count kind=1,2 want=1,1 = both

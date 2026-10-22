@@ -886,6 +886,25 @@ ninefold	check state_reserved form=0,9 = both
 ninefold	check state_reserved_n form=0,3,4,5,6,7,8 = 0,0,1,1,1,1,0
 ninefold	check state_reserved_n form=0,-1 = both
 ninefold	check coffer.holdings balance=100,250,0 = 350
+nutshell	check leitner_next_box box=1 right=1 = 2
+nutshell	check leitner_next_box box=4 right=1 = 5
+nutshell	check leitner_next_box box=5 right=1 = 5
+nutshell	check leitner_next_box box=5 right=0 = 1
+nutshell	check leitner_next_box box=1 right=0 = 1
+nutshell	check leitner_next_box box=6 right=1 = both
+nutshell	check leitner_next_box box=3 right=2 = both
+nutshell	check leitner_due_day box=1 right=1 today=0 = 2
+nutshell	check leitner_due_day box=4 right=1 today=20745 = 20761
+nutshell	check leitner_due_day box=5 right=0 today=20745 = 20746
+nutshell	check leitner_due_day box=3 right=1 today=2932888 = 2932896
+nutshell	check leitner_due_day box=5 right=1 today=2932896 = both
+nutshell	check leitner_due_day box=0 right=0 today=100 = both
+nutshell	check flash_due_count due=20745,20746,20750,0 today=20746,20746,20746,20746 = 3
+nutshell	check flash_due_count due=20747,20750 today=20746,20746 = 0
+nutshell	check flash_deck_ok deck=1,999999,1000000,1,1,1 cards=0,9999,0,10000,0,0 made=0,9999999,0,0,10000000,0 reviewed=0,9999999,0,0,0,10000000 = true,true,false,false,false,false
+nutshell	check flash_review_ok deck=1,999999,1,1,1,1 card=1,9999,10000,1,1,1 box=1,9,1,10,1,1 due=0,9999999,0,0,10000000,0 right=0,999999,0,0,0,1000000 wrong=0,999999,0,0,0,0 = true,true,false,false,false,false
+nutshell	check witness.kind_count kind=1,2,2,5,3 want=2 = 2
+nutshell	check witness.kind_count kind=1,2 want=1,1 = both
 orrery	check civil_day year=1970 month=1 day=1 = 0
 orrery	check civil_day year=1969 month=12 day=31 = -1
 orrery	check civil_day year=2000 month=1 day=1 = 10957

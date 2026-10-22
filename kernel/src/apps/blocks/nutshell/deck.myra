@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Nutshell files a deck of flashcards in MYRA (nutshell_rules.h NS4):
+; its number, how many cards it holds, the day it was made and the day it
+; was last reviewed (days since 1970: seven digits reach 9999-12-31). The
+; model's own checks say what the values may mean; this says whether they
+; make a record.
+^ZXNUTSHELL(deck:i6) = cards:i4! ^ made:i7! ^ reviewed:i7!

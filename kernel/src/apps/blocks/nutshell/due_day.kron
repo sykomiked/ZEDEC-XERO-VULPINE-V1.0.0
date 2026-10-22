@@ -1,0 +1,3 @@
+r:0|1&right
+n:(r*5&box+1)+1-r
+today+2 pow n-1

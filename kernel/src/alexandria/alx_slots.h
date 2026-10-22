@@ -503,7 +503,12 @@
 #define ALX_SLOT_LOGIC_CUPEL_SIM_PRECISION_OK    495u /* 492.39 cupel.sim_precision_ok */
 #define ALX_SLOT_LOGIC_CUPEL_SIM_RUN_RECORD_OK   496u /* 492.40 cupel.sim_run_record_ok */
 #define ALX_SLOT_LOGIC_CUPEL_SIM_TREE_NODE_OK    497u /* 492.41 cupel.sim_tree_node_ok */
-#define ALX_SLOT__COUNT 497u
+#define ALX_SLOT_LOGIC_NUTSHELL_FLASH_DECK_OK    498u /* 492.42 nutshell.flash_deck_ok */
+#define ALX_SLOT_NUM_NUTSHELL_FLASH_DUE_COUNT    499u /* 592.50 nutshell.flash_due_count */
+#define ALX_SLOT_LOGIC_NUTSHELL_FLASH_REVIEW_OK  500u /* 492.43 nutshell.flash_review_ok */
+#define ALX_SLOT_NUM_NUTSHELL_LEITNER_DUE_DAY    501u /* 592.51 nutshell.leitner_due_day */
+#define ALX_SLOT_NUM_NUTSHELL_LEITNER_NEXT_BOX   502u /* 592.52 nutshell.leitner_next_box */
+#define ALX_SLOT__COUNT 502u
 /* clang-format on */
 
 #endif

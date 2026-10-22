@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Nutshell files one card's reviews in MYRA (nutshell_rules.h NS5): a
+; sparse record under the deck and the card, with the Leitner box it is in
+; (1 .. 5), the day it is next due (days since 1970) and how many times it
+; was answered right and wrong. The model asks whether the numbers fit
+; before it keeps the card.
+^ZXNUTCARD(deck:i6, card:i4) = box:i1! ^ due:i7! ^ right:i6! ^ wrong:i6!
