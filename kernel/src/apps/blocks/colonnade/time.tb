@@ -1,0 +1,18 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Time per pillar (colonnade_rules.h CL3), in Trebago: the exact sum of
+! the milliseconds of the kept runs whose pillar is want (one value for
+! the whole vector). Each pillar is 0..5 and each run 0..60000 ms (the run
+! limit, CL4); bad counts a pillar that is none and a time outside its
+! range, and any one of them makes the total a division by zero: refused,
+! never added.
+trebago pillar_time_ms
+  in  pillar(n), want, ms(n)
+  out total
+  var bad(n)
+  bad(i) = min(1, max(0, 0 - pillar(i))) + min(1, max(0, pillar(i) - 5)) &
+         + min(1, max(0, 0 - ms(i))) + min(1, max(0, ms(i) - 60000))
+  total = sum(i, max(0, min(1, 1 + pillar(i) - want)) * max(0, min(1, 1 + want - pillar(i))) &
+        * ms(i)) / (1 - min(1, sum(i, bad(i))))
+end

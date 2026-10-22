@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Witnessed runs split (colonnade_rules.h CL1), in Eve: the runs of one
+# rule in the pillars are held as BOTH, each side kept for the person, when
+# a run said TRUE (sawtrue 1) and a run said FALSE (sawfalse 1): the
+# knowledge join (lpres_kjoin) of the two sides. Each flag is 1 .. 1 on its
+# own, so a flag that is no flag (2, -1) does not fit; split.kron reads any
+# flag above 0 as set: held.
+eve colonnade
+flag_set = 1 .. 1
+
+witness_split {
+  sawtrue: flag_set
+  sawfalse: flag_set
+}

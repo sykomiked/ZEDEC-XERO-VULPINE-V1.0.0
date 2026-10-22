@@ -1,0 +1,102 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Colonnade, the language pillars: layer 127 of the matrix (developer
+# tools). Write, compile and run code in the pillars (Sutra, Trebago, Eve,
+# KRON, MYRA) through the Playground: its templates (play.catalogue), a run
+# with the person's edits on scratch state, never the books (play.run), and
+# a draft from the local swarm (play.draft), which is untrusted text: shown,
+# never run by itself, taken into the editor only on the owner's word and
+# then checked like anything a person types. A source file is opened from
+# the Hoard with files.read (one read, read_max). Advisory: nothing here
+# posts, pays or writes (colonnade_model.h CM1-CM7).
+#
+# 1 later layer leans on this one, so its entries are general rules owned
+# here (CONCEPTS.tsv): whether witnessed runs split (BOTH, each side kept),
+# the fuel left, runs and time per pillar, a run's limits and the language
+# index record. Of the layers the task names, Toolchest (126) and Vintner
+# (91) are built before this one, but Toolchest's rules are about SDK kits
+# and their install (Colonnade installs nothing and reads no kit) and
+# Vintner's about a wine ledger, so neither is used. The share of the
+# output limit a run used is used_share.used_x100 (the core), used as it is.
+#
+# Witness pairs are of one kind (zxapp.c run_one B3). Eve and KRON witness
+# witness_split, a truth: Eve checks each field against its own range
+# alone, so the four-valued verdict is asked as its BOTH (a TRUE side and a
+# FALSE side were both seen); the model joins the runs' verdicts with
+# lpres_kjoin and keeps each side. Sutra and KRON witness fuel_left, a
+# number. Trebago holds the counts and time totals exact, Eve the run
+# limits and MYRA the language index record. The model's C
+# (colonnade_rules.h) is the third witness of each.
+#
+# Planned (no runtime yet): Bourne shell owns jobs (wiring programs
+# together), and a run's limits are a job's output and time limits (what a
+# shell sets with ulimit): pending on play_limits_ok. OCaml owns typed
+# transforms and parsing, and the language index is the typed transform
+# from a language to the pillar that runs it: pending on pillar_index_ok.
+#
+# Defaults taken (colonnade_rules.h): zxvd sets no wall-clock limit on
+# play.run, so a run is held to 60000 ms; the output limit, 49152 bytes,
+# is zxvd's own files.read read_max. Fuel is counted one unit per step that
+# ran (play.run's steps[].ran), since play.run reports no fuel. zxvd has no
+# method that runs a Lingua language (BASIC, Forth, Pascal...) on its own:
+# Colonnade lists them in its index (pillar 0) and runs only what the
+# Playground runs; none is invented.
+zxapp 1
+id     colonnade
+name   Colonnade
+version 1.0.0
+slot   127
+layer  L1
+matrix 127
+icon   icons/l1/127-colonnade.svg
+budget 233
+needs  fs.read
+needs  ai.ask
+model  apps/colonnade_model.c
+use    used_share 1   # @num.used_x100
+
+# Witnessed runs split (CL1): a TRUE run and a FALSE run of one rule make
+# BOTH, each side kept. Eve holds each flag to 1..1; KRON reads anything
+# above 0 as set: a 2 is held.
+provides witness_split truth sawtrue sawfalse
+logic    eve  witness_split apps/blocks/colonnade/split.eve
+logic    kron witness_split apps/blocks/colonnade/split.kron
+
+# The fuel left (CL2): fuelmax - spent, refused below zero. Sutra holds
+# each to 9(18); KRON answers any: below zero or past 18 digits, held.
+provides fuel_left num fuelmax spent
+logic    sutra fuel_left apps/blocks/colonnade/fuel.sutra
+logic    kron  fuel_left apps/blocks/colonnade/fuel.kron
+
+# Runs and time per pillar (CL3), exact.
+provides pillar_runs num pillar want
+logic    trebago pillar_runs apps/blocks/colonnade/runs.tb
+provides pillar_time_ms num pillar want ms
+logic    trebago pillar_time_ms apps/blocks/colonnade/time.tb
+
+# A run's limits (CL4): output 0..49152 bytes, 0..60000 ms.
+provides play_limits_ok truth outbytes ms
+logic    eve play_limits_ok apps/blocks/colonnade/limits.eve
+pending  Bourne_shell play_limits_ok
+
+# The language index record (CL5): ^ZXCOLONNADE's digits.
+provides pillar_index_ok truth lang pillar
+logic    myra pillar_index_ok apps/blocks/colonnade/pillar.myra
+pending  OCaml pillar_index_ok
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check witness_split sawtrue=1,1,0,0 sawfalse=1,0,1,0 = true,false,false,false
+check witness_split sawtrue=1,2 sawfalse=1,1 = both
+check witness_split sawtrue=1,1 sawfalse=1,2 = both
+check fuel_left fuelmax=0,10,10,999999999999999999,999999999999999999 spent=0,3,10,0,999999999999999999 = 0,7,0,999999999999999999,0
+check fuel_left fuelmax=10,10 spent=3,11 = both
+check fuel_left fuelmax=10,1000000000000000000 spent=3,3 = both
+check pillar_runs pillar=1,4,1,0,5,1 want=1 = 3
+check pillar_runs pillar=2,3 want=5 = 0
+check pillar_time_ms pillar=1,4,1,0 want=1 ms=120,700,60000,5 = 60120
+check pillar_time_ms pillar=3,3 want=3 ms=0,0 = 0
+check play_limits_ok outbytes=0,49152,49153,100,100,-1 ms=0,60000,10,60001,-1,10 = true,true,false,false,false,false
+check pillar_index_ok lang=1,108,999,1000,9,9 pillar=0,5,9,1,10,1 = true,true,true,false,false,true
+# The share of the output limit a run used (CL6): 12288 of 49152 bytes; all of it
+check used_share.used_x100 total=49152,49152 left=36864,0 = 2500,10000

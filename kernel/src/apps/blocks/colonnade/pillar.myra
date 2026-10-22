@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Colonnade files its language index in MYRA (colonnade_rules.h CL5):
+; a language's place in LANGUAGE_FIT.tsv (1..108) and the pillar its
+; runtime column names (0 a Lingua language, 1 Sutra, 2 Trebago, 3 Eve,
+; 4 KRON, 5 MYRA). The rules say which pairs hold; this says whether the
+; values make a record.
+^ZXCOLONNADE(lang:i3) = pillar:i1!

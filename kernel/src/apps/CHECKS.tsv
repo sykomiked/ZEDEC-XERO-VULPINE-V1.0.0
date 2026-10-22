@@ -169,6 +169,19 @@ coffer	check transfer_ok amount=1,9007199254740991,0,5,5,5 after=0,0,0,-1,0,0 ro
 coffer	check transfer_ok amount=5,5 after=0,1000000000000000000 room=0,0 gap=0,0 = both
 coffer	check holdings balance=100,250,-50,0 = 300
 coffer	check holdings balance=9223372036854775807,0 = 9223372036854775807
+colonnade	check witness_split sawtrue=1,1,0,0 sawfalse=1,0,1,0 = true,false,false,false
+colonnade	check witness_split sawtrue=1,2 sawfalse=1,1 = both
+colonnade	check witness_split sawtrue=1,1 sawfalse=1,2 = both
+colonnade	check fuel_left fuelmax=0,10,10,999999999999999999,999999999999999999 spent=0,3,10,0,999999999999999999 = 0,7,0,999999999999999999,0
+colonnade	check fuel_left fuelmax=10,10 spent=3,11 = both
+colonnade	check fuel_left fuelmax=10,1000000000000000000 spent=3,3 = both
+colonnade	check pillar_runs pillar=1,4,1,0,5,1 want=1 = 3
+colonnade	check pillar_runs pillar=2,3 want=5 = 0
+colonnade	check pillar_time_ms pillar=1,4,1,0 want=1 ms=120,700,60000,5 = 60120
+colonnade	check pillar_time_ms pillar=3,3 want=3 ms=0,0 = 0
+colonnade	check play_limits_ok outbytes=0,49152,49153,100,100,-1 ms=0,60000,10,60001,-1,10 = true,true,false,false,false,false
+colonnade	check pillar_index_ok lang=1,108,999,1000,9,9 pillar=0,5,9,1,10,1 = true,true,true,false,false,true
+colonnade	check used_share.used_x100 total=49152,49152 left=36864,0 = 2500,10000
 commons	check room_post_ok member=1,0,1,1,0,-1 joined=1,1,0,1,0,1 enabled=1,1,1,0,0,1 = true,false,false,false,false,false
 commons	check room_post_ok member=1,2 joined=1,1 enabled=1,1 = both
 commons	check room_post_ok member=1,1 joined=1,1 enabled=1,5 = both

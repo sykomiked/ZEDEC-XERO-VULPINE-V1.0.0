@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The fuel left in a session (colonnade_rules.h CL2), in Sutra: fuelmax
+# less what the runs have spent. Each fits 9(18), so a negative or a
+# nineteen-digit one is refused, and so is spending past fuelmax: the rest
+# would be below zero and does not fit 9(18). fuel.kron subtracts as it is:
+# held.
+record fuel-left
+  fuelmax: 9(18)
+  spent: 9(18)
+  rest: 9(18)
+procedure
+  compute rest = fuelmax - spent
+  answer rest

@@ -422,3 +422,9 @@
 385	logic.graft_diff_size_ok	491.92	graft.diff_size_ok	base
 386	logic.graft_merge_line_clash	491.93	graft.merge_line_clash	base
 387	logic.graft_merge_untouched	491.94	graft.merge_untouched	base
+388	num.colonnade_fuel_left	591.85	colonnade.fuel_left	base
+389	logic.colonnade_pillar_index_ok	491.95	colonnade.pillar_index_ok	base
+390	num.colonnade_pillar_runs	591.86	colonnade.pillar_runs	base
+391	num.colonnade_pillar_time_ms	591.87	colonnade.pillar_time_ms	base
+392	logic.colonnade_play_limits_ok	491.96	colonnade.play_limits_ok	base
+393	logic.colonnade_witness_split	491.97	colonnade.witness_split	base

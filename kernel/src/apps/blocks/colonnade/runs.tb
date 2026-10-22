@@ -1,0 +1,20 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Runs per pillar (colonnade_rules.h CL3), in Trebago: how many of the
+! kept runs ran in pillar want (one value for the whole vector), counted
+! exactly. A run counts when both 1 + pillar - want and 1 + want - pillar
+! are at least 1, that is when its pillar is want. Each pillar is 0..5
+! (0 a Lingua language, 1 Sutra, 2 Trebago, 3 Eve, 4 KRON, 5 MYRA):
+! min(1, max(0, 0 - p)) is 1 exactly when p < 0 and min(1, max(0, p - 5))
+! exactly when p > 5, so bad counts the pillars that are none, and the
+! count is divided by 1 - min(1, bad): any one of them is a division by
+! zero, refused, never counted.
+trebago pillar_runs
+  in  pillar(n), want
+  out runs
+  var bad(n)
+  bad(i) = min(1, max(0, 0 - pillar(i))) + min(1, max(0, pillar(i) - 5))
+  runs = sum(i, max(0, min(1, 1 + pillar(i) - want)) * max(0, min(1, 1 + want - pillar(i)))) &
+       / (1 - min(1, sum(i, bad(i))))
+end

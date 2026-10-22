@@ -393,7 +393,13 @@
 #define ALX_SLOT_LOGIC_GRAFT_DIFF_SIZE_OK        385u /* 491.92 graft.diff_size_ok */
 #define ALX_SLOT_LOGIC_GRAFT_MERGE_LINE_CLASH    386u /* 491.93 graft.merge_line_clash */
 #define ALX_SLOT_LOGIC_GRAFT_MERGE_UNTOUCHED     387u /* 491.94 graft.merge_untouched */
-#define ALX_SLOT__COUNT 387u
+#define ALX_SLOT_NUM_COLONNADE_FUEL_LEFT         388u /* 591.85 colonnade.fuel_left */
+#define ALX_SLOT_LOGIC_COLONNADE_PILLAR_INDEX_OK 389u /* 491.95 colonnade.pillar_index_ok */
+#define ALX_SLOT_NUM_COLONNADE_PILLAR_RUNS       390u /* 591.86 colonnade.pillar_runs */
+#define ALX_SLOT_NUM_COLONNADE_PILLAR_TIME_MS    391u /* 591.87 colonnade.pillar_time_ms */
+#define ALX_SLOT_LOGIC_COLONNADE_PLAY_LIMITS_OK  392u /* 491.96 colonnade.play_limits_ok */
+#define ALX_SLOT_LOGIC_COLONNADE_WITNESS_SPLIT   393u /* 491.97 colonnade.witness_split */
+#define ALX_SLOT__COUNT 393u
 /* clang-format on */
 
 #endif

@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A run's limits (colonnade_rules.h CL4), in Eve: its output is 0 to 49152
+# bytes (zxvd's files.read read_max, one read: the most a view is handed
+# at once) and it took 0 to 60000 ms (a minute; zxvd sets no wall-clock
+# limit on play.run, so the minute is Colonnade's). Each field is held to
+# its own range; past either the run is kept as over, its verdict not used.
+eve colonnade
+out_bytes = 0 .. 49152
+run_ms = 0 .. 60000
+
+play_limits_ok {
+  outbytes: out_bytes
+  ms: run_ms
+}
