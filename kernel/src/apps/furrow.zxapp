@@ -1,0 +1,78 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Furrow, spreadsheets: layer 40 of the matrix. A sheet is one plain text
+# file in the Hoard (files.read, files.write), holding only the cells that
+# hold something (a sparse store): numbers, money in integer minor units at
+# a fixed scale of hundredths, and formulas that sum a range of a column or
+# a row. Nothing is a float: a mean that is not whole is an exact rational
+# (kernel/src/rational, in the model's C). Money is shown and summed, never
+# paid: a sheet is advice only, and anything that moves money goes through
+# the owner in Coffer.
+#
+# Every entry is a general rule other layers (reports, tables, ledgers in
+# rows and columns) may take with "use furrow 1", registered in
+# CONCEPTS.tsv with Furrow as its owner:
+#   range_total    the exact sum of the cells of a range of one column or
+#                  row (FW1), one cell per row with its position and the
+#                  range asked. Critical (the totals shown), so Trebago
+#                  sums from the first cell and KRON from the last: a
+#                  partial sum past 64 bits one way only is held.
+#   money_cell     whole units and hundredths to minor units (FW2).
+#                  Critical (the money shown), so Sutra and KRON: Sutra
+#                  refuses units past s9(16) or cents past s9(2), KRON
+#                  answers: held.
+#   formula_ok     how deep an evaluation has gone and how many cells it
+#                  has referenced, each against its own range (FW3), so Eve
+#                  alone: a cycle or a runaway fan is refused.
+#   cell_record_ok a cell's sparse record in MYRA (^ZXFURROW, FW4).
+#
+# Reuse, nearer the core: a sheet's money in all is coffer.holdings (the
+# exact sum of minor units, refused past 64 bits, FW5). folio.scaled_amount
+# is a quantity in thousandths at a price, rounded, where a money cell is
+# exact whole units and hundredths, so money_cell is a new rule;
+# homestead.device_energy sums by a key equal to one value, where a range
+# is a span of positions.
+#
+# Planned: AWK (line-and-field text reports) stands for range_total, the
+# sum of a column of fields. TeX (typesetting) and PostScript (page
+# description) own laying a sheet out on a page, which has no entry here
+# (printing a sheet is Folio's), so neither is pending.
+zxapp 1
+id     furrow
+name   Furrow
+version 1.0.0
+slot   40
+layer  L1
+matrix 40
+icon   icons/l1/040-furrow.svg
+budget 233
+needs  fs.read
+needs  fs.write
+model  apps/furrow_model.c
+use    coffer 1   # @num.coffer_holdings
+
+provides range_total num pos lo hi cell
+logic    trebago range_total apps/blocks/furrow/range.tb
+logic    kron    range_total apps/blocks/furrow/range.kron
+pending  AWK range_total
+
+provides money_cell num units cents
+logic    sutra money_cell apps/blocks/furrow/money.sutra
+logic    kron  money_cell apps/blocks/furrow/money.kron
+
+provides formula_ok truth depth refs
+logic    eve formula_ok apps/blocks/furrow/formula.eve
+
+provides cell_record_ok truth sheet row col kind value
+logic    myra cell_record_ok apps/blocks/furrow/cell.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check range_total pos=1,2,3,4,5 lo=2,2,2,2,2 hi=4,4,4,4,4 cell=10,20,30,40,50 = 90
+check range_total pos=0,1048576,7 lo=1,1,9 hi=1048576,1048576,3 cell=5,-9223372036854775807,6 = -9223372036854775807
+check range_total pos=1,1,1 lo=1,1,1 hi=1,1,1 cell=9223372036854775807,1,-1 = both
+check money_cell units=0,12,-12,9999999999999999,-9999999999999999 cents=0,34,-34,99,-99 = 0,1234,-1234,999999999999999999,-999999999999999999
+check money_cell units=1,1 cents=0,100 = both
+check formula_ok depth=0,16,17,-1,5,5 refs=0,65536,0,0,65537,-1 = true,true,false,false,false,false
+check cell_record_ok sheet=1,9999,10000,1,1,1,-9999 row=1,9999999,1,10000000,1,1,1 col=1,99999,1,1,100000,1,1 kind=1,9,1,1,1,10,2 value=0,999999999999999999,0,0,0,0,-999999999999999999 = true,true,false,false,false,false,true
+check coffer.holdings balance=123456,-500,0 = 122956

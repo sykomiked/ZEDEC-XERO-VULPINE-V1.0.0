@@ -194,7 +194,11 @@
 #define ALX_SLOT_LOGIC_WEATHERGLASS_WEATHER_CALM 186u /* 490.88 weatherglass.weather_calm */
 #define ALX_SLOT_NUM_WEATHERGLASS_WEEK_TEMPS     187u /* 590.88 weatherglass.week_temps */
 #define ALX_SLOT_NUM_WEATHERGLASS_WIND_KMH_X10   188u /* 590.89 weatherglass.wind_kmh_x10 */
-#define ALX_SLOT__COUNT 188u
+#define ALX_SLOT_LOGIC_FURROW_CELL_RECORD_OK     189u /* 490.89 furrow.cell_record_ok */
+#define ALX_SLOT_LOGIC_FURROW_FORMULA_OK         190u /* 490.90 furrow.formula_ok */
+#define ALX_SLOT_NUM_FURROW_MONEY_CELL           191u /* 590.90 furrow.money_cell */
+#define ALX_SLOT_NUM_FURROW_RANGE_TOTAL          192u /* 590.91 furrow.range_total */
+#define ALX_SLOT__COUNT 192u
 /* clang-format on */
 
 #endif

@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A money cell at a fixed scale (furrow_rules.h FW2), in Sutra: whole
+# units and hundredths to integer minor units, units * 100 + cents, the
+# sign carried by both. units fits s9(16) and cents s9(2), so a larger one
+# is a size error, refused, never cut short; money.kron answers it: held.
+record money-cell
+  units: s9(16)
+  cents: s9(2)
+  amount: s9(18)
+procedure
+  compute amount = units * 100 + cents
+  answer amount

@@ -223,3 +223,7 @@
 186	logic.weatherglass_weather_calm	490.88	weatherglass.weather_calm	base
 187	num.weatherglass_week_temps	590.88	weatherglass.week_temps	base
 188	num.weatherglass_wind_kmh_x10	590.89	weatherglass.wind_kmh_x10	base
+189	logic.furrow_cell_record_ok	490.89	furrow.cell_record_ok	base
+190	logic.furrow_formula_ok	490.90	furrow.formula_ok	base
+191	num.furrow_money_cell	590.90	furrow.money_cell	base
+192	num.furrow_range_total	590.91	furrow.range_total	base

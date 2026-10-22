@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Furrow files one cell in MYRA (furrow_rules.h FW4): a sparse record,
+; kept only for a cell that holds something, under the sheet's number, the
+; row and the column, with its kind (1 a number, 2 money in minor units,
+; 3 a formula) and its value. Furrow asks whether the numbers fit before
+; it keeps them.
+^ZXFURROW(sheet:i4, row:i7, col:i5) = kind:i1! ^ value:i18!

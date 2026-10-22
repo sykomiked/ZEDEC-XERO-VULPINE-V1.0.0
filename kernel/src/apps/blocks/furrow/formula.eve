@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# How far a formula may reach (furrow_rules.h FW3): an evaluation at most
+# 16 formulas deep, and at most 65536 cells referenced in all. Eve checks
+# each value against its own range; the model stops an evaluation the
+# moment either passes, so a cycle or a runaway fan is refused.
+eve furrow
+formula_depth = 0 .. 16
+formula_refs = 0 .. 65536
+
+formula_reach {
+  depth: formula_depth
+  refs: formula_refs
+}

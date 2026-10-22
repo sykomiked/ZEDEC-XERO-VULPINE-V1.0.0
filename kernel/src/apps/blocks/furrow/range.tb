@@ -1,0 +1,14 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A range's total (furrow_rules.h FW1), in Trebago: one cell per row, its
+! position along its line and the range lo..hi asked of it. A cell counts
+! when both 1 + pos - lo and 1 + hi - pos are at least 1, that is when
+! lo <= pos <= hi. The exact sum, added from the first; a partial sum past
+! 64 bits is refused, never wrapped. range.kron adds from the last, so a
+! sum that passes 64 bits one way only is held.
+trebago range_total
+  in  pos(n), lo(n), hi(n), cell(n)
+  out total
+  total = sum(i, max(0, min(1, 1 + pos(i) - lo(i))) * max(0, min(1, 1 + hi(i) - pos(i))) * cell(i))
+end
