@@ -373,7 +373,9 @@
 #define ALX_SLOT_NUM_ISOBAR_STATION_HOUR_HIGH    365u /* 591.78 isobar.station_hour_high */
 #define ALX_SLOT_LOGIC_ISOBAR_WX_OBS_RECORD_OK   366u /* 491.79 isobar.wx_obs_record_ok */
 #define ALX_SLOT_LOGIC_ISOBAR_WX_SITE_NODE_OK    367u /* 491.80 isobar.wx_site_node_ok */
-#define ALX_SLOT__COUNT 367u
+#define ALX_SLOT_LOGIC_LORE_AI_READ_OK           368u /* 491.81 lore.ai_read_ok */
+#define ALX_SLOT_LOGIC_LORE_LEAVE_RECORD_OK      369u /* 491.82 lore.leave_record_ok */
+#define ALX_SLOT__COUNT 369u
 /* clang-format on */
 
 #endif

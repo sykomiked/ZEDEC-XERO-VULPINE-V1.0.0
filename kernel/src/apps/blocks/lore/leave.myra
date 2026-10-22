@@ -1,0 +1,11 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Lore keeps one leave for the companion in MYRA (lore_rules.h LR3):
+; its number (at most 999), the most private kind of space it reaches (0
+; home, 1 office, 2 team, 3 cloudtop, 4 park), how many segments deep its
+; folder is (zxvd's index goes 32 deep), and when it was given and when it
+; expires, in seconds since 1970 (12 digits). The folder's name is text and
+; stays with the model; Lore asks whether the numbers fit before it keeps
+; a leave.
+^ZXLORE(leave:i3) = reach:i1! ^ depth:i2! ^ given:i12! ^ expires:i12!

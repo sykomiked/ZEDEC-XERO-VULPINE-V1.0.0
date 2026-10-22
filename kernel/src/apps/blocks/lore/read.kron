@@ -1,0 +1,1 @@
+(leave>0)&(granted>0)&(room>-1)&room<5

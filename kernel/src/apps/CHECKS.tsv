@@ -545,6 +545,10 @@ lodestone	check witness.kind_count kind=1,1,2,3,1 want=1 = 3
 lodestone	check witness.kind_count kind=1,2 want=1,1 = both
 lodestone	check retort.latency_fastest_ms fastest=3600000,120,95 ms=120,95,300 = 120,95,95
 lodestone	check retort.latency_slowest_ms slowest=0,120,120 ms=120,95,300 = 120,120,300
+lore	check ai_read_ok leave=1,1,0,1,1,1,1,-1 granted=1,1,1,0,1,1,1,1 room=0,4,0,0,-1,5,2,0 = true,true,false,false,false,false,true,false
+lore	check ai_read_ok leave=1,2 granted=1,1 room=0,0 = both
+lore	check leave_record_ok leave=0,999,1000,1,1,1,1,-999 reach=0,9,0,10,0,0,0,-9 depth=0,99,0,0,100,0,0,-99 given=0,999999999999,0,0,0,1000000000000,0,-1 expires=0,999999999999,0,0,0,0,1000000000000,-1 = true,true,false,false,false,false,false,true
+lore	check lockbox.days_left expires=1762592000,1762592000,1762592000 now=1760000000,1762591999,1762592001 = 30,0,0
 margins	check note_size_ok title=1,120,0,121,10,10,10,10,999 content=0,8000,0,0,8001,9999,0,0,0 tags=0,16,0,0,0,0,17,99,0 = true,true,false,false,false,false,false,false,false
 margins	check note_size_ok title=10,10 content=0,-1 tags=0,0 = both
 margins	check note_size_ok title=10,10 content=0,10000 tags=0,0 = both

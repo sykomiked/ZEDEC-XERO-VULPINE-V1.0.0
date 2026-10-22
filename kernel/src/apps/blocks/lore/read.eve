@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# May the AI read this file (lore_rules.h LR1), in Eve. Eve checks each
+# field against its own range, so each part comes as one count: leave, a
+# live leave given (not revoked, not expired), exactly 1; granted, the
+# file's folder under the leave's folder, exactly 1; and room, the file's
+# space kind minus the most private kind the leave reaches (home 0 ..
+# park 4), 0..4, so a file from a more private space than the leave
+# reaches is below 0. read.kron says the same in KRON, which reads any
+# flag above 0 as yes: a flag of 2 is held.
+eve lore
+leave_given = 1 .. 1
+folder_granted = 1 .. 1
+space_room = 0 .. 4
+
+read_rule {
+  leave: leave_given
+  granted: folder_granted
+  room: space_room
+}

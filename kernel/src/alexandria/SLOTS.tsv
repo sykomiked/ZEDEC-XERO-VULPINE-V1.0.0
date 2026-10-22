@@ -402,3 +402,5 @@
 365	num.isobar_station_hour_high	591.78	isobar.station_hour_high	base
 366	logic.isobar_wx_obs_record_ok	491.79	isobar.wx_obs_record_ok	base
 367	logic.isobar_wx_site_node_ok	491.80	isobar.wx_site_node_ok	base
+368	logic.lore_ai_read_ok	491.81	lore.ai_read_ok	base
+369	logic.lore_leave_record_ok	491.82	lore.leave_record_ok	base

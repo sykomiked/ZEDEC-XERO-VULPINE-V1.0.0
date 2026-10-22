@@ -1,0 +1,76 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Lore, your knowledge base: layer 67 of the matrix (AI and the swarm). The
+# owner's notes and files in each space (files.list, files.read), found by
+# name and by the words in them (search.query, search.refresh), and read by
+# the companion (swarm.ask) only with the owner's leave. A leave names one
+# folder, the most private kind of space it reaches (zxvd's order for a
+# crossing, zxv_spaces.h S3: home < office < team < cloudtop < park) and
+# when it expires. The owner reads every file without one; the companion
+# reads a file only when a live leave grants its folder and the file is not
+# from a more private space than the leave reaches. Nothing is sent to the
+# companion before that is checked, and its answer is held until the owner
+# accepts it (zxm.h M3): Lore changes no file (lore_model.h LO1-LO5).
+#
+# Advisory and owner-confirmed: a leave is the owner's act, given and
+# revoked only by the owner; Lore never gives one by itself. zxvd has no
+# method to keep an app's settings without fs.write, which the task does
+# not need, so the leaves live in the model for the session (each checked
+# against its ^ZXLORE record first); the space's kind comes from
+# spaces.get. None of that is invented.
+#
+# Built on what is nearer the core: the days left on a leave are Lockbox's
+# days_left (KRON and C++ as WebAssembly), which already means "whole days
+# before something expires, never below 0"; Lore does not write it again.
+#
+# Nothing leans on this layer yet, but "may the AI read this" is the rule
+# any app that hands the companion the owner's content needs, so ai_read_ok
+# is general and registered in CONCEPTS.tsv with Lore as owner. The leave
+# record is Lore's own.
+#
+# Witness pair of one kind: ai_read_ok is a truth whose parts each come as
+# one count checked against its own range, which is what Eve holds; KRON
+# witnesses it, reading any leave or grant flag above 0 as yes: a flag of
+# 2 is held. The leave record is MYRA's, as the task asks.
+#
+# Kept in C, since no runnable language owns it: whether a path lies under
+# a folder (text), the folder's depth, and reading zxvd's answers.
+#
+# Planned languages: Python already has a runtime (python in
+# LANGUAGE_FIT.tsv), so it is not pending; no entry here is its scripting
+# or model pipeline. Occam (concurrency, channels) and Mathematica
+# (symbolic, formula) own no entry of Lore's kind: the only formula, the
+# days left, is Lockbox's. No pending line.
+zxapp 1
+id     lore
+name   Lore
+version 1.0.0
+slot   67
+layer  L1
+matrix 67
+icon   icons/l1/067-lore.svg
+budget 233
+needs  fs.read
+needs  search
+needs  ai.ask
+model  apps/lore_model.c
+use    lockbox 1   # @num.lockbox_days_left
+
+# May the AI read this file (LR1): a live leave given, the file's folder
+# granted by it, and not from a more private space than it reaches. Eve's
+# ranges, witnessed by KRON; a flag of 2 is held.
+provides ai_read_ok truth leave granted room
+logic    eve  ai_read_ok apps/blocks/lore/read.eve
+logic    kron ai_read_ok apps/blocks/lore/read.kron
+
+# A leave's record (LR3), ^ZXLORE in MYRA.
+provides leave_record_ok truth leave reach depth given expires
+logic    myra leave_record_ok apps/blocks/lore/leave.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check ai_read_ok leave=1,1,0,1,1,1,1,-1 granted=1,1,1,0,1,1,1,1 room=0,4,0,0,-1,5,2,0 = true,true,false,false,false,false,true,false
+check ai_read_ok leave=1,2 granted=1,1 room=0,0 = both
+check leave_record_ok leave=0,999,1000,1,1,1,1,-999 reach=0,9,0,10,0,0,0,-9 depth=0,99,0,0,100,0,0,-99 given=0,999999999999,0,0,0,1000000000000,0,-1 expires=0,999999999999,0,0,0,0,1000000000000,-1 = true,true,false,false,false,false,false,true
+# A leave given for 30 days at 1760000000, seen then, a second before it ends, and after
+check lockbox.days_left expires=1762592000,1762592000,1762592000 now=1760000000,1762591999,1762592001 = 30,0,0
