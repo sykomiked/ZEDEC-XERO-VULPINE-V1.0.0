@@ -337,6 +337,7 @@ static void pal_state_dir(char *out, size_t cap)
     snprintf(out, cap, "%s\\ZXV", app);
     CreateDirectoryA(out, NULL);
     snprintf(out, cap, "%s\\ZXV\\net", app);
+    CreateDirectoryA(out, NULL);
 #else
     const char *home = getenv("HOME");
 #    if defined(__APPLE__)

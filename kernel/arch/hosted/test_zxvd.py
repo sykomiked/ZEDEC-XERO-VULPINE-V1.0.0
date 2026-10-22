@@ -568,8 +568,11 @@ def name_checks(c, env):
           r['error']['message'].startswith('CHGN_E_LOCKED:'),
           'the name can never change (%s)' % r)
     # the host's state folder (zxv_host.c pal_state_dir): XDG on Linux, the app folder on macOS
+    # and Windows
     if sys.platform == 'darwin':
         rec = os.path.join(env['HOME'], 'Library', 'Application Support', 'ZXV', 'net', 'chiglet_name')
+    elif WINDOWS:
+        rec = os.path.join(env['APPDATA'], 'ZXV', 'net', 'chiglet_name')
     else:
         rec = os.path.join(env['XDG_DATA_HOME'], 'zxv', 'net', 'chiglet_name')
     check(os.path.isfile(rec) and os.path.getsize(rec) == 79 and open(rec, 'rb').read(4) == b'ZXCN',
@@ -1079,6 +1082,9 @@ def main(binary, gguf=None):
     run = os.path.join(home, 'run')
     sock = os.path.join(run, 'zxvd.sock')
     env = dict(os.environ, HOME=home, XDG_DATA_HOME=os.path.join(home, 'xdg'))
+    if WINDOWS:  # the state folder is %APPDATA%\ZXV\net there; keep it in the test's home
+        env['APPDATA'] = os.path.join(home, 'appdata')
+        os.mkdir(env['APPDATA'])
 
     # a path that exists and is not a socket is never replaced
     os.mkdir(run, 0o700)
