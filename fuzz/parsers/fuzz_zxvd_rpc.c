@@ -3,8 +3,9 @@
 /* fuzz_zxvd_rpc.c — zxvd's JSON-RPC request handler (kernel/arch/hosted/
  * zxvd_rpc.c, zxvd_rpc_handle_line) against the real libzxv books and a stub
  * host, without a socket. The books are reopened fresh for every input, with
- * one issuer (account 0) and two holders (1, 2) in VFV, the issuer funding
- * holder 1 with 1000000.
+ * one issuer (account 0) and two holders (1, 2) in SWC, the books' own
+ * unit (zxvd_rpc.h E6: no VFV here), the issuer funding holder 1 with
+ * 1000000.
  *
  * Byte 0 picks the mode:
  *   0  lines: the rest is split on LF, each line handed to handle_line
@@ -179,16 +180,16 @@ static void books_fresh(void)
     zxvd_rpc_books_close();
     if (zxvd_rpc_books_open() != 0) abort();
     if (!calls("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ledger.open_account\",\"params\":{"
-               "\"name\":\"iss\",\"currency\":\"VFV\",\"kind\":\"issuer\"}}")
+               "\"name\":\"iss\",\"currency\":\"SWC\",\"kind\":\"issuer\"}}")
              .ok ||
         !calls("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ledger.open_account\",\"params\":{"
-               "\"name\":\"h1\",\"currency\":\"VFV\"}}")
+               "\"name\":\"h1\",\"currency\":\"SWC\"}}")
              .ok ||
         !calls("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ledger.open_account\",\"params\":{"
-               "\"name\":\"h2\",\"currency\":\"VFV\"}}")
+               "\"name\":\"h2\",\"currency\":\"SWC\"}}")
              .ok ||
         !calls("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ledger.post\",\"params\":{\"from\":0,"
-               "\"to\":1,\"amount_minor\":1000000,\"currency\":\"VFV\",\"reference\":\"seed\"}}")
+               "\"to\":1,\"amount_minor\":1000000,\"currency\":\"SWC\",\"reference\":\"seed\"}}")
              .ok)
         abort();
     snap(g_eq);
@@ -255,7 +256,7 @@ static void mode_amount(fz_in *in)
     char req[600];
     int rn = snprintf(req, sizeof req,
                       "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"ledger.post\",\"params\":{"
-                      "\"from\":%u,\"to\":%u,\"amount_minor\":%.*s,\"currency\":\"VFV\","
+                      "\"from\":%u,\"to\":%u,\"amount_minor\":%.*s,\"currency\":\"SWC\","
                       "\"reference\":\"f%u\"}}",
                       (unsigned) from, (unsigned) to, (int) an, amt, ++g_ref);
     if (rn < 0 || (size_t) rn >= sizeof req) return;
@@ -384,8 +385,8 @@ static const char *const FR_P[] = {
     "\"amount_minor\":\"7\"", "\"amount_minor\":-1", "\"amount_minor\":9223372036854775807",
     "\"amount_minor\":\"-9223372036854775808\"", "\"amount_minor\":1.0", "\"amount_minor\":1E2",
     "\"amount_minor\":\"0x10\"", "\"amount_minor\":\" 5\"", "\"amount_minor\":\"+5\"",
-    "\"amount_minor\":\"\\u0035\"", "\"amount_minor\\u0000\":6", "\"currency\":\"VFV\"",
-    "\"currency\":\"VFV\\u0000\"", "\"reference\":\"r\"", "\"account\":1", "\"account\":4294967296",
+    "\"amount_minor\":\"\\u0035\"", "\"amount_minor\\u0000\":6", "\"currency\":\"SWC\"",
+    "\"currency\":\"SWC\\u0000\"", "\"reference\":\"r\"", "\"account\":1", "\"account\":4294967296",
     "\"prompt\":\"\\ud83d\\ude00\\u0001\"", "\"peer\":\"p\"", "\"max_price_minor\":7",
     "\"max_price_minor\":\"-1\"", "\"price_minor\":18446744073709551615", "\"command\":\"lan\"",
     "\"x\":[[[[[[[[[[[[1]]]]]]]]]]]]", "\"amount_minor\":{\"a\":1}",

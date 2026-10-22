@@ -31,6 +31,18 @@
  *   HD5 HEADLESS. cfg.headless draws into the desktop's own surface with no
  *       present layer, and events come only from zxv_desktop_feed: tests
  *       render the real desktop without a display.
+ *   HD6 THE APP LIBRARY. The rail's Apps tile shows every app of the
+ *       catalogue with its vector icon (zui_applib over the window area,
+ *       read from the ZXAP pack zui_apps checks); the rail's own apps wear
+ *       their catalogue icons. Typing searches while it shows; an app on the
+ *       rail opens its window, any other opens its card (zui_applib AL5).
+ *       With no pack the rail keeps its letter marks and the tile says so in
+ *       the bar's status.
+ *   HD7 SCHEMES. One colour set (zui_palette.h: dark, light, high contrast)
+ *       paints the desk, its windows, the dock, the library, the cards,
+ *       Spaces and every app view; cfg.scheme or $ZXV_SCHEME ("dark",
+ *       "light", "high-contrast") picks it at open, zxv_desktop_set_scheme
+ *       at any time. Dark is the default and draws the tokens unchanged.
  */
 #ifndef ZXV_DESKTOP_H
 #define ZXV_DESKTOP_H
@@ -38,6 +50,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "zui_applib.h"
 #include "zui_desk.h"
 #include "zui_present.h"
 #include "zui_widget.h"
@@ -49,6 +62,11 @@ typedef struct {
                             assets/fonts/ascw-golden/ASCW-Golden-Latin2.ttf  */
     const char *mono;    /* NULL: $ZXV_MONO, then ASCW-Golden-Mono.ttf beside
                             the font, then the font itself                   */
+    const char *apps;    /* HD6: the app pack; NULL: $ZXV_APPS, then the
+                            repo's assets/icons/apps/zxv-apps.zxap, then
+                            zxv-apps.zxap beside the font or in ../Icons    */
+    const char *scheme;  /* HD7: "dark", "light", "high-contrast"; NULL:
+                            $ZXV_SCHEME, then dark                         */
     const char *title;   /* the window's title; NULL: "ZXV"          */
     int32_t w_pt, h_pt;  /* the window, points; 0: 1180 x 780         */
     bool headless;       /* HD5: no present layer                     */
@@ -93,6 +111,16 @@ void zxv_desktop_feed(zxv_desktop_t *d, const zui_event_t *e);
 const zui_surface_t *zxv_desktop_surface(const zxv_desktop_t *d);
 zui_desk_t *zxv_desktop_desk(zxv_desktop_t *d);
 zui_present_t *zxv_desktop_present(zxv_desktop_t *d);
+/* HD7 */
+void zxv_desktop_set_scheme(zxv_desktop_t *d, zui_scheme_t scheme);
+zui_scheme_t zxv_desktop_scheme(const zxv_desktop_t *d);
+
+/* HD6: the app library (NULL when no pack loaded), whether it shows, and
+ * the card window of catalogue app i (opened as choosing it does; its id). */
+zui_applib_t *zxv_desktop_library(zxv_desktop_t *d);
+bool zxv_desktop_library_open(const zxv_desktop_t *d);
+uint32_t zxv_desktop_choose(zxv_desktop_t *d, uint32_t i);
+
 /* HD4: the chosen space (0 Home .. 4 Park) and whether Spaces is showing. */
 uint32_t zxv_desktop_space(const zxv_desktop_t *d);
 bool zxv_desktop_in_spaces(const zxv_desktop_t *d);

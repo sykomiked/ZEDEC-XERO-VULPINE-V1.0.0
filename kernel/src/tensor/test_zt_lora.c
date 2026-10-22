@@ -10,9 +10,10 @@
  * adapter or none, without disturbing each other; bad adapters are refused.
  *
  *   gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc/tensor src/tensor/test_zt_lora.c \
- *       src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c \
- *       src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c \
- *       src/tensor/zt.c -lpthread -o /tmp/test_zt_lora && /tmp/test_zt_lora
+ *       src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c \
+ *       src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c \
+ *       src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c \
+ *       -lpthread -o /tmp/test_zt_lora && /tmp/test_zt_lora
  */
 #include <stdio.h>
 #include <stdlib.h>

@@ -9,7 +9,11 @@
  * the same IR, and a randomly damaged pack is refused or still verifies.
  * Run under ASan + UBSan.
  *
- * Usage: fuzz_zl [iterations] [seed] */
+ * Usage: fuzz_zl [iterations] [seed] [golden-dir]
+ * Every program in golden-dir (except .out and .in files) joins the
+ * built-in seeds, so a new front-end's goldens are fuzzed without editing
+ * this file. */
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,6 +42,117 @@ static const char *const seeds[] = {
     "; 10 F .\n"
     ": W BEGIN DUP WHILE DUP . 1- REPEAT DROP ; 4 W .\" done\" 42 EMIT\n: U 0 BEGIN 1+ DUP 5 = "
     "UNTIL ; U . 5 ?DUP . .\n",
+    "{$mode iso}\nprogram fz(input, output);\nconst k = -3; t = true;\nvar i, n: integer; b: "
+    "boolean; a: array[-2..4] of integer;\nprocedure p(x: integer; var y: integer);\nvar w: "
+    "array[0..2] of integer;\n  procedure q; begin y := y + x; w[1] := y end;\nbegin q; q; "
+    "writeln(y:4, w[1] mod 5) end;\nfunction f(m: integer): integer;\nbegin if m <= 0 then f "
+    ":= 1 else f := m * f(m - 1) end;\nbegin\n  read(n); for i := -2 to 4 do a[i] := sqr(i) "
+    "div 2;\n  i := 0; repeat i := succ(i) until (i > 3) or odd(i * k);\n  while n > 0 do begin "
+    "p(n, a[n]); n := n - 2 end;\n  case abs(k) of 1, 2: b := t; 3: b := not t and (n < 0) "
+    "end;\n  if b then writeln('yes', f(5):6, -maxint div 7) else write(ord(b), pred(i));\n  "
+    "(* done *) writeln(a[4], true:3, 'end':2)\nend.\n",
+    "begin comment fuzz seed; integer i, s; Boolean b; integer array a[0:4];\n"
+    "  integer procedure f(x, y); value x; integer x, y;\n"
+    "    f := if x > 0 then x * y + f(x - 1, y) else 0;\n"
+    "  procedure p(n); value n; integer n;\n"
+    "  begin integer array c[1:n]; c[n] := n; s := s + c[n] end;\n"
+    "  for i := 0 step 1 until 4, 7 while i > 9 do a[i] := i ^ 2 % 3 - 1;\n"
+    "  b := !(s = 0) | a[1] <= 2 -> s != 3 == true; ininteger(0, s);\n"
+    "  L: if b & s < 10 then begin s := s + f(2, i); goto L end else p(3);\n"
+    "  outinteger(1, s); outstring(1, \"ok\\n\")\n"
+    "end\n",
+    ";;; fuzz seed\n(defvar *l* '(3 1 (2 . x) s))\n(defun f (n acc) (if (zerop n) acc "
+    "(f (1- n) (cons n acc))))\n"
+    "(print (f 4 nil)) (print (length *l*)) (print (assoc 2 (cddr *l*)))\n(let ((a 1) b) (setq b "
+    "(+ a 2)) (prin1 (list a b)))\n"
+    "(dotimes (i 3) (princ i)) (terpri)\n(labels ((g (x) (if (> x 9) x (g (* x 2))))) (print (g "
+    "1)))\n"
+    "(cond ((evenp 3) (print 'e)) (t (print (mod -7 3)))) (when (equal '(1) (list 1)) (print "
+    "t))\n",
+    ";;; fuzz seed\n(define l '(3 1 (2 . x) s))\n(define (f n acc) (if (= n 0) acc (f (- n "
+    "1) (cons n acc))))\n"
+    "(display (f 4 '())) (newline) (display (length l)) (write (assv 2 (cddr l)))\n(let* ((a 1) "
+    "(b (+ a 2))) (set! a b) (display (list a b)))\n"
+    "(do ((i 0 (+ i 1))) ((= i 3)) (display i)) (newline)\n(let loop ((x 1)) (if (> x 9) "
+    "(display x) (loop (* x 2))))\n"
+    "(cond ((even? 3) (display 'e)) (else (display (modulo -7 3)))) (if (equal? '(1) (list 1)) "
+    "(display #t))\n",
+    "; fuzz seed\nto f :n\nif :n < 2 [output 1]\noutput :n * f :n - 1\nend\n"
+    "to g :l\nlocal \"k\nmake \"k 0\nwhile [not emptyp :l] [make \"k :k + first :l make \"l bf "
+    ":l]\noutput :k\nend\n"
+    "make \"x [1 [2 a] -3]\nrepeat 3 [type repcount (print f 3 (sum 1 2 3) -(count :x))]\n"
+    "for [i 5 1 -2] [ifelse :i > 2 [show lput :i :x] [print se :x item 2 :x]]\n"
+    "print (g [4 5 6]) = 15\nprint or memberp 2 [1 2] \"false\nshow (list modulo -7 3 remainder 7 "
+    "-2 7 / 7)\n",
+    "(* fuzz seed *)\nfun f (0, a) = a\n  | f (n, a) = f (n - 1, a + n mod 3)\nfun g [] = 0 | g (x "
+    ":: r) "
+    "= x * 2 + g r\nval l = [3, ~4] @ rev [1, 2]\n"
+    "val _ = print (Int.toString (f (9, 0)) ^ \" \" ^ Int.toString (g l div ~3) ^ \"\\n\")\n"
+    "val _ = print (Bool.toString (1 :: tl l = l andalso not (null l)) ^ Int.toString (case hd l "
+    "of "
+    "3 => Int.quot (~7, 2) | n => Int.min (n, 2)))\n"
+    "fun h x y = let val z = x * y in if z > 10 orelse z < ~10 then z else h (x + 1) y end;\nh 2 "
+    "3;\n",
+    "(* fuzz seed *)\nlet rec f n a = if n = 0 then a else f (n - 1) (a + n mod 3)\n"
+    "let rec g = function [] -> 0 | x :: r -> x * 2 + g r\nlet l = [3; -4] @ List.rev [1; 2]\n"
+    "let () = Printf.printf \"%d %d %b\\n\" (f 9 0) (g l / -3) (1 :: List.tl l = l && l <> [])\n"
+    "let h x y = match x, y with 0, _ -> min y 2 | a, b when a < b -> max a 7 * b | _ -> -x\n"
+    "let () = print_int (h 1 2); print_newline (); if h 0 5 > 1 then print_string \"big\"\n;;\n"
+    "print_endline (string_of_int (let q, r = 17 / 5, 17 mod -5 in q * r))\n",
+    ";;; fuzz seed\n(defvar *l* '(3 1 (2 . x) s))\n(defun k (n) (case n (0 'z) ((1 2) 'low) "
+    "(otherwise 'hi)))\n(print (list (k 0) (k 2) (k 9))) (print (first (rest *l*)))\n"
+    "(setf *l* (cddr *l*)) (format t \"~a ~d~%\" *l* (length *l*))\n",
+    "#lang racket\n;;; fuzz seed\n(define l '(3 1 (2 . x) s))\n(define (f n acc) (if (= n 0) "
+    "acc (f (sub1 n) (cons n acc))))\n(f 4 empty) (length l) (assv 2 (cddr l))\n"
+    "(let loop ([x 1]) (if (> x 9) x (loop (* x 2))))\n(printf \"~a ~s ~v~n\" (first l) 'q "
+    "(rest l))\n(define (w n) (when (> n 0) (displayln n) (w (- n 1))))\n(w 2) (cons? null)\n",
+    ";; fuzz seed\n(def l '(3 1 (2 nil) s))\n(defn f [n acc] (if (zero? n) acc (recur (dec n) "
+    "(conj acc n))))\n(println (f 4 nil) (count l) (first (next l)))\n(let [a 1, b (inc a)] "
+    "(prn \"x\" a b))\n(println (loop [x 1] (if (> x 9) x (recur (* x 2)))))\n(println (cond "
+    "(= 1 2) 'a :else (and 1 nil)) (or false 3))\n(dotimes [i 2] (print i \"\")) (newline)\n",
+    "% fuzz seed\n:- initialization(main).\nlen([], 0).\nlen([_|T], N) :- len(T, M), N is M + 1.\n"
+    "p(1, a). p(2, 'B c'). p(X, f(X, [X])) :- integer(X), X > 2, !.\n"
+    "q(X) :- ( X =:= 0 -> true ; X < 0 ; \\+ X = 7 ), X \\== y.\n"
+    "main :- len([a, b|[c]], N), write(N), nl, findall(K-V, p(K, V), L), print(L), nl,\n"
+    "    forall(between(-1, 2, I), (q(I) -> write(I) ; write(-I))), nl,\n"
+    "    ( member(X, [3, 9]), Y is X * X mod 7 // 2 - min(X, 4) ^ 2, Y > 0 -> true ; Y = none ),\n"
+    "    format(\"~w ~a ~d~n\", [f(- 1, 'x y', {a}), abc, 42]), writeq(Y), nl, append(A, [B], [1, "
+    "2]),\n"
+    "    length(A, LA), writeq(A/B/LA), nl.\n",
+    "// fuzz seed\nprogram Fz;\n{$APPTYPE CONSOLE}\nconst K = $1F;\nvar A: array[1..4] of Integer; "
+    "I, N: Integer; B: Boolean;\nfunction F(M: Integer): Integer;\n  procedure Bump; begin "
+    "Inc(Result, M) end;\nbegin Result := 0; if M <= 0 then Exit(1); Bump; Result := Result * "
+    "F(M - 1) end;\nvar T: Integer;\nbegin\n  read(N); for I := 1 to 4 do A[I] := I xor K and 6;\n"
+    "  T := 0; while T < 9 do begin Inc(T, 2); if Odd(T div 3) then Continue; if T > 6 then Break "
+    "end;\n  case -7 mod 3 of -1..0: B := not (T > 3); 1: B := True else Dec(T) end;\n  "
+    "WriteLn(F(4), "
+    "' ', T:3, B, -A[2] or 5, not 0);\nend.\n",
+    "(* fuzz (* seed *) *)\nMODULE Fz;\nFROM InOut IMPORT WriteInt, WriteString, WriteLn;\nCONST K "
+    "= "
+    "-3;\nVAR a: ARRAY [-2..2] OF INTEGER; i, n: INTEGER; b: BOOLEAN;\nPROCEDURE F(m: INTEGER): "
+    "INTEGER;\nVAR s: INTEGER;\n  PROCEDURE Add(k: INTEGER); BEGIN INC(s, k * m) END Add;\nBEGIN "
+    "s := 0; IF m <= 0 THEN RETURN 1 END; Add(2); RETURN s + F(m - 1) END F;\nBEGIN\n  FOR i := "
+    "-2 TO 2 BY 2 DO a[i] := i * K DIV 2 END;\n  n := 0; LOOP INC(n, 3); IF n > 9 THEN EXIT "
+    "ELSIF ODD(n) THEN DEC(n) END END;\n  CASE n MOD 5 OF 0..1: b := ~(n # 3) | 2, 4: b := TRUE "
+    "& (a[-2] < 0) ELSE b := FALSE END;\n  REPEAT n := n DIV 2 UNTIL n < 2;\n  WHILE n < 4 DO "
+    "INC(n) END;\n  IF b OR NOT (n = 4) THEN WriteString(\"y\") END; WriteInt(F(3), 4); "
+    "WriteInt(MAX(INTEGER), 0); WriteLn\nEND Fz.\n",
+    "(* fuzz seed *)\nMODULE Fo;\nIMPORT Out;\nCONST K = 5;\nVAR a: ARRAY K OF INTEGER; i, n: "
+    "INTEGER; b: BOOLEAN;\nPROCEDURE F(m: INTEGER): INTEGER;\nVAR r: INTEGER;\nBEGIN IF m <= 0 "
+    "THEN r := 1 ELSE r := m * F(m - 1) END\nRETURN r\nEND F;\nPROCEDURE G(VAR x, y: INTEGER);\n"
+    "BEGIN WHILE x > y DO DEC(x, y) ELSIF y > x DO DEC(y, x) END END G;\nBEGIN\n  n := K;\n"
+    "  FOR i := 0 TO n - 1 BY 2 DO a[i] := -i DIV 2; n := 4 END;\n  i := 84; n := 36; G(i, n);\n"
+    "  CASE i MOD 4 OF 0..1: b := ~(i # 12) | 2, 3: b := FALSE END;\n  REPEAT INC(n) UNTIL n > "
+    "13;\n"
+    "  IF b OR (a[2] < 0) THEN Out.String(\"y\") END; Out.Int(F(5), 5); Out.Char(\"!\"); Out.Ln\n"
+    "END Fo.\n",
+    "-- fuzz seed\nf :: Int -> Int -> Int\nf 0 a = a\nf n a\n  | even n = f (n - 1) (a + n `mod` "
+    "3)\n"
+    "  | otherwise = f (n - 1) (a - 1)\ng :: [Int] -> Int\ng [] = 0\ng (x:r) = x * 2 + g r\n"
+    "main :: IO ()\nmain = do\n  let l = [3, -4] ++ reverse [1 .. 2]\n  print (f 9 0, g l `div` "
+    "(-3), l !! 1)\n"
+    "  putStrLn (\"x\" ++ show (case l of { [] -> 0; (y:_) -> quot (-7) y }) ++ show (take 2 l))\n"
+    "  if null l then return () else print (sum l ^ 2, maximum l, elem 3 l)\n  where h = 1\n",
 };
 
 static const char *const dict[] = {
@@ -125,6 +240,19 @@ static const char *const dict[] = {
     "(1:2)",
     "EMIT ",
     ".\" x\" ",
+    ":- ",
+    "->",
+    "\\+ ",
+    "[",
+    "]",
+    "|",
+    "_",
+    " is ",
+    "=:=",
+    "findall(",
+    "format(\"~w~n\", [",
+    "'a b'",
+    "0'a",
 };
 
 static uint64_t rng;
@@ -181,13 +309,46 @@ static size_t mutate(size_t n)
     return n;
 }
 
+enum { NPOOL = 512 };
+static const char *pool[NPOOL];
+static size_t npool;
+
+static void add_golden(const char *dir)
+{
+    DIR *dp = opendir(dir);
+    if (!dp) {
+        fprintf(stderr, "fuzz_zl: cannot open %s\n", dir);
+        exit(2);
+    }
+    for (struct dirent *e; npool < NPOOL && (e = readdir(dp)) != 0;) {
+        size_t l = strlen(e->d_name);
+        if (e->d_name[0] == '.' || (l > 4 && !strcmp(e->d_name + l - 4, ".out")) ||
+            (l > 3 && !strcmp(e->d_name + l - 3, ".in")))
+            continue;
+        char path[1024];
+        snprintf(path, sizeof path, "%s/%s", dir, e->d_name);
+        FILE *f = fopen(path, "rb");
+        if (!f) continue;
+        char *t = calloc(1, sizeof buf / 2 + 1);
+        size_t n = t ? fread(t, 1, sizeof buf / 2, f) : 0;
+        fclose(f);
+        if (n && n < sizeof buf / 2)
+            pool[npool++] = t;
+        else
+            free(t);
+    }
+    closedir(dp);
+}
+
 int main(int argc, char **argv)
 {
     long iters = argc > 1 ? atol(argv[1]) : 20000;
     rng = argc > 2 ? strtoull(argv[2], 0, 10) * 0x9E3779B97F4A7C15ull + 1 : 1;
     long accepted = 0, twin_ok = 0, ran_ok = 0, trapped = 0;
+    for (size_t i = 0; i < sizeof seeds / sizeof seeds[0]; i++) pool[npool++] = seeds[i];
+    if (argc > 3) add_golden(argv[3]);
     for (long it = 0; it < iters; it++) {
-        const char *seed = seeds[rnd(3)];
+        const char *seed = pool[rnd((uint32_t) npool)];
         size_t n = strlen(seed);
         memcpy(buf, seed, n);
         if (rnd(8) == 0) { /* sometimes pure noise */
@@ -220,7 +381,7 @@ int main(int argc, char **argv)
             s = zl_run(&p1, &run);
             if (s == ZL_OK)
                 ran_ok++;
-            else if (s <= -2620 && s >= -2629)
+            else if (s <= -2620 && s >= -2631)
                 trapped++;
             else
                 die("run returned a non-trap status", lang, n);

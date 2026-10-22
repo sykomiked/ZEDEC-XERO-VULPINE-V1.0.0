@@ -46,7 +46,7 @@ INC="$(sh "$HERE/build_zxv_desktop.sh" --list incs | sed "s|^|-I$R/|")"
 # ---- 1. headless
 # shellcheck disable=SC2086
 if ! "$CC" -std=c11 -O1 -Wall -Wextra -Werror -DZUI_HAVE_VULKAN=0 -DZUI_HAVE_X11=0 $INC \
-    "$HERE/test_zxv_desktop.c" $SRC -lm -o "$T/test_zxv_desktop" >"$T/build.log" 2>&1; then
+    "-DZXV_APPS_DIR=\"$R/assets/icons/apps\"" "$HERE/test_zxv_desktop.c" $SRC -lm -o "$T/test_zxv_desktop" >"$T/build.log" 2>&1; then
     grep -v "Assembler messages\|incorrect section attributes" "$T/build.log" | tail -20
     echo "[FAIL] test_zxv_desktop: build"
     exit 3

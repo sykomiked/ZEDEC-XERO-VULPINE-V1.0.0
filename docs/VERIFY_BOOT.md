@@ -17,6 +17,11 @@ git clone https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0.git
 cd ZEDEC-XERO-VULPINE-V1.0.0
 ```
 
+To download the finished discs instead of building them, run
+`tools/zxv-get` from the clone. It fetches the core disc for your machine and
+all swarm discs from the release bucket and checks every one
+([BAREMETAL.md](BAREMETAL.md#the-bucket-and-downloading-the-discs)).
+
 ## 2. Install the tools
 
 **Easiest, on any OS: Docker only.** Install

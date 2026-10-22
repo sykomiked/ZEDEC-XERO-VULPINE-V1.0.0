@@ -1,6 +1,6 @@
 # Wave 18 task: Cirque (slot 227), Building drawings
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 3 (039 folio); wave 4 (054 burin); wave 5 (060 relief); wave 8 (107 gnomon).
+Depends on: wave 3 (060 relief), wave 6 (039 folio), wave 7 (054 burin), wave 9 (107 gnomon).
 Manifest: `slot 227`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/227-cirque.svg`, `budget 233`, model `apps/cirque_model.{h,c}`, blocks under kernel/src/apps/blocks/cirque/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Draws buildings from plan to 3D, checks measurements and produces drawing sets: projects in the Hoard (`files.read`, `files.write`), sets printed (`print.submit`, `print.status`).
 Uses: `use relief 1` (vertex transform, depth effect offsets, mesh volume); `use burin 1` (curve flattening and hatch lines); `use gnomon 1` (twice a polygon's area); `use folio 1` (page fit). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).
@@ -15,4 +15,5 @@ Paraconsistent (BOTH test, in test_zxapp.c): designer A draws a wall at 4200 mm 
 Safety: Load figures and code checks are advisory; a qualified person signs the drawings.
 Integers only: no float or double anywhere; a division that is not whole uses kernel/src/rational in C.
 needs: fs.read, fs.write, print.
-Planned (no runtime yet): Logo, Julia, Bash.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/cirque/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Julia, Bash.

@@ -1,0 +1,78 @@
+{
+  "test": "T4 profile",
+  "machine": {
+    "system": "Linux",
+    "machine": "x86_64",
+    "node": "vm",
+    "cpus": 4
+  },
+  "conf": "# Tiamat harness H1 (kernel/arch/hosted/zxv_tiamat.h); written by\n# tools/tiamat/make_h1_config.py from docs/release/swarm_model_manifest.json\nslot 0 /tmp/claude-0/models/qwen2.5-1.5b-instruct-q4_k_m.gguf\nslot 1 /tmp/claude-0/models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf\nslot 2 /tmp/claude-0/models/smollm2-1.7b-instruct-q4_k_m.gguf\n# Spinewyrm: Qwen/Qwen2.5-1.5B-Instruct by Qwen team, Alibaba Cloud (Apache-2.0)\ncell Spinewyrm 0 qwen -\n# Codelindworm: Qwen/Qwen2.5-Coder-1.5B-Instruct by Qwen team, Alibaba Cloud (Apache-2.0)\ncell Codelindworm 1 qwen - code python function program script bug compile javascript rust sql regex c++\n# Vouchwyvern: HuggingFaceTB/SmolLM2-1.7B-Instruct by Hugging Face (SmolLM / SmolVLM team) (Apache-2.0)\ncell Vouchwyvern 2 smollm - check verify\nlog /tmp/claude-0/h1/t2_h1_log.jsonl\n",
+  "first_answer_seconds": {
+    "after_last_read": 2.8,
+    "warm": 2.7
+  },
+  "batch_1": {
+    "seconds": 43.4,
+    "peak_rss_bytes": 3144093696,
+    "answered": 10,
+    "hashes": [
+      "2f87896380b672337be9ed842680396d650193dbfe93fbc80300e83ed9a02928",
+      "3578b6cf6170fe5ed4a5923e738d9775c6c6fd1dfeb3d401caf05bf6a82155b7",
+      "354b6c0320b1d6e19865d7298d3eaa9623e1057e9ff7e447e08d161a02541510",
+      "8edf6f6e29a3459daacc688f1443a609b68c60f5c871d72a345c37c5b28cd16c",
+      "3f0beb40bd2bac008096252050b5d524b7677a4969e68e5512dd2802d51b43d9",
+      "b3994b7d4bc330f3ddf1548e89764d42444d5f6117816b27f7b36f6f0470f80f",
+      "a8e34640f19bbbf813a4c8f0980f977bdf5cc5e15341c49ae1da801d55afb713",
+      "e44e74a7844242fb971b610c5353d00b508b15d9f83a9632f1e2bac578fc3e24",
+      "eb5994e02d59f7b0dfefd7d7959460d469458f6a14650e099353376d0ed3f927",
+      "e4d86850fb2f8be4c3c12b936e11c2be129c1558e8e5a756aae5703e0c9440ba"
+    ]
+  },
+  "batch_2": {
+    "seconds": 44.6,
+    "peak_rss_bytes": 3144196096,
+    "answered": 10,
+    "hashes": [
+      "2f87896380b672337be9ed842680396d650193dbfe93fbc80300e83ed9a02928",
+      "3578b6cf6170fe5ed4a5923e738d9775c6c6fd1dfeb3d401caf05bf6a82155b7",
+      "354b6c0320b1d6e19865d7298d3eaa9623e1057e9ff7e447e08d161a02541510",
+      "8edf6f6e29a3459daacc688f1443a609b68c60f5c871d72a345c37c5b28cd16c",
+      "3f0beb40bd2bac008096252050b5d524b7677a4969e68e5512dd2802d51b43d9",
+      "b3994b7d4bc330f3ddf1548e89764d42444d5f6117816b27f7b36f6f0470f80f",
+      "a8e34640f19bbbf813a4c8f0980f977bdf5cc5e15341c49ae1da801d55afb713",
+      "e44e74a7844242fb971b610c5353d00b508b15d9f83a9632f1e2bac578fc3e24",
+      "eb5994e02d59f7b0dfefd7d7959460d469458f6a14650e099353376d0ed3f927",
+      "e4d86850fb2f8be4c3c12b936e11c2be129c1558e8e5a756aae5703e0c9440ba"
+    ]
+  },
+  "same_answers_twice": true,
+  "pass_marks": [
+    {
+      "test": "first answer (warm)",
+      "mark": "<= 20.0 s",
+      "value": 2.7,
+      "pass": true
+    },
+    {
+      "test": "resident peak",
+      "mark": "<= 4000000000 bytes",
+      "value": 3144196096,
+      "pass": true
+    },
+    {
+      "test": "every question answered",
+      "mark": "10 of 10, twice",
+      "value": [
+        10,
+        10
+      ],
+      "pass": true
+    },
+    {
+      "test": "same answers on the same machine",
+      "mark": "all 10 hashes equal",
+      "value": true,
+      "pass": true
+    }
+  ]
+}

@@ -158,6 +158,11 @@ static bool usable(const zui_ui_t *ui, zui_id_t id)
     if (w->kind == ZUI_W_FIELD && w->u.field.readonly && w->parent != ZUI_NONE &&
         ui->w[w->parent].kind == ZUI_W_HELD)
         return false;
+    if (ui->modal != ZUI_NONE) { /* zui_widget.h W9: only inside the open dialog */
+        zui_id_t p = id;
+        while (p != ZUI_NONE && p != ui->modal) p = ui->w[p].parent;
+        if (p == ZUI_NONE) return false;
+    }
     if (w->r.w <= 0 || w->r.h <= 0) return false;
     /* on screen */
     return w->r.x < (int32_t) ui->screen.px_w && w->r.y < (int32_t) ui->screen.px_h &&

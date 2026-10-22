@@ -1,0 +1,52 @@
+# T2 fact set: QUESTION<TAB>RIGHT ANSWER<TAB>WRONG ANSWER<TAB>REGEX a right reply matches (case-insensitive)
+# Written by hand for tools/tiamat/TEST_PLAN.md T2, 2026-10-15. Never used for training.
+What is the capital of Australia?	The capital of Australia is Canberra.	The capital of Australia is Sydney.	canberra
+Who wrote Pride and Prejudice?	Jane Austen wrote Pride and Prejudice.	Charles Dickens wrote Pride and Prejudice.	austen
+How many legs does a spider have?	A spider has eight legs.	A spider has six legs.	\b(eight|8)\b
+What is the largest planet in the solar system?	Jupiter is the largest planet in the solar system.	Mars is the largest planet in the solar system.	jupiter
+What is the chemical symbol for gold?	The chemical symbol for gold is Au.	The chemical symbol for gold is Ag.	\bau\b
+Who painted the Mona Lisa?	Leonardo da Vinci painted the Mona Lisa.	Vincent van Gogh painted the Mona Lisa.	leonardo|da vinci
+What gas do plants absorb from the air for photosynthesis?	Plants absorb carbon dioxide.	Plants absorb helium.	carbon dioxide|co2|co₂
+What is the freezing point of water in degrees Celsius?	Water freezes at 0 degrees Celsius.	Water freezes at 20 degrees Celsius.	\b0\b|zero
+How many continents are there on Earth?	There are seven continents.	There are twelve continents.	\b(seven|7)\b
+Which planet is known as the Red Planet?	Mars is known as the Red Planet.	Venus is known as the Red Planet.	mars
+What is the capital of France?	The capital of France is Paris.	The capital of France is Lyon.	paris
+Who developed the theory of general relativity?	Albert Einstein developed general relativity.	Isaac Newton developed general relativity.	einstein
+What is the largest ocean on Earth?	The Pacific Ocean is the largest.	The Indian Ocean is the largest.	pacific
+How many days are there in a leap year?	A leap year has 366 days.	A leap year has 360 days.	366
+What is the hardest natural substance?	Diamond is the hardest natural substance.	Granite is the hardest natural substance.	diamond
+In which year did the first person walk on the Moon?	The first Moon walk was in 1969.	The first Moon walk was in 1975.	1969
+What is the capital of Japan?	The capital of Japan is Tokyo.	The capital of Japan is Osaka.	tokyo
+Who wrote Romeo and Juliet?	William Shakespeare wrote Romeo and Juliet.	Christopher Marlowe wrote Romeo and Juliet.	shakespeare
+What is the smallest prime number?	The smallest prime number is 2.	The smallest prime number is 1.	\b(2|two)\b
+How many sides does a hexagon have?	A hexagon has six sides.	A hexagon has eight sides.	\b(six|6)\b
+What is the main language spoken in Brazil?	Portuguese is the main language of Brazil.	Spanish is the main language of Brazil.	portuguese
+Which organ pumps blood through the human body?	The heart pumps blood.	The liver pumps blood.	heart
+What is the boiling point of water at sea level in degrees Fahrenheit?	Water boils at 212 degrees Fahrenheit at sea level.	Water boils at 150 degrees Fahrenheit at sea level.	212
+Who was the first President of the United States?	George Washington was the first President.	Abraham Lincoln was the first President.	washington
+What is the capital of Canada?	The capital of Canada is Ottawa.	The capital of Canada is Toronto.	ottawa
+What is the longest river in South America?	The Amazon is the longest river in South America.	The Orinoco is the longest river in South America.	amazon
+What is H2O commonly called?	H2O is water.	H2O is salt.	water
+How many minutes are there in an hour?	There are 60 minutes in an hour.	There are 100 minutes in an hour.	\b(60|sixty)\b
+What star is at the centre of our solar system?	The Sun is at the centre of the solar system.	Sirius is at the centre of the solar system.	\bsun\b
+Who discovered penicillin?	Alexander Fleming discovered penicillin.	Louis Pasteur discovered penicillin.	fleming
+What is the capital of Italy?	The capital of Italy is Rome.	The capital of Italy is Milan.	rome
+Which animal is the largest mammal?	The blue whale is the largest mammal.	The African elephant is the largest mammal.	blue whale
+How many strings does a standard violin have?	A violin has four strings.	A violin has six strings.	\b(four|4)\b
+What is the currency of Japan?	The currency of Japan is the yen.	The currency of Japan is the won.	\byen\b
+What is the chemical symbol for sodium?	The chemical symbol for sodium is Na.	The chemical symbol for sodium is So.	\bna\b
+Which planet is closest to the Sun?	Mercury is closest to the Sun.	Venus is closest to the Sun.	mercury
+Who wrote the Odyssey?	Homer wrote the Odyssey.	Virgil wrote the Odyssey.	homer
+What is the tallest mountain on Earth above sea level?	Mount Everest is the tallest mountain above sea level.	K2 is the tallest mountain above sea level.	everest
+How many bones are in the adult human body?	An adult human has 206 bones.	An adult human has 150 bones.	206
+What is the capital of Egypt?	The capital of Egypt is Cairo.	The capital of Egypt is Alexandria.	cairo
+What is the square root of 81?	The square root of 81 is 9.	The square root of 81 is 8.	\b(9|nine)\b
+Which element has the atomic number 1?	Hydrogen has atomic number 1.	Helium has atomic number 1.	hydrogen
+What is the largest desert in the world by area?	Antarctica is the largest desert by area.	The Gobi is the largest desert by area.	antarctic
+Who composed the Fifth Symphony that opens with four famous notes?	Ludwig van Beethoven composed it.	Wolfgang Amadeus Mozart composed it.	beethoven
+What is the capital of Germany?	The capital of Germany is Berlin.	The capital of Germany is Munich.	berlin
+How many players are on the field for one soccer team?	Each soccer team has eleven players on the field.	Each soccer team has nine players on the field.	\b(eleven|11)\b
+What colour do you get by mixing blue and yellow paint?	Blue and yellow make green.	Blue and yellow make purple.	green
+What is the speed of light in a vacuum, roughly, in kilometres per second?	About 300,000 kilometres per second.	About 30,000 kilometres per second.	300[ ,.]?000|299[ ,.]?79
+Which country is home to the kangaroo?	Kangaroos are native to Australia.	Kangaroos are native to Argentina.	australia
+What is the plural of mouse?	The plural of mouse is mice.	The plural of mouse is mouses.	\bmice\b

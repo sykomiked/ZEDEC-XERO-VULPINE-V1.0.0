@@ -1,0 +1,8 @@
+Hello! What can you help me with today?
+Write a Python function that returns the largest of three numbers.
+Review this code for security problems: os.system('ping ' + user_input)
+Extract the people and places: Ada Lovelace met Charles Babbage in London in 1833.
+Solve the equation 3x + 7 = 22 and prove your answer.
+Is this argument valid? All birds fly. Penguins are birds. So penguins fly.
+Under the GDPR, what counts as personal data? Answer as general information, not legal advice.
+What is 17 times 23?

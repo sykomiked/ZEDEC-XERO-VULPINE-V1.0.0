@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether a transfer is allowed, in Eve (coffer_model.h): an amount of 1 to
+# 2^53 - 1 minor units (libzxv ZXV_AMOUNT_MAX), the paying account not
+# below zero after it (after = its balance - amount), the owner's per-day
+# cap not passed (room = cap - spent today - amount), and the transfer
+# balanced (gap = what leaves one account - what enters the other = 0).
+# after and room hold 18 digits, as the books' arithmetic does.
+# transfer.sutra says the same in Sutra.
+eve coffer
+minor_amount = 1 .. 9007199254740991
+minor_left = 0 .. 999999999999999999
+minor_gap = 0 .. 0
+
+transfer_rule {
+  amount: minor_amount
+  after: minor_left
+  room: minor_left
+  gap: minor_gap
+}

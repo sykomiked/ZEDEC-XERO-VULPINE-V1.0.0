@@ -2,6 +2,11 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Tiamat on the A6000 server
 
+Start here on the server: run the jobs in `TESTS.md` (J0 to J7) in order;
+they build the app, fetch the models, and run the behaviour tests with
+their raw logs. The integration tasks below (S1 to S9) are what J4 and J5
+call. `../TALK.md` says how to talk to the swarm once it is built.
+
 Tasks for the bare-metal test server: integrate, tune and package the
 Tiamat cells listed in `docs/release/swarm_model_manifest.json`. The cell
 layout, profiles and cross-wiring rules are in `tools/tiamat/tiamat_swarm.json`.
@@ -74,6 +79,11 @@ S3's tissues: `Qwen/Qwen2.5-1.5B-Instruct`, `Qwen/Qwen2.5-Math-1.5B`,
   `ZXV_ENGINE_PATHS`).
 - **E4** `mk_golden_disc.sh` accepts only `.gguf` names; ONNX cells need
   either a GGUF conversion or that rule widened.
+- **E5** A SentencePiece tokenizer in `zt_tok` (GGUF `tokenizer.ggml.model`
+  "llama": score-ordered merges, U+2581 for spaces, byte fallback), with a
+  test against the reference tokenizer on each of EuroLLM (Parleywyvern),
+  slim-ner (Tagwyrmling) and HamAI-Science (Alembicwyrm). Today `zt_tok`
+  reads byte-level BPE only, so those three wait in disc_gated.
 
 ## Notes
 

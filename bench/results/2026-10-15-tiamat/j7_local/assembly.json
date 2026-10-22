@@ -1,0 +1,280 @@
+{
+  "config": "s.conf",
+  "profile": "server",
+  "mem_available_bytes": 16170389504,
+  "budget_bytes": 8085194752,
+  "resident_bytes": 4330438432,
+  "dormant": [],
+  "slots": 3,
+  "cells": 3,
+  "lineages": [
+    "hugging",
+    "qwen"
+  ],
+  "witness_possible": true,
+  "organs": {
+    "voice_of_tiamat": {
+      "assembled": [
+        "Spinewyrm"
+      ],
+      "left_out": [
+        "Parleywyvern"
+      ]
+    },
+    "reckoner": {
+      "assembled": [],
+      "left_out": [
+        "Numberwyrm",
+        "Theoremwyrm",
+        "Puzzlewyrm"
+      ]
+    },
+    "arbiter": {
+      "assembled": [
+        "Vouchwyvern"
+      ],
+      "left_out": [
+        "Verdictwyrmling",
+        "Debatelindworm",
+        "Fallacydrakeling"
+      ]
+    },
+    "smith": {
+      "assembled": [
+        "Codelindworm"
+      ],
+      "left_out": [
+        "Mendlindworm"
+      ]
+    },
+    "warden": {
+      "assembled": [],
+      "left_out": [
+        "Wardendrake",
+        "Reviewdrake"
+      ]
+    },
+    "scribe": {
+      "assembled": [],
+      "left_out": [
+        "Tagwyrmling",
+        "Gistwyrm",
+        "Recordlindworm"
+      ]
+    },
+    "clerk": {
+      "assembled": [],
+      "left_out": [
+        "Statutewyrmling"
+      ]
+    },
+    "trunk": {
+      "assembled": [],
+      "left_out": [
+        "Kindlewyrm",
+        "Awllindworm"
+      ]
+    },
+    "herald": {
+      "assembled": [],
+      "left_out": [
+        "Toolhatchling"
+      ]
+    },
+    "librarian": {
+      "assembled": [],
+      "left_out": [
+        "Indexserpent"
+      ]
+    },
+    "reader": {
+      "assembled": [],
+      "left_out": [
+        "Spotwyvern",
+        "Letterwyvern",
+        "Watchwyvern"
+      ]
+    },
+    "ear": {
+      "assembled": [],
+      "left_out": [
+        "Listenlindworm",
+        "Rustlewyrmling"
+      ]
+    },
+    "voice": {
+      "assembled": [],
+      "left_out": [
+        "Chimedrake"
+      ]
+    },
+    "augur": {
+      "assembled": [],
+      "left_out": [
+        "Tidedrakeling"
+      ]
+    },
+    "natural_philosopher": {
+      "assembled": [],
+      "left_out": [
+        "Alembicwyrm"
+      ]
+    }
+  },
+  "per_cell": {
+    "Spinewyrm": {
+      "assembled": true,
+      "organ": "voice_of_tiamat",
+      "resident_bytes": 1234761248,
+      "slot": 0,
+      "lineage": "qwen",
+      "how": "whole (shipped GGUF)"
+    },
+    "Parleywyvern": {
+      "assembled": false,
+      "organ": "voice_of_tiamat",
+      "why": "engine: needs SentencePiece tokenizer (engine task E5)"
+    },
+    "Numberwyrm": {
+      "assembled": false,
+      "organ": "reckoner",
+      "why": "its shipped GGUF is not in --models"
+    },
+    "Theoremwyrm": {
+      "assembled": false,
+      "organ": "reckoner",
+      "why": "no S3 result for it in --adapters"
+    },
+    "Puzzlewyrm": {
+      "assembled": false,
+      "organ": "reckoner",
+      "why": "no S3 result for it in --adapters"
+    },
+    "Verdictwyrmling": {
+      "assembled": false,
+      "organ": "arbiter",
+      "why": "engine: needs BERT encoder path"
+    },
+    "Debatelindworm": {
+      "assembled": false,
+      "organ": "arbiter",
+      "why": "no S3 result for it in --adapters"
+    },
+    "Fallacydrakeling": {
+      "assembled": false,
+      "organ": "arbiter",
+      "why": "engine: needs ELECTRA encoder path"
+    },
+    "Vouchwyvern": {
+      "assembled": true,
+      "organ": "arbiter",
+      "resident_bytes": 1860915904,
+      "slot": 1,
+      "lineage": "hugging",
+      "how": "whole (shipped GGUF)"
+    },
+    "Mendlindworm": {
+      "assembled": false,
+      "organ": "smith",
+      "why": "no S3 result for it in --adapters"
+    },
+    "Codelindworm": {
+      "assembled": true,
+      "organ": "smith",
+      "resident_bytes": 1234761280,
+      "slot": 2,
+      "lineage": "qwen",
+      "how": "whole (shipped GGUF)"
+    },
+    "Wardendrake": {
+      "assembled": false,
+      "organ": "warden",
+      "why": "no S3 result for it in --adapters"
+    },
+    "Reviewdrake": {
+      "assembled": false,
+      "organ": "warden",
+      "why": "no S3 result for it in --adapters"
+    },
+    "Tagwyrmling": {
+      "assembled": false,
+      "organ": "scribe",
+      "why": "engine: needs SentencePiece tokenizer (engine task E5); quant type checked on load"
+    },
+    "Gistwyrm": {
+      "assembled": false,
+      "organ": "scribe",
+      "why": "engine: needs LED encoder-decoder path"
+    },
+    "Recordlindworm": {
+      "assembled": false,
+      "organ": "scribe",
+      "why": "no S3 result for it in --adapters"
+    },
+    "Statutewyrmling": {
+      "assembled": false,
+      "organ": "clerk",
+      "why": "no S3 result for it in --adapters"
+    },
+    "Kindlewyrm": {
+      "assembled": false,
+      "organ": "trunk",
+      "why": "a trunk only: its cells run on it"
+    },
+    "Awllindworm": {
+      "assembled": false,
+      "organ": "trunk",
+      "why": "a trunk only: its cells run on it"
+    },
+    "Toolhatchling": {
+      "assembled": false,
+      "organ": "herald",
+      "why": "engine: needs Nandi arch (custom code)"
+    },
+    "Indexserpent": {
+      "assembled": false,
+      "organ": "librarian",
+      "why": "engine: needs BERT encoder path"
+    },
+    "Spotwyvern": {
+      "assembled": false,
+      "organ": "reader",
+      "why": "engine: needs DBNet path"
+    },
+    "Letterwyvern": {
+      "assembled": false,
+      "organ": "reader",
+      "why": "engine: needs SVTR path"
+    },
+    "Watchwyvern": {
+      "assembled": false,
+      "organ": "reader",
+      "why": "engine: zt_vision (SigLIP + Idefics3); confirm the smolvlm2 projector on load"
+    },
+    "Listenlindworm": {
+      "assembled": false,
+      "organ": "ear",
+      "why": "engine: zt_whisper (Whisper arch)"
+    },
+    "Chimedrake": {
+      "assembled": false,
+      "organ": "voice",
+      "why": "engine: needs StyleTTS2/iSTFTNet path"
+    },
+    "Tidedrakeling": {
+      "assembled": false,
+      "organ": "augur",
+      "why": "engine: needs T5 encoder path"
+    },
+    "Rustlewyrmling": {
+      "assembled": false,
+      "organ": "ear",
+      "why": "engine: needs ViT audio path"
+    },
+    "Alembicwyrm": {
+      "assembled": false,
+      "organ": "natural_philosopher",
+      "why": "engine: needs SentencePiece tokenizer (engine task E5)"
+    }
+  }
+}

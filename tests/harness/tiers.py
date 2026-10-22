@@ -91,6 +91,12 @@ ALLOC_INC = ["src/mm", "src/rmag", "src/audio", "src/surplus", "src/edp_risk"]
 ALLOC_SRC = ["src/mm/mm.c", "src/rmag/rmag_core.c", "src/audio/audio.c", "src/edp_risk/edp_risk.c",
              "src/surplus/surplus.c"]
 
+EV_INC = ["src/event_space"]
+EV_SRC = ["src/event_space/event_envelope.c", "src/robin_debanks/sha256.c"]
+ZCAP_INC = ["src/zcapital", "src/surplus"]
+SWARM_INC = ["src/swarm"] + ZCAP_INC
+SWARM_SRC = ["src/swarm/swarm_budget.c", "src/swarm/swarm_emotion.c", "src/swarm/swarm_market.c",
+             "src/swarm/swarm_ledger.c", "src/swarm/swarm_reserve.c"]
 
 def prog(name, main, inc, src, args=(), modes=("plain", "san", "q32", "fast"), extra=(),
          pre=None, base=True):
@@ -179,11 +185,41 @@ SUITES = {
                           ["src/audio", "src/edp_risk", "src/surplus", "src/crit168"],
                           ["src/audio/audio.c", "src/edp_risk/edp_risk.c",
                            "src/surplus/surplus.c"], modes=NOQ32)],
+    # ---- property tests of the engineered core (docs/BEHAVIOUR_COVERAGE.md):
+    #      each drives the module against a reference model; legacy_* are the
+    #      module tests that existed before them (the mutation "before") ----
+    "legacy_lpres": [prog("test_lpres", "../tests/host/test_lpres.c", EV_INC + ["src/lpres"],
+                          ["src/lpres/lpres.c"] + EV_SRC, modes=NOQ32)],
+    "p_lpres": [prog("test_lpres_props", "../tests/host/test_lpres_props.c",
+                     EV_INC + ["src/lpres"], ["src/lpres/lpres.c"] + EV_SRC, modes=NOQ32)],
+    "legacy_oseq": [prog("test_oseq", "../tests/host/test_oseq.c", EV_INC + ["src/oseq"],
+                         ["src/oseq/oseq.c"] + EV_SRC, modes=NOQ32)],
+    "p_oseq": [prog("test_oseq_props", "../tests/host/test_oseq_props.c", EV_INC + ["src/oseq"],
+                    ["src/oseq/oseq.c"] + EV_SRC, modes=NOQ32)],
+    "legacy_e8": [prog("test_e8", "src/e8/test_e8.c", ["src/e8"], ["src/e8/e8.c", "src/e8/zphi.c"],
+                       modes=NOQ32)],
+    "p_zphi": [prog("test_zphi", "src/e8/test_zphi.c", ["src/e8"], ["src/e8/zphi.c"])],
+    "p_modbind": [prog("test_modbind", "src/modbind/test_modbind.c", ["src/surplus"],
+                       ["src/modbind/modbind.c", "src/modbind/zxv_decl_gate.c"], modes=NOQ32)],
+    "legacy_swarm": [prog("test_swarm_budget", "src/swarm/test_swarm_budget.c", ["src/swarm"],
+                          ["src/swarm/swarm_budget.c"], modes=NOQ32),
+                     prog("test_swarm_economy", "src/swarm/test_swarm_economy.c", SWARM_INC,
+                          SWARM_SRC)],
+    "p_swarm": [prog("test_swarm_props", "src/swarm/test_swarm_props.c", SWARM_INC, SWARM_SRC)],
+    "legacy_hkdf": [prog("test_hkdf", "src/tls/test_hkdf.c", ["src/tls", "src/robin_debanks"],
+                         ["src/tls/hkdf.c", "src/robin_debanks/sha256.c"], modes=NOQ32)],
+    "p_hkdf": [prog("test_hkdf_props", "src/tls/test_hkdf_props.c", ["src/tls", "src/robin_debanks"],
+                    ["src/tls/hkdf.c", "src/robin_debanks/sha256.c"], modes=NOQ32)],
+    "legacy_zcapital": [prog("test_zcapital", "src/zcapital/test_zcapital.c", ZCAP_INC,
+                             ["src/zcapital/zcapital.c"])],
+    "p_zcapital": [prog("test_zcapital_props", "src/zcapital/test_zcapital_props.c", ZCAP_INC,
+                        ["src/zcapital/zcapital.c"])],
 }
 GROUPS = {
     "tier1": ["t1_rational", "t1_pay", "t1_triple", "t1_chest", "t1_alloc"],
     "tier2": ["t2_escrow", "t2_pay", "t2_count_house", "t2_e2e"],
     "tier3": ["t3_rational", "t3_ledger", "t3_chest"],
+    "props": ["p_lpres", "p_oseq", "p_zphi", "p_modbind", "p_swarm", "p_zcapital", "p_hkdf"],
 }
 GROUPS["tiers"] = GROUPS["tier1"] + GROUPS["tier2"] + GROUPS["tier3"]
 
@@ -203,7 +239,15 @@ def compile_obj(src, flags, out_dir, cache):
     """Compile one source to an object, through the cache when allowed."""
     target = os.environ.get("ZXV_MUT_TARGET", "")
     abs_src = os.path.normpath(os.path.join(KERNEL, src))
-    obj = os.path.join(out_dir, hashlib.sha1(src.encode()).hexdigest()[:12] + ".o")
+    # The object keeps its source's path under a per-source directory, so the
+    # link command names the test too (fuzz/tools/san-cc's SANCC_MATCH picks
+    # the commands to instrument by path, and the link needs the runtime).
+    rel = os.path.normpath(src)
+    while rel.startswith("../"):
+        rel = rel[3:]
+    obj = os.path.join(out_dir, hashlib.sha1(src.encode()).hexdigest()[:12],
+                       os.path.splitext(rel.lstrip("/"))[0] + ".o")
+    os.makedirs(os.path.dirname(obj), exist_ok=True)
     use_cache = cache and target and not target.endswith(".h") and \
         os.path.normpath(os.path.join(ROOT, target)) != abs_src
     key = None

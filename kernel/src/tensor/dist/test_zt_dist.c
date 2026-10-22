@@ -22,7 +22,8 @@
  *
  *   gcc -std=c11 -O2 -Wall -Wextra -Werror -DTEST_HOST -Isrc/tensor -Isrc/tensor/dist \
  *       src/tensor/dist/test_zt_dist.c src/tensor/dist/zt_dist.c src/tensor/zt_simd.c \
- *       src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c \
+ *       src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c \
+ *       src/tensor/zt_simd_rvv.c src/tensor/zt_model.c \
  *       src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c \
  *       -lpthread -o /tmp/test_zt_dist && /tmp/test_zt_dist */
 #define _POSIX_C_SOURCE 200809L
@@ -391,7 +392,8 @@ int main(int argc, char **argv)
     if (me == 0) printf("%d/%d checks passed (MPI, %d ranks)\n", checks - failures, checks, np);
     return failures ? 1 : 0;
 #else
-    uint16_t port = (uint16_t) (20000 + (getpid() % 2000) * 8);
+    /* below Linux's ephemeral range (32768 and up), so no outgoing connection holds one */
+    uint16_t port = (uint16_t) (20000 + (getpid() % 1500) * 8);
     for (uint32_t vi = 0; vi < MF_N_VARIANTS; vi++) {
         const mf_variant_t *v = &MF_VARIANTS[vi];
         loaded_t L;

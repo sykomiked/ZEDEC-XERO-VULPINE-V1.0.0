@@ -1,6 +1,6 @@
 # Wave 28 task: Ravelin (slot 333), Critical site protection
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 2 (030 hedgerow); wave 12 (153 pavise); wave 14 (174 damper); wave 19 (236 levin, 237 weir).
+Depends on: wave 2 (030 hedgerow), wave 12 (153 pavise), wave 14 (174 damper), wave 19 (236 levin, 237 weir).
 Manifest: `slot 333`, `layer L3`, `icon icons/l3/333-ravelin.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: protects critical sites such as power, water and data halls: physical access, cameras, alarms and continuity plans (`journal.query`, `log.tail`, `sys.info`, `features.get`, `files.read`, `files.write`). zxvd has no method for access control, camera and plant sensor feeds: use only existing methods; list what's missing in your report.
 Uses: `use pavise 1` (combined "allow"); `use damper 1` ("raise the alarm"); `use levin 1` (circuit loads); `use weir 1` (water maps); `use hedgerow 1` ("is this path reachable"). Call these composed entries; do not re-implement them.

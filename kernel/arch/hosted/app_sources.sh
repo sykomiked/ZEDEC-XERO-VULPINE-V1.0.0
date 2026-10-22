@@ -103,7 +103,7 @@ people_deps() {
 case "${1:-srcs}" in
     srcs)
         for f in zxv_host zxv_http_guard zxv_model_host zxv_budget_gate zxv_net_host zxv_peer_host \
-                 zxv_update_host zx_notify_host zxv_answer_tag; do
+                 zxv_update_host zx_notify_host zxv_answer_tag zxv_tiamat zxv_idle zxv_receipt; do
             echo "arch/hosted/$f.c"
         done
         echo src/social/zx_notify.c
@@ -124,6 +124,11 @@ case "${1:-srcs}" in
         echo src/acct/acct.c
         # the Player Card's tiers (zxvd's player.card)
         echo src/sicily/sicily.c
+        # swarm.organ: the organ router and the chiglet's names for organs and acts
+        echo src/chiglet/chg_organ.c
+        echo src/chiglet/chg_vocab.c
+        # the chiglet's name, given once (companion.name*, chg_name.h)
+        echo src/chiglet/chg_name.c
         # one copy of each file: vinea and update share sha256, aead, hkdf, ubh,
         # event_envelope and the ML-DSA sources
         { vinea; update; } | awk '!seen[$0]++'
@@ -193,18 +198,24 @@ case "${1:-srcs}" in
         done
         # pspace.*, hall.*: the net host and Vinea (vna_space) are in srcs
         echo arch/hosted/zxvd_pspace.c
+        # fab.*: file fabrication (docs/spec/FABRICATION.md); its ML-DSA-87,
+        # ML-KEM-1024, aead, hkdf, sha256 and the IPFS CID code are in srcs
+        echo arch/hosted/zxvd_fab.c
+        echo src/fab/fab.c
+        echo src/fab/fab_send.c
         ;;
     groupincs)
         echo src/cardnet
         echo src/ident
         for d in svault vswap vauction zenny zstats; do echo "src/$d"; done
-        for d in src/vbond src/vderiv src/grants src/estate src/web4 src/seats src/power src/tls src/vinea; do echo "$d"; done
+        for d in src/vbond src/vderiv src/grants src/estate src/web4 src/seats src/power src/tls src/vinea src/fab; do echo "$d"; done
         ;;
     rpcdeps)
         # the owner's files and spaces (zxvd_rpc.h F/S), the jurisdiction
         # host (J5) with the accounting names and the 64-state log it uses
         echo arch/hosted/zxv_files.c
         echo arch/hosted/zxv_spaces.c
+        echo src/chiglet/chg_vocab.c
         echo src/juris/juris.c
         echo src/acct/acct.c
         echo src/lpres/lpres_hex.c

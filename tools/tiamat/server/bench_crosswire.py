@@ -63,6 +63,15 @@ def adapter_hooks(model, path, dev):
     return hooks
 
 
+def reset_peak(dev):
+    if dev == "cuda":
+        torch.cuda.reset_peak_memory_stats()
+
+
+def peak(dev):
+    return torch.cuda.max_memory_allocated() if dev == "cuda" else None  # not measured on CPU
+
+
 def answer(logits, tok):
     ids = [tok(" " + w, add_special_tokens=False).input_ids[0] for w in WORDS]
     return WORDS[int(logits[ids].argmax())]
@@ -84,7 +93,15 @@ def main():
     root, adroot = pathlib.Path(a.models), pathlib.Path(a.adapters)
     rep = json.loads((adroot / f"report_{t['trunk']}.json").read_text())
     split = rep["shared_split_layer"]
-    cells = [c for c in t["cells"] if rep["cells"][c]["result"] == "ADAPTER"]
+    # only extracted adapters have a full model to compare with and a split to share below;
+    # an upstream LoRA touches every layer, so it shares the trunk's weights but not its lower pass
+    cells = [c for c in t["cells"] if rep["cells"].get(c, {}).get("result") == "ADAPTER"]
+    if not cells:
+        out = {"tissue": a.tissue, "cells": [], "gate": None,
+               "note": "no extracted adapter in this tissue: nothing to cross-wire; its cells run separately"}
+        pathlib.Path(a.out).write_text(json.dumps(out, indent=2))
+        print(json.dumps(out, indent=2))
+        return
     tok = AutoTokenizer.from_pretrained(str(root / t["trunk"] / "src"))
     if a.data:
         items = [json.loads(l) for l in open(a.data)][: a.n]
@@ -94,7 +111,7 @@ def main():
     load = lambda p: AutoModelForCausalLM.from_pretrained(str(p / "src"), torch_dtype=torch.bfloat16).to(dev).eval()
 
     # arm 1: separate
-    torch.cuda.reset_peak_memory_stats()
+    reset_peak(dev)
     sep, sep_bytes, sep_compute, t0 = {}, 0, 0.0, time.time()
     for c in cells:
         m = load(root / c)
@@ -103,10 +120,10 @@ def main():
         sep[c] = [m(tok(p, return_tensors="pt").input_ids.to(dev)).logits[0, -1].float().cpu() for p in prompts]
         sep_compute += time.time() - tc
         del m
-    sep_time, sep_peak = time.time() - t0, torch.cuda.max_memory_allocated()
+    sep_time, sep_peak = time.time() - t0, peak(dev)
 
     # arm 2: cross-wired
-    torch.cuda.reset_peak_memory_stats()
+    reset_peak(dev)
     trunk = load(root / t["trunk"])
     n_layer = trunk.config.num_hidden_layers
     cw = {c: [] for c in cells}
@@ -123,7 +140,7 @@ def main():
             cw[c].append(trunk.lm_head(trunk.model.norm(h))[0, -1].float().cpu())
             for hk in hooks:
                 hk.remove()
-    cw_time, cw_peak = time.time() - t0, torch.cuda.max_memory_allocated()
+    cw_time, cw_peak = time.time() - t0, peak(dev)
     ad_bytes = sum((adroot / c / "adapter_model.safetensors").stat().st_size for c in cells)
 
     ntok = sum(len(tok(p).input_ids) for p in prompts)
@@ -143,7 +160,12 @@ def main():
         if items:
             q["accuracy_separate"] = sum(answer(x, tok) == d["base"] for x, d in zip(sep[c], items)) / len(items)
             q["accuracy_cross_wired"] = sum(answer(y, tok) == d["base"] for y, d in zip(cw[c], items)) / len(items)
+        # the gate fixed before the first run (docs/release/SWARM_MODEL_VERIFICATION.md):
+        # top-1 agreement at least 0.97, and accuracy within 1 point when measured
+        q["passes"] = agree >= 0.97 and (not items or abs(q["accuracy_separate"] - q["accuracy_cross_wired"]) <= 0.01)
         out["quality"][c] = q
+    out["gate"] = "cross-wired" if all(q["passes"] for q in out["quality"].values()) else \
+        "lost: this tissue runs separately"
     for k in ("weight_bytes", "macs", "seconds"):
         out[f"saving_{k}"] = 1 - out["cross_wired"][k] / out["separate"][k]
     out["saving_compute_seconds"] = 1 - cw_time / sep_compute

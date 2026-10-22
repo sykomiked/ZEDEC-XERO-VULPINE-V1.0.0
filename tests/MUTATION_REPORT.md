@@ -299,3 +299,76 @@ Bugs the tests found and deliberately do not encode (to be fixed separately):
 - sdk_bridge_lang.c: ops put the op code in `fields[0]`, where the header puts the result code.
 - sdk_bridge.c:435: `sb_create_context` always returns NULL, so `sb_lang_create_context` always fails.
 - polyglot_matrix.c:144: route ids >= 2^31 come back negative; 0xFFFFFFFF equals the -1 error.
+
+## Behaviour-coverage pass: the engineered core (2026-10-15)
+
+Property tests that drive each module against a reference model written in
+the test (tiers.py suites `p_*`, group `props`, run by `verify-all` in plain,
+ASan+UBSan and, where the module has a Q32.32 path, q32 mode). Measured with
+gcc 13.3 and `tiers.py --mode fast`; *before* is the module's existing test
+(`legacy_*`), *after* adds the property test. The reasoning is in
+[docs/BEHAVIOUR_COVERAGE.md](../docs/BEHAVIOUR_COVERAGE.md).
+
+| name | target | before | after | killed / valid after |
+|---|---|---|---|---|
+| lpres | `kernel/src/lpres/lpres.c` | 55.2% | 86.7% | 176 / 203 |
+| oseq | `kernel/src/oseq/oseq.c` | 44.1% | 85.2% | 294 / 345 |
+| zphi | `kernel/src/e8/zphi.c` | 41.3% | 72.0% | 136 / 189 |
+| modbind | `kernel/src/modbind/modbind.c` | no test | 71.1% | 810 / 1140 |
+| zxv_decl_gate | `kernel/src/modbind/zxv_decl_gate.c` | no test | 48.2% | 207 / 429 |
+| swarm_budget | `kernel/src/swarm/swarm_budget.c` | 68.2% | 87.3% | 274 / 314 |
+| swarm_market | `kernel/src/swarm/swarm_market.c` | 56.9% | 82.5% | 222 / 269 |
+| swarm_ledger | `kernel/src/swarm/swarm_ledger.c` | 63.9% | 91.6% | 109 / 119 |
+| swarm_reserve | `kernel/src/swarm/swarm_reserve.c` | 67.8% | 87.8% | 79 / 90 |
+| zcapital | `kernel/src/zcapital/zcapital.c` | 48.0% | 90.9% | 140 / 154 |
+| hkdf | `kernel/src/tls/hkdf.c` | 45.7% | 88.5% | 184 / 208 |
+
+modbind was measured with the same test built directly (`-O1`, before the
+gate's power-readout scenario was added); its gate figure is the tiers.py run.
+The nine targets with a *before* are in the CI subset at these scores; modbind
+and zxv_decl_gate (1,700 mutants) are measured but not gated.
+
+Remaining survivors, by kind:
+
+- **Self-check bodies.** `zphi_selfcheck` (zphi.c 120-175, 51 of the 53
+  survivors), `modbind_selfcheck` (modbind.c 848-1080) and the gate's own
+  negative tests (zxv_decl_gate.c 427-606). A mutant there only weakens a
+  checker; while the code is correct nothing can see it.
+- **Equivalent.** Loop bounds that read a zeroed slot (`i <= n` over a
+  memset table), initialisers of memory already zeroed, `++` to `--` on an
+  unsigned loop that then stops after the first element where only one
+  element exists, `lpres_conjoin`'s TRUE-identity shortcut (min on the chain
+  gives the same answer), oseq's `idx >= event_count` guards (the slot past
+  the end is always zeroed), and guards the callers make unreachable
+  (`under == 0`, `best == n`).
+- **Output text.** Most zxv_decl_gate survivors are in the boot readout
+  (`gate_report_all`, `gate_power_readout`); the test checks the readout of
+  two worked graphs line by line, not every branch of the formatter.
+
+Bugs found: `oseq_register_node` refused a known node when the table was
+full, and `oseq_is_ancestor` / `oseq_detect_cycle` answered "no" when their
+256-entry stack ran out, so a cyclic event on a wide DAG committed. Both are
+fixed; see [docs/AUDIT_FINDINGS_2026-10-15.md](../docs/AUDIT_FINDINGS_2026-10-15.md).
+## File fabrication: fab, fab_send, zxvd_fab
+
+Full runs of `mutate.py --config tests/harness/mutator/targets.json --only
+<name> --phase after --jobs 4`. The engine tests (`kernel/src/fab/test_fab.c`,
+`make -C kernel test-fab`) build with ASan/UBSan in the mutation command
+too, so a mutant that reads or writes out of bounds fails. `zxvd_fab` runs
+`kernel/arch/hosted/test_zxvd_fab.sh` (the `fab.*` methods behind the RPC
+layer). Only `zxvd_fab` is in the CI gate (own_job, `zxvd.yml`); the two
+engine targets take about 40 minutes on 4 cores, too long for the shared
+mutation-subset shards, so they are measured here.
+
+| target | first run | after | killed | survived | why the survivors survive |
+|---|---|---|---|---|---|
+| src/fab/fab.c | 77.5% | 92.0% | 808 | 70 | array sizes in parameter declarations and key buffers, magic arrays one byte longer, a shift of 8 vs 7/9 on bytes already masked, defensive re-checks of lengths `fab_recipe_parse`/`fab_plan_parse` already proved, the `forget` loop bound, a RESYNC check the plan rules already enforce |
+| src/fab/fab_send.c | 73.5% | 94.5% | 451 | 26 | the hash multiplier and table bounds (any value finds the same runs), probe loop `<=` (the next slot is empty), key and nonce buffer sizes, the `if (diff_len)` guard (copying 0 bytes is the same) |
+| arch/hosted/zxvd_fab.c | 54.9% | 57.4% | 432 + 3 timeouts | 323 | Windows-only file helpers and drive-letter paths (not compiled on Linux), allocation failures and wipes of buffers freed next, buffer sizes, returns after a reader already failed the call, the frame buffer's first size and growth factor, a blocks list longer than one request line can carry |
+
+Bug found by this round: `fab.send`, `fab.stream.*` and `zxv-fab pack`
+sized the ops buffer at `tlen / 8 + 16`, but a target of one-byte
+literals between 8-byte matches needs about `tlen / 4.5` ops, so such a
+send was refused with SPACE. Both now use `tlen / 4 + 16`; the tests send
+and rebuild a 90,000-byte target of 20,000 ops through zxvd and the tool
+(both fail with the old bound).

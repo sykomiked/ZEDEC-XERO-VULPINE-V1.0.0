@@ -12,6 +12,29 @@ and port must share.
 
 ## Flow at sign-in
 
+The short path is the sign-in gate, which wraps steps 1 and 4 below:
+
+```c
+char seat[33];
+terms_gate_t g;
+terms_seat_hex(roster.v[i].id, seat);           /* after seat_unlock == SEAT_OK */
+if (terms_gate_check(&g, seat, log, len, terms_builtin_lang(locale)) == 1) {
+    zui_terms_open(&ui, &reader, g.doc, font, &screen, area);
+    /* ... events until zui_terms_result(&ui) != ZUI_TERMS_OPEN ... */
+    if (zui_terms_result(&ui) == ZUI_TERMS_ACCEPTED) {
+        int k = terms_gate_accept(&g, &reader, now_s, line, sizeof line);
+        /* append line[0..k) to the log; when g.fresh_log, keep the old log
+         * aside and start a new one with this line */
+    } else {
+        /* declined: nothing is written; lock the seat, back to zui_login */
+    }
+}
+/* enter the desktop */
+```
+
+The seat id in records is the seat's 16-byte id as hex, never the person's
+name, so renaming yourself does not make you agree again.
+
 1. Read the device's acceptance log (one line per acceptance) and call
    `terms_log_status(log, len, seat, terms_builtin_lang(locale))`.
    `TERMS_STATUS_CURRENT` goes straight to the desktop. `NEEDED` or

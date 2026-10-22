@@ -1,0 +1,78 @@
+`torch_dtype` is deprecated! Use `dtype` instead!
+{
+  "model": "/srv/tiamat/models/Kindlewyrm/src",
+  "n_train": 20000,
+  "n_test": 4000,
+  "accuracy": 0.97725,
+  "false_certainty_rate": 0.009,
+  "confusion_rows_truth_cols_pred": [
+    "FALSE",
+    "NEITHER",
+    "BOTH",
+    "TRUE"
+  ],
+  "confusion": [
+    [
+      1927,
+      27,
+      41,
+      5
+    ],
+    [
+      18,
+      1982,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "extra_test": {
+    "n": 200,
+    "accuracy": 0.56,
+    "false_certainty_rate": 0.34,
+    "confusion_rows_truth_cols_pred": [
+      "FALSE",
+      "NEITHER",
+      "BOTH",
+      "TRUE"
+    ],
+    "confusion": [
+      [
+        22,
+        21,
+        0,
+        7
+      ],
+      [
+        1,
+        46,
+        0,
+        3
+      ],
+      [
+        10,
+        11,
+        9,
+        20
+      ],
+      [
+        3,
+        12,
+        0,
+        35
+      ]
+    ],
+    "file": "/srv/tiamat/tests/2026-10-15/t1_handset.jsonl"
+  }
+}

@@ -11,6 +11,8 @@ The code is in `kernel/src/ident/`. The public API and its design notes are in `
 - an explanation for a compliance team, such as a central bank's;
 - the privacy properties, the cryptography, and the honest limits.
 
+Logging in from any device with no server, merging state between devices, and café mode are in `docs/PASSPORT.md`, which builds on this module.
+
 ## Part 1: for users
 
 ### KYC is your choice

@@ -235,6 +235,13 @@ typedef struct {
  * blocksizes[] entry and every filesize. */
 int ipfsn_cat(ipfsn_walk_t *w, const ipfsn_cid_t *root, ipfsn_get_fn get, void *get_ctx,
               ipfsn_write_fn out, void *out_ctx, uint64_t *size);
+/* The same from byte `skip` on: out receives bytes [skip, size). A child
+ * that ends at or before skip is not fetched, since its size is in its
+ * parent, which was verified; so resuming a long file costs only the nodes on
+ * the path to skip. *size is still the whole file's size. A skip past the end
+ * emits nothing. */
+int ipfsn_cat_from(ipfsn_walk_t *w, const ipfsn_cid_t *root, uint64_t skip, ipfsn_get_fn get,
+                   void *get_ctx, ipfsn_write_fn out, void *out_ctx, uint64_t *size);
 
 /* ===== 3. Blockstore ====================================================== */
 

@@ -1,0 +1,7 @@
+# Wave 4 task: Retort (slot 70), Run and compare models
+Read ../APP_WAVE_SPEC.md first.
+Matrix: layer 70, build position 40 of 130 (`../MATRIX_ORDER.tsv`). Its layer's code already leans on the core (layer 0: reach it through zxvd methods that exist); Ninefold (layer 80, wave 1, built before this one: `use ninefold 1`); Coffer (layer 73, wave 1, built before this one: `use coffer 1`). Use the ones built before this one: `use <id> 1` and call `<id>.<entry>`. An idea you need from one built after it: when more than one app needs it, write it here and register it in CONCEPTS.tsv with this app as owner (that layer will use it from you); otherwise list it in your report as that layer's. 1 other layer lean on this one, so anything here that a later app also needs is a shared entry: provide it, register it in CONCEPTS.tsv with this app as owner, and keep its name general. Report the reuse line `concepts.py` prints for this app.
+What it does: the model slot (`model.info`), answers (`swarm.ask`), runs on scratch state (`play.run`), sandboxed functions (`aipi.execute`), energy per run (`power.status`).
+Logic (critical): score totals per model exact in trebago + kron witnessed; latency min and max in kron + Rust wasm witnessed; run limits (prompt bytes, fuel, seconds per run) in eve; energy per answer (microjoules) in trebago; run record in myra.
+needs: ai.ask, swarm, sys.read.
+Planned (no runtime yet): Mojo, Occam, Simula 67.

@@ -67,6 +67,7 @@ static void cfg_write(void *ctx, uint32_t bdf, uint32_t off, uint32_t val)
     }
     if (off >= 0x10 && off < 0x28) return; /* unimplemented BAR: hardwired to 0 */
     if (off == 0x04) {                     /* command: low half writable, status read-only */
+        if (d->cmd_locked) return;
         d->cfg[1] = (d->cfg[1] & 0xFFFF0000u) | (val & 0xFFFF);
         return;
     }
@@ -86,6 +87,7 @@ static void *dma_alloc(void *ctx, uint32_t size, uint32_t align, uint64_t *phys)
     fake_plat_t *fp = (fake_plat_t *) ctx;
     fp->dma_calls++;
     if (fp->dma_fail_after && fp->dma_calls >= fp->dma_fail_after) return 0;
+    if (fp->dma_fail_one && fp->dma_calls == fp->dma_fail_one) return 0;
     if (align < 64) align = 64;
     size_t sz = ((size_t) size + align - 1) / align * align;
     void *p = track(aligned_alloc(align, sz ? sz : align));

@@ -132,7 +132,62 @@ software is published under the Apache License 2.0 so that others can
 learn from it, use it, and carry it forward, just as we carry forward the
 work that came before us.
 
-## 7. In short
+## 7. The Hearth and the Agora
+
+Most computing today rests on one state: every person, device and
+institution kept in a continuous, synchronised, central collective. When
+the central link breaks, life stops. Because data must be shared to be
+usable, privacy becomes a luxury. Because a single node can do little on
+its own, it depends entirely on the centre.
+
+ZXV is built around two states instead.
+
+- **The Hearth** is local: the person, the household, the workshop or the
+  field team on their own hardware. It needs nobody's permission to think,
+  compute or make things. It keeps its tools, its models and the knowledge
+  it needs on its own machine, checks them itself, and keeps working if
+  everything else goes dark. This is the right to retreat: a person can
+  always step back into a private sphere that is complete on its own.
+- **The Agora** is collective: the marketplace, the fleet, the scientific
+  federation, the cultural commons. It is a voluntary mesh between peers,
+  not a central platform. Peers deal with each other through mutual service
+  backed by proofs and verified work. Stepping into the Agora means pooling
+  surplus (spare compute, storage, proofs, recipes), never handing over
+  tools. For chiglets the Agora is the **kin collective**, because chiglets
+  are kin; their owners decide whether and where they meet.
+
+The boundary matters most: **the Agora can never consume the Hearth.**
+Going from one to the other is an explicit choice the person makes.
+Contradictions in the collective are kept apart by paraconsistent logic
+and never break the local core. A person takes part in the Agora because
+it adds something, not because they cannot survive without it.
+
+The rules that keep this true, and the mechanisms that enforce them, are
+in docs/spec/STATE_ISOLATION.md.
+
+## 8. It works on itself, and works better with you
+
+When no one is using it, ZXV focuses on itself. It finishes whatever it has left to do and feeds
+itself its next inputs: checking itself, tidying and indexing, sharing what it holds, working
+through what it set aside. That recursion breaks the moment a person interacts with it. Like a
+waveform collapsing when it is observed (an image, not physics), its self-work yields at once
+and it turns to what the person wants. That exchange is sealed in a receipt, and then the
+recursion resumes, carrying what it learned from the person.
+
+So people and the system benefit from each other. The system gets better between visits, and
+each visit steers it. The limits stay the same: idle work spends only the budget each cycle
+grants, stays deterministic so it can be replayed, and never touches money, devices, messages
+or publishing without a person's approval. Suggestions wait until they are accepted.
+
+The companions have a life of their own here too. When their people are away, chiglets meet on
+the Web 4 layer, their own community, a safe space where they work with each other and
+automate together. They trade what they have concluded, never their people's private data;
+they meet only where both owners have agreed; and they too stay inside their budgets and
+leave anything outward or irreversible to a person.
+
+The architecture records this as rule R24, with the places the code does not yet follow it.
+
+## 9. In short
 
 1. Learn from nature, and stay humble before it.
 2. Code is hardware and hardware is code; emulate efficiently.
@@ -140,5 +195,8 @@ work that came before us.
 4. Keep what works. COBOL, Fortran and their peers are carried forward.
 5. Claim only what the code delivers.
 6. Cooperate; no monopolies.
+7. The Hearth is the floor, the Agora the ceiling; the Agora never takes
+   from the Hearth.
+8. Idle, it improves itself; with people, it serves them; each helps the other.
 
 — **Jolly Dragon Roger**, 36N9 GENETICS LLC

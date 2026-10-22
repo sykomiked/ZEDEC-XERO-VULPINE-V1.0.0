@@ -1,6 +1,6 @@
 # Wave 12 task: Swage (slot 146), Package forge
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 1 (007 satchel), wave 10 (124 graft, 125 whetstone, 127 colonnade).
+Depends on: wave 3 (007 satchel, 127 colonnade), wave 10 (124 graft, 125 whetstone).
 Manifest: `slot 146`, `layer L2`, `icon icons/l2/146-swage.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: shapes source in the Hoard (`files.list`, `files.read`, `files.write`) into a signed, tested, installable package in one pass, reading the machine's facts from `sys.info`. zxvd has no method for build/test run, package sign and install (the same gaps Satchel and Whetstone report): use only existing methods; list what's missing in your report.
 Uses: `use satchel 1` (package size and file-count limits, exact total size, per-file share, package record); `use graft 1` (history intact, commit record); `use whetstone 1` (overall verdict in `lpres_conjoin` order, passed/failed/held counts); `use colonnade 1` (verdict across witnessed runs, fuel left). Call these composed entries; do not re-implement them.
@@ -9,4 +9,5 @@ BOTH test: one source built by two compilers gives output content ids 41 and 42:
 Never install anything in tests. Never copy anything from build_system/keys/.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, sys.read, notify.
-Planned (no runtime yet): BCPL, ML, ALGOL 60.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/swage/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): BCPL, ML.

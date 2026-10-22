@@ -2,6 +2,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zui_progress.c — the ZXV loading bar and launch screen. See zui_progress.h. */
 #include "zui_progress.h"
+#include "zui_palette.h"
 #include "zui_tokens.h"
 
 static int32_t clamp256(int32_t v)
@@ -9,47 +10,52 @@ static int32_t clamp256(int32_t v)
     return v < 0 ? 0 : v > 256 ? 256 : v;
 }
 
-static void head(zui_surface_t *s, int32_t x, int32_t cy, int32_t r)
+static void head(zui_surface_t *s, int32_t x, int32_t cy, int32_t r, uint32_t rgb)
 {
-    zui_fill_rrect(s, (zui_rect_t){x - r, cy - r, 2 * r, 2 * r}, r, ZUI_GOLD_GLOW, 255u);
+    zui_fill_rrect(s, (zui_rect_t){x - r, cy - r, 2 * r, 2 * r}, r, rgb, 255u);
 }
 
 void zui_bar_draw(zui_surface_t *s, zui_rect_t tr, zui_bar_mode_t mode, uint32_t p, uint32_t tick,
                   int32_t *head_l, int32_t *head_r)
 {
+    zui_bar_draw_in(s, tr, mode, p, tick, head_l, head_r, 0);
+}
+
+void zui_bar_draw_in(zui_surface_t *s, zui_rect_t tr, zui_bar_mode_t mode, uint32_t p,
+                     uint32_t tick, int32_t *head_l, int32_t *head_r, const zui_colors_t *set)
+{
     if (!s || tr.w <= 0 || tr.h <= 0) return;
+    uint32_t gold = zui_color(set, ZUI_C_GOLD), glow = zui_color(set, ZUI_C_GOLD_GLOW);
     int32_t th = tr.h, rad = th / 2, mid = tr.x + tr.w / 2, cy = tr.y + th / 2;
     int32_t hl, hr, hr_dot = th + 1 > 3 ? th + 1 : 3;
-    zui_fill_rrect(s, tr, rad, ZUI_HAIRLINE, 255u);
+    zui_fill_rrect(s, tr, rad, zui_color(set, ZUI_C_HAIRLINE), 255u);
     if (p == ZUI_BAR_UNKNOWN) {
         /* breathing at the centre: a short gold span that swells and settles */
         uint32_t ph = tick % 32u, tri = ph < 16u ? ph : 32u - ph; /* 0..16..0 */
         int32_t off = (tr.w / 12) * (int32_t) (4u + tri) / 20;
         hl = mid - off;
         hr = mid + off;
-        zui_fill_rrect(s, (zui_rect_t){hl, tr.y, hr - hl, th}, rad, ZUI_GOLD, 255u);
-        head(s, hl, cy, hr_dot);
-        head(s, hr, cy, hr_dot);
+        zui_fill_rrect(s, (zui_rect_t){hl, tr.y, hr - hl, th}, rad, gold, 255u);
+        head(s, hl, cy, hr_dot, glow);
+        head(s, hr, cy, hr_dot, glow);
     } else {
         int32_t q = (int32_t) (p > 256u ? 256u : p);
         if (mode == ZUI_BAR_GATHER) {
             hl = tr.x + (mid - tr.x) * q / 256;
             hr = tr.x + tr.w - (tr.x + tr.w - mid) * q / 256;
             if (hl > tr.x)
-                zui_fill_rrect(s, (zui_rect_t){tr.x, tr.y, hl - tr.x, th}, rad, ZUI_GOLD, 255u);
+                zui_fill_rrect(s, (zui_rect_t){tr.x, tr.y, hl - tr.x, th}, rad, gold, 255u);
             if (hr < tr.x + tr.w)
-                zui_fill_rrect(s, (zui_rect_t){hr, tr.y, tr.x + tr.w - hr, th}, rad, ZUI_GOLD,
-                               255u);
+                zui_fill_rrect(s, (zui_rect_t){hr, tr.y, tr.x + tr.w - hr, th}, rad, gold, 255u);
         } else {
             int32_t half = (tr.w / 2) * q / 256;
             hl = mid - half;
             hr = mid + half;
-            if (half > 0)
-                zui_fill_rrect(s, (zui_rect_t){hl, tr.y, hr - hl, th}, rad, ZUI_GOLD, 255u);
+            if (half > 0) zui_fill_rrect(s, (zui_rect_t){hl, tr.y, hr - hl, th}, rad, gold, 255u);
         }
         if (q > 0 && q < 256) {
-            head(s, hl, cy, hr_dot);
-            head(s, hr, cy, hr_dot);
+            head(s, hl, cy, hr_dot, glow);
+            head(s, hr, cy, hr_dot, glow);
         }
     }
     if (head_l) *head_l = hl;

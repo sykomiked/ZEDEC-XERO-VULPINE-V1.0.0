@@ -1,6 +1,6 @@
 # Wave 21 task: Meander (slot 264), Handwriting to text
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (037 quillon, merged); wave 4 (054 burin); wave 9 (113 typecase, 114 runebook); wave 11 (137 glyphwright).
+Depends on: wave 0 (037 quillon), wave 2 (113 typecase), wave 7 (054 burin), wave 10 (114 runebook), wave 11 (137 glyphwright).
 Manifest: `slot 264`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/264-meander.svg`, `budget 233`, model `apps/meander_model.{h,c}`, blocks under kernel/src/apps/blocks/meander/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Writes by hand or brush and turns strokes into text in any script: documents in the Hoard (`files.read`, `files.write`), the script's language (`xlate.detect`, `xlate.languages`). Pen input and stroke recognition have no method: use only existing methods; list what's missing in your report.
 Uses: `use glyphwright 1` (composed character and valid code point); `use burin 1` (curve flattening); `use typecase 1` (script coverage); `use quillon 1` (`size_ok`); `use runebook 1` (valid code point and UTF-8 bytes). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

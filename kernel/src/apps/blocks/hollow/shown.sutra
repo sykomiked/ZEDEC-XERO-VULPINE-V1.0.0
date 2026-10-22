@@ -1,0 +1,27 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# How many pixels of a window's side are on the screen, in Sutra
+# (hollow_rules.h HR4): the side runs from pos for size pixels, the screen
+# from 0 for span pixels; what lies in both is from the larger start to the
+# smaller end, or nothing. pos fits s9(5), size and span 9(5): a negative
+# size or span, or anything wider, does not fit and is refused.
+record shown
+  pos: s9(5)
+  size: 9(5)
+  span: 9(5)
+  lo: 9(5)
+  hi: s9(6)
+procedure
+  compute lo = 0
+  if pos > 0
+    compute lo = pos
+  end-if
+  compute hi = pos + size
+  if hi > span
+    compute hi = span
+  end-if
+  if hi <= lo
+    answer 0
+  end-if
+  answer hi - lo

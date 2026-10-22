@@ -1,6 +1,6 @@
 # Wave 23 task: Lozenge (slot 281), Beekeeping
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 6 (079 fairground); wave 14 (170 sheaf); wave 15 (185 skep); wave 19 (234 neap).
+Depends on: wave 1 (079 fairground), wave 14 (170 sheaf), wave 15 (185 skep), wave 19 (234 neap).
 Manifest: `slot 281`, `layer L3`, `icon icons/l3/281-lozenge.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: tracks hives, pollination contracts with growers and honey sales for beekeepers and their co-op (`ledger.entries`, `ledger.post`, `net.offers`, `files.read`, `files.write`).
 Uses: `use skep 1` (its colony coordination tree pattern, grant ledger); `use sheaf 1` (farm accounts, "application allowed"); `use neap 1` ("entry may post"); `use fairground 1` (the assurance fee, "offer allowed"). Call these composed entries; do not re-implement them.

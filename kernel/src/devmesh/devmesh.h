@@ -190,6 +190,14 @@ typedef struct {
 #define DM_NET_LAN       1u /* local network only */
 #define DM_NET_UNMETERED 2u
 #define DM_NET_METERED   3u /* cellular / capped: avoid bulk */
+/* Narrow links (MOBILE_COMMON 3.3). Satellite IoT-NTN carries text, approvals
+ * and short results but no media, and is metered. LoRa carries text,
+ * approvals and alerts only: no media, no model answers, no file results
+ * (the bearer layer likewise refuses AI traffic over LoRa, bearer.h B2). A
+ * request the link cannot carry is answered DM_ROUTE_WAIT_LINK. */
+#define DM_NET_SATELLITE 4u
+#define DM_NET_LORA      5u
+#define DM_NET_MAX       DM_NET_LORA
 
 #define DM_FEAT_ASSIST_SMALL 0x0001u /* runs a small local model */
 #define DM_FEAT_ASSIST_LARGE 0x0002u /* runs a large model */
@@ -243,6 +251,11 @@ typedef enum {
     DM_EV_PAIR_FAILED = 11,
     DM_EV_MONEY_CONFIRMED = 12, /* a held device approved money action */
     DM_EV_MONEY_DECLINED = 13,
+    /* request ev.u64 timed out (or its peer went down) and the route policy
+     * that sent it (Always home, Pinned) forbids running it anywhere else:
+     * tell the user it is unavailable. Automatic requests get
+     * DM_EV_REQ_FALLBACK instead. */
+    DM_EV_REQ_UNAVAILABLE = 14,
 } dm_event_kind_t;
 
 typedef struct {
@@ -371,9 +384,24 @@ typedef struct {
     dm_sess_t pend; /* responder: handshake not yet confirmed by M3 */
 } dm_peer_t;
 
+/* Route policy (MOBILE_COMMON 3.2), per device and per kind of task; see
+ * dm_policy_set() in dm_remote.h. Absent entry = DM_POL_AUTO. */
+#define DM_POL_AUTO   0u /* the automatic routing rule of dm_route() */
+#define DM_POL_HERE   1u /* never leaves this device */
+#define DM_POL_HOME   2u /* always a home device, even on a metered link */
+#define DM_POL_PINNED 3u /* always the named device */
+#define DM_POL_KINDS  3u /* prompt, file, media (money is never policy-routed) */
+#define DM_POL_MAX    (DM_MAX_DEVICES * DM_POL_KINDS)
+typedef struct {
+    uint8_t used, kind, policy;
+    uint8_t dev[DM_ID_BYTES]; /* the device the setting applies to */
+    uint8_t pin[DM_ID_BYTES]; /* DM_POL_PINNED: the device that runs it */
+} dm_pol_t;
+
 #define DM_MAX_REQS 16u
 typedef struct {
     uint8_t used, kind, fell_back;
+    uint8_t policy; /* DM_POL_* in force when the request was sent */
     uint32_t req_id;
     uint8_t target[DM_ID_BYTES];
     uint64_t sent_ms, last_ms;
@@ -436,6 +464,7 @@ typedef struct {
     uint8_t money_asked_to[DM_ID_BYTES]; /* the held device it was sent to: only it may answer */
     uint8_t money_asked_used;
     dm_confirm_t conf_tmp;
+    dm_pol_t pol[DM_POL_MAX]; /* route policy table (bounded) */
 } dm_mesh_t;
 
 /* ===== identity and mesh lifecycle ===== */

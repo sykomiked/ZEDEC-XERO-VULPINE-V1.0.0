@@ -45,9 +45,9 @@ void oseq_registry_init(oseq_registry_t *reg) {
 int32_t oseq_register_node(oseq_registry_t *reg, const char *name,
                            uint32_t incarnation) {
     if (!reg || !name) return -1;
-    if (reg->node_count >= OSEQ_MAX_NODES) return -1;
 
-    /* Check for duplicate name */
+    /* Check for duplicate name. Before the capacity check: a known node
+     * coming back with a new incarnation needs no new slot. */
     for (uint32_t i = 0; i < reg->node_count; i++) {
         uint32_t j;
         for (j = 0; j < OSEQ_MAX_NAME_LEN; j++) {
@@ -65,6 +65,7 @@ int32_t oseq_register_node(oseq_registry_t *reg, const char *name,
         }
     }
 
+    if (reg->node_count >= OSEQ_MAX_NODES) return -1;
     oseq_node_t *n = &reg->nodes[reg->node_count];
     ev_memset(n, 0, sizeof(*n));
     copy_str(n->name, name, OSEQ_MAX_NAME_LEN);
@@ -213,9 +214,10 @@ bool oseq_is_ancestor(oseq_registry_t *reg, uint32_t ancestor_idx,
         descendant_idx >= reg->event_count) return false;
     if (ancestor_idx == descendant_idx) return false;
 
-    /* BFS from descendant up the parent chain */
-    /* Use a simple stack-based DFS with cycle guard */
-    uint32_t stack[OSEQ_MAX_DEPTH];
+    /* DFS from descendant up the parent chain. Each index is pushed at most
+     * once (visited), so a stack of OSEQ_MAX_EVENTS cannot overflow; a
+     * smaller stack made a wide DAG answer "not an ancestor". */
+    uint32_t stack[OSEQ_MAX_EVENTS];
     uint32_t stack_top = 0;
     bool visited[OSEQ_MAX_EVENTS];
     for (uint32_t i = 0; i < reg->event_count; i++) visited[i] = false;
@@ -231,7 +233,7 @@ bool oseq_is_ancestor(oseq_registry_t *reg, uint32_t ancestor_idx,
             uint32_t p = e->parent_ordinals[i];
             if (p == ancestor_idx) return true;
             if (p < reg->event_count && !visited[p]) {
-                if (stack_top >= OSEQ_MAX_DEPTH) return false;
+                if (stack_top >= OSEQ_MAX_EVENTS) return false;
                 visited[p] = true;
                 stack[stack_top++] = p;
             }
@@ -250,8 +252,10 @@ bool oseq_happens_before(oseq_registry_t *reg, uint32_t a_idx, uint32_t b_idx) {
 bool oseq_detect_cycle(oseq_registry_t *reg, uint32_t event_idx) {
     if (!reg || event_idx >= reg->event_count) return false;
     /* A cycle exists if event_idx is its own ancestor */
-    /* Also check if any parent chain leads back to event_idx */
-    uint32_t stack[OSEQ_MAX_DEPTH];
+    /* Also check if any parent chain leads back to event_idx. Sized like
+     * oseq_is_ancestor: a stack that ran out reported "no cycle", and a
+     * cyclic event then committed. */
+    uint32_t stack[OSEQ_MAX_EVENTS];
     uint32_t stack_top = 0;
     bool visited[OSEQ_MAX_EVENTS];
     for (uint32_t i = 0; i < reg->event_count; i++) visited[i] = false;
@@ -274,7 +278,7 @@ bool oseq_detect_cycle(oseq_registry_t *reg, uint32_t event_idx) {
             uint32_t pp = ce->parent_ordinals[i];
             if (pp == event_idx) return true;  /* cycle found */
             if (pp < reg->event_count && !visited[pp]) {
-                if (stack_top >= OSEQ_MAX_DEPTH) return false;
+                if (stack_top >= OSEQ_MAX_EVENTS) return false;
                 visited[pp] = true;
                 stack[stack_top++] = pp;
             }

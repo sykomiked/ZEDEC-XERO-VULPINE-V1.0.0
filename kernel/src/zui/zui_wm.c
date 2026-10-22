@@ -5,6 +5,9 @@
 #include "zui_motion.h"
 #include "zui_tokens.h"
 
+/* zui_palette.h C6: every colour by role, in the active set */
+#define C(role) zui_color(wm->colors, ZUI_C_##role)
+
 #define DOUBLE_MS 400u /* two presses on a title this close: maximise */
 
 enum { DRAG_NONE = 0, DRAG_MOVE, DRAG_RESIZE, DRAG_APP };
@@ -21,9 +24,17 @@ enum {
     HIT_DOCK
 };
 
+/* WM10: a 1x size at the chrome's scale */
+int32_t zui_wm_px(const zui_wm_t *wm, int32_t v)
+{
+    uint32_t q = wm->scale_q8 ? wm->scale_q8 : 256u;
+    return (int32_t) (((int64_t) v * q + 128) >> 8);
+}
+#define S(v) zui_wm_px(wm, (v))
+
 static int32_t title_h(const zui_wm_t *wm)
 {
-    return wm->touch ? ZUI_WM_TITLE_T : ZUI_WM_TITLE;
+    return S(wm->touch ? ZUI_WM_TITLE_T : ZUI_WM_TITLE);
 }
 
 static int32_t imin(int32_t a, int32_t b)
@@ -56,9 +67,37 @@ static void copy(char *d, uint32_t cap, const char *s)
     d[i] = 0;
 }
 
+zui_rect_t zui_wm_strip_rect(const zui_wm_t *wm)
+{
+    int32_t t = imax(0, wm->strip_size);
+    switch (wm->strip_pos) {
+    case 1:
+        return (zui_rect_t){0, 0, imin(t, wm->w), wm->h};
+    case 2:
+        return (zui_rect_t){imax(0, wm->w - t), 0, imin(t, wm->w), wm->h};
+    case 3:
+        return (zui_rect_t){0, 0, wm->w, imin(t, wm->h)};
+    default:
+        return (zui_rect_t){0, imax(0, wm->h - t), wm->w, imin(t, wm->h)};
+    }
+}
+
 zui_rect_t zui_wm_work(const zui_wm_t *wm)
 {
-    zui_rect_t r = {0, 0, wm->w, imax(0, wm->h - ZUI_WM_STRIP)};
+    zui_rect_t s = zui_wm_strip_rect(wm), r = {0, 0, wm->w, wm->h};
+    switch (wm->strip_pos) { /* WM6: the screen beside the strip */
+    case 1:
+        r.x = s.w, r.w = wm->w - s.w;
+        break;
+    case 2:
+        r.w = wm->w - s.w;
+        break;
+    case 3:
+        r.y = s.h, r.h = wm->h - s.h;
+        break;
+    default:
+        r.h = imax(0, wm->h - s.h);
+    }
     if (wm->use_dock) { /* WM9: only the seal's band, and only where it would cover */
         const zui_dock_t *d = &wm->dock;
         bool top =
@@ -72,7 +111,8 @@ zui_rect_t zui_wm_work(const zui_wm_t *wm)
 zui_rect_t zui_wm_content(const zui_wm_t *wm, const zui_wm_window_t *w)
 {
     int32_t th = title_h(wm);
-    zui_rect_t c = {w->r.x + 1, w->r.y + th, imax(0, w->r.w - 2), imax(0, w->r.h - th - 1)};
+    int32_t b = S(1); /* the border */
+    zui_rect_t c = {w->r.x + b, w->r.y + th, imax(0, w->r.w - 2 * b), imax(0, w->r.h - th - b)};
     return c;
 }
 
@@ -99,6 +139,8 @@ void zui_wm_init(zui_wm_t *wm, int32_t w, int32_t h, bool touch)
     for (uint32_t i = 0; i < sizeof *wm; i++) z[i] = 0;
     wm->touch = touch;
     wm->next_id = 1;
+    wm->strip_size = ZUI_WM_STRIP; /* WM6: along the bottom until placed */
+    wm->scale_q8 = 256u;           /* WM10: 1x */
     zui_dock_init(&wm->dock, w, h, touch);
     wm->use_dock = true; /* WM9: the dock unless the strip is asked for */
     zui_wm_resize(wm, w, h);
@@ -109,9 +151,9 @@ void zui_wm_init(zui_wm_t *wm, int32_t w, int32_t h, bool touch)
 static zui_rect_t limit(const zui_wm_t *wm, zui_rect_t r)
 {
     zui_rect_t a = zui_wm_work(wm);
-    int32_t th = title_h(wm), keep = 64;
-    r.w = imin(imax(r.w, ZUI_WM_MIN_W), a.w);
-    r.h = imin(imax(r.h, ZUI_WM_MIN_H), a.h);
+    int32_t th = title_h(wm), keep = S(64);
+    r.w = imin(imax(r.w, S(ZUI_WM_MIN_W)), a.w);
+    r.h = imin(imax(r.h, S(ZUI_WM_MIN_H)), a.h);
     r.x = imin(imax(r.x, a.x - r.w + keep), a.x + a.w - keep);
     r.y = imin(imax(r.y, a.y), a.y + a.h - th);
     return r;
@@ -221,9 +263,9 @@ uint32_t zui_wm_open(zui_wm_t *wm, const char *app, const char *title, const zui
     if (client) w->client = *client;
     w->order = wm->opened++;
     zui_rect_t a = zui_wm_work(wm); /* cascade from the upper left */
-    int32_t step = (int32_t) (w->order % 8u) * 32;
-    zui_rect_t r = {a.x + a.w / 8 + step, a.y + a.h / 12 + step, imin(a.w * 3 / 4, 960),
-                    imin(a.h * 3 / 4, 680)};
+    int32_t step = (int32_t) (w->order % 8u) * S(32);
+    zui_rect_t r = {a.x + a.w / 8 + step, a.y + a.h / 12 + step, imin(a.w * 3 / 4, S(960)),
+                    imin(a.h * 3 / 4, S(680))};
     w->r = w->restore = r;
     fit(wm, w);
     w->restore = w->r;
@@ -329,13 +371,44 @@ uint32_t zui_wm_strip(const zui_wm_t *wm, uint32_t *ids, uint32_t cap)
 
 zui_rect_t zui_wm_strip_slot(const zui_wm_t *wm, uint32_t i, uint32_t n)
 {
-    int32_t pad = ZUI_S2, y = wm->h - ZUI_WM_STRIP;
-    int32_t room = wm->w - 2 * pad;
-    int32_t sw = n ? imin(180, (room - (int32_t) (n - 1u) * ZUI_S1) / (int32_t) n) : 0;
-    int32_t total = (int32_t) n * sw + (int32_t) (n ? n - 1u : 0u) * ZUI_S1;
-    zui_rect_t r = {(wm->w - total) / 2 + (int32_t) i * (sw + ZUI_S1), y + ZUI_S1, sw,
-                    ZUI_WM_STRIP - 2 * ZUI_S1};
+    zui_rect_t b = zui_wm_strip_rect(wm);
+    int32_t pad = S(ZUI_S2), g = S(ZUI_S1);
+    if (wm->strip_pos == 1 || wm->strip_pos == 2) { /* WM6: down a side edge */
+        int32_t room = b.h - 2 * pad, sh = S(40);
+        sh = n ? imin(sh, (room - (int32_t) (n - 1u) * g) / (int32_t) n) : 0;
+        int32_t total = (int32_t) n * sh + (int32_t) (n ? n - 1u : 0u) * g;
+        zui_rect_t r = {b.x + g, b.y + (b.h - total) / 2 + (int32_t) i * (sh + g),
+                        imax(0, b.w - 2 * g), imax(0, sh)};
+        return r;
+    }
+    int32_t room = b.w - 2 * pad;
+    int32_t sw = n ? imin(S(180), (room - (int32_t) (n - 1u) * g) / (int32_t) n) : 0;
+    int32_t total = (int32_t) n * sw + (int32_t) (n ? n - 1u : 0u) * g;
+    zui_rect_t r = {(wm->w - total) / 2 + (int32_t) i * (sw + g), b.y + g, sw,
+                    imax(0, b.h - 2 * g)};
     return r;
+}
+
+void zui_wm_set_scale(zui_wm_t *wm, uint32_t scale_q8)
+{
+    uint32_t old = wm->scale_q8 ? wm->scale_q8 : 256u;
+    uint32_t q = scale_q8 < 128u ? 128u : scale_q8 > 1024u ? 1024u : scale_q8;
+    wm->scale_q8 = q;
+    wm->strip_size = (int32_t) (((int64_t) wm->strip_size * q + old / 2u) / old);
+    zui_dock_t *d = &wm->dock; /* the dock has no scale of its own */
+    int32_t seal = (int32_t) (((int64_t) d->seal * q + old / 2u) / old);
+    d->icon = S(d->touch ? ZUI_DOCK_ICON_T : ZUI_DOCK_ICON);
+    zui_dock_place(d, d->corner, seal, d->autohide);
+    for (uint32_t i = 0; i < ZUI_WM_MAX; i++) /* the work area changed */
+        if (wm->win[i].id) fit(wm, &wm->win[i]);
+}
+
+void zui_wm_strip_place(zui_wm_t *wm, int pos, int32_t size)
+{
+    wm->strip_pos = (uint8_t) (pos >= 0 && pos <= 3 ? pos : 0);
+    wm->strip_size = imax(0, size);
+    for (uint32_t i = 0; i < ZUI_WM_MAX; i++) /* the work area changed */
+        if (wm->win[i].id) fit(wm, &wm->win[i]);
 }
 
 /* The title bar's buttons, right to left: close, maximise, minimise. */
@@ -360,7 +433,7 @@ int zui_wm_hit(const zui_wm_t *wm, int32_t x, int32_t y, uint32_t *id, uint8_t *
                 *id = wm->dock.item[sl.item].win;
             return HIT_DOCK;
         }
-    } else if (y >= wm->h - ZUI_WM_STRIP) {
+    } else if (inside(zui_wm_strip_rect(wm), x, y)) {
         uint32_t ids[ZUI_WM_MAX];
         uint32_t n = zui_wm_strip(wm, ids, ZUI_WM_MAX);
         for (uint32_t i = 0; i < n; i++)
@@ -370,7 +443,7 @@ int zui_wm_hit(const zui_wm_t *wm, int32_t x, int32_t y, uint32_t *id, uint8_t *
             }
         return HIT_NONE;
     }
-    int32_t g = ZUI_WM_GRIP, th = title_h(wm);
+    int32_t g = S(ZUI_WM_GRIP), th = title_h(wm);
     for (uint32_t i = wm->nz; i > 0; i--) {
         const zui_wm_window_t *w = &wm->win[wm->z[i - 1u]];
         if (w->minimised) continue;
@@ -509,7 +582,7 @@ static void drag_to(zui_wm_t *wm, int32_t x, int32_t y)
         r.x += dx;
         r.y += dy;
     } else {
-        int32_t mw = ZUI_WM_MIN_W, mh = ZUI_WM_MIN_H;
+        int32_t mw = S(ZUI_WM_MIN_W), mh = S(ZUI_WM_MIN_H);
         if (wm->edges & E_RIGHT) r.w = imax(mw, r.w + dx);
         if (wm->edges & E_BOTTOM) r.h = imax(mh, r.h + dy);
         if (wm->edges & E_LEFT) { /* the right edge stays where it was */
@@ -671,40 +744,41 @@ static void launch_screen(zui_wm_t *wm, zui_surface_t *s, zui_rect_t area, zui_r
     zui_unclip(s);
 }
 
-static void glyph_x(zui_surface_t *s, zui_rect_t b, uint32_t rgb)
+static void glyph_x(zui_surface_t *s, zui_rect_t b, uint32_t rgb, int32_t k)
 {
     int32_t n = b.h / 3, x0 = b.x + (b.w - n) / 2, y0 = b.y + (b.h - n) / 2;
     for (int32_t i = 0; i < n; i++) {
-        zui_fill(s, (zui_rect_t){x0 + i, y0 + i, 2, 2}, rgb);
-        zui_fill(s, (zui_rect_t){x0 + n - 1 - i, y0 + i, 2, 2}, rgb);
+        zui_fill(s, (zui_rect_t){x0 + i, y0 + i, k, k}, rgb);
+        zui_fill(s, (zui_rect_t){x0 + n - 1 - i, y0 + i, k, k}, rgb);
     }
 }
 
 static void frame(zui_wm_t *wm, zui_surface_t *s, const zui_wm_window_t *w, bool front,
                   uint32_t tick)
 {
-    int32_t th = title_h(wm), rad = (wm->compact || w->maximised) ? 0 : ZUI_R_PANEL;
+    int32_t th = title_h(wm), rad = (wm->compact || w->maximised) ? 0 : S(ZUI_R_PANEL);
+    int32_t k = S(2), hl = S(1); /* marks' strokes, the hairline */
     zui_rect_t r = w->r;
-    zui_fill_rrect(s, r, rad, ZUI_VOID, 255);
-    zui_fill_rrect(s, (zui_rect_t){r.x, r.y, r.w, th + rad}, rad, ZUI_PANEL, 255);
-    zui_fill(s, (zui_rect_t){r.x, r.y + th, r.w, rad}, ZUI_VOID);
-    zui_hline(s, r.x, r.y + th - 1, r.w, 1, ZUI_HAIRLINE);
-    zui_engrave(s, r, rad, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, front ? 90u : 40u);
-    uint32_t ink = front ? ZUI_TEXT : ZUI_MUTED;
+    zui_fill_rrect(s, r, rad, C(VOID), 255);
+    zui_fill_rrect(s, (zui_rect_t){r.x, r.y, r.w, th + rad}, rad, C(PANEL), 255);
+    zui_fill(s, (zui_rect_t){r.x, r.y + th, r.w, rad}, C(VOID));
+    zui_hline(s, r.x, r.y + th - hl, r.w, hl, C(HAIRLINE));
+    zui_engrave(s, r, rad, C(ENGRAVE_LO), C(ENGRAVE_HI), front ? 90u : 40u);
+    uint32_t ink = front ? C(TEXT) : C(MUTED);
     if (wm->text && wm->text->font) {
         int32_t base = r.y + (th + zui_text_ascent(wm->text) + zui_text_descent(wm->text)) / 2;
-        int32_t room = r.w - 3 * th - 2 * ZUI_S3;
-        if (room > 0) zui_text_fit(s, wm->text, r.x + ZUI_S3, base, room, ink, w->title);
+        int32_t room = r.w - 3 * th - 2 * S(ZUI_S3);
+        if (room > 0) zui_text_fit(s, wm->text, r.x + S(ZUI_S3), base, room, ink, w->title);
     }
     zui_rect_t b = button(wm, w, HIT_MIN); /* minimise: a bar */
-    zui_hline(s, b.x + b.w / 3, b.y + b.h / 2, b.w / 3, 2, ZUI_MUTED);
+    zui_hline(s, b.x + b.w / 3, b.y + b.h / 2, b.w / 3, k, C(MUTED));
     if (!wm->compact) { /* maximise: a frame */
         b = button(wm, w, HIT_MAX);
-        int32_t k = b.h / 3;
-        zui_stroke_rrect(s, (zui_rect_t){b.x + (b.w - k) / 2, b.y + (b.h - k) / 2, k, k}, 2, 2,
-                         ZUI_MUTED, 255);
+        int32_t m = b.h / 3;
+        zui_stroke_rrect(s, (zui_rect_t){b.x + (b.w - m) / 2, b.y + (b.h - m) / 2, m, m}, k, k,
+                         C(MUTED), 255);
     }
-    glyph_x(s, button(wm, w, HIT_CLOSE), ZUI_MUTED);
+    glyph_x(s, button(wm, w, HIT_CLOSE), C(MUTED), k);
     zui_rect_t c = zui_wm_content(wm, w);
     if (w->phase == ZUI_WIN_LAUNCHING) {
         launch_screen(wm, s, c, c, w, tick);
@@ -727,60 +801,75 @@ static void frame(zui_wm_t *wm, zui_surface_t *s, const zui_wm_window_t *w, bool
 
 static void strip(zui_wm_t *wm, zui_surface_t *s, uint32_t tick)
 {
-    zui_rect_t bar = {0, wm->h - ZUI_WM_STRIP, wm->w, ZUI_WM_STRIP};
-    zui_fill(s, bar, ZUI_PANEL);
-    zui_hline(s, 0, bar.y, wm->w, 1, ZUI_HAIRLINE);
+    zui_rect_t bar = zui_wm_strip_rect(wm);
+    if (!bar.w || !bar.h) return;
+    int32_t hl = S(1), rc = S(ZUI_R_CONTROL), p2 = S(ZUI_S2), p3 = S(ZUI_S3);
+    zui_fill(s, bar, C(PANEL));
+    switch (wm->strip_pos) { /* the hairline on the edge facing the windows */
+    case 1:
+        zui_vline(s, bar.x + bar.w - hl, 0, wm->h, hl, C(HAIRLINE));
+        break;
+    case 2:
+        zui_vline(s, bar.x, 0, wm->h, hl, C(HAIRLINE));
+        break;
+    case 3:
+        zui_hline(s, 0, bar.y + bar.h - hl, wm->w, hl, C(HAIRLINE));
+        break;
+    default:
+        zui_hline(s, 0, bar.y, wm->w, hl, C(HAIRLINE));
+    }
     uint32_t ids[ZUI_WM_MAX];
     uint32_t n = zui_wm_strip(wm, ids, ZUI_WM_MAX), front = zui_wm_front(wm);
     for (uint32_t i = 0; i < n; i++) {
         const zui_wm_window_t *w = cget(wm, ids[i]);
         zui_rect_t r = zui_wm_strip_slot(wm, i, n);
-        if (ids[i] == front) zui_fill_rrect(s, r, ZUI_R_CONTROL, ZUI_RAISED, 255);
-        zui_engrave(s, r, ZUI_R_CONTROL, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 50u);
+        if (ids[i] == front) zui_fill_rrect(s, r, rc, C(RAISED), 255);
+        zui_engrave(s, r, rc, C(ENGRAVE_LO), C(ENGRAVE_HI), 50u);
         if (wm->text && wm->text->font) {
             int32_t base = r.y + (r.h + zui_text_ascent(wm->text) + zui_text_descent(wm->text)) / 2;
-            zui_text_fit(s, wm->text, r.x + ZUI_S2, base, r.w - 2 * ZUI_S2,
-                         w->minimised ? ZUI_FAINT : ZUI_TEXT_2, w->title);
+            zui_text_fit(s, wm->text, r.x + p2, base, r.w - 2 * p2,
+                         w->minimised ? C(FAINT) : C(TEXT_2), w->title);
         }
         if (ids[i] == front) /* WM8: the one gold element */
-            zui_hline(s, r.x + ZUI_S3, r.y + r.h - 3, r.w - 2 * ZUI_S3, 2, ZUI_GOLD);
+            zui_hline(s, r.x + p3, r.y + r.h - S(3), r.w - 2 * p3, S(2), C(GOLD));
         if (w->phase == ZUI_WIN_LAUNCHING)
-            zui_bar_draw(s, (zui_rect_t){r.x + ZUI_S2, r.y + r.h - 9, r.w - 2 * ZUI_S2, 2},
-                         ZUI_BAR_GATHER, w->progress, tick, 0, 0);
+            zui_bar_draw_in(s, (zui_rect_t){r.x + p2, r.y + r.h - S(9), r.w - 2 * p2, S(2)},
+                            ZUI_BAR_GATHER, w->progress, tick, 0, 0, wm->colors);
     }
 }
 
 static void switcher(zui_wm_t *wm, zui_surface_t *s)
 {
     if (!wm->switching || !wm->nm) return;
-    int32_t tile = 160, gap = ZUI_S3, n = (int32_t) wm->nm;
+    int32_t tile = S(160), th = S(72), gap = S(ZUI_S3), n = (int32_t) wm->nm;
+    int32_t rp = S(ZUI_R_PANEL), rc = S(ZUI_R_CONTROL);
     int32_t per = imax(1, imin(n, (wm->w - 4 * gap) / (tile + gap)));
     int32_t rows = (n + per - 1) / per;
-    int32_t pw = per * (tile + gap) + gap, ph = rows * (72 + gap) + gap;
+    int32_t pw = per * (tile + gap) + gap, ph = rows * (th + gap) + gap;
     zui_rect_t a = zui_wm_work(wm);
     zui_rect_t p = {(wm->w - pw) / 2, a.y + (a.h - ph) / 2, pw, ph};
-    zui_fill_rrect(s, p, ZUI_R_PANEL, ZUI_PANEL, 245);
-    zui_engrave(s, p, ZUI_R_PANEL, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 90u);
+    zui_fill_rrect(s, p, rp, C(PANEL), 245);
+    zui_engrave(s, p, rp, C(ENGRAVE_LO), C(ENGRAVE_HI), 90u);
     for (int32_t i = 0; i < n; i++) {
         const zui_wm_window_t *w = cget(wm, wm->mru[i]);
-        zui_rect_t t = {p.x + gap + (i % per) * (tile + gap), p.y + gap + (i / per) * (72 + gap),
-                        tile, 72};
+        zui_rect_t t = {p.x + gap + (i % per) * (tile + gap), p.y + gap + (i / per) * (th + gap),
+                        tile, th};
         bool chosen = (uint32_t) i == wm->pick;
-        zui_fill_rrect(s, t, ZUI_R_CONTROL, chosen ? ZUI_RAISED : ZUI_VOID, 255);
+        zui_fill_rrect(s, t, rc, chosen ? C(RAISED) : C(VOID), 255);
         if (chosen)
-            zui_stroke_rrect(s, t, ZUI_R_CONTROL, 2, ZUI_GOLD, 255);
+            zui_stroke_rrect(s, t, rc, S(2), C(GOLD), 255);
         else
-            zui_engrave(s, t, ZUI_R_CONTROL, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 50u);
+            zui_engrave(s, t, rc, C(ENGRAVE_LO), C(ENGRAVE_HI), 50u);
         if (wm->text && wm->text->font)
-            zui_text_fit(s, wm->text, t.x + ZUI_S3, t.y + t.h / 2 + 5, t.w - 2 * ZUI_S3,
-                         chosen ? ZUI_TEXT : ZUI_TEXT_2, w->title);
+            zui_text_fit(s, wm->text, t.x + gap, t.y + t.h / 2 + S(5), t.w - 2 * gap,
+                         chosen ? C(TEXT) : C(TEXT_2), w->title);
     }
 }
 
 void zui_wm_draw(zui_wm_t *wm, zui_surface_t *s, uint32_t tick)
 {
     zui_unclip(s);
-    zui_fill(s, wm->use_dock ? (zui_rect_t){0, 0, wm->w, wm->h} : zui_wm_work(wm), ZUI_VOID);
+    zui_fill(s, wm->use_dock ? (zui_rect_t){0, 0, wm->w, wm->h} : zui_wm_work(wm), C(VOID));
     uint32_t front = zui_wm_front(wm);
     for (uint32_t i = 0; i < wm->nz; i++) {
         const zui_wm_window_t *w = &wm->win[wm->z[i]];
@@ -788,6 +877,7 @@ void zui_wm_draw(zui_wm_t *wm, zui_surface_t *s, uint32_t tick)
     }
     if (wm->use_dock) {
         if (!wm->dock.text) wm->dock.text = wm->text;
+        if (!wm->dock.colors) wm->dock.colors = wm->colors;
         zui_dock_draw(&wm->dock, s);
     } else {
         strip(wm, s, tick);

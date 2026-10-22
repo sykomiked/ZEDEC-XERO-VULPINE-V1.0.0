@@ -41,6 +41,7 @@ SHIPPED = {
     "HuggingFaceTB/SmolVLM2-500M-Video-Instruct": [
         ("ggml-org/SmolVLM2-500M-Video-Instruct-GGUF", "SmolVLM2-500M-Video-Instruct-Q8_0.gguf", "GGUF conversion by ggml-org"),
         ("ggml-org/SmolVLM2-500M-Video-Instruct-GGUF", "mmproj-SmolVLM2-500M-Video-Instruct-f16.gguf", "GGUF conversion by ggml-org")],
+    "HuggingFaceTB/SmolLM2-1.7B-Instruct": [("HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF", "smollm2-1.7b-instruct-q4_k_m.gguf", None)],
     "llmware/slim-ner-tool": [("llmware/slim-ner-tool", "slim-ner.gguf", None)],
     "onnx-community/Kokoro-82M-v1.0-ONNX": [("onnx-community/Kokoro-82M-v1.0-ONNX", "onnx/model_q8f16.onnx", None)],
     "PaddlePaddle/PP-OCRv6_small_det_onnx": [("PaddlePaddle/PP-OCRv6_small_det_onnx", "inference.onnx", None)],
@@ -99,6 +100,16 @@ def base_chain(meta):
     return [b] if isinstance(b, str) else list(b or [])
 
 
+def ipfs_node(c):
+    """Where the cell lives in the Tiamat bucket tree (tiamat_swarm.json "distribution").
+    The CID is filled in by ipfs-dist when the tree is packed; never guessed."""
+    branch = "trunks" if c["organ"] == "trunk" else f"organs/{c['organ']}"
+    leaf = c["name"].lower()
+    layers = ["card"] + (["weights"] if not c["trunk"] else ["trunk_link", "adapter"]) + ["evidence_head"]
+    return {"alexandria": f"@cell.{leaf}", "parent": f"06_tiamat/{branch}",
+            "path": f"06_tiamat/{branch}/{leaf}", "layers": layers, "cid": None}
+
+
 def entry(c, meta, metas):
     src = files_of(meta, c["files"])
     shipped = [pinned(metas[r], r, p) | ({"packaging_credit": cr} if cr else {})
@@ -139,6 +150,7 @@ def entry(c, meta, metas):
         "source_files": src,
         "credits": credits,
         "notes": c["note"],
+        "ipfs": ipfs_node(c),
     }
 
 

@@ -7,6 +7,9 @@
 #include "zui_progress.h"
 #include "zui_tokens.h"
 
+/* zui_palette.h C6: every colour by role, in the active set */
+#define C(role) zui_color(d->colors, ZUI_C_##role)
+
 #define QUARTER (ZUI_DOCK_TURN / 4)
 #define HALF    (ZUI_DOCK_TURN / 2)
 #define ONE     16384 /* the sine table's unit */
@@ -914,10 +917,11 @@ static void ring_line(zui_surface_t *s, int32_t cx, int32_t cy, int32_t r, int32
 }
 
 /* A carved circle: the shade inside, the light tint just outside. */
-static void carve(zui_surface_t *s, int32_t cx, int32_t cy, int32_t r, uint32_t a_lo, uint32_t a_hi)
+static void carve(const zui_dock_t *d, zui_surface_t *s, int32_t cx, int32_t cy, int32_t r,
+                  uint32_t a_lo, uint32_t a_hi)
 {
-    ring_line(s, cx, cy, r, 1, ZUI_ENGRAVE_LO, a_lo);
-    ring_line(s, cx, cy, r + 1, 1, ZUI_ENGRAVE_HI, a_hi);
+    ring_line(s, cx, cy, r, 1, C(ENGRAVE_LO), a_lo);
+    ring_line(s, cx, cy, r + 1, 1, C(ENGRAVE_HI), a_hi);
 }
 
 static uint32_t scale(uint32_t a, uint32_t lit)
@@ -940,23 +944,23 @@ static void pip(const zui_dock_t *d, zui_surface_t *s, int32_t x, int32_t y, uin
     switch (act) {
     case ZUI_DOCK_ASK: {
         uint32_t q = pulse(d->clock, ZUI_DOCK_FAST_MS);
-        disc(s, x, y, r, ZUI_GOLD, scale(255u, lit));
+        disc(s, x, y, r, C(GOLD), scale(255u, lit));
         int32_t hr = r + 3 + (int32_t) (q * 2u / 256u);
         ring_line(
-            s, x, y, hr, 1, ZUI_GOLD,
+            s, x, y, hr, 1, C(GOLD),
             scale(zui_motion_style() == ZUI_MOTION_FULL ? 255u - q * 160u / 256u : 150u, lit));
         break;
     }
     case ZUI_DOCK_BUSY:
-        disc(s, x, y, r, ZUI_OK,
+        disc(s, x, y, r, C(OK),
              scale(150u + pulse(d->clock, ZUI_DOCK_MEDIUM_MS) * 105u / 256u, lit));
         break;
     case ZUI_DOCK_IDLE:
-        disc(s, x, y, r, ZUI_MUTED,
+        disc(s, x, y, r, C(MUTED),
              scale(110u + pulse(d->clock, ZUI_DOCK_SLOW_MS) * 110u / 256u, lit));
         break;
     default:
-        ring_line(s, x, y, r, 1, ZUI_FAINT, scale(220u, lit));
+        ring_line(s, x, y, r, 1, C(FAINT), scale(220u, lit));
         break;
     }
 }
@@ -976,11 +980,11 @@ static void default_icon(const zui_dock_t *d, zui_surface_t *s, zui_rect_t box,
                          const zui_dock_item_t *it, uint32_t lit)
 {
     int32_t r = box.w / 2, cx = box.x + r, cy = box.y + r;
-    disc(s, cx, cy, r, ZUI_RAISED, scale(255u, lit));
-    zui_engrave(s, box, r, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, scale(70u, lit));
+    disc(s, cx, cy, r, C(RAISED), scale(255u, lit));
+    zui_engrave(s, box, r, C(ENGRAVE_LO), C(ENGRAVE_HI), scale(70u, lit));
     if (!it) { /* the seal's mark: an alidade over a small limb */
-        ring_line(s, cx, cy, r / 2, 1, ZUI_TEXT_2, scale(255u, lit));
-        disc(s, cx, cy, imax(1, r / 6), ZUI_TEXT_2, scale(255u, lit));
+        ring_line(s, cx, cy, r / 2, 1, C(TEXT_2), scale(255u, lit));
+        disc(s, cx, cy, imax(1, r / 6), C(TEXT_2), scale(255u, lit));
         return;
     }
     if (d->text && d->text->font) {
@@ -988,9 +992,9 @@ static void default_icon(const zui_dock_t *d, zui_surface_t *s, zui_rect_t box,
         initial(it->title[0] ? it->title : it->app, c);
         int32_t tw = zui_text_width(d->text, c);
         int32_t base = cy + (zui_text_ascent(d->text) + zui_text_descent(d->text)) / 2;
-        zui_text_a(s, d->text, cx - tw / 2, base, ZUI_TEXT, scale(255u, lit), c);
+        zui_text_a(s, d->text, cx - tw / 2, base, C(TEXT), scale(255u, lit), c);
     } else {
-        ring_line(s, cx, cy, imax(2, r / 3), 1, ZUI_TEXT_2, scale(220u, lit));
+        ring_line(s, cx, cy, imax(2, r / 3), 1, C(TEXT_2), scale(220u, lit));
     }
 }
 
@@ -1019,14 +1023,14 @@ static void seal(const zui_dock_t *d, zui_surface_t *s, const frame_t *f, bool o
     bool ask = asking(d) > 0;
     uint32_t a = d->autohide && !d->near && !ask && !open ? 90u : 255u;
     int32_t r = d->seal;
-    disc(s, f->ox, f->oy, r, ZUI_PANEL, a);
-    carve(s, f->ox, f->oy, r, a, scale(90u, a + 1u));
-    ring_line(s, f->ox, f->oy, r - 8, 1, ZUI_HAIRLINE, a);
+    disc(s, f->ox, f->oy, r, C(PANEL), a);
+    carve(d, s, f->ox, f->oy, r, a, scale(90u, a + 1u));
+    ring_line(s, f->ox, f->oy, r - 8, 1, C(HAIRLINE), a);
     int32_t span = f->half ? HALF : QUARTER;
     for (int32_t g = ZUI_DOCK_TURN / 24; g < span; g += ZUI_DOCK_TURN / 24) {
         int32_t x, y; /* the limb's graduations, every 15 degrees */
         at_angle(f, r - 4, g, &x, &y);
-        zui_fill_a(s, (zui_rect_t){x - 1, y - 1, 2, 2}, ZUI_EDGE, a);
+        zui_fill_a(s, (zui_rect_t){x - 1, y - 1, 2, 2}, C(EDGE), a);
     }
     int32_t mid = span / 2, mx, my, m = r * 11 / 20;
     at_angle(f, r / 2 + (f->half ? 4 : 0), mid, &mx, &my);
@@ -1037,7 +1041,7 @@ static void seal(const zui_dock_t *d, zui_surface_t *s, const frame_t *f, bool o
         for (int32_t k = r - 7; k <= r + 3; k += 2) {
             int32_t x, y;
             at_angle(f, k, mid, &x, &y);
-            disc(s, x, y, 2, ZUI_GOLD, ta);
+            disc(s, x, y, 2, C(GOLD), ta);
         }
     }
 }
@@ -1072,9 +1076,9 @@ static void label(const zui_dock_t *d, zui_surface_t *s, const frame_t *f, int32
     x = imin(imax(x, ZUI_S1), d->w - bw - ZUI_S1);
     y = imin(imax(y, ZUI_S1), d->h - th - ZUI_S1);
     zui_rect_t tag = {x, y, bw, th};
-    zui_fill_rrect(s, tag, ZUI_R_CONTROL, ZUI_PANEL, 255);
-    zui_engrave(s, tag, ZUI_R_CONTROL, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 70u);
-    zui_text_fit(s, d->text, x + pad, y + ZUI_S1 + zui_text_ascent(d->text), tw, ZUI_TEXT, t);
+    zui_fill_rrect(s, tag, ZUI_R_CONTROL, C(PANEL), 255);
+    zui_engrave(s, tag, ZUI_R_CONTROL, C(ENGRAVE_LO), C(ENGRAVE_HI), 70u);
+    zui_text_fit(s, d->text, x + pad, y + ZUI_S1 + zui_text_ascent(d->text), tw, C(TEXT), t);
 }
 
 static void ring_apps(const zui_dock_t *d, zui_surface_t *s, const frame_t *f, uint32_t k,
@@ -1083,19 +1087,19 @@ static void ring_apps(const zui_dock_t *d, zui_surface_t *s, const frame_t *f, u
     const zui_dock_ring_t *g = &d->ring[k];
     int32_t n = (int32_t) shown(g), R = grow(d, g->r, e), half = d->icon / 2;
     if (!n) return;
-    carve(s, f->ox, f->oy, R, scale(k == 2u ? 150u : 255u, e), scale(k == 2u ? 26u : 54u, e));
+    carve(d, s, f->ox, f->oy, R, scale(k == 2u ? 150u : 255u, e), scale(k == 2u ? 26u : 54u, e));
     for (int32_t j = 0; j + 1 < n; j++) { /* graduations between the slots */
         int32_t x, y;
         at_angle(f, R, slot_angle(f, g, j * 256 + 128), &x, &y);
-        disc(s, x, y, 1, ZUI_EDGE, scale(200u, e));
+        disc(s, x, y, 1, C(EDGE), scale(200u, e));
     }
     for (int32_t k2 = 0; turns(g) && k2 < 3; k2++) { /* DK4: the ring goes on: fading marks */
         int32_t x, y, at0 = -96 - k2 * 40, at1 = (n - 1) * 256 + 96 + k2 * 40;
         uint32_t a = scale(220u - (uint32_t) k2 * 70u, e);
         at_angle(f, R, slot_angle(f, g, at0), &x, &y);
-        disc(s, x, y, 2, ZUI_TEXT_2, a);
+        disc(s, x, y, 2, C(TEXT_2), a);
         at_angle(f, R, slot_angle(f, g, at1), &x, &y);
-        disc(s, x, y, 2, ZUI_TEXT_2, a);
+        disc(s, x, y, 2, C(TEXT_2), a);
     }
     bool spin = turns(g) && g->spin > 0;
     int32_t off = spin ? g->spin_dir * g->spin * 256 / ZUI_DOCK_SPIN_MS : 0;
@@ -1116,10 +1120,10 @@ static void ring_apps(const zui_dock_t *d, zui_surface_t *s, const frame_t *f, u
         at_angle(f, R - half - 6, a, &px, &py);
         pip(d, s, px, py, it->activity, scale(fade, e));
         if (it->progress && it->progress < 256u && e >= 256u && fade >= 256u)
-            zui_bar_draw(s, (zui_rect_t){cx - half + 4, cy + half + 3, d->icon - 8, 2},
-                         ZUI_BAR_GATHER, it->progress, d->clock, 0, 0);
+            zui_bar_draw_in(s, (zui_rect_t){cx - half + 4, cy + half + 3, d->icon - 8, 2},
+                            ZUI_BAR_GATHER, it->progress, d->clock, 0, 0, d->colors);
         if (!spin && base + j == active) /* DK10: the one gold element */
-            ring_line(s, cx, cy, half + 3, 2, ZUI_GOLD, scale(255u, e));
+            ring_line(s, cx, cy, half + 3, 2, C(GOLD), scale(255u, e));
     }
 }
 
@@ -1129,8 +1133,8 @@ void zui_dock_draw(const zui_dock_t *d, zui_surface_t *s)
     uint32_t e = eased(d);
     if (e) {
         int32_t o = grow(d, outer(d), e);
-        disc(s, f.ox, f.oy, o, ZUI_PANEL, scale(zui_motion_alpha(236u), e));
-        carve(s, f.ox, f.oy, o, scale(255u, e), scale(70u, e));
+        disc(s, f.ox, f.oy, o, C(PANEL), scale(zui_motion_alpha(236u), e));
+        carve(d, s, f.ox, f.oy, o, scale(255u, e), scale(70u, e));
         int32_t active = d->kbd && d->focus >= 0 ? d->focus : d->hot >= 0 ? d->hot : front_slot(d);
         int32_t base = 0;
         for (uint32_t k = 0; k < d->nring; k++) {

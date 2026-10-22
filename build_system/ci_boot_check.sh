@@ -10,7 +10,7 @@
 #   name      label for messages and the log file (boot_<name>.log)
 #   makefile  e.g. build_system/Makefile.riscv; its `run` target boots QEMU
 #   seconds   how long QEMU runs before timeout stops it (default 30)
-#   marker    extra literal lines the log must also contain, e.g. [AI_OK]
+#   marker    extra literal lines the log must also contain, e.g. [AI_SELFCHECK_OK]
 #
 # The kernels never exit, so `timeout` ending QEMU (exit 124) is the normal
 # outcome. Any OTHER non-zero exit means make or QEMU failed before or while
@@ -27,6 +27,13 @@
 #   PANIC / Kernel panic     generic, in case a later handler uses them
 # "[FAULT CONTAINED]" is a healthy boot line (fault-containment demo) and is
 # deliberately not matched: the bracket must close right after FAULT.
+#
+# ZXV_BOOT_DENY_FAIL=1 also fails the check on a boot self-check that printed
+# [FAIL] or [??] and carried on. arm64 and x86_64 report a failed check that
+# way without halting, so without this a broken X25519, AEAD or E8 check still
+# reached [BOOT_OK] and passed CI. Set it per job, once that architecture's
+# healthy boot prints no such line (arm64 and x86_64 do; see
+# docs/BEHAVIOUR_COVERAGE.md).
 set -u
 
 NAME=${1:?usage: ci_boot_check.sh <name> <makefile> [seconds]}
@@ -35,6 +42,9 @@ SECS=${3:-30}
 shift $(( $# < 3 ? $# : 3 ))
 LOG="boot_${NAME}.log"
 FAULT_RE='\[BOOT_FAIL\]|\[FAULT\]|\[EL0 FAULT\]|CPU exception vector=|PANIC|[Kk]ernel panic'
+if [ "${ZXV_BOOT_DENY_FAIL:-0}" = 1 ]; then
+    FAULT_RE="$FAULT_RE"'|\[FAIL\]|\[\?\?\]'
+fi
 
 rc=0
 timeout "$SECS" make -f "$MK" run < /dev/null > "$LOG" 2>&1 || rc=$?

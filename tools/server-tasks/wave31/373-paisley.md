@@ -1,6 +1,6 @@
 # Wave 31 task: Paisley (slot 373), Symmetric patterns
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 13 (166 limner, 162 heddle); wave 16 (203 tiler); wave 18 (227 cirque); wave 4 (054 burin).
+Depends on: wave 7 (054 burin), wave 13 (162 heddle, 166 limner), wave 16 (203 tiler), wave 18 (227 cirque).
 Manifest: `slot 373`, `layer L3`, `version 1.0.0`, `icon icons/l3/373-paisley.svg`, `budget 233`, model `apps/paisley_model.{h,c}`, blocks under kernel/src/apps/blocks/paisley/, one `use <id> 1` per part below. Each part's manifest is itself the block (C1): an L2 part exports its own entries and the L1 entries it composed (`<part>.<block>.<entry>`). The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit a part.
 What it does: Designs symmetric patterns, textiles, tiles and logos with live radial symmetry, then exports to print or loom: designs in the Hoard (`files.read`, `files.write`), printed (`print.status`, `print.submit`, `print.job`), print orders in the books (`ledger.post`).
 Uses: `use tiler 1` (tile figures); `use limner 1` (nearest palette colour and asset licences); `use heddle 1` (drawdown, yarn length and "fits the machine"); `use cirque 1` ("dimensions close"); `use burin 1` (curve flattening and hatch lines). Call these composed entries; do not re-implement them.
@@ -17,4 +17,5 @@ Integers only: no float or double anywhere; a division that is not whole uses ke
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, print, ledger.read, ledger.post.
 Pending (P1; the best-fit language has no front-end yet, the block above stands in): `pending APT toolpath`; `pending Logo symmetry`; `pending SNOBOL versions`.
-Planned (no runtime yet): APT, Logo, SNOBOL.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/paisley/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): APT, SNOBOL.

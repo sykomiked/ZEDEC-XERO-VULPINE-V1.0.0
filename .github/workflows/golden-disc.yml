@@ -1,10 +1,17 @@
 # Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 # SPDX-License-Identifier: Apache-2.0
 #
-# Golden disc: the bare-metal UEFI disc with the AI models and assets on it
-# (build_system/mk_golden_disc.sh, docs/BAREMETAL.md). Builds both arches,
-# boots each under UEFI firmware until both models verify and [AI_OK] prints,
-# and keeps the gzipped discs as workflow artifacts for seven days.
+# Golden discs: a core disc per architecture and the swarm discs shared by
+# all of them (build_system/mk_golden_disc.sh, docs/BAREMETAL.md). Each job
+# builds its arch's core disc and the swarm discs, then boots under UEFI
+# firmware with 4 GB and with 8 GB of RAM until the models verify and the
+# boot model (Qwen2.5-0.5B) answers in the kernel, [AI_OK] with its answer
+# (swarm_bootmodel.h): on x86_64 the kernel reads the core and swarm discs
+# over AHCI, checks every model and reads the boot model into memory itself;
+# on arm64 the loader checks the core disc's model and hands it over in
+# memory (zxv_aimodel.h; its kernel cannot reach swarm discs yet). Keeps
+# the gzipped discs as workflow artifacts for seven days; the swarm discs
+# once, from the x86_64 job.
 #
 #   - Manual only (workflow_dispatch). No push, pull request, tag or schedule.
 #   - It never publishes and never creates a release. Attaching the golden
@@ -27,7 +34,7 @@ jobs:
   golden:
     name: golden disc ${{ matrix.arch }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 150
     strategy:
       fail-fast: false
       matrix:
@@ -38,24 +45,42 @@ jobs:
           persist-credentials: false
       - name: Build toolchain image
         run: docker build -f build_system/Dockerfile.baremetal -t zxv-baremetal .
-      - name: Build the kernel and the golden disc (downloads the pinned models)
-        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash -c 'bash build_system/baremetal_images.sh ${{ matrix.arch }} && bash build_system/mk_golden_disc.sh ${{ matrix.arch }}'
-      - name: Boot it under UEFI firmware (both models verified, [AI_OK])
-        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/uefi_boot_check.sh ${{ matrix.arch }} dist/discs/zxv-${{ matrix.arch }}-uefi-golden.img 300 "[AI_OK]" "[MODELS_OK] 2 verified"
-      - name: Compress and report the size
+      - name: Build the kernel, the core disc and the swarm discs (downloads the pinned models)
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash -c 'bash build_system/baremetal_images.sh ${{ matrix.arch }} && bash build_system/mk_golden_disc.sh ${{ matrix.arch }} && bash build_system/mk_golden_disc.sh swarm'
+      - name: Boot it under UEFI firmware with 4 GB and 8 GB of RAM (models verified, the model answers)
+        run: |
+          set -eu
+          if [ "${{ matrix.arch }}" = x86_64 ]; then
+            ENV=(-e UEFI_DISK=ahci -e UEFI_EXTRA="$(ls dist/discs/zxv-swarm-disc*.img | tr '\n' ' ')")
+            MARKS=("[SWARM_MOUNTED] ZXV_SWARM_REASON on " "[MODELS_INDEXED] 2 listed (1 on the boot partition, 1 on 1 swarm disc)" "[MODELS_OK] 2 verified" "[AI_LOAD] qwen2.5-0.5b-instruct-q4_k_m.gguf")
+          else
+            ENV=(-e UEFI_DISK=virtio)
+            MARKS=("[MODELS_OK] 1 verified" "[AI_HANDOFF] qwen2.5-0.5b-instruct-q4_k_m.gguf")
+          fi
+          # Under emulation the model's answer takes a few minutes.
+          for mem in 4G 8G; do
+            docker run --rm "${ENV[@]}" -e UEFI_MEM="$mem" -v "$PWD:/src" -w /src zxv-baremetal \
+              bash build_system/uefi_boot_check.sh ${{ matrix.arch }} dist/discs/zxv-${{ matrix.arch }}-disc1-core.img 1200 "[AI_OK] qwen2.5-0.5b-instruct-q4_k_m.gguf answered" "${MARKS[@]}"
+          done
+      - name: Compress and report the sizes
         run: |
           set -eu
           sudo chown -R "$(id -u)" dist
-          gzip -9 -n -c dist/discs/zxv-${{ matrix.arch }}-uefi-golden.img > dist/discs/zxv-${{ matrix.arch }}-uefi-golden.img.gz
-          ( cd dist/discs && sha256sum zxv-${{ matrix.arch }}-uefi-golden.img.gz > zxv-${{ matrix.arch }}-uefi-golden.img.gz.sha256 )
-          { echo '```'; cat dist/discs/zxv-${{ matrix.arch }}-uefi-golden.sizes; ls -l dist/discs/*.gz; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          cd dist/discs
+          discs="zxv-${{ matrix.arch }}-disc1-core.img"
+          [ "${{ matrix.arch }}" = x86_64 ] && discs="$discs $(ls zxv-swarm-disc*.img | tr '\n' ' ')"
+          for d in $discs; do
+            gzip -9 -n -c "$d" > "$d.gz"
+            sha256sum "$d.gz" > "$d.gz.sha256"
+          done
+          { echo '```'; for d in $discs; do cat "${d%.img}.sizes"; done; ls -l ./*.gz; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v7
         with:
-          name: golden-disc-${{ matrix.arch }}
+          name: golden-discs-${{ matrix.arch }}
           retention-days: 7
           compression-level: 0
           path: |
-            dist/discs/zxv-${{ matrix.arch }}-uefi-golden.img.gz
-            dist/discs/zxv-${{ matrix.arch }}-uefi-golden.img.gz.sha256
-            dist/discs/zxv-${{ matrix.arch }}-uefi-golden.sizes
+            dist/discs/*.img.gz
+            dist/discs/*.img.gz.sha256
+            dist/discs/zxv-*-disc*.sizes
           if-no-files-found: error

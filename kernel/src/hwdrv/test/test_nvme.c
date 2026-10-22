@@ -6,11 +6,16 @@
  * and one I/O queue pair read from host "DMA" memory through doorbells,
  * Identify controller/namespace, Create I/O CQ/SQ, Read and Write with
  * PRP1/PRP2, and phase-tagged completions. Knobs let a test break it in each
- * way the driver must survive. */
+ * way the driver must survive. Security Send/Receive (0x81/0x82) either loop
+ * back through a buffer or reach the fake Opal TPer (src/opal/fake_tper.c),
+ * which the boot SED unlock (hw_sed.c) is then tested against. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "hwfake.h"
+#include "../../opal/fake_tper.h"
+#include "../../arbiter/arb_dev.h"
+#include "../../arbiter/arb_host.h"
 
 #define BLOCKS 64
 
@@ -35,6 +40,12 @@ typedef struct fnvme {
     uint32_t aqa, cc, cqdb[2], strict;
     uint64_t last_slba;
     uint32_t reads, writes, cmds;
+    /* Security Send/Receive */
+    ftper_t *tper;       /* 0 = loop back through sec_store */
+    int sec_unsupported; /* answer Invalid Opcode, as QEMU's NVMe does */
+    uint32_t sec_cmds, sec_cdw10, sec_cdw11, sec_nsid;
+    uint64_t sec_prp1, sec_prp2;
+    uint8_t sec_store[8192];
 } fnvme_t;
 
 static uint32_t rd(fnvme_t *f, uint32_t o)
@@ -123,6 +134,46 @@ static uint32_t exec(fnvme_t *f, uint32_t q, const uint8_t *e)
             f->cq[1] = fk_rd64(e + 24);
             f->cq_size[1] = (c10 >> 16) + 1;
             f->phase[1] = 1;
+            return 0;
+        }
+        case 0x81:   /* Security Send */
+        case 0x82: { /* Security Receive */
+            f->sec_cmds++;
+            f->sec_cdw10 = c10;
+            f->sec_cdw11 = c11;
+            f->sec_nsid = fk_rd32(e + 4);
+            f->sec_prp1 = prp1;
+            f->sec_prp2 = prp2;
+            if (f->sec_unsupported) return 0x1;
+            uint32_t len = c11;
+            if (len == 0 || len > 8192 || (len > 4096) != (prp2 != 0) || (prp2 & 0xFFF) ||
+                (c10 & 0xFF) || fk_rd32(e + 48)) {
+                f->strict++;
+                return 0x2;
+            }
+            uint8_t *p1 = buf, *p2 = (uint8_t *) fk_ptr(prp2);
+            uint32_t first = len > 4096 ? 4096 : len;
+            uint8_t tmp[8192];
+            if (opc == 0x81) {
+                memcpy(tmp, p1, first);
+                if (len > first) memcpy(tmp + first, p2, len - first);
+            }
+            if (!f->tper) {
+                if (opc == 0x81)
+                    memcpy(f->sec_store, tmp, len);
+                else
+                    memcpy(tmp, f->sec_store, len);
+            } else {
+                uint8_t secp = (uint8_t) (c10 >> 24);
+                uint16_t spsp = (uint16_t) ((c10 >> 8) & 0xFFFF);
+                int r = opc == 0x81 ? ftper_send(f->tper, secp, spsp, tmp, len)
+                                    : ftper_recv(f->tper, secp, spsp, tmp, len);
+                if (r != 0) return 0x2; /* invalid field: protocol not supported */
+            }
+            if (opc == 0x82) {
+                memcpy(p1, tmp, first);
+                if (len > first) memcpy(p2, tmp + first, len - first);
+            }
             return 0;
         }
         case 0x01: { /* create I/O SQ */
@@ -606,6 +657,275 @@ static void test_no_bar_and_dma_exhaustion(void)
     }
 }
 
+static int zeroed(const uint8_t *p, uint32_t n)
+{
+    for (uint32_t i = 0; i < n; i++)
+        if (p[i]) return 0;
+    return 1;
+}
+
+static int other_read(hw_blk_t *b, uint64_t lba, uint32_t n, void *buf)
+{
+    (void) b;
+    (void) lba;
+    (void) n;
+    (void) buf;
+    return -1;
+}
+
+/* Security Send/Receive: CDW10/CDW11/NSID exactly, data through both PRPs,
+ * the bounce buffer wiped, lengths refused before the device sees them. */
+static void test_security(void)
+{
+    fake_plat_t fp;
+    fake_plat_init(&fp);
+    fnvme_t *f = add_nvme(&fp, HW_BDF(0, 11, 0));
+    hw_registry_t r;
+    memset(&r, 0, sizeof r);
+    hw_line_t note;
+    CHECK(bind_one(&fp, &r, &note) == HW_T);
+    hw_blk_t *b = r.blk[0];
+    static uint8_t out[8192], in[8192];
+    for (uint32_t i = 0; i < sizeof out; i++) out[i] = (uint8_t) (i * 31 + 7);
+    CHECK(nvme_security(b, 1, 0x01, 0x07FE, out, 2048) == 0);
+    CHECK(f->sec_cmds == 1);
+    CHECK(f->sec_cdw10 == 0x0107FE00u && f->sec_cdw11 == 2048 && f->sec_nsid == 0);
+    CHECK(f->sec_prp2 == 0 && (f->sec_prp1 & 0xFFF) == 0);
+    CHECK(memcmp(f->sec_store, out, 2048) == 0);
+    CHECK(zeroed((const uint8_t *) fk_ptr(f->sec_prp1), 8192)); /* bounce wiped */
+    memset(in, 0, sizeof in);
+    CHECK(nvme_security(b, 0, 0x01, 0x0001, in, 2048) == 0);
+    CHECK(f->sec_cdw10 == 0x01000100u && f->sec_cdw11 == 2048);
+    CHECK(memcmp(in, out, 2048) == 0);
+    CHECK(zeroed((const uint8_t *) fk_ptr(f->sec_prp1), 8192));
+    /* SPSP's high byte lands in bits 23:16, SECP in 31:24 */
+    CHECK(nvme_security(b, 0, 0x02, 0xABCD, in, 16) == 0);
+    CHECK(f->sec_cdw10 == 0x02ABCD00u && f->sec_cdw11 == 16);
+    /* across the page: PRP2 is the bounce buffer's second page */
+    for (uint32_t len = 4095; len <= 4097; len++) {
+        memset(f->sec_store, 0, sizeof f->sec_store);
+        CHECK(nvme_security(b, 1, 0x01, 0x07FE, out, len) == 0);
+        CHECK(f->sec_cdw11 == len);
+        CHECK((f->sec_prp2 != 0) == (len > 4096));
+        if (len > 4096) CHECK(f->sec_prp2 == f->sec_prp1 + 4096);
+        CHECK(memcmp(f->sec_store, out, len) == 0 && f->sec_store[len] == 0);
+        memset(in, 0, sizeof in);
+        CHECK(nvme_security(b, 0, 0x01, 0x07FE, in, len) == 0);
+        CHECK(memcmp(in, out, len) == 0 && in[len] == 0);
+    }
+    CHECK(nvme_security(b, 1, 0x01, 0x07FE, out, 8192) == 0);
+    CHECK(memcmp(f->sec_store, out, 8192) == 0);
+    CHECK(f->strict == 0);
+    /* refused before the device sees them */
+    uint32_t cmds = f->sec_cmds;
+    CHECK(nvme_security(b, 1, 0x01, 0x07FE, out, 8193) == -1);
+    CHECK(nvme_security(b, 0, 0x01, 0x07FE, in, 0) == -1);
+    CHECK(nvme_security(b, 0, 0x01, 0x07FE, 0, 16) == -1);
+    CHECK(f->sec_cmds == cmds);
+    /* not an NVMe disk */
+    hw_blk_t other;
+    memset(&other, 0, sizeof other);
+    other.read = other_read;
+    CHECK(nvme_security(&other, 0, 1, 1, in, 16) == -2);
+    CHECK(nvme_security(0, 0, 1, 1, in, 16) == -2);
+    CHECK(nvme_security(&other, 0, 0, 0, 0, 0) == -2);
+    CHECK(nvme_security(b, 0, 0, 0, 0, 0) == -1); /* the probe hw_sed.c uses */
+    /* the controller refuses: Invalid Opcode, an error status, a timeout */
+    f->sec_unsupported = 1;
+    CHECK(nvme_security(b, 0, 0x01, 0x0001, in, 2048) == -1);
+    CHECK(nvme_security(b, 1, 0x01, 0x07FE, out, 2048) == -1);
+    CHECK(zeroed((const uint8_t *) fk_ptr(f->sec_prp1), 8192)); /* wiped on failure too */
+    f->sec_unsupported = 0;
+    f->fail_opcode = 0x82;
+    f->fail_status = 0x4002;
+    CHECK(nvme_security(b, 0, 0x01, 0x0001, in, 2048) == -1);
+    f->fail_opcode = -1;
+    f->drop_opcode = 0x81;
+    uint64_t t0 = fp.now_us;
+    CHECK(nvme_security(b, 1, 0x01, 0x07FE, out, 64) == -1);
+    CHECK(fp.now_us - t0 >= 1000000 && fp.now_us - t0 <= 1000100); /* CAP.TO = 1 s */
+    f->drop_opcode = -1;
+    /* the admin queue keeps working past the dropped command, and many
+     * commands wrap it with the I/O queue unharmed */
+    for (uint32_t i = 0; i < 40; i++) CHECK(nvme_security(b, 0, 0x01, 0x07FE, in, 512) == 0);
+    uint8_t blk[512];
+    CHECK(b->read(b, 1, 1, blk) == 0 && memcmp(blk, "EFI PART", 8) == 0);
+    CHECK(f->strict == 0);
+    fake_plat_free(&fp);
+    free(f);
+}
+
+/* The arbiter as a tick on the fake platform: its firmware answers while
+ * the host waits in delay_us. */
+#define AWIN (ARB_OFF_FB + 4096u)
+static uint8_t g_awin[AWIN] __attribute__((aligned(4096)));
+static arb_dev_t g_adev;
+static arb_host_t g_ahost;
+
+static void arb_tick(fake_dev_t *d, uint64_t now)
+{
+    (void) now;
+    arb_dev_poll((arb_dev_t *) d->state);
+}
+
+static void ent(void *ctx, uint8_t *out, uint32_t n)
+{
+    (void) ctx;
+    for (uint32_t i = 0; i < n; i++) out[i] = (uint8_t) (i + 1);
+}
+
+static void arb_up(fake_plat_t *fp, int attest)
+{
+    uint8_t meas[ARB_MEAS_LEN];
+    for (uint32_t i = 0; i < ARB_MEAS_LEN; i++) meas[i] = (uint8_t) (i ^ 0x5A);
+    memset(g_awin, 0, sizeof g_awin);
+    CHECK(arb_dev_init(&g_adev, g_awin, AWIN, 8, 0, 0, 0, meas, ent, 0) == 0);
+    CHECK(arb_host_init(&g_ahost, g_awin, AWIN) == 0);
+    fake_dev_t *d = fake_dev_new(fp, HW_BDF(0, 30, 0), 0x1234, 0x5678, 0x08, 0x80, 0x00);
+    d->state = &g_adev;
+    d->tick = arb_tick;
+    if (!attest) return;
+    CHECK(arb_host_hello(&g_ahost) == 0);
+    arb_dev_poll(&g_adev);
+    arb_host_poll(&g_ahost);
+    CHECK(arb_host_attest(&g_ahost, meas) == 0);
+    arb_dev_poll(&g_adev);
+    arb_host_poll(&g_ahost);
+    CHECK(g_ahost.state == ARB_H_ATTESTED);
+}
+
+typedef struct {
+    const char *what;
+    int unsupported, unlocked, no_locking, enterprise, attest, have_key, wrong_key;
+    uint32_t want;
+    const char *line;
+} sed_case_t;
+
+static void test_sed_boot(void)
+{
+    static const sed_case_t c[] = {
+        {"QEMU: no Opal", 1, 0, 0, 0, 1, 1, 0, 0,
+         ": not an SED (Security Receive refused), nothing to unlock"},
+        {"no Locking feature", 0, 0, 1, 0, 1, 1, 0, 0,
+         ": not an SED (no Locking feature), nothing to unlock"},
+        {"Enterprise", 0, 0, 0, 1, 1, 1, 0, 0, ": Enterprise SSC SED, not supported, left as is"},
+        {"not locked", 0, 1, 0, 0, 0, 0, 0, 0, ": Opal 2 SED, ComID 0x07fe, not locked"},
+        {"locked, arbiter attested", 0, 0, 0, 0, 1, 1, 0, 1,
+         ": Opal 2 SED, ComID 0x07fe, unlocked with arbiter key slot 0 as Admin1"},
+        {"locked, no attested arbiter", 0, 0, 0, 0, 0, 1, 0, 0,
+         ": Opal 2 SED, ComID 0x07fe, locked; no attested arbiter, left locked"},
+        {"locked, empty slot", 0, 0, 0, 0, 1, 0, 0, 0,
+         ", locked; arbiter key slot 0 not released (status 3), left locked"},
+        {"locked, wrong key", 0, 0, 0, 0, 1, 1, 1, 0,
+         ": unlock failed at StartSession: method failed NOT_AUTHORIZED"},
+    };
+    for (uint32_t i = 0; i < sizeof c / sizeof c[0]; i++) {
+        fake_plat_t fp;
+        fake_plat_init(&fp);
+        fnvme_t *f = add_nvme(&fp, HW_BDF(0, 12, 0));
+        hw_registry_t r;
+        memset(&r, 0, sizeof r);
+        hw_line_t note;
+        CHECK(bind_one(&fp, &r, &note) == HW_T);
+        static ftper_t t;
+        uint8_t key[32];
+        for (uint32_t k = 0; k < 32; k++) key[k] = (uint8_t) (k * 9 + 1);
+        ftper_init(&t, key, 32, 0, 0);
+        t.rl[0] = t.wl[0] = !c[i].unlocked;
+        t.no_locking = c[i].no_locking;
+        if (c[i].enterprise) {
+            t.enterprise = 1;
+            t.ssc_code = 0;
+        }
+        f->tper = &t;
+        f->sec_unsupported = c[i].unsupported;
+        arb_up(&fp, c[i].attest);
+        if (c[i].have_key) {
+            if (c[i].wrong_key) key[0] ^= 0xFF;
+            CHECK(arb_dev_set_key(&g_adev, 0, key) == 0);
+        }
+        fp.nlog = 0;
+        uint32_t got = hw_sed_unlock_all(&fp.plat, &r, c[i].attest ? &g_ahost : 0);
+        char want[160];
+        snprintf(want, sizeof want, "  [SED] %s%s", r.blk[0]->name, c[i].line);
+        int has = c[i].line[0] == ':' ? fake_log_has(&fp, want) : fake_log_has(&fp, c[i].line);
+        if (got != c[i].want || !has)
+            printf("  sed '%s': %u, log '%s'\n", c[i].what, got, fp.nlog ? fp.log[0] : "");
+        CHECK(got == c[i].want);
+        CHECK(has);
+        CHECK(fp.nlog == 1);
+        CHECK(t.strict == 0 && !t.in_session);
+        CHECK((t.rl[0] == 0) == (c[i].want == 1 || c[i].unlocked));
+        CHECK(zeroed(g_ahost.key[0], ARB_KEY_LEN));
+        if (c[i].want) CHECK(t.ends == 1 && t.sets == 1);
+        /* the disk still reads afterwards */
+        uint8_t blk[512];
+        CHECK(r.blk[0]->read(r.blk[0], 1, 1, blk) == 0);
+        fake_plat_free(&fp);
+        free(f);
+    }
+    /* a non-NVMe disk is skipped and takes no slot; the same NVMe disk listed
+     * twice takes slots 0 then 1 (slot 0 is wrong, slot 1 opens it) */
+    fake_plat_t fp;
+    fake_plat_init(&fp);
+    fnvme_t *f = add_nvme(&fp, HW_BDF(0, 13, 0));
+    hw_registry_t r;
+    memset(&r, 0, sizeof r);
+    hw_line_t note;
+    CHECK(bind_one(&fp, &r, &note) == HW_T);
+    static ftper_t t;
+    uint8_t key[32], bad[32];
+    for (uint32_t k = 0; k < 32; k++) {
+        key[k] = (uint8_t) (k + 100);
+        bad[k] = (uint8_t) (k + 1);
+    }
+    ftper_init(&t, key, 32, 0, 0);
+    t.rl[0] = t.wl[0] = 1;
+    f->tper = &t;
+    arb_up(&fp, 1);
+    CHECK(arb_dev_set_key(&g_adev, 0, bad) == 0);
+    CHECK(arb_dev_set_key(&g_adev, 1, key) == 0);
+    hw_blk_t other;
+    memset(&other, 0, sizeof other);
+    memcpy(other.name, "ahci0", 6);
+    other.read = other_read;
+    hw_blk_t *nv = r.blk[0];
+    r.blk[0] = &other;
+    r.blk[1] = nv;
+    r.blk[2] = nv;
+    r.n_blk = 3;
+    fp.nlog = 0;
+    CHECK(hw_sed_unlock_all(&fp.plat, &r, &g_ahost) == 1);
+    CHECK(fp.nlog == 3);
+    CHECK(strcmp(fp.log[0],
+                 "  [SED] ahci0: no Security Send/Receive path for this disk, skipped") == 0);
+    CHECK(strstr(fp.log[1], "NOT_AUTHORIZED") != 0);
+    CHECK(strstr(fp.log[2], "unlocked with arbiter key slot 1 as Admin1") != 0);
+    CHECK(t.rl[0] == 0 && t.auth_fail == 1 && t.strict == 0);
+    fake_plat_free(&fp);
+    free(f);
+    /* another range still locked is said so */
+    fake_plat_init(&fp);
+    f = add_nvme(&fp, HW_BDF(0, 14, 0));
+    memset(&r, 0, sizeof r);
+    CHECK(bind_one(&fp, &r, &note) == HW_T);
+    ftper_init(&t, key, 32, 0, 0);
+    t.rl[0] = t.wl[0] = t.rl[3] = 1;
+    f->tper = &t;
+    arb_up(&fp, 1);
+    CHECK(arb_dev_set_key(&g_adev, 0, key) == 0);
+    fp.nlog = 0;
+    CHECK(hw_sed_unlock_all(&fp.plat, &r, &g_ahost) == 1);
+    CHECK(fake_log_has(&fp, "as Admin1 (other ranges stay locked)"));
+    CHECK(t.rl[3] == 1 && t.rl[0] == 0);
+    /* an empty registry logs nothing */
+    memset(&r, 0, sizeof r);
+    fp.nlog = 0;
+    CHECK(hw_sed_unlock_all(&fp.plat, &r, &g_ahost) == 0 && fp.nlog == 0);
+    fake_plat_free(&fp);
+    free(f);
+}
+
 int main(void)
 {
     test_happy_path();
@@ -615,6 +935,8 @@ int main(void)
     test_big_namespace();
     test_names();
     test_model();
+    test_security();
+    test_sed_boot();
     printf("test_nvme: %d checks, %d failures\n", fk_checks, fk_failures);
     return fk_failures ? 1 : 0;
 }

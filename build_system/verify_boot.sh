@@ -94,7 +94,7 @@ fi
 MARKERS_COMMON=(
   "[HANDOFF_OK]|the EFI stub handed over the firmware memory map, ACPI and clock, and the kernel window was free"
   "[BOOTMEM]|large buffers came from memory the firmware called usable"
-  "[AI_OK]|the built-in swarm and tensor engine passed their self-check"
+  "[AI_SELFCHECK_OK]|the built-in swarm and tensor engine passed their self-check"
   "All systems online|every subsystem self-check passed"
   "[BOOT_OK]|the kernel reached its main loop with no fault"
 )

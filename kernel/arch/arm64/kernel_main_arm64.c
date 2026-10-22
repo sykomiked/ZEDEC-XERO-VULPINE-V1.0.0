@@ -42,6 +42,7 @@ extern uint64_t arm64_timer_get_ticks(void);
 
 /* MMU driver */
 extern void arm64_mmu_init(void);
+extern int arm64_mmu_map_window(uint64_t base, uint64_t len); /* mmu_window.h */
 
 /* M5 subsystems (shared with x86) */
 #include "../src/oseq/oseq_core.h"
@@ -389,6 +390,29 @@ static uint32_t g_holo_phase = 0;
  * the composed 1280x720 frame into it (scaled, R/B-swapped for GOP fmt 0). */
 static uint32_t *g_gop_fb = 0;
 static uint32_t  g_gop_w = 0, g_gop_h = 0, g_gop_stride = 0, g_gop_pixfmt = 0;
+static int g_gop_mapped = 0; /* the firmware framebuffer is in the page tables */
+
+/* Map the firmware's framebuffer wherever it is, right after the MMU is up and
+ * before any user table copies the kernel's: AAVMF puts it near the top of
+ * RAM, past 4 GB when there are 4 GB. Refused (and said) when it lies outside
+ * the CPU's PA range or over the kernel image; the kernel then keeps ramfb. */
+static void gop_map(void)
+{
+    volatile zxv_bootinfo_t *bi = (volatile zxv_bootinfo_t *) ZXV_BOOTINFO_ADDR;
+    if (bi->magic != ZXV_BOOTINFO_MAGIC || !bi->fb || !bi->height) return;
+    uint64_t len = (uint64_t) (bi->stride ? bi->stride : bi->width) * bi->height * 4u;
+    int rc = arm64_mmu_map_window(bi->fb, len);
+    uart_puts(rc == 0 ? "  [FB_MAP] firmware framebuffer at "
+                      : "  [FB_MAP_FAIL] firmware framebuffer at ");
+    uart_put_hex(bi->fb);
+    uart_puts(", ");
+    uart_put_dec(len);
+    uart_puts(
+        rc == 0
+            ? " bytes: mapped Normal Non-cacheable, never executable\n"
+            : " bytes: not mapped (outside the PA range, or over the kernel image); using ramfb\n");
+    g_gop_mapped = rc == 0;
+}
 
 /* ---- the FIELD: per-16px-tile phase + depth painted by the shell ----
  * g_fphase[ti] shifts each OBJECT's shimmer in TIME (its own breathing phase, so
@@ -519,6 +543,10 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 #include "x25519.h"
 #include "oseq.h"
 #include "chiglet.h"
+#include "chg_abi.h"
+#include "chg_cells.h"
+#include "pq_security.h" /* ML-DSA-65: the event log's head signature */
+#include "sha256.h"
 #include "hkdf.h"
 #include "aead.h"
 #include "e8.h"
@@ -529,7 +557,10 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 #include "../src/loader/abupdate.h"  /* A/B update + probation + rollback */
 #include "../src/appkit/doc.h"       /* AppKit document model (Writer et al) */
 #include "../src/refinery/refinery.h" /* Magitech Refinery: text -> sigil card */
-#include "../src/swarm/swarm_boot.h"  /* swarm + tensor boot self-check ([AI_OK]) */
+#include "../src/swarm/swarm_boot.h"  /* swarm + tensor arithmetic self-check ([AI_SELFCHECK_OK]) */
+#include "../src/swarm/swarm_bootmodel.h" /* the boot model answers ([AI_OK]) */
+#include "../src/passport/pp_console.h"   /* login <seed>, whoami, logout */
+#include "../zxv_aimodel.h"               /* the loader's boot model record */
 #include "../userapp/hello_signed.h" /* root pubkey + signed .zsp, seeded to disk */
 #include "../src/crash/crash.h"      /* crash dumps kept on disk across a reboot */
 #include "../src/crash/bootctl.h"    /* boot modes: normal, safe, recovery */
@@ -769,12 +800,17 @@ static void cell_id_set(char *dst, const char *src) {
     }
 }
 
+static cell_fabric_t *g_cells; /* the boot fabric, for the chiglet governor */
+static bool g_gov_ready;       /* the chiglet governor is armed (gov_boot) */
+static void gov_boot(void);
+
 /* CELL-001: boot-time multikernel fabric setup.
  * Initializes a small control plane, admits three logical cells,
  * installs phase routes, then demonstrates fail-stop containment by
  * revoking a faulted cell's capabilities. */
 static void cell_fabric_boot_init(void) {
     static cell_fabric_t cell_fabric;
+    g_cells = &cell_fabric;
     static const uint8_t cell_image_digest[CELL_MAX_DIGEST] = {
         0xab,0xcd,0xef,0x01,0x02,0x03,0x04,0x05,
         0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,
@@ -876,6 +912,36 @@ static void cell_fabric_boot_init(void) {
     }
 }
 
+/* ---- the boot model (zxv_aimodel.h, swarm_bootmodel.h) ----
+ * The loader leaves its record at ZXAI_REC_ADDR_ARM64, below the kernel; the
+ * model and scratch lie in RAM arm64_mmu.c maps as Normal memory
+ * (0x40000000 up to ZXAI_MAX_ADDR_ARM64). The -kernel path has no loader:
+ * the page is zero and the record is absent. */
+extern char __kernel_end[];
+
+static void ai_boot_model(void)
+{
+    static swarm_bootmodel_out_t res;
+    const zxai_rec_t *r = (const zxai_rec_t *) (uintptr_t) ZXAI_REC_ADDR_ARM64;
+    if (!zxai_valid(r)) {
+        swarm_bootmodel_none("no model handed over by the loader", uart_puts);
+        return;
+    }
+    swarm_bootmodel_in_t in;
+    in.model = (const uint8_t *) (uintptr_t) r->model_phys;
+    in.model_bytes = r->model_bytes;
+    in.loader_sha256 = r->sha256;
+    in.name = r->name;
+    in.name_len = r->name_len;
+    in.scratch = (uint8_t *) (uintptr_t) r->scratch_phys;
+    in.scratch_bytes = r->scratch_bytes;
+    in.map_lo = 0x40000000ULL;
+    in.map_hi = ZXAI_MAX_ADDR_ARM64;
+    in.kernel_lo = 0x40070000ULL; /* the bootinfo and record pages, then the image */
+    in.kernel_hi = (uint64_t) (uintptr_t) __kernel_end;
+    swarm_bootmodel_run(&in, &res, uart_puts);
+}
+
 /* The entry x0 (boot.s): QEMU -kernel's device tree, or anything. */
 static uint64_t g_boot_dtb;
 
@@ -962,6 +1028,7 @@ void kernel_main_arm64(void) {
     boot_msg("[BOOT] MMU/paging...");
     arm64_mmu_init();
     boot_msg("  [DRIVER ONLINE] Identity mapping (1GB, 4KB granule)");
+    gop_map();
     handoff_report();
     bootmem_arm64_init(g_boot_dtb);
     vino = bootmem_arm64_take(sizeof *vino, "the vino ledger");
@@ -1090,7 +1157,7 @@ void kernel_main_arm64(void) {
      * external-clock-bridge convention: dlp_projector_tick() is called
      * from the event loop below, never from a raw timer poll. */
     boot_msg("[BOOT] DLP pico projector (hardware-as-code)...");
-    dlp_projector_init(&projector, 1, "Tank-DLP");
+    dlp_projector_init_profile(&projector, 1, "Tank-DLP", DLP_PROFILE_DLP2010);
     dlp_projector_set_wobulation(&projector, 2, 2); /* TI 4-way actuator: 854x480 -> 1708x960 apparent */
     dlp_projector_set_photometrics(&projector, SR_FROM_INT(220), SR_FROM_FLOAT(1.2));
     dlp_projector_compute_screen_lux(&projector, SR_FROM_FLOAT(2.0));
@@ -1287,8 +1354,14 @@ void kernel_main_arm64(void) {
     /* Run initial system audit */
     ev_audit_result_t init_audit = ev_audit_check_system(&ev_seq, &ev_audit);
     boot_msg("  [INITIALIZED] 4 event domains (storage/network/display/input)");
-    boot_msg("  [AUDIT] Initial system audit: PASS");
-    (void)init_audit;
+    /* Print the verdict the audit returned; this line used to read PASS
+     * whatever ev_audit_check_system said. */
+    if (init_audit == EV_AUDIT_PASS)
+        boot_msg("  [AUDIT] Initial system audit: PASS");
+    else if (init_audit == EV_AUDIT_WARN)
+        boot_msg("  [AUDIT] Initial system audit: WARN (a domain left RUNNING or degraded)");
+    else
+        boot_msg("  [FAIL] Initial system audit: FAIL or QUARANTINE");
 
     /* Emit a pilot event to verify the pipeline works end-to-end */
     ev_envelope_t pilot_env;
@@ -2141,7 +2214,7 @@ void kernel_main_arm64(void) {
          * the scanout). Otherwise the normal QEMU -kernel ramfb path. */
         {
             volatile zxv_bootinfo_t *bi = (volatile zxv_bootinfo_t *)ZXV_BOOTINFO_ADDR;
-            if (bi->magic == ZXV_BOOTINFO_MAGIC && bi->fb) {
+            if (g_gop_mapped && bi->magic == ZXV_BOOTINFO_MAGIC && bi->fb) {
                 g_gop_fb     = (uint32_t *)(uintptr_t)bi->fb;
                 g_gop_w      = bi->width;
                 g_gop_h      = bi->height;
@@ -2406,10 +2479,28 @@ void kernel_main_arm64(void) {
         static uint8_t a_pub[32], b_pub[32], ss_a[32], ss_b[32];
         x25519_public(a_pub, a_priv);
         x25519_public(b_pub, b_priv);
+        /* RFC 7748 s6.1's expected values: agreement alone would also pass a
+         * broken ladder that is wrong the same way on both sides. */
+        static const uint8_t a_pub_want[32] = {0x85, 0x20, 0xf0, 0x09, 0x89, 0x30, 0xa7, 0x54,
+                                               0x74, 0x8b, 0x7d, 0xdc, 0xb4, 0x3e, 0xf7, 0x5a,
+                                               0x0d, 0xbf, 0x3a, 0x0d, 0x26, 0x38, 0x1a, 0xf4,
+                                               0xeb, 0xa4, 0xa9, 0x8e, 0xaa, 0x9b, 0x4e, 0x6a};
+        static const uint8_t ss_want[32] = {0x4a, 0x5d, 0x9d, 0x5b, 0xa4, 0xce, 0x2d, 0xe1,
+                                            0x72, 0x8e, 0x3b, 0xf4, 0x80, 0x35, 0x0f, 0x25,
+                                            0xe0, 0x7e, 0x21, 0xc9, 0x47, 0xd1, 0x9e, 0x33,
+                                            0x76, 0xf0, 0x9b, 0x3c, 0x1e, 0x16, 0x17, 0x42};
         bool ok = x25519_shared(ss_a, a_priv, b_pub) &&
                   x25519_shared(ss_b, b_priv, a_pub);
         if (ok) { for (int i = 0; i < 32; i++) if (ss_a[i] != ss_b[i]) { ok = false; break; } }
-        if (ok) boot_msg("  [OK] X25519 agreement: both sides derived one secret");
+        if (ok) {
+            for (int i = 0; i < 32; i++)
+                if (a_pub[i] != a_pub_want[i] || ss_a[i] != ss_want[i]) {
+                    ok = false;
+                    break;
+                }
+        }
+        if (ok)
+            boot_msg("  [OK] X25519 agreement: RFC 7748 public key and shared secret");
         else    boot_msg("  [FAIL] X25519 KAT mismatch -- transport key agreement is BROKEN");
     }
 
@@ -2645,7 +2736,7 @@ void kernel_main_arm64(void) {
         if (agree)
             boot_msg("  [VERIFIED] ML-KEM-768 round trip: both parties derived the same secret");
         else
-            boot_msg("  [WARNING] ML-KEM-768 shared secrets DISAGREE — PQ path unsound");
+            boot_msg("  [FAIL] ML-KEM-768 shared secrets DISAGREE — PQ path unsound");
     }
 
     /* Phase 17c-tri: Tri-Space artifact triad — ZXV's native module format.
@@ -3082,6 +3173,10 @@ void kernel_main_arm64(void) {
     } else if (!ai_boot_selfcheck(uart_puts)) {
         uart_puts("[FAULT] AI selfcheck failed; halting before BOOT_OK\n");
         for (;;) halt();
+    } else {
+        /* The AI itself: run the model the loader handed over. [AI_OK]
+         * means it answered; a boot without a model says so and goes on. */
+        ai_boot_model();
     }
 
     /* The boot got this far: confirm it, so the next one is normal. */
@@ -3091,6 +3186,9 @@ void kernel_main_arm64(void) {
     }
 
     /* Phase 18: Enable interrupts and enter event loop */
+    /* The chiglet governs from here: arm and prove its ABI gate. */
+    gov_boot();
+
     boot_msg("\n[BOOT] ZEDEC pqOS [ARM64] — All systems online.");
 #if ENABLE_EL0_USERSPACE
     boot_msg("[BOOT_OK] Phase E0082 complete; kernel_main reached; EL0 ready\n");
@@ -3098,6 +3196,9 @@ void kernel_main_arm64(void) {
     boot_msg("[BOOT_OK] Phase E0082 complete; kernel_main reached; Stage-1 kernel loop ready\n");
 #endif
     boot_msg("[BOOT] Entering event cycle...\n");
+    if (g_gov_ready)
+        boot_msg("[CHIGLET] the console is the chiglet's session: abi, chiglet, held, accept, "
+                 "refuse; P-TERM commands are its tools");
 
     /* Emit final boot evidence measurement */
     boot_evidence_final();
@@ -3553,6 +3654,482 @@ void kernel_stats_report(void) {
 }
 
 /* ===================================================================
+ * The chiglet governor (src/chiglet/chg_abi.h A1-A8)
+ *
+ * At the end of boot the console belongs to the chiglet session. The
+ * chiglet drives the machine through typed ABI calls, never a register:
+ * each call is checked here (bounds, the chiglet's grants, this rulebook,
+ * joined with lpres_conjoin), and only then do these handlers run the
+ * kernel's own deterministic code. A CHANGE call from the chiglet waits
+ * for the person's accept of its exact digest. P-TERM commands remain the
+ * rulebook's tools and work with no model at all.
+ *
+ *   abi <op> <n>...       the person's own call
+ *   chiglet <op> <n>...   the chiglet's call (its session relays the model's
+ *                         structured output here)
+ *   held                  list held calls
+ *   accept <seq> <hex>    accept a held call (first 16+ hex of its digest)
+ *   refuse <seq>          drop a held call
+ *   events                sign the event log's head (A8); every record is
+ *                         already on the log as an [EVT] line
+ * =================================================================== */
+static chga_session_t g_gov;
+static uint8_t g_gov_buf[CHGA_READ_MAX * 512u];
+
+static void gov_hex(const uint8_t *b, uint32_t n)
+{
+    static const char H[] = "0123456789abcdef";
+    for (uint32_t i = 0; i < n; i++) {
+        char s[3] = {H[b[i] >> 4], H[b[i] & 15u], 0};
+        uart_puts(s);
+    }
+}
+
+/* the cell at a table index, or NULL */
+static cell_t *gov_cell(uint64_t idx)
+{
+    if (!g_cells || idx >= g_cells->cell_count) return 0;
+    return &g_cells->cells[idx];
+}
+
+/* The kernel rulebook. Safe and recovery boots change nothing; a call on a
+ * device or cell that is not there is FALSE; everything else is TRUE (the
+ * kind and the person's accept still apply, chg_abi.h A3). */
+static lpres_state_t gov_rule(void *ctx, const chga_call_t *c)
+{
+    (void) ctx;
+    if (chga_op_kind(c->op) == CHGA_K_CHANGE && g_boot_mode != BOOT_MODE_NORMAL)
+        return LPRES_STATE_FALSE;
+    switch (c->op) {
+    case CHGA_STORAGE_DMA_READ:
+        return g_vblk.present && c->arg[0] < g_vblk.total_sectors &&
+                       c->arg[1] <= g_vblk.total_sectors - c->arg[0]
+                   ? LPRES_STATE_TRUE
+                   : LPRES_STATE_FALSE;
+    case CHGA_FRAMEBUFFER_BLIT:
+        return g_desktop_vbe && c->arg[0] + c->arg[2] <= ZXV_FB_W &&
+                       c->arg[1] + c->arg[3] <= ZXV_FB_H
+                   ? LPRES_STATE_TRUE
+                   : LPRES_STATE_FALSE;
+    case CHGA_CELL_RELOAD:
+    case CHGA_CELL_QUARANTINE:
+        return gov_cell(c->arg[0]) ? LPRES_STATE_TRUE : LPRES_STATE_FALSE;
+    case CHGA_NETWORK_PULSE:
+        return virtio_net_present() ? LPRES_STATE_TRUE : LPRES_STATE_FALSE;
+    case CHGA_MODEL_EXEC: /* A7: resolved in the handler, which refuses what it cannot run */
+        return LPRES_STATE_TRUE;
+    default:
+        return LPRES_STATE_FALSE;
+    }
+}
+
+/* reload a cell: a new incarnation of the same contract, routes kept */
+static int gov_cell_reload(cell_t *cell)
+{
+    cell_t next = *cell;
+    cell_route_t keep[CELL_MAX_ROUTES];
+    uint32_t nkeep = 0;
+    for (uint32_t i = 0; i < g_cells->route_count && i < CELL_MAX_ROUTES; i++)
+        if (strcmp(g_cells->routes[i].target_cell, cell->cell_id) == 0)
+            keep[nkeep++] = g_cells->routes[i];
+    if (!cell_fabric_terminate(g_cells, cell->cell_id)) return -2;
+    next.incarnation++;
+    next.health = CELL_HEALTH_OK;
+    next.state = CELL_STATE_DISCOVERED;
+    if (!cell_fabric_discover(g_cells, &next) ||
+        !cell_fabric_authenticate(g_cells, next.cell_id, next.firmware_or_kernel_digest) ||
+        cell_fabric_admit(g_cells, next.cell_id) != CELL_STATE_ADMITTED ||
+        !cell_fabric_activate(g_cells, next.cell_id))
+        return -3;
+    for (uint32_t i = 0; i < nkeep; i++)
+        if (!cell_fabric_add_route(g_cells, &keep[i])) return -4;
+    return 0;
+}
+
+/* A8: every journal record is an oseq event of node "chiglet" (schema
+ * chga.call, payload its chain head, parent the record before it), so a
+ * model_exec names its input by an event ordinal this registry holds. */
+static oseq_registry_t g_gov_oseq;
+static int32_t g_gov_node = -1;
+static int32_t g_gov_last = -1;
+static uint64_t g_gov_evts; /* records printed and folded so far */
+
+/* A7: the model at a coordinate on one input event. The coordinate resolves
+ * through the Tiamat cell table (chg_cells.h C3) and refuses with its
+ * reason: no cell there (-5), an engine path this build lacks (-7), or no
+ * weights on this machine (-8: the bare-metal kernel loads none; they are
+ * never in the image). The event is checked first. */
+static int gov_model_exec(const chga_call_t *c)
+{
+    uint64_t ev = c->arg[1];
+    if (ev > g_gov_oseq.event_count) {
+        uart_puts("  model_exec: no event with ordinal ");
+        uart_put_dec(ev);
+        uart_puts(" in this boot's log\r\n");
+        return -6;
+    }
+    const chg_cell_t *cell;
+    chg_cell_why_t why = chg_cell_resolve(c->arg[0], NULL, NULL, &cell);
+    uint8_t w[8];
+    for (uint32_t k = 0; k < 8; k++) w[k] = (uint8_t) (c->arg[0] >> (56 - 8 * k));
+    uart_puts("  model_exec: ");
+    if (cell) {
+        uart_puts(cell->name);
+        uart_puts(" (");
+        uart_puts(chg_cell_organ(cell->coord));
+        uart_puts(") ");
+    }
+    uart_puts("at @");
+    gov_hex(w, 8);
+    uart_puts(": ");
+    uart_puts(chg_cell_why_text(why));
+    if (why == CHG_CELL_NO_ENGINE) {
+        uart_puts(" (");
+        uart_puts(cell->engine);
+        uart_puts(")");
+    }
+    uart_puts("\r\n");
+    return why == CHG_CELL_NO_MODEL ? -5 : why == CHG_CELL_NO_ENGINE ? -7 : -8;
+}
+
+/* The handlers: the kernel's own code, run only after the gate. */
+static int gov_run(void *ctx, const chga_call_t *c)
+{
+    (void) ctx;
+    switch (c->op) {
+    case CHGA_STORAGE_DMA_READ: {
+        for (uint64_t i = 0; i < c->arg[1]; i++)
+            if (blockdev_read(&g_vblk, (uint32_t) (c->arg[0] + i), g_gov_buf + i * 512u) != 0)
+                return -1;
+        uint8_t d[32];
+        sha256(g_gov_buf, (size_t) c->arg[1] * 512u, d);
+        uart_puts("  read ");
+        uart_put_dec(c->arg[1]);
+        uart_puts(" sector(s) at lba ");
+        uart_put_dec(c->arg[0]);
+        uart_puts(", sha256 ");
+        gov_hex(d, 8);
+        uart_puts("\r\n");
+        return 0;
+    }
+    case CHGA_FRAMEBUFFER_BLIT: {
+        const uint32_t *back = pb_get_framebuffer(&prism_break);
+        unsigned long daif;
+        __asm__ __volatile__("mrs %0, daif" : "=r"(daif));
+        __asm__ __volatile__("msr daifset, #2" ::: "memory");
+        for (uint64_t y = c->arg[1]; y < c->arg[1] + c->arg[3]; y++)
+            for (uint64_t x = c->arg[0]; x < c->arg[0] + c->arg[2]; x++)
+                g_scanout[y * ZXV_FB_W + x] = back[y * ZXV_FB_W + x];
+        __asm__ __volatile__("msr daif, %0" ::"r"(daif) : "memory");
+        return 0;
+    }
+    case CHGA_CELL_RELOAD:
+        return gov_cell_reload(gov_cell(c->arg[0]));
+    case CHGA_CELL_QUARANTINE:
+        return cell_fabric_handle_fault(g_cells, gov_cell(c->arg[0])->cell_id,
+                                        CELL_HEALTH_FAIL_STOPPED)
+                   ? 0
+                   : -2;
+    case CHGA_NETWORK_PULSE: {
+        static const uint8_t tag[] = "ZXV chiglet pulse";
+        uint8_t f[60] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+        const uint8_t *mac = virtio_net_mac();
+        for (uint32_t i = 0; i < 6; i++) f[6 + i] = mac ? mac[i] : 0;
+        f[12] = 0x88; /* IEEE 802 local experimental ethertype 0x88B5 */
+        f[13] = 0xB5;
+        for (uint32_t i = 0; i + 1 < sizeof tag; i++) f[14 + i] = tag[i];
+        return virtio_net_tx(f, sizeof f) < 0 ? -1 : 0;
+    }
+    case CHGA_MODEL_EXEC:
+        return gov_model_exec(c);
+    default:
+        return -9;
+    }
+}
+
+static const char *gov_outcome(uint8_t o)
+{
+    static const char *const W[] = {"ran", "failed", "refused", "held", "dropped"};
+    return o <= CHGA_DROPPED ? W[o] : "?";
+}
+
+/* the gate's four-valued verdict, by name */
+static const char *gov_verdict(lpres_state_t v)
+{
+    switch (v) {
+    case LPRES_STATE_TRUE:
+        return "true";
+    case LPRES_STATE_FALSE:
+        return "false";
+    case LPRES_STATE_BOTH:
+        return "both (shown to you)";
+    default:
+        return "neither (not sure)";
+    }
+}
+
+/* A8: one record on the serial log, in the form tools/zxv-events reads:
+ * "[EVT] <seq> <record bytes, hex> <head after it, hex>"; then into oseq */
+static void gov_evt(const chga_rec_t *r)
+{
+    uint8_t b[CHGA_REC_BYTES];
+    chga_rec_encode(r, b);
+    uart_puts("[EVT] ");
+    uart_put_dec(r->seq);
+    uart_puts(" ");
+    gov_hex(b, sizeof b);
+    uart_puts(" ");
+    gov_hex(r->head, CHGA_DIGEST);
+    uart_puts("\r\n");
+    g_gov_evts++;
+    if (g_gov_node < 0) return;
+    uint32_t par = (uint32_t) g_gov_last;
+    int32_t e =
+        oseq_register_event(&g_gov_oseq, (uint32_t) g_gov_node, "chga.call", 1, r->head,
+                            CHGA_DIGEST, g_gov_last >= 0 ? &par : 0, g_gov_last >= 0 ? 1 : 0);
+    if (e < 0 || !oseq_commit_event(&g_gov_oseq, (uint32_t) e)) {
+        uart_puts("  [chiglet] the event log is full: later calls are chained but not ordered\r\n");
+        g_gov_node = -1;
+        return;
+    }
+    g_gov_last = e;
+}
+
+/* print and drain the journal (A5, A8) */
+static void gov_drain(void)
+{
+    chga_rec_t r;
+    while (chga_pop(&g_gov, &r)) {
+        gov_evt(&r);
+        uart_puts("  [chiglet] #");
+        uart_put_dec(r.seq);
+        uart_puts(" ");
+        uart_puts(chga_op_name(r.op));
+        uart_puts(r.from == CHGA_FROM_PERSON ? " (you) " : " (chiglet) ");
+        uart_puts(gov_outcome(r.outcome));
+        uart_puts(", gate ");
+        uart_puts(gov_verdict(r.verdict));
+        if (r.outcome == CHGA_FAILED) {
+            uart_puts(", code -");
+            uart_put_dec((uint64_t) (-(int64_t) r.rc));
+        }
+        uart_puts("\r\n");
+    }
+}
+
+/* A8: `events` signs the chain's head with this boot's ML-DSA-65 key:
+ * message = records LE8 || head, context "zxv/chga/head/v1". The key is made
+ * on first use from the CPU's RNDR; a CPU without RNDR gets a key from the
+ * counter and the head, marked weak. Either way it is a key of this boot,
+ * printed beside the signature: it shows the log is whole and in order as
+ * that key saw it, not which device wrote it (a device key is hwkey work). */
+static uint8_t g_evt_pk[PQ_MLDSA65_PK_BYTES], g_evt_sk[PQ_MLDSA65_SK_BYTES];
+static uint8_t g_evt_sig[PQ_MLDSA65_SIG_BYTES];
+static int g_evt_key; /* 0 none, 1 hardware entropy, 2 weak */
+
+static void gov_events(void)
+{
+    static const uint8_t ctx[] = "zxv/chga/head/v1";
+    const uint8_t *head = chga_chain_head(&g_gov);
+    if (!g_evt_key) {
+        uint8_t seed[32];
+        if (arm64_rng_available() && arm64_rng_fill(seed, sizeof seed)) {
+            g_evt_key = 1;
+        } else {
+            uint8_t m[8 + CHGA_DIGEST];
+            uint64_t t = get_cntpct();
+            for (uint32_t k = 0; k < 8; k++) m[k] = (uint8_t) (t >> (8 * k));
+            for (uint32_t k = 0; k < CHGA_DIGEST; k++) m[8 + k] = head[k];
+            sha256(m, sizeof m, seed);
+            g_evt_key = 2;
+        }
+        pq_mldsa65_keygen(seed, g_evt_pk, g_evt_sk);
+        for (uint32_t k = 0; k < sizeof seed; k++) seed[k] = 0;
+    }
+    uint8_t msg[8 + CHGA_DIGEST];
+    for (uint32_t k = 0; k < 8; k++) msg[k] = (uint8_t) (g_gov_evts >> (8 * k));
+    for (uint32_t k = 0; k < CHGA_DIGEST; k++) msg[8 + k] = head[k];
+    pq_mldsa65_sign(g_evt_sk, msg, sizeof msg, ctx, sizeof ctx - 1, 0, g_evt_sig);
+    uart_puts("[EVT] head ");
+    uart_put_dec(g_gov_evts);
+    uart_puts(" ");
+    gov_hex(head, CHGA_DIGEST);
+    uart_puts("\r\n[EVT] key ");
+    gov_hex(g_evt_pk, sizeof g_evt_pk);
+    uart_puts("\r\n[EVT] sig ");
+    gov_hex(g_evt_sig, sizeof g_evt_sig);
+    uart_puts(g_evt_key == 1
+                  ? "\r\n  signed with this boot's key (hardware entropy)\r\n"
+                  : "\r\n  signed with this boot's key (weak: this CPU has no RNDR)\r\n");
+}
+
+static void gov_show_held(const chga_result_t *res)
+{
+    if (res->outcome != CHGA_HELD_CALL) return;
+    uart_puts("  held: to run it, type: accept ");
+    uart_put_dec(res->seq);
+    uart_puts(" ");
+    gov_hex(res->digest, CHGA_ACCEPT_MIN);
+    uart_puts("\r\n");
+}
+
+static int gov_hexbyte(char a, char b)
+{
+    int hi = a >= '0' && a <= '9' ? a - '0' : a >= 'a' && a <= 'f' ? a - 'a' + 10 : -1;
+    int lo = b >= '0' && b <= '9' ? b - '0' : b >= 'a' && b <= 'f' ? b - 'a' + 10 : -1;
+    return hi < 0 || lo < 0 ? -1 : hi * 16 + lo;
+}
+
+/* a decimal sequence number ending at a space or NUL; *end gets the stop */
+static bool gov_seq(const char *s, uint64_t *v, const char **end)
+{
+    uint64_t n = 0;
+    const char *p = s;
+    while (*p >= '0' && *p <= '9') {
+        uint64_t d = (uint64_t) (*p - '0');
+        if (n > (UINT64_MAX - d) / 10u) return false;
+        n = n * 10u + d;
+        p++;
+    }
+    if (p == s || (*p != ' ' && *p != 0)) return false;
+    *v = n;
+    *end = p;
+    return true;
+}
+
+static bool gov_prefix(const char *line, const char *word, const char **rest)
+{
+    size_t n = 0;
+    while (word[n] && line[n] == word[n]) n++;
+    if (word[n] || (line[n] != ' ' && line[n] != 0)) return false;
+    *rest = line[n] ? line + n + 1 : line + n;
+    return true;
+}
+
+/* a console line for the governor: true when it was one */
+static bool gov_line(const char *line)
+{
+    if (!g_gov_ready) return false;
+    const char *rest;
+    chga_result_t res;
+    int rc;
+    if (gov_prefix(line, "abi", &rest) || gov_prefix(line, "chiglet", &rest)) {
+        uint8_t from = line[0] == 'a' ? CHGA_FROM_PERSON : CHGA_FROM_CHIGLET;
+        chga_call_t c;
+        if (chga_parse(rest, strlen(rest), &c) != CHGA_OK) {
+            uart_puts("abi: storage_dma_read <lba> <n 1-8> | framebuffer_blit <x> <y> <w> <h> "
+                      "| cell_reload <cell> | network_pulse | cell_quarantine <cell> "
+                      "| model_exec <coord> <event>\r\n");
+            return true;
+        }
+        rc = chga_submit(&g_gov, &c, from, &res);
+    } else if (gov_prefix(line, "accept", &rest)) {
+        uint64_t seq;
+        const char *p;
+        uint8_t d[CHGA_DIGEST];
+        size_t n = 0;
+        if (!gov_seq(rest, &seq, &p) || *p != ' ') {
+            uart_puts("accept <seq> <hex digest, 16 or more digits>\r\n");
+            return true;
+        }
+        p++;
+        while (p[0] && p[1] && n < CHGA_DIGEST) {
+            int b = gov_hexbyte(p[0], p[1]);
+            if (b < 0) break;
+            d[n++] = (uint8_t) b;
+            p += 2;
+        }
+        if (*p) {
+            uart_puts("accept: the digest is hex digits only\r\n");
+            return true;
+        }
+        rc = chga_accept(&g_gov, seq, d, n, &res);
+    } else if (gov_prefix(line, "refuse", &rest)) {
+        uint64_t seq;
+        const char *p;
+        if (!gov_seq(rest, &seq, &p) || *p) {
+            uart_puts("refuse <seq>\r\n");
+            return true;
+        }
+        rc = chga_refuse(&g_gov, seq);
+        res.outcome = CHGA_DROPPED;
+    } else if (strcmp(line, "events") == 0) {
+        gov_events();
+        return true;
+    } else if (strcmp(line, "held") == 0) {
+        uint32_t n = 0;
+        for (uint32_t i = 0; i < CHGA_HELD; i++) {
+            const chga_held_t *h = &g_gov.held[i];
+            if (!h->used) continue;
+            n++;
+            uart_puts("  #");
+            uart_put_dec(h->seq);
+            uart_puts(" ");
+            uart_puts(chga_op_name(h->call.op));
+            for (uint32_t k = 0; k < h->call.nargs; k++) {
+                uart_puts(" ");
+                uart_put_dec(h->call.arg[k]);
+            }
+            uart_puts("  digest ");
+            gov_hex(h->digest, CHGA_ACCEPT_MIN);
+            uart_puts("\r\n");
+        }
+        if (n == 0) uart_puts("  nothing is held\r\n");
+        return true;
+    } else {
+        return false;
+    }
+    static const char *const E[] = {"", "bad call", "full: drain or answer held calls first",
+                                    "no such held call", "the digest does not match"};
+    if (rc != CHGA_OK) {
+        uart_puts("  [chiglet] ");
+        uart_puts(rc <= 0 && rc >= CHGA_E_DIGEST ? E[-rc] : "error");
+        uart_puts("\r\n");
+        return true;
+    }
+    gov_drain();
+    gov_show_held(&res);
+    return true;
+}
+
+/* Boot: arm the gate and prove it on this machine before the console is
+ * handed over. A CHANGE call from the chiglet must be held, not run; a
+ * call past the bounds must be refused; both leave a journal record. */
+static void gov_boot(void)
+{
+    boot_msg("[BOOT] Chiglet governor (verified ABI: typed calls, gated, held for you)...");
+    if (chga_init(&g_gov, (1u << CHGA_OPS) - 1u, gov_rule, 0, gov_run, 0) != CHGA_OK) {
+        boot_msg("  [FAIL] chiglet governor: could not arm the ABI gate");
+        return;
+    }
+    chga_call_t c;
+    chga_result_t held, out;
+    bool ok = chga_parse("cell_quarantine 0", 17, &c) == CHGA_OK &&
+              chga_submit(&g_gov, &c, CHGA_FROM_CHIGLET, &held) == CHGA_OK &&
+              (g_boot_mode != BOOT_MODE_NORMAL
+                   ? held.outcome == CHGA_REFUSED
+                   : held.outcome == CHGA_HELD_CALL && chga_refuse(&g_gov, held.seq) == CHGA_OK) &&
+              chga_parse("storage_dma_read 0 9", 20, &c) == CHGA_OK &&
+              chga_submit(&g_gov, &c, CHGA_FROM_CHIGLET, &out) == CHGA_OK &&
+              out.outcome == CHGA_REFUSED;
+    oseq_registry_init(&g_gov_oseq);
+    g_gov_node = oseq_register_node(&g_gov_oseq, "chiglet", 1);
+    chga_rec_t r;
+    uint32_t n = 0;
+    while (chga_pop(&g_gov, &r)) {
+        gov_evt(&r); /* the self-check's records open the event log */
+        n++;
+    }
+    if (!ok || n != (g_boot_mode != BOOT_MODE_NORMAL ? 2u : 3u)) {
+        boot_msg("  [FAIL] chiglet governor: the gate did not hold or refuse as it must");
+        return;
+    }
+    g_gov_ready = true;
+    boot_msg("  [OK] chiglet governor: a change from the chiglet waits for you; "
+             "out-of-bounds calls are refused");
+}
+
+/* ===================================================================
  * Kernel-side shell executor (SYS_EXEC backend)
  *
  * The EL0 shell process passes command lines here.  Kernel-native
@@ -3572,9 +4149,66 @@ static void shell_flush_row(const char *row) {
     uart_puts("\r\n");
 }
 
+/* 1 when line begins with p (no strncmp in the freestanding kernel). */
+static int sh_prefix(const char *line, const char *p)
+{
+    while (*p)
+        if (*line++ != *p++) return 0;
+    return 1;
+}
+
 void kernel_shell_exec(const char *line) {
     if (!g_pterm_ready) {
         uart_puts("[shell] P-TERM engine not initialized\r\n");
+        return;
+    }
+    /* the chiglet session's calls come first (chg_abi.h) */
+    if (gov_line(line)) return;
+
+    /* --- passport login, and asking the boot model ---
+     * login <seed text>: the passport (pp_console.h); create then confirm
+     * <seed text>: a first-time passport; the shell echoed both seeds as '*'. ask <question>: the
+     * boot model, for whoever is logged in (swarm_bootmodel_ask). */
+    if (sh_prefix(line, "login ")) {
+        pp_console_login(line + 6, (uint32_t) strlen(line + 6), uart_puts);
+        return;
+    }
+    if (strcmp(line, "login") == 0) {
+        uart_puts("login: login <seed text>\r\n");
+        return;
+    }
+    if (strcmp(line, "create") == 0) {
+        /* A first-time identity: 32 bytes from the CPU's RNDR. A CPU without
+         * one cannot make a seed safely here, so it refuses. */
+        uint8_t rnd[32];
+        if (!arm64_rng_fill(rnd, sizeof rnd)) {
+            uart_puts("[CREATE_FAIL] this CPU has no hardware random source (RNDR); make the "
+                      "seed on another device and log in with it\r\n");
+            return;
+        }
+        pp_console_create(rnd, uart_puts);
+        for (uint32_t i = 0; i < sizeof rnd; i++) ((volatile uint8_t *) rnd)[i] = 0;
+        return;
+    }
+    if (sh_prefix(line, "confirm ")) {
+        pp_console_confirm(line + 8, (uint32_t) strlen(line + 8), uart_puts);
+        return;
+    }
+    if (strcmp(line, "whoami") == 0) {
+        pp_console_whoami(uart_puts);
+        return;
+    }
+    if (strcmp(line, "logout") == 0) {
+        pp_console_logout(uart_puts);
+        return;
+    }
+    if (sh_prefix(line, "ask ") || strcmp(line, "ask") == 0) {
+        if (!pp_console_logged_in()) {
+            uart_puts("[AI_REFUSED] log in first: login <seed text>\r\n");
+            return;
+        }
+        const char *q = line[3] ? line + 4 : "";
+        swarm_bootmodel_ask(q, (uint32_t) strlen(q), 0, uart_puts);
         return;
     }
 
@@ -4120,6 +4754,9 @@ void kernel_shell_exec(const char *line) {
 
     /* Native command addendum to `help` */
     if (strcmp(line, "help") == 0) {
+        uart_puts("  login <seed> / whoami / logout  \xe2\x80\x94  passport login\r\n");
+        uart_puts("  create, then confirm <seed>  \xe2\x80\x94  first time: make a passport\r\n");
+        uart_puts("  ask <question>  \xe2\x80\x94  ask the boot model (logged in)\r\n");
         uart_puts("  stats  \xe2\x80\x94  live kernel subsystem coverage report\r\n");
         uart_puts("  uptime  \xe2\x80\x94  ticks and event cycles since boot\r\n");
         uart_puts("  ls-p  \xe2\x80\x94  list files on the persistent disk (ZXVFS)\r\n");

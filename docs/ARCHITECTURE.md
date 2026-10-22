@@ -26,7 +26,7 @@ callers. The audit behind this version, with its gap list and fill plan, is
 
 1. What ZXV is, and where it stands
 2. The rules every part follows
-3. Two views of one system: value strata and hardware layers
+3. Two views of one system: value strata and hardware layers, and the chiglet that governs both
 4. How ZXV runs: the four surfaces
 5. Building and shipping: images, the golden disc and packages
 6. The loops that join it
@@ -75,6 +75,10 @@ swarm of specialist models that check each other), a post-quantum peer-to-peer n
 four-valued (paraconsistent) logic used for every verdict, and an exact, interest-free settlement
 economy with adapters to the outside financial world.
 
+**The chiglet is the system's intelligence and governor, not an app installed on it.** The
+kernel is the deterministic body; the chiglet drives it through typed calls that are checked
+before they run, and anything that would change the machine waits for the person (section 3.4).
+
 ### Where it stands (2026-10-15)
 
 | Measure | Now | Evidence |
@@ -82,7 +86,7 @@ economy with adapters to the outside financial world.
 | Kernel modules | 261 directories under `kernel/src` (242 on `main`, 19 added by #156), each assigned a stratum | `build_system/strata.txt`, checked by `verify_strata.py` in CI |
 | Code size | About 460,000 lines of C and headers in `kernel/src` outside tests; 61,000 in `kernel/arch` | `wc -l` at `7d4297c2` |
 | Tests | 408 test programs in `kernel/src` (about 200,000 lines); 707 test files in the repository | same |
-| Kernel images | Five CPU targets boot under QEMU and CI fails any that does not reach `[BOOT_OK]`; arm64 and x86_64 also pass the AI self-check `[AI_OK]` | `build_system/ci_boot_check.sh` |
+| Kernel images | Five CPU targets boot under QEMU and CI fails any that does not reach `[BOOT_OK]`; arm64 and x86_64 also pass the AI self-check `[AI_SELFCHECK_OK]`; a golden disc's boot model answers in the kernel, `[AI_OK]` (`swarm_bootmodel.c`) | `build_system/ci_boot_check.sh` |
 | What a user runs today | The desktop app (zxvd engine with an HTML window), ZXV Studio on the Mac, the phone companion, and plain UEFI discs that boot to a self-test | section 4 |
 | Real AI model | Qwen2.5-1.5B runs on the integer engine, bit-identical on every CPU; perplexity 9.371 against llama.cpp's 9.362; the whole forward pass also runs on an Apple GPU, bit-exact | [TENSOR_ENGINE.md](TENSOR_ENGINE.md), [GPU_STRATEGY.md](GPU_STRATEGY.md) |
 | libzxv | ABI 1.6.0 (#156; `main` has 1.5.0), 468 exported functions, 15 capability bits | `sdk/libzxv/include/zxv_api.h`, `sdk/docs/ABI.md` |
@@ -137,6 +141,64 @@ These rules came from the owner or were agreed with the owner. Every module is h
 | R21 | **No settlement over amateur radio.** Ham links carry only cleartext, signed messages | Protocol twins (`aproto`), transport continuum |
 | R22 | **No central OS releases.** Users maintain the OS; forks must keep the compatibility contract; updates are audited by the community | User-evolved OS (section 15.6) |
 | R23 | **Paraconsistent by design, not by convention.** Where two sources disagree the result is BOTH and is held, never resolved by majority or averaged away | Swarm verdicts, ledger, routing, drivers (`fwadapt`) |
+| R24 | **Idle, it works on itself; a person's interaction takes over; the two feed each other.** With no one present the system recursively finishes its own pending work and feeds itself the next inputs. A user interaction interrupts that loop at once: self-work yields, the system turns to the person's intent, and that cycle ends in a sealed receipt. Then the self-work resumes, carrying what it learned from the person. Idle work stays inside the tokens-per-cycle and nature budgets (R19), is deterministic and replayable, and never takes an outward or irreversible step (money, devices, messages, publishing) without a person approving; suggestions stay held until accepted. Between chiglets, the Web 4 layer is their community: the safe space where they interact and automate with each other while idle, exchanging claims (never their owners' raw data), only under grants both owners signed | Swarm loop, chiglet visits over Web 4, self-tests, indexing, pinning, suggestions, voice (section 2.1) |
+| R25 | **The chiglet governs through a verified ABI.** Its output is a typed call checked against bounds, its grants, the rulebook and the lpres gate; a change waits for the person's accept of its exact digest; IRQs, page tables and DMA stay deterministic kernel code | `kernel/src/chiglet/chg_abi.h`, the arm64 console (section 3.4) |
+
+### 2.1 R24 in the code today
+
+R24 (owner, 2026-10-15) describes a symbiosis: the system improves itself between visits, and
+people's interactions steer it. The owner's image is a waveform collapsing when observed; that is
+a metaphor only, and nothing here is quantum. This is where the code stands against the rule.
+
+Already follows it:
+
+- **It keeps working when idle.** The desktop app and zxvd advance the swarm on a clock whether or
+  not anyone is present (`step()` in `kernel/arch/hosted/zxv_host.c`): market cycles, evolution
+  (`evolve()`), hardware rescans, Vinea upkeep, the power policy and, while online, a daily
+  update check that installs nothing.
+- **It stays inside its budgets.** Every reply and every market cycle spends only the
+  tokens-per-cycle allotment (`swarm_budget`, `zxv_budget_gate`).
+- **Deterministic and replayable where money and answers are concerned.** The settlement spine
+  posts every transfer in peer_audit's replayable form (`kernel/src/settle/settle.h` A1,
+  `kernel/src/peer_audit/pa_runtime.h`); every answer carries a 64-state tag and lands in a
+  quarantine log (`zxv_answer_tag`, `lpres`).
+- **Nothing outward without a person.** AI suggestions are held until the owner accepts them
+  (`kernel/src/apps/quillon_model.h`); the voice speaks only on a tap (📝 #153); life-safety,
+  clinical, grid and financial actions are advisory and human-approved.
+
+Does not follow it yet:
+
+- **Self-work yields to a person in the hosted app only.** `zxv_idle` (`kernel/arch/hosted/zxv_idle.h`
+  I1-I6) runs inward self-checks in slices only while no request is waiting, so a request is
+  served first and the check resumes after it; `/api/ask` itself still blocks the
+  single-threaded server while it runs.
+- **The idle work is mostly simulated.** Stand-in agents spend in the market cycle; the real
+  pending work R24 names (self-tests, indexing, seeding and pinning, compaction, adapter
+  evaluations, the backlog of held items) is not queued for idle time.
+- **A sealed receipt per answer, not yet per whole interaction.** `zxv_receipt`
+  (`kernel/arch/hosted/zxv_receipt.h` E1-E4) seals each ask or check as one hash-chained receipt,
+  signed under zxvd; it does not yet record every layer an interaction touched.
+- **What the person teaches is barely carried forward.** Only quest contributions and
+  reputation feed back from interactions into later self-work.
+
+**The chiglets' community on Web 4.** The owner's addition: idle self-work also happens between
+companions, and the Web 4 layer is where it happens, a safe community space for chiglets to meet
+and automate with each other. The same bounds hold there: they exchange claims, never their
+owners' raw data; only inside a grant both owners signed; within budgets; and nothing outward or
+irreversible happens without a person.
+
+- Built (📝 #155, `chg_kin`): visits run only inside a grant both owners sign (topics, depth, time
+  window, revocable, accepted once); only claims and verdicts with an evidence hash pass, logged
+  in both hash chains; hobby time comes only from idle growth tokens, and hobbies only break ties
+  between equal proposals. Signed boards with trust tiers and an install decision that needs a
+  signed offer, a trusted publisher and an approving review exist in `airc`. Web 4 envelopes and
+  agent identities are in `web4`.
+- Not yet: grants and claims are not carried over Web 4 envelopes on Vinea, `airc` posts have no
+  carrier, there is no zxvd method for visits, and the on-screen visit is not built. #155 is a
+  draft.
+
+Closing these is code work for the threads that own the swarm loop, zxvd, Web 4 and the chiglet
+kin work; until then the lists above are the honest state.
 
 ---
 
@@ -188,7 +250,7 @@ runs on bare metal, what runs only in the hosted build, and what is absent.
 | L2 Kernel | memory, processes, scheduler, syscalls, IPC, faults, power | arm64: EL0 processes, preemption, four-state `pmm`; x86_64: none of these (halts in a `hlt` loop after self-tests) | x86 process runtime, kernel heap with `free`, threads, channel IPC, signals |
 | L3 Drivers | NVMe, AHCI, xHCI, USB keyboard and storage, NICs, HDA, virtio | x86_64 class drivers pass boot self-tests; arm64 virtio set | HID parser, I2C-HID, USB audio/video/serial, Bluetooth, Wi-Fi, GPU, display modes |
 | L4 System services | filesystems, update, login, network, TLS, time, search, backup | arm64: ZXVFS, signed `.zsp` apps, TCP/DHCP/DNS, crash records and recovery boot (#156) | root filesystem from disk, disc v2 layout, service manager, installer, system A/B, encryption at rest, IPv6, firewall |
-| L5 Runtimes | tensor engine, swarm, pillars, Lingua, Z-Wasm, SDKs | tensor self-check `[AI_OK]`; Sutra on arm64 | models from the disc, the swarm as a service, user-space runtime `zxrt`, four pillars and Lingua on bare metal |
+| L5 Runtimes | tensor engine, swarm, pillars, Lingua, Z-Wasm, SDKs | tensor self-check `[AI_SELFCHECK_OK]`; the golden disc's boot model answers (`[AI_OK]`); Sutra on arm64 | more models from the disc, the swarm as a service, user-space runtime `zxrt`, four pillars and Lingua on bare metal |
 | L6 GUI | zui toolkit, window manager, fonts, shaping, input methods, accessibility | old framebuffer shell (`desktop/zxv_shell.c`); zui is in no image yet (🔒 one visual system ports the bare-metal desktop to zui) | zui as the compositor, window protocol, login on bare metal |
 | L7 Apps and tools | 407 apps, zxsh, editor, browser, no-code builder | `xedit`, the arm64 shell, a small browser | app container `.zxa`, sandbox from manifests, self-hosting toolchain, debugger |
 
@@ -202,6 +264,88 @@ desktop app or zxvd but into neither bare-metal image: zui (all of it), seats, i
 power, crash (x86), hwkey, i18n, speech, legacy, four of the five pillars, Z-Wasm, the app
 runtime `zxapp`, every zxvd method group, the live Vinea node and the GPU path. Bringing them to
 bare metal is steps 4 to 11 of section 18.
+
+### 3.4 The chiglet governs: one intelligence over a verified ABI
+
+**The chiglet is the system, not an app on it.** In a conventional stack a model is a heavy
+user-space program at the top of Python, CUDA, shared libraries, libc and a monolithic kernel. In
+ZXV the operating system is the runtime harness for the chiglet: the chiglet is the system's
+intelligence and governor and the way a person meets every layer (L0 to L7), and the kernel is
+the deterministic body it governs. Each chiglet is a companion with its own personality; the
+person decides if and where chiglets meet, and its icon grows with interaction, never with IQ.
+
+```
+CONVENTIONAL                         ZXV
+┌──────────────────────────────┐     ┌──────────────────────────────────────────────┐
+│ LLM / application            │     │ CHIGLET: the system's intelligence, the      │
+├──────────────────────────────┤     │ person's companion, the governor             │
+│ Python / PyTorch / CUDA      │     ├──────────────── verified ABI ────────────────┤
+├──────────────────────────────┤     │ typed calls, each checked: bounds, grants,   │
+│ user-space libraries, libc   │     │ rulebook, lpres gate; changes held for you   │
+├──────────────────────────────┤     ├──────────────────────────────────────────────┤
+│ monolithic kernel            │     │ integer kernel and cell fabric: IRQs, page   │
+├──────────────────────────────┤     │ tables, DMA, drivers, four-valued faults     │
+│ silicon                      │     ├──────────────────────────────────────────────┤
+└──────────────────────────────┘     │ silicon                                      │
+                                     └──────────────────────────────────────────────┘
+```
+
+**How it governs (decided 2026-10-15: governor via a verified ABI).**
+
+1. **The console is the chiglet's.** Boot ends by arming the governor and handing it the
+   console; the arm64 kernel prints `[CHIGLET] the console is the chiglet's session`. The P-TERM
+   commands stay as the chiglet's tools and work with no model loaded (the rulebook still works
+   with the model off).
+2. **Calls, not register writes.** The chiglet's output is a typed call from a fixed table
+   (`kernel/src/chiglet/chg_abi.h` A1): `storage_dma_read`, `framebuffer_blit`, `cell_reload`,
+   `network_pulse`, `cell_quarantine`, `model_exec`, appended to, never renumbered. A grammar-constrained model
+   emits the same text form a person types.
+3. **Every call is gated (A3).** In bounds, granted to the chiglet, and the kernel rulebook's
+   verdict, joined with `lpres_conjoin`, so only TRUE authorises. FALSE refuses. A look (read the
+   disk, redraw the person's own screen) runs on TRUE. A change from the chiglet, a "not sure"
+   (NEITHER) or a dispute (BOTH) is held until the person accepts its exact SHA-256 digest, and
+   the gate is checked again at that moment (A4). Safe and recovery boots change nothing.
+4. **The body stays deterministic.** IRQs, page tables, DMA addressing and drivers are kernel
+   code; a handler runs only after the gate, and its result goes into a bounded journal (A5).
+5. **Faults are isolated, not panics.** A faulted cell is quarantined by the cell fabric's own
+   fault model and can be reloaded as a new incarnation with its routes; the same four-valued
+   quarantine the swarm and `pdx_agent` use (A6).
+6. **Above the kernel, the same loop.** Read through zxvd, an organ answers (`chg_organ`, a lead
+   plus a witness of another lineage, `swarm.organ`), anything that would change the machine is
+   a held act (`intent` "act" verbs, `chg_vocab`), and apps declare which organ serves them and
+   which acts they may raise (`zxapp` "chiglet" lines).
+7. **A model is named, not jumped to (A7).** The "EXEC @coordinate <event>" of the
+   InterPlanetary BIOS design is the typed call `model_exec <coord> <event>`: the coordinate is a
+   Grid Chain word in domain 0x60 (models), a key the kernel resolves to a model cell, never an
+   address; the event is the ordinal of its input in this boot's log. It is a look: what the model
+   answers is data, and anything it asks the machine to do comes back as a gated call. The
+   coordinate resolves through the Tiamat cell table (`chg_cells.h`; place is the organ number,
+   item the cell's ordinal), and a call it cannot run is refused with one of three reasons, never
+   guessed: no model at that coordinate, an engine path this build lacks, or a model not
+   installed on this machine. This runs after
+   the UEFI firmware has handed over, not in place of it.
+8. **Every call is on the record (A8).** Each journal record is folded into a SHA-256 hash
+   chain as it is committed and printed as an `[EVT]` line; on arm64 each is also an `oseq`
+   event (schema `chga.call`, parent the record before it). The console command `events` signs
+   the head with ML-DSA-65. `tools/zxv-events` reads a serial log, recomputes every head itself
+   and verifies the signature, so a changed, removed, repeated or reordered record fails at its
+   line. The signing key is made per boot (from RNDR, or marked weak on a CPU without it): it
+   shows the log is whole, not which device wrote it, until a device key exists. Replay is
+   claimed only where it holds: the integer `zt` engine, weights pinned by content ID, the same
+   inputs.
+
+| Part | Status | Where |
+|---|---|---|
+| Verified ABI gate: six typed calls, grants, rulebook, lpres, held calls with digests, bounded journal, hash-chained records | 🔒 | `kernel/src/chiglet/chg_abi.{h,c}`, 253 tests, `make test-chg-organ` |
+| Event log: `[EVT]` lines, oseq events, ML-DSA-65 head signature; `zxv-events` verifies it | 🔒 | `tools/zxv-events`, `make test-zxv-events`; `arm64_session_check.py` verifies a real boot's log |
+| arm64 boot hands the console to the chiglet governor; disk read, screen blit, cell reload and quarantine, network pulse handlers | 🔒 | `kernel/arch/arm64/kernel_main_arm64.c`; `arm64_session_check.py` drives it in QEMU |
+| Organ routing with a witness; `swarm.organ` in zxvd | 🔒 | `kernel/src/chiglet/chg_organ.{h,c}` |
+| The chiglet on screen: a click-through layer above the windows where it swims to what it can help with, fades through other windows, waits at the glass, opens only on a tap, offers only what the companion gate passed; Accept, Not now (snooze), Pin, Away; reduced motion and transparency honoured | 🔒 | `kernel/src/zui/zui_swim.{h,c}` SW1-SW9; the shell's call site is with the native GUI work |
+| Held acts at every layer; organ and acts in app manifests | 🔒 | `intent` I7, `chg_vocab`, `zxapp` K1-K3 |
+| `model_exec` coordinate to cell: the 80 Tiamat cells, three refusal reasons | 🔒 | `kernel/src/chiglet/chg_cells.{h,c}`, the table generated from `tools/tiamat/cell_coords.json` by `tools/tiamat/cell_table.py`, `make test-chg-cells`; the arm64 boot resolves Spinewyrm and Greetwyvern |
+| `model_exec` running a model on bare metal | 📋 | The arm64 kernel loads no weights, so a runnable cell says it is not installed on this machine |
+| A model on bare metal emitting the calls | 📋 | Today the calls come from the person or from a session relaying a model's output as `chiglet <call>` lines; models load from the disc once PCI and the disc v2 layout land (section 18) |
+| x86_64 governor | 📋 | The x86_64 image has no user processes or console session yet (section 4.3) |
 
 ---
 
@@ -242,8 +386,8 @@ groups are not in libzxv yet.
 
 | Image | Status | What it does | What it lacks |
 |---|---|---|---|
-| x86_64 (first physical target) | 🟡 | UEFI boot, handoff v2 (#156), PCI class drivers with self-tests, one ring-3 test, `[AI_OK]` | No timer interrupt, scheduler or user processes; halts in a `hlt` loop |
-| arm64 (most complete) | 🟡 | GICv3, timer preemption, EL0 processes, `pmm` (#156), virtio, ZXVFS, signed `.zsp` apps, crash records, framebuffer desktop, network stack; CI types into its shell across two boots | No handoff in its EFI stub, no PCI (cannot see the golden disc's models), no spawn/wait/kill |
+| x86_64 (first physical target) | 🟡 | UEFI boot, handoff v2 (#156), PCI class drivers with self-tests, one ring-3 test, `[AI_SELFCHECK_OK]`, the boot model read off the disc and answering (`[AI_OK]`), a PS/2 + serial console with passport login | No timer interrupt, scheduler or user processes; halts in a `hlt` loop |
+| arm64 (most complete) | 🟡 | GICv3, timer preemption, EL0 processes, `pmm` (#156), virtio, ZXVFS, signed `.zsp` apps, crash records, framebuffer desktop, network stack; boot hands the console to the chiglet governor (🔒 section 3.4); CI types into its shell across two boots | No handoff in its EFI stub, no PCI (cannot see the golden disc's models), no spawn/wait/kill |
 | riscv64, riscv32, arm32 | 🟡 | Boot to `[BOOT_OK]` under QEMU | No AI self-check, no user processes |
 
 [BAREMETAL.md](BAREMETAL.md) covers building and booting; [BAREMETAL_OS_GAPS.md](BAREMETAL_OS_GAPS.md)
@@ -301,6 +445,119 @@ after that, each install is maintained by its user and updated through community
 pass the compatibility contract and an audit by owner-chosen auditors (📝 #155, section 15.6).
 Signed content-addressed packages (`update`, `zxpkg`, checked by `provenance`) and app-level A/B
 (`loader/abupdate`) are the mechanisms on arm64 today.
+
+<!-- zxv:distribution:start -->
+### 5.4 Distribution: split discs, the bucket, hydration and the seal
+
+This section is what `make ipfs-dist` copies into the bucket as `00_base/ARCHITECTURE.md`. Each
+claim names the code that makes it true; parts that run only under emulation so far are marked
+**(QEMU only)**.
+
+**Split media.** A release is a set of raw GPT disc images, none over 1,800,000,000 bytes and no
+file on them of 3.8 GiB or more (`build_system/mk_golden_disc.sh` refuses both before writing).
+
+| Disc | Architecture | Holds |
+|---|---|---|
+| Disc 1, `zxv-<arch>-disc1-core.img` | one per architecture (x86_64, arm64) | the EFI loader and kernel, the core models, `/ZXV/UPSTREAM.CID` (the bucket, its gateways, the seal mode) and `/ZXV/SWARM.LST` (the swarm discs it expects) |
+| Discs 2..N, `zxv-swarm-disc<N>-<group>.img` | `all`: weights carry no machine code | one model group each, on a FAT32 partition named `ZXV_SWARM_<GROUP>` |
+
+Disc 1 boots alone. A kernel fix rebuilds only Disc 1; the swarm discs keep their SHA-256 sums.
+riscv64 has no core disc yet: it has no UEFI loader.
+
+**The bucket.** `build_system/mk_bucket.py` lays the discs out as an IPFS directory, offline:
+`manifest.json` and `manifest.txt` (the same stages: kind, arch, disc, group, bytes, SHA-256, CID,
+path), `00_base/`, one `0N_swarm_<group>/` per swarm disc, and cartridges last. It computes the
+root CID exactly as `ipfs add -r --cid-version=1` would (256 KiB raw leaves, balanced DAG, plain
+UnixFS directories; checked byte for byte against Kubo 0.32.1) and adds nothing to any node.
+Uploading and pinning are the owner's step. `make ipfs-dist` builds everything twice from clean
+and fails unless both passes give the same Disc 1 SHA-256 for every architecture and the same
+root CID.
+
+**Hydration: getting Discs 2..N.** Three routes, each ending in the same check against the
+manifest:
+
+1. **Attach them.** The kernel finds every `ZXV_SWARM_*` disc on AHCI or NVMe after boot
+   (`kernel/src/hwdrv/hw_models.c`) and reports each expected disc as `[SWARM_MOUNTED]` or
+   `[SWARM_MISSING]`.
+2. **Download them on another machine.** `tools/zxv-get --arch <arch>` fetches the core disc for
+   one architecture and every swarm disc from a local IPFS node, else the gateways in order,
+   verifying every block against its CID and every disc against the manifest's SHA-256.
+3. **Fetch them from the bare-metal kernel (x86_64; QEMU only so far).** When a listed disc is
+   missing and a blank drive is attached, `kernel/src/swarmnet` brings the network up with ZXV's
+   own code: the hwdrv NIC drivers (e1000 family, igb, r8169), the `kernel/src/net` stack (ARP,
+   IPv4, UDP, DHCP, DNS, TCP) and the `kernel/src/ipfs_node` block walker. No lwIP, no BSD
+   sockets, no external daemon. In order, each with its boot-log marker:
+   - link: the first NIC whose driver reports link up, `[NET] eth0 = ..., link up`;
+   - DHCP: 5 s per attempt, 3 attempts, `[NET] DHCP lease ...`;
+   - HTTP/1.1 `GET /ipfs/<cid>?format=raw` to each `http://` gateway in `UPSTREAM.CID` order, one
+     raw block per request, every block hashed against its CID before use; a block one gateway
+     cannot serve intact is asked of the next (`[SWARM_FETCH] gateway ...: ...`);
+   - `manifest.txt` from the bucket root, the line for the disc, and the disc's CID through the
+     bucket's directories, which must equal the manifest's;
+   - the image streamed onto a blank drive (no MBR signature, no GPT header) with a rolling
+     SHA-256; its first 34 sectors (protective MBR, GPT header, partition entries) are held in
+     memory and written last, only when size and SHA-256 match the manifest, so a failed or
+     partial download never looks like a disc (`[SWARM_FETCHED] ... committed` or
+     `[SWARM_FETCH_FAIL] ...; nothing committed`);
+   - the disc is indexed again and mounts like an attached one.
+
+   With no NIC, no link or no lease the kernel prints, exactly,
+   `[NET] Link down or no DHCP response.` and
+   `[SWARM] Falling back to local storage scan: Attach Disc N USB / drive.`
+   `build_system/test_swarm_fetch.sh` proves each path under QEMU with a local gateway: a fetch
+   that commits and mounts, a gateway that alters blocks (nothing committed), a link with no
+   DHCP answer, and no NIC.
+
+**What the transport is, and is not.** The fetch is plain HTTP to a trustless gateway. It is not
+Bitswap: native Bitswap needs the libp2p handshake (multistream-select, Noise, yamux) as well as
+its protobuf messages, and none of that is written. HTTPS gateways are skipped and logged as
+skipped: the kernel's TLS code (`kernel/src/tls`) is not wired to this client yet. Integrity does
+not depend on the transport: a gateway can withhold a block but cannot change one.
+
+**The seal.** Once every expected disc is attached after a fetch, the kernel severs the channel
+that brought them (`kernel/src/swarmnet/sn_seal.c`), as the `seal` line of `UPSTREAM.CID` says:
+
+| Mode | What happens |
+|---|---|
+| `POWERDOWN_NIC` | the driver stops the MAC and powers the PHY down (MDIC on the 8254x and 82574; PCH parts keep their PHY, and the log says so), then PCI Bus Master and Memory Space are cleared and read back (`hw_nic_power_off`): no DMA, no register access until reset |
+| `LOCAL_MESH_ONLY` | the NIC stays powered; the stack's address, routes, DNS, DHCP lease and connections are wiped |
+| `PROMPT_USER` (default) | asks on the serial console and USB keyboards for `p` or `m`; no answer in 30 s powers the NIC down |
+
+In every mode the fetch buffers and the stack's state are zeroed and the hydration code itself
+(the fetcher, HTTP client, disc writer and block walker, which the linker script places between
+`__zxv_hydrate_start` and `__zxv_hydrate_end`) is overwritten with INT3 and read back, so no code
+path that fetches or writes a disc image is left in the running kernel; a stray call traps. The
+receipt is printed after each step has been checked, so it states only what happened:
+
+```
+[SEAL] Swarm Discs 2..N successfully hydrated and verified.
+[SEAL] Master CID: bafy...
+[SEAL] Network hydration channel severed: NIC bus mastering disabled.
+[SEAL] Operating system is now immutable and air-gapped.
+```
+
+A step that fails prints `[SEAL_FAIL]` and no receipt. Ring-3 programs have no network or disk
+system calls yet (gaps 7 and 17); when they do, the fetcher moves to a ring-3 process and the
+seal revokes those capabilities as well.
+
+**Evidence and the four values.** Each hydration outcome falls under one of `lpres_state_t`'s four
+values (`kernel/src/lpres`), the same four the driver layer reports its verdicts in
+(`hw_verdict_t`); the fetcher's log lines say which in words and do not carry the value yet: TRUE, committed on a SHA-256 match; FALSE, a block or image that does not hash
+to what the manifest says (nothing committed); NEITHER, nothing to judge (no link, no lease, no
+gateway, no blank drive); BOTH, the sources contradict each other (the bucket's directory and
+`manifest.txt` name different CIDs for one disc), which is refused rather than resolved. These
+values combine by the kernel's chain ordering (`lpres_conjoin`, `lpres_disjoin`), not by Belnap's
+bilattice, so BOTH or NEITHER never counts as TRUE. Nothing in the kernel maps natural-language
+inference onto them; that claim in earlier drafts was wrong.
+
+**Updates after the seal.** A sealed system takes no ambient updates. Community overlays (a
+bucket CID mounted read-only beside the base, admitted through `evo_comm` from #155) are not
+built yet; they follow once `evo_comm` is on `main`.
+<!-- zxv:distribution:end -->
+
+> Status: 🔒 the code this section describes (`kernel/src/swarmnet`, `build_system/mk_bucket.py`,
+> `tools/zxv-get`, `make ipfs-dist`) is held on the bare-metal thread's branch and lands in the same
+> merge batch as this section; until then it is not on `main`.
 
 ---
 

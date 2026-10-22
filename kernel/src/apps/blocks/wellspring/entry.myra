@@ -1,0 +1,7 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Wellspring files a log entry in MYRA: its day (days since 1970), its
+; kind (wellspring_model.h WELLSPRING_ACTIVITY .. WELLSPRING_PULSE) and its
+; amount in the kind's unit (minutes, ml or beats a minute).
+^ZXWELL(day:i6, kind:i1) = amount:i9!

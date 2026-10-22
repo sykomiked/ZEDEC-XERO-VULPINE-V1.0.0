@@ -88,6 +88,11 @@ merged, and every night on `main`.
    CI targets to three shards by mutant count, so each target is in exactly
    one shard and each shard fails below its own targets' baselines. The
    baselines are unchanged.
+   zxvd.yml does the same for the 12 zxvd method groups, and splits
+   zxvd_rpc (about 3800 mutants, past 130 minutes alone) by mutant:
+   `--part K/4` runs every fourth mutant and only measures, and
+   `--gate DIR` sums the four parts and fails below zxvd_rpc's baseline, or
+   when a part is missing.
 6. **Caches.** Kernel boot builds use `make -j` with ccache (the binaries are
    byte-identical to a serial build: checked for all five targets). The rv32
    OpenSBI firmware, the NuGet packages and the proof tools are cached.

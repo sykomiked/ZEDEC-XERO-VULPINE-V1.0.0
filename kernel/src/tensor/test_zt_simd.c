@@ -20,10 +20,13 @@
  * argument adds a per-kernel speed figure (in-cache rows).
  *
  *   gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc/tensor src/tensor/test_zt_simd.c \
- *       src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c \
- *       src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c \
- *       src/tensor/zt.c -lpthread -o /tmp/test_zt_simd && /tmp/test_zt_simd
- * The same file cross-compiles for aarch64 and runs under qemu-aarch64. */
+ *       src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c \
+ *       src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c \
+ *       src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c \
+ *       -lpthread -o /tmp/test_zt_simd && /tmp/test_zt_simd
+ * The same file cross-compiles for aarch64 (NEON, and SVE at every vector
+ * length qemu-aarch64 offers) and for riscv64 (zt_simd_rvv.c built with
+ * -march=rv64gcv) and runs under qemu. */
 #define _POSIX_C_SOURCE 200112L
 #define _ISOC11_SOURCE
 #include <stdio.h>
@@ -836,8 +839,8 @@ int main(int argc, char **argv)
     printf("[INFO] kernel sets on this CPU:");
     for (uint32_t i = 0; i < nk; i++) printf(" %s", ks[i]->name);
     printf(" (best: %s)\n", zt_simd_best()->name);
-    static const char *names[] = {"avx2", "avx512", "avx512vnni", "neon"};
-    for (uint32_t i = 0; i < 4; i++)
+    static const char *names[] = {"avx2", "avx512", "avx512vnni", "sve", "neon", "rvv"};
+    for (uint32_t i = 0; i < sizeof names / sizeof names[0]; i++)
         if (!zt_simd_find(names[i]))
             printf("[SKIP] %s: not compiled for this target or not on this CPU\n", names[i]);
     CHECK(nk >= 1 && !strcmp(ks[nk - 1]->name, "c") && zt_simd_find("c") == ks[nk - 1],

@@ -1,0 +1,13 @@
+(zero odd-digit even-digit big odd-digit)
+(1 5 4 8 0 0 8 7 5 5 9 2 0) 17
+"fib 80 =" 23416728348467685
+4 nil
+(1 4 9 16 25 36) (9 4 1)
+nil () nil 1 (a)
+nil nil x false true
+true true true false
+true false true false true
+0 12 24 36 
+-3 -1 1 -1 9 9 -2
+not empty, done
+yes nil nil nil

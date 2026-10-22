@@ -24,6 +24,7 @@ typedef struct fake_dev {
     uint8_t bar_kind[6];  /* FAKE_BAR_MEM64 / MEM32 / IO */
     void (*tick)(struct fake_dev *d, uint64_t now_us);
     void *state;
+    uint8_t cmd_locked; /* the command register ignores writes (a fault knob) */
 } fake_dev_t;
 
 typedef struct fake_plat {
@@ -33,6 +34,7 @@ typedef struct fake_plat {
     uint64_t now_us;
     uint32_t dma_bytes;
     uint32_t dma_fail_after; /* 0 = never fail; else fail the Nth allocation */
+    uint32_t dma_fail_one;   /* 0 = never; else fail only the Nth allocation */
     uint32_t dma_calls;
     char log[64][160];
     uint32_t nlog;

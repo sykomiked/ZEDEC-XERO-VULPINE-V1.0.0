@@ -1,7 +1,7 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
  * SPDX-License-Identifier: Apache-2.0 */
-/* swarm_boot.c — the swarm's boot self-check and the combined [AI_OK]
- * check. See swarm_boot.h. */
+/* swarm_boot.c — the swarm's boot self-check and the combined
+ * [AI_SELFCHECK_OK] check. See swarm_boot.h. */
 #include "swarm_boot.h"
 #include "swarm_budget.h"
 #include "../tensor/zt_boot.h" /* zt_boot_fnv, zt_boot_selfcheck */
@@ -90,7 +90,7 @@ bool ai_boot_selfcheck(void (*out)(const char *))
     char *p = line;
 
     if (ok) {
-        p = put_str(p, "[AI_OK] swarm+tensor selfcheck ");
+        p = put_str(p, "[AI_SELFCHECK_OK] swarm+tensor selfcheck ");
         p = put_hex(p, ha);
     } else {
         p = put_str(p, "[FAULT] AI selfcheck mismatch: swarm step ");

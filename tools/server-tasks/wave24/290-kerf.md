@@ -1,6 +1,6 @@
 # Wave 24 task: Kerf (slot 290), Workshop
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 6 (078 tallystick); wave 12 (146 swage, 152 ratchet); wave 14 (177 caliper); wave 20 (242 silt).
+Depends on: wave 4 (078 tallystick), wave 12 (146 swage, 152 ratchet), wave 14 (177 caliper), wave 20 (242 silt).
 Manifest: `slot 290`, `layer L3`, `icon icons/l3/290-kerf.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: runs a small workshop or factory: job orders, materials, machine time, quality checks and shipping, from the Hoard (`files.read`, `files.write`), the books (`ledger.entries`, `ledger.post`) and printed papers (`print.submit`). zxvd has no method for machine state readings: use only existing methods; list what's missing in your report.
 Uses: `use swage 1` ("may ship" for software built into products); `use ratchet 1` ("fault", next repair step, wear); `use caliper 1` ("within tolerance", stress); `use silt 1` (records office for quality papers); `use tallystick 1` (invoice total, "paid in full"). Call these composed entries; do not re-implement them.

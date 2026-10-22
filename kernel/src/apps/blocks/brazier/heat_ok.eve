@@ -1,0 +1,12 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A temperature with no warning (brazier_model.h): 0.0 to 45.0 degrees C,
+# in integer tenths of a degree, both ends inside. Outside it the owner is
+# warned: advice only, nothing is stopped.
+eve brazier
+calm_tenths = 0 .. 450
+
+heat_calm {
+  temp: calm_tenths
+}

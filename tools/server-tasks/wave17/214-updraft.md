@@ -1,6 +1,6 @@
 # Wave 17 task: Updraft (slot 214), Signal station
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (016 sounding), wave 2 (029 trellis, 027 commons), wave 3 (035 aerie).
+Depends on: wave 0 (016 sounding), wave 1 (029 trellis), wave 2 (027 commons), wave 5 (035 aerie).
 Manifest: `slot 214`, `layer L2`, `icon icons/l2/214-updraft.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: runs a radio and mesh signal station: pairs peers (`devmesh.invite`, `devmesh.join`, `devmesh.confirm_sas`), relays messages (`ehop.bands`, `ehop.seal`, `ehop.open`, `harmonic.encode`, `harmonic.decode`) and watches link quality (`net.peers`).
 Uses: `use aerie 1` (frame tag split, "fits the band", message log); `use sounding 1` (`sounding.rate`); `use trellis 1` (peers per state, peer record); `use commons 1` ("may I post here"). Call these composed entries; do not re-implement them.

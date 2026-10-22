@@ -1,0 +1,4 @@
+zxv-host: Tiamat cell Spinewyrm (qwen lineage) on qwen2.5-1.5b-instruct
+zxv-host: Tiamat cell Codelindworm (qwen lineage) on Qwen2.5 Coder 1.5B Instruct GGUF
+zxv-host: Tiamat cell Vouchwyvern (smollm lineage) on Smollm2 1.7B 8k Mix7 Ep2 v2
+zxv-host: idle check failed: Model slot 0: SHA-256 differs from the pinned hash after 1117320736 bytes

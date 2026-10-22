@@ -1,0 +1,55 @@
+; List processing: building, walking, filtering and sorting lists
+
+to range :lo :hi
+if :lo > :hi [output []]
+output fput :lo range :lo + 1 :hi
+end
+
+to total :l
+if emptyp :l [output 0]
+output (first :l) + total butfirst :l
+end
+
+to evens :l
+if emptyp :l [output []]
+if 0 = remainder first :l 2 [output fput first :l evens butfirst :l]
+output evens butfirst :l
+end
+
+to rev :l
+if emptyp :l [output []]
+output lput first :l rev butfirst :l
+end
+
+to insert :x :l
+if emptyp :l [output (list :x)]
+if :x <= first :l [output fput :x :l]
+output fput first :l insert :x butfirst :l
+end
+
+to isort :l
+if emptyp :l [output []]
+output insert first :l isort butfirst :l
+end
+
+to squares :l
+if emptyp :l [output []]
+output fput (first :l) * (first :l) squares butfirst :l
+end
+
+make "r range 1 10
+show :r
+print total :r
+show evens :r
+show rev :r
+show squares range 1 6
+show isort [31 4 15 9 26 5 35 8 97 93]
+show (list count :r first :r last :r item 4 :r)
+show sentence [a b] [[c d] e]
+show list [a b] [[c d] e]
+show butlast [x y z]
+print memberp 7 :r
+print memberp 11 :r
+print emptyp []
+show fput [nested] [[list] of [lists]]
+print [words and [inner lists] print flat]

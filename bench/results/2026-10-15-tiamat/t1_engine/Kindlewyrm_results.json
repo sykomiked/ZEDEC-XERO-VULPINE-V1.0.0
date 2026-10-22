@@ -1,0 +1,39 @@
+{
+  "test": "T1 engine baseline (untuned cell, prompted)",
+  "cell": "Kindlewyrm",
+  "model": "/tmp/claude-0/models/qwen2.5-0.5b-instruct-q4_k_m.gguf",
+  "n": 200,
+  "answered": 200,
+  "accuracy": 0.24,
+  "false_certainty_rate": 0.01,
+  "confusion_truth_by_answer": {
+    "TRUE": {
+      "TRUE": 0,
+      "FALSE": 0,
+      "BOTH": 50,
+      "NEITHER": 0
+    },
+    "FALSE": {
+      "TRUE": 0,
+      "FALSE": 0,
+      "BOTH": 49,
+      "NEITHER": 1
+    },
+    "BOTH": {
+      "TRUE": 1,
+      "FALSE": 0,
+      "BOTH": 48,
+      "NEITHER": 1
+    },
+    "NEITHER": {
+      "TRUE": 0,
+      "FALSE": 0,
+      "BOTH": 50,
+      "NEITHER": 0
+    }
+  },
+  "marks_for_the_heads": {
+    "accuracy": ">= 0.85",
+    "false_certainty_rate": "<= 0.05"
+  }
+}

@@ -1,6 +1,6 @@
 # Wave 27 task: Pharos (slot 326), Emergency warnings
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 3 (035 aerie); wave 11 (143 watchfire); wave 17 (215 headland, 214 updraft); wave 19 (238 billow).
+Depends on: wave 5 (035 aerie), wave 11 (143 watchfire), wave 17 (214 updraft, 215 headland), wave 19 (238 billow).
 Manifest: `slot 326`, `layer L3`, `icon icons/l3/326-pharos.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: broadcasts emergency warnings across radio, mesh and screens, confirming who has received them (`ehop.bands`, `ehop.seal`, `harmonic.encode`, `pspace.post`, `chat.post`, `net.peers`), each sent after a person approves. zxvd has no method for screen broadcast to other devices: use only existing methods; list what's missing in your report.
 Uses: `use headland 1` ("raise an alarm"); `use billow 1` (live audio show segments and captions); `use updraft 1` (link margin, "transmit allowed"); `use aerie 1` ("fits the band"); `use watchfire 1` (cancel window). Call these composed entries; do not re-implement them.

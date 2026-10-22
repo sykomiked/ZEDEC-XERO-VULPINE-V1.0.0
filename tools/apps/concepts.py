@@ -10,14 +10,25 @@ whoever writes the next app (a person or the build server) builds on what
 exists. --check rebuilds it in memory and fails when the committed file
 differs, or when:
 
-  * a concept's owner is not a manifest that provides that entry;
+  * a concept's owner is not a manifest that provides that entry, or, for
+    an owner written zxvd:<method> (a daemon method group every app calls),
+    api/zxvd.openrpc.json lacks the method and the meaning does not start
+    "Planned:";
   * a manifest other than the owner provides a name a concept owns (use
     the owner instead of writing it again);
   * two manifests provide the same name and it is neither a concept nor a
     local word (register it, with one owner, or list it as local);
   * a name is claimed by two concepts, or by a concept and the local list.
+
+Each app's reuse figure is printed and written into the table: the blocks
+it uses (each `use` line, an earlier app or a shared block) against the new
+entries it writes itself (its `provides` lines, re-exports of a composed
+entry not counted), as used / (used + new) in whole per cent. Apps are
+built in matrix order (tools/server-tasks/MATRIX_ORDER.tsv) so that later
+ones find more to use.
 """
 import argparse
+import json
 import os
 import sys
 
@@ -85,11 +96,19 @@ def build():
     mans = read_manifests()
     by_id = {m["id"]: m for m in mans}
     owner_of = {}
+    spec = json.load(open(os.path.join(ROOT, "api", "zxvd.openrpc.json"), encoding="utf-8"))
+    methods = {x["name"] for x in spec["methods"]}
     for c in concepts:
-        oid, _, entry = c["owner"].partition(".")
-        m = by_id.get(oid)
-        if not m or entry not in [p[0] for p in m["provides"]]:
-            errors.append(f"concept {c['concept']}: owner {c['owner']} provides no such entry")
+        if c["owner"].startswith("zxvd:"):  # a daemon method every app calls, never rewrites
+            oid, entry = "zxvd", c["owner"][5:]
+            if entry not in methods and not c["meaning"].startswith("Planned:"):
+                errors.append(f"concept {c['concept']}: zxvd has no method {entry} "
+                              "(api/zxvd.openrpc.json); mark the meaning \"Planned:\" until it lands")
+        else:
+            oid, _, entry = c["owner"].partition(".")
+            m = by_id.get(oid)
+            if not m or entry not in [p[0] for p in m["provides"]]:
+                errors.append(f"concept {c['concept']}: owner {c['owner']} provides no such entry")
         c["entry"] = entry
         c["oid"] = oid
         for nm in c["names"] + [entry]:
@@ -104,7 +123,10 @@ def build():
             if "." in name:  # a re-export of a composed entry (C1): defined by its part
                 continue
             c = owner_of.get(name)
-            if c and m["id"] != c["oid"]:
+            if c and c["oid"] == "zxvd":
+                errors.append(f"{m['file']}: provides {name}, which concept {c['concept']} owns: "
+                              f"call the daemon method {c['entry']}, never write it in an app")
+            elif c and m["id"] != c["oid"]:
                 errors.append(f"{m['file']}: provides {name}, which concept {c['concept']} owns: "
                               f"use {c['oid']} and call {c['oid']}.{c['entry']}")
             defined.setdefault(name, []).append(m["file"])
@@ -113,6 +135,13 @@ def build():
             errors.append(f"'{name}' is defined by {', '.join(files)}: register it in CONCEPTS.tsv "
                           "with one owner, or as a local word")
     return concepts, mans, errors
+
+
+def reuse(m):
+    """(blocks used, new entries written, whole per cent used)."""
+    used = len(m["uses"])
+    new = sum(1 for n, _, _ in m["provides"] if "." not in n)
+    return used, new, (used * 100 // (used + new)) if used + new else 0
 
 
 def render(concepts, mans):
@@ -140,15 +169,18 @@ def render(concepts, mans):
     for c in concepts:
         out.append(f"| {c['concept']} | `{c['owner']}` | {', '.join(c['names'])} | {c['meaning']} |")
     out += ["", "## Apps and blocks", "",
-            "| Manifest | Slot | Layer | Uses | Provides (entry kind inputs: languages) |",
-            "|---|---|---|---|---|"]
+            "Reuse is blocks used against new entries written, used / (used + new).",
+            "",
+            "| Manifest | Slot | Layer | Uses | Provides (entry kind inputs: languages) | Reuse |",
+            "|---|---|---|---|---|---|"]
     for m in mans:
         prov = "<br>".join(
             f"`{n} {k}{(' ' + ' '.join(a)) if a else ''}`: {', '.join(m['langs'].get(n, ['(composed)']))}"
             for n, k, a in m["provides"]) or "-"
         kind = "block" if m["file"].endswith(".zxblock") else (m["layer"] or "example")
+        u, n, pc = reuse(m)
         out.append(f"| {m['id']} {m['version']} | {m['slot'] or '-'} | {kind} | "
-                   f"{', '.join(m['uses']) or '-'} | {prov} |")
+                   f"{', '.join(m['uses']) or '-'} | {prov} | {u} used, {n} new: {pc}% |")
     return "\n".join(out) + "\n"
 
 
@@ -169,6 +201,10 @@ def main():
     with open(OUT, "w", encoding="utf-8") as f:
         f.write(text)
     print(f"wrote {os.path.relpath(OUT, ROOT)}")
+    for m in mans:
+        if m["slot"]:
+            u, n, pc = reuse(m)
+            print(f"reuse {m['id']}: used {u}, new {n}, {pc}%")
     return 1 if errors else 0
 
 

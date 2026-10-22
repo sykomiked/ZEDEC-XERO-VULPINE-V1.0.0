@@ -1,6 +1,6 @@
 # Wave 26 task: Quay (slot 316), Port and marina
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 7 (090 caravan); wave 12 (150 pannier); wave 13 (161 chandler); wave 19 (234 neap); wave 20 (242 silt).
+Depends on: wave 1 (090 caravan), wave 12 (150 pannier), wave 13 (161 chandler), wave 19 (234 neap), wave 20 (242 silt).
 Manifest: `slot 316`, `layer L3`, `icon icons/l3/316-quay.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: runs a port or marina: berths, arrivals, cargo handling, customs papers and fees (`place.list`, `files.read`, `files.write`, `ledger.entries`, `ledger.post`, `print.submit`).
 Uses: `use chandler 1` (tide height, "within load limits"); `use pannier 1` ("send now", delivery receipts); `use neap 1` ("entry may post"); `use silt 1` (records office for customs papers); `use caravan 1` (charged weight, shipment records). Call these composed entries; do not re-implement them.

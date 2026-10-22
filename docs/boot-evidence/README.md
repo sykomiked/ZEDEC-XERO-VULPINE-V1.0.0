@@ -10,6 +10,9 @@ reproduce any of them yourself with [VERIFY_BOOT.md](../VERIFY_BOOT.md).
 |---|---|---|
 | [2026-10-15-qemu](2026-10-15-qemu/) | QEMU 8.2 (software emulation) under UEFI firmware | x86_64, arm64 |
 | [kvm-2026-10-15](kvm-2026-10-15/) | QEMU 6.2 with nested KVM on a Xeon E5-2699 v4 (a KVM guest, not physical hardware) | x86_64 golden disc |
+| [swarm-fetch-2026-10-15](swarm-fetch-2026-10-15/) | QEMU 8.2 (software emulation) under UEFI, e1000 NIC, local test gateway | x86_64 core disc + swarm disc 2 (fetch, seal, resume) |
+| [arm64-aavmf-4g-2026-10-15](arm64-aavmf-4g-2026-10-15/) | QEMU 8.2 (software emulation), AAVMF, `-cpu max -m 4096`, ramfb | arm64 UEFI disc, before and after the framebuffer mapping fix |
+| [contabo-virtio-2026-10-15](contabo-virtio-2026-10-15/) | QEMU 8.2 (software emulation), SeaBIOS on i440fx and OVMF on q35, virtio-scsi + virtio-net only | x86_64 core disc and UEFI disc, models verified with no AHCI/NVMe/e1000 |
 
 Only curated sets are kept here, so the repository stays small (each set is
 about 150 KB). The full record of every run, with complete logs and

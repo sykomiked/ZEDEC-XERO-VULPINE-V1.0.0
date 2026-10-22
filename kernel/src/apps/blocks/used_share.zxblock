@@ -10,6 +10,7 @@ zxblock 1
 id       used_share
 name     Used share
 version  1.0.0
+matrix 0
 provides used_x100 num total left
 logic    sutra used_x100 apps/blocks/used_share/used.sutra
 logic    kron  used_x100 apps/blocks/used_share/used.kron

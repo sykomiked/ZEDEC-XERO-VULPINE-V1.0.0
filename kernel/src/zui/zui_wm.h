@@ -37,18 +37,30 @@
  *       choice; letting go of Cmd, or Enter, switches; Esc stays. Cmd-W
  *       closes the window in front, Cmd-M minimises it.
  *   WM6 THE STRIP (with zui_wm_use_dock(wm, false); the dock of WM9 is the
- *       default) along the bottom shows every open window in the order it
- *       was opened. Pressing one brings it to the front (restoring it when
- *       minimised); pressing the one in front minimises it. A window still
- *       launching shows its gathering bar there too.
- *   WM7 EVENTS. zui_wm_event takes every event. What is not the manager's
- *       goes to an app with coordinates inside its content: pointer events
- *       to the window under the pointer (raising it), keys and text to the
- *       window in front. A launching window gets none.
- *   WM8 Integer only and deterministic: the same events and ticks give the
- *       same pixels. Colours are zui_tokens.h; frames are engraved; the one
- *       gold element is the window in front's mark in the strip (WM9: the
- *       dock's active slot).
+ *       default) along the bottom (or the edge zui_wm_strip_place puts it
+ *       on: the workspace's panel position and size, zui_ws_panel_rect, as
+ *       zui_ws_apply passes them; size 0 hides it) shows every open window
+ *       in the order it was opened, left to right, or top to bottom on a
+ *       side edge; the work area is the screen beside it. Pressing one brings it to the front
+ * (restoring it when minimised); pressing the one in front minimises it. A window still launching
+ * shows its gathering bar there too. WM7 EVENTS. zui_wm_event takes every event. What is not the
+ * manager's goes to an app with coordinates inside its content: pointer events to the window under
+ * the pointer (raising it), keys and text to the window in front. A launching window gets none.
+ * Mind the two frames of reference: a forwarded pointer event's x, y (pointer, scroll and touch)
+ * are RELATIVE to the content's top left corner, while the `content` rectangle passed beside it to
+ * client.event is in ABSOLUTE screen pixels (the same rectangle client.paint draws into). A client
+ * that hit-tests against widgets laid out at content.x, content.y adds content.x, content.y back
+ * first (or lays its widgets out at 0, 0 for events). Clients and tests depend on this, so it is
+ * kept as is. WM10 SCALE. zui_wm_t.scale_q8 is the chrome's scale, 256 = 1x (the default; 0 reads
+ * as 256), set with zui_wm_set_scale so window chrome matches a 2x panel: the title bar, the strip,
+ * the frame's border, the resize grip, the title bar's controls and their marks, the minimum window
+ * size, the strip's slots and the switcher's tiles all multiply by it, and so do the dock's seal
+ * and icons. The title font is the caller's (zui_wm_t.text), sized for the same scale. WM8 Integer
+ * only and deterministic: the same events and ticks give the same pixels. Colours come by role from
+ * zui_wm_t.colors (zui_palette.h C6; NULL: zui_tokens.h); frames are engraved; the one gold element
+ *       is the window in front's mark in the strip (WM9: the dock's active
+ *       slot). The launch screen inside a launching window (WM2) is the boot
+ *       sequence and keeps the boot palette in every scheme.
  *   WM9 THE DOCK. By default the astrolabe dock (zui_dock.h) stands in
  *       place of the strip (zui_wm_use_dock switches): a seal in a corner
  *       that blooms into rings of the open apps (most recently used first)
@@ -74,6 +86,7 @@
 #include "zui_canvas.h"
 #include "zui_dock.h"
 #include "zui_input.h"
+#include "zui_palette.h"
 #include "zui_progress.h"
 
 #define ZUI_WM_MAX      16u
@@ -83,7 +96,13 @@
 #define ZUI_WM_GRIP     6  /* how far outside an edge a resize grabs */
 #define ZUI_WM_MIN_W    320
 #define ZUI_WM_MIN_H    200
-#define ZUI_WM_OPEN_MS  360 /* the doors opening (WM2)              */
+/* The doors opening (WM2). Longer than the ZUI_MOTION_MS ceiling on
+ * purpose: the doors close the launch sequence (the boot vault's doors,
+ * zui_launch_draw), a sequence drawn from real load progress rather than a
+ * transition, so it is exempt from the ceiling. It still asks zui_motion
+ * (MO3, MO4): under reduce motion the doors stay shut and are then simply
+ * gone after the crossfade (at most ZUI_MOTION_MS) or at once (a cut). */
+#define ZUI_WM_OPEN_MS  360
 #define ZUI_WM_NAME_MAX 48u
 
 typedef enum {
@@ -155,6 +174,13 @@ struct zui_wm {
     zui_dock_t dock;
     uint32_t (*launch_app)(zui_wm_t *wm, const char *app, const char *title, void *ctx);
     void *launch_app_ctx;
+    /* WM6: the strip's edge (zui_panel_pos_t numbering: 0 bottom, 1 left,
+     * 2 right, 3 top) and thickness in pixels (0: hidden) */
+    uint8_t strip_pos;
+    int32_t strip_size;
+    const zui_colors_t *colors; /* zui_palette.h C6: the set painted with; NULL dark;
+                                 * the dock uses it too unless it has its own */
+    uint32_t scale_q8;          /* WM10: chrome scale, 256 = 1x; zui_wm_set_scale */
 };
 
 void zui_wm_init(zui_wm_t *wm, int32_t w, int32_t h, bool touch);
@@ -182,6 +208,14 @@ int zui_wm_hit(const zui_wm_t *wm, int32_t x, int32_t y, uint32_t *id, uint8_t *
  * when the dock is in use). */
 uint32_t zui_wm_strip(const zui_wm_t *wm, uint32_t *ids, uint32_t cap);
 zui_rect_t zui_wm_strip_slot(const zui_wm_t *wm, uint32_t i, uint32_t n);
+/* WM6: put the strip on an edge (0 bottom, 1 left, 2 right, 3 top) with a
+ * thickness in pixels (0 hides it); windows are fitted to the new work area. */
+void zui_wm_strip_place(zui_wm_t *wm, int pos, int32_t size);
+zui_rect_t zui_wm_strip_rect(const zui_wm_t *wm); /* where the strip is (all 0: none) */
+/* WM10: the chrome's scale (256 = 1x, clamped to 128..1024). The strip's
+ * thickness and the dock's seal and icons follow it; windows are refitted. */
+void zui_wm_set_scale(zui_wm_t *wm, uint32_t scale_q8);
+int32_t zui_wm_px(const zui_wm_t *wm, int32_t v); /* v (1x pixels) at the chrome's scale */
 
 bool zui_wm_event(zui_wm_t *wm, const zui_event_t *e); /* WM7 */
 void zui_wm_tick(zui_wm_t *wm, uint32_t ms);           /* WM2: the doors */

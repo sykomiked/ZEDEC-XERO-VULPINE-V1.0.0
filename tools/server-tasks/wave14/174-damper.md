@@ -1,6 +1,6 @@
 # Wave 14 task: Damper (slot 174), Fire and power watch
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (014 wake), wave 1 (021 brazier), wave 7 (094 homestead), wave 11 (143 watchfire, 141 conch).
+Depends on: wave 0 (014 wake), wave 5 (021 brazier), wave 8 (094 homestead), wave 11 (141 conch, 143 watchfire).
 Manifest: `slot 174`, `layer L2`, `icon icons/l2/174-damper.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: watches heat, smoke and power readings (`sys.info`, `power.status`, `log.tail`, `journal.query`) and coordinates alarms and evacuation contacts (`phone.list`, `call.start` on the person's request, `place.here`). zxvd has no method for home heat and smoke sensor readings, notice post: use only existing methods; list what's missing in your report.
 Uses: `use wake 1` (`wake.count`); `use brazier 1` (temperature limits, battery); `use homestead 1` (devices, energy totals); `use watchfire 1` ("share location with this contact", cancel window, contact records); `use conch 1` (alert mapping, level within the cap). Call these composed entries; do not re-implement them.

@@ -59,6 +59,12 @@ static inline uint64_t u16550_reg(const board_profile_t *bp, uint32_t logical_of
     return bp->uart_base + ((uint64_t)logical_offset << bp->uart_reg_shift);
 }
 
+/* Console baud rate: the profile's, else 115200. */
+static uint32_t uart_baud(const board_profile_t *bp)
+{
+    return bp->uart_baud ? bp->uart_baud : 115200u;
+}
+
 /* ===== PL011 low-level ===== */
 
 static void pl011_init(const board_profile_t *bp) {
@@ -70,7 +76,7 @@ static void pl011_init(const board_profile_t *bp) {
      * At 24MHz/115200 this reproduces this driver's original hardcoded
      * IBRD=13, FBRD=1 exactly (verified by inspection: 24e6*4/115200 =
      * 833, 833/64=13 rem 1). */
-    uint32_t baud = 115200;
+    uint32_t baud = uart_baud(bp);
     uint64_t divisor_x64 = ((uint64_t)bp->uart_clock_hz * 4) / baud;
     uint32_t ibrd = (uint32_t)(divisor_x64 / 64);
     uint32_t fbrd = (uint32_t)(divisor_x64 % 64);
@@ -105,7 +111,7 @@ static void u16550_init(const board_profile_t *bp) {
     uint64_t reg_fcr     = u16550_reg(bp, U16550_FCR);
     uint64_t reg_lcr     = u16550_reg(bp, U16550_LCR);
 
-    uint32_t baud = 115200;
+    uint32_t baud = uart_baud(bp);
     /* Standard 16550 baud generator: divisor = clock / (16 * baud),
      * rounded to nearest for minimum baud error. */
     uint32_t divisor = (uint32_t)(((uint64_t)bp->uart_clock_hz + 8u * baud) / (16u * baud));
@@ -138,22 +144,83 @@ static bool u16550_rx_ready(const board_profile_t *bp) {
     return (mmio_read(reg_lsr) & LSR_DR) != 0;
 }
 
+/* ===== Cadence UART (cdns,uart-r1p12), the Zynq UltraScale+ console =====
+ * Register map from the Zynq UltraScale+ TRM (UG1085, UART chapter) and the
+ * mainline Linux driver drivers/tty/serial/xilinx_uartps.c. Baud rate =
+ * ref_clk / (CD * (BDIV + 1)); BDIV is fixed at 4 and CD rounded. */
+#define CDNS_CR         0x00
+#define CDNS_MR         0x04
+#define CDNS_IDR        0x0C
+#define CDNS_BAUDGEN    0x18
+#define CDNS_SR         0x2C
+#define CDNS_FIFO       0x30
+#define CDNS_BAUDDIV    0x34
+#define CDNS_CR_RXRST   (1u << 0)
+#define CDNS_CR_TXRST   (1u << 1)
+#define CDNS_CR_RXEN    (1u << 2)
+#define CDNS_CR_TXEN    (1u << 4)
+#define CDNS_MR_8N1     0x20u /* CHRL 8 bits, PAR = no parity, NBSTOP 1, normal mode */
+#define CDNS_SR_RXEMPTY (1u << 1)
+#define CDNS_SR_TXFULL  (1u << 4)
+
+static void cdns_init(const board_profile_t *bp)
+{
+    uint32_t baud = uart_baud(bp);
+    uint32_t bdiv = 4;
+    uint32_t cd = (uint32_t) (((uint64_t) bp->uart_clock_hz + (uint64_t) baud * (bdiv + 1) / 2) /
+                              ((uint64_t) baud * (bdiv + 1)));
+    if (cd < 2) cd = 2; /* 0 disables the generator, 1 bypasses it */
+    if (cd > 65535) cd = 65535;
+    mmio_write(bp->uart_base + CDNS_IDR, 0x1FFF); /* no interrupts during setup */
+    mmio_write(bp->uart_base + CDNS_CR, CDNS_CR_RXRST | CDNS_CR_TXRST);
+    mmio_write(bp->uart_base + CDNS_MR, CDNS_MR_8N1);
+    mmio_write(bp->uart_base + CDNS_BAUDGEN, cd);
+    mmio_write(bp->uart_base + CDNS_BAUDDIV, bdiv);
+    mmio_write(bp->uart_base + CDNS_CR, CDNS_CR_RXEN | CDNS_CR_TXEN);
+}
+
+static void cdns_putc(const board_profile_t *bp, char c)
+{
+    while (mmio_read(bp->uart_base + CDNS_SR) & CDNS_SR_TXFULL) {
+    }
+    mmio_write(bp->uart_base + CDNS_FIFO, (uint32_t) (uint8_t) c);
+}
+
+static bool cdns_rx_ready(const board_profile_t *bp)
+{
+    return !(mmio_read(bp->uart_base + CDNS_SR) & CDNS_SR_RXEMPTY);
+}
+
+static char cdns_getc(const board_profile_t *bp)
+{
+    while (!cdns_rx_ready(bp)) {
+    }
+    return (char) mmio_read(bp->uart_base + CDNS_FIFO);
+}
+
 /* ===== Public dispatch (board-profile-driven) ===== */
 
 void uart_putc(char c) {
     const board_profile_t *bp = board_get_profile();
-    if (bp->uart_is_pl011) pl011_putc(bp, c);
+    if (bp->uart_is_cadence)
+        cdns_putc(bp, c);
+    else if (bp->uart_is_pl011)
+        pl011_putc(bp, c);
     else u16550_putc(bp, c);
 }
 
 char uart_getc(void) {
     const board_profile_t *bp = board_get_profile();
+    if (bp->uart_is_cadence) return cdns_getc(bp);
     return bp->uart_is_pl011 ? pl011_getc(bp) : u16550_getc(bp);
 }
 
 void uart_init(void) {
     const board_profile_t *bp = board_get_profile();
-    if (bp->uart_is_pl011) pl011_init(bp);
+    if (bp->uart_is_cadence)
+        cdns_init(bp);
+    else if (bp->uart_is_pl011)
+        pl011_init(bp);
     else u16550_init(bp);
 }
 
@@ -189,5 +256,6 @@ void uart_put_dec(uint64_t val) {
 
 bool uart_rx_ready(void) {
     const board_profile_t *bp = board_get_profile();
+    if (bp->uart_is_cadence) return cdns_rx_ready(bp);
     return bp->uart_is_pl011 ? pl011_rx_ready(bp) : u16550_rx_ready(bp);
 }

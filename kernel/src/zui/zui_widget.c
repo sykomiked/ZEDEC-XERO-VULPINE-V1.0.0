@@ -6,6 +6,9 @@
 #include "zui_progress.h"
 #include "zui_tokens.h"
 
+/* C6 (zui_palette.h): every colour by role, in the active set */
+#define C(role) zui_color(ui->colors, ZUI_C_##role)
+
 /* ---- small helpers ------------------------------------------------------ */
 
 static int32_t imin(int32_t a, int32_t b)
@@ -111,6 +114,40 @@ static int32_t ascent(const zui_text_t *t)
     return t->font ? zui_text_ascent(t) : (fsize(t) * 4 + 4) / 5;
 }
 
+/* Cap height in px: the top of "H" from the font's glyph table, or about
+ * seven tenths of the ascent without a font. Button labels centre on it. */
+static int32_t cap_h(const zui_text_t *t)
+{
+    const ttf_font_t *f = t->font;
+    uint32_t g = f && f->valid && f->units_per_em ? ttf_glyph_index(f, 'H') : 0;
+    uint32_t esz = f && f->loca_long ? 4u : 2u;
+    if (g && g < f->num_glyphs && f->loca_off + (g + 2u) * esz <= f->len) {
+        const uint8_t *p = f->data + f->loca_off + g * esz;
+        uint32_t off, end;
+        if (f->loca_long) {
+            off = ((uint32_t) p[0] << 24) | ((uint32_t) p[1] << 16) | ((uint32_t) p[2] << 8) | p[3];
+            end = ((uint32_t) p[4] << 24) | ((uint32_t) p[5] << 16) | ((uint32_t) p[6] << 8) | p[7];
+        } else {
+            off = (((uint32_t) p[0] << 8) | p[1]) * 2u;
+            end = (((uint32_t) p[2] << 8) | p[3]) * 2u;
+        }
+        if (end >= off + 10u && off + 10u <= f->glyf_len && f->glyf_off + off + 10u <= f->len) {
+            const uint8_t *h = f->data + f->glyf_off + off;
+            int32_t ymax = (int16_t) (((uint32_t) h[8] << 8) | h[9]);
+            if (ymax > 0)
+                return (int32_t) (((int64_t) ymax * fsize(t) + f->units_per_em / 2u) /
+                                  f->units_per_em);
+        }
+    }
+    return (ascent(t) * 72 + 50) / 100;
+}
+
+/* The baseline that centres a line's capitals in a box of height h at y. */
+static int32_t cap_base(const zui_text_t *t, int32_t y, int32_t h)
+{
+    return y + (h + cap_h(t) + 1) / 2;
+}
+
 static int32_t line_h(const zui_text_t *t)
 {
     int32_t d = t->font ? -zui_text_descent(t) : (fsize(t) + 4) / 5;
@@ -198,6 +235,8 @@ void zui_ui_clear(zui_ui_t *ui)
     ui->n = 0;
     ui->root = ui->focus = ui->hover = ui->pressed = ZUI_NONE;
     ui->drag_list = ZUI_NONE;
+    ui->modal = ui->tip_for = ZUI_NONE;
+    ui->tip_r = rect(0, 0, 0, 0);
     ui->menu.open = false;
     ui->palette.open = false;
     ui->layout_dirty = true;
@@ -216,6 +255,18 @@ void zui_ui_init(zui_ui_t *ui, const zui_screen_t *screen, const zui_theme_t *th
     ui->palette.owner = ZUI_NONE;
     ui->menu.owner = ZUI_NONE;
     zui_ui_clear(ui);
+}
+
+void zui_ui_set_colors(zui_ui_t *ui, const zui_colors_t *colors)
+{
+    if (ui->colors == colors) return;
+    ui->colors = colors;
+    zui_damage_all(&ui->damage, (int32_t) ui->screen.px_w, (int32_t) ui->screen.px_h);
+}
+
+uint32_t zui_ui_color(const zui_ui_t *ui, zui_color_role_t role)
+{
+    return zui_color(ui ? ui->colors : 0, role);
 }
 
 void zui_ui_on(zui_ui_t *ui, zui_on_fn on, void *ctx)
@@ -397,14 +448,173 @@ zui_id_t zui_separator(zui_ui_t *ui, zui_id_t parent)
     return add(ui, parent, ZUI_W_SEPARATOR);
 }
 
+/* ---- W8: choices ------------------------------------------------------------ */
+
+static zui_id_t choice(zui_ui_t *ui, zui_id_t parent, zui_kind_t k, const char *text, bool on)
+{
+    zui_id_t id = add(ui, parent, k);
+    if (id != ZUI_NONE) {
+        scopy(ui->w[id].label, ZUI_LABEL_MAX, text);
+        ui->w[id].focusable = true;
+        ui->w[id].u.check.state = on ? 1u : 0u;
+    }
+    return id;
+}
+
+zui_id_t zui_toggle(zui_ui_t *ui, zui_id_t parent, const char *text, bool on)
+{
+    return choice(ui, parent, ZUI_W_TOGGLE, text, on);
+}
+
+zui_id_t zui_check(zui_ui_t *ui, zui_id_t parent, const char *text, bool on)
+{
+    return choice(ui, parent, ZUI_W_CHECK, text, on);
+}
+
+zui_id_t zui_radio(zui_ui_t *ui, zui_id_t parent, const char *text, bool on)
+{
+    zui_id_t id = choice(ui, parent, ZUI_W_RADIO, text, false);
+    if (on) zui_set_checked(ui, id, 1);
+    return id;
+}
+
+zui_id_t zui_slider(zui_ui_t *ui, zui_id_t parent, int32_t min, int32_t max, int32_t step,
+                    int32_t value)
+{
+    zui_id_t id = add(ui, parent, ZUI_W_SLIDER);
+    if (id != ZUI_NONE) {
+        zui_widget_t *w = &ui->w[id];
+        w->focusable = true;
+        w->u.range.min = min;
+        w->u.range.max = imax(min, max);
+        w->u.range.step = imax(1, step);
+        w->u.range.value = min;
+        zui_slider_set(ui, id, value);
+    }
+    return id;
+}
+
+zui_id_t zui_tabs(zui_ui_t *ui, zui_id_t parent, const char *const *labels, uint32_t n, int32_t sel,
+                  bool segmented)
+{
+    zui_id_t id = add(ui, parent, ZUI_W_TABS);
+    if (id == ZUI_NONE) return id;
+    zui_widget_t *w = &ui->w[id];
+    w->dir = ZUI_ROW;
+    w->gap = segmented ? 0 : ZUI_S1;
+    w->pad = segmented ? 2 : 0;
+    w->u.tabs.segmented = segmented;
+    for (uint32_t i = 0; i < n; i++) {
+        zui_id_t t = add(ui, id, ZUI_W_TAB);
+        if (t == ZUI_NONE) break;
+        scopy(ui->w[t].label, ZUI_LABEL_MAX, labels[i]);
+        ui->w[t].focusable = true;
+    }
+    ui->w[id].u.tabs.sel = -1;
+    zui_tabs_select(ui, id, sel);
+    return id;
+}
+
+/* ---- W9: dialogs ------------------------------------------------------------- */
+
+zui_id_t zui_dialog(zui_ui_t *ui, const char *title)
+{
+    if (ui->root == ZUI_NONE) return ZUI_NONE;
+    zui_id_t id = add(ui, ui->root, ZUI_W_DIALOG);
+    if (id == ZUI_NONE) return id;
+    zui_widget_t *w = &ui->w[id];
+    w->dir = ZUI_COL;
+    w->pad = ZUI_S5;
+    w->gap = ZUI_S3;
+    w->hidden = true;
+    w->u.dialog.back = ZUI_NONE;
+    scopy(w->label, ZUI_LABEL_MAX, title);
+    scopy(w->name, ZUI_NAME_MAX, title);
+    if (title && title[0]) {
+        zui_id_t t = zui_label(ui, id, title);
+        zui_set_font(ui, t, ZUI_TEXT_TITLE, 0);
+    }
+    return id;
+}
+
+static bool within(const zui_ui_t *ui, zui_id_t id, zui_id_t top)
+{
+    for (; id != ZUI_NONE; id = ui->w[id].parent)
+        if (id == top) return true;
+    return false;
+}
+
+static bool can_focus(const zui_ui_t *ui, zui_id_t id);
+static zui_id_t preorder_next(const zui_ui_t *ui, zui_id_t id);
+static void tip_arm(zui_ui_t *ui, zui_id_t id, bool kbd);
+
+void zui_dialog_open(zui_ui_t *ui, zui_id_t id)
+{
+    zui_widget_t *w = zui_w(ui, id);
+    if (!w || w->kind != ZUI_W_DIALOG || ui->modal == id) return;
+    if (ui->modal != ZUI_NONE) zui_dialog_close(ui, ui->modal); /* one at a time */
+    zui_menu_close(ui);
+    zui_palette_close(ui);
+    w->u.dialog.back = ui->focus;
+    w->u.dialog.sheet = ui->plan.cls == ZUI_COMPACT;
+    w->hidden = false;
+    ui->modal = id;
+    ui->layout_dirty = true;
+    bool kbd = ui->focus_visible;
+    ui->focus = ZUI_NONE;
+    /* W9: focus moves in, to its first control */
+    for (zui_id_t c = ui->w[id].first; c != ZUI_NONE && within(ui, c, id); c = preorder_next(ui, c))
+        if (can_focus(ui, c)) {
+            zui_focus(ui, c, kbd);
+            break;
+        }
+    zui_damage_all(&ui->damage, (int32_t) ui->screen.px_w, (int32_t) ui->screen.px_h);
+}
+
+void zui_dialog_close(zui_ui_t *ui, zui_id_t id)
+{
+    zui_widget_t *w = zui_w(ui, id);
+    if (!w || w->kind != ZUI_W_DIALOG || w->hidden) return;
+    w->hidden = true;
+    if (ui->modal == id) ui->modal = ZUI_NONE;
+    ui->layout_dirty = true;
+    zui_id_t back = w->u.dialog.back;
+    w->u.dialog.back = ZUI_NONE;
+    if (ui->focus != ZUI_NONE && within(ui, ui->focus, id)) ui->focus = ZUI_NONE;
+    if (back != ZUI_NONE && cw(ui, back) && !within(ui, back, id))
+        zui_focus(ui, back, ui->focus_visible);
+    zui_damage_all(&ui->damage, (int32_t) ui->screen.px_w, (int32_t) ui->screen.px_h);
+}
+
+/* ---- W12: the empty state ------------------------------------------------------ */
+
+zui_id_t zui_empty(zui_ui_t *ui, zui_id_t parent, zui_icon_t icon, const char *line,
+                   const char *action)
+{
+    zui_id_t id = add(ui, parent, ZUI_W_EMPTY);
+    if (id == ZUI_NONE) return id;
+    zui_widget_t *w = &ui->w[id];
+    w->dir = ZUI_COL;
+    w->pad = ZUI_S5;
+    w->gap = ZUI_S3;
+    w->sizing = ZUI_SIZE_FLEX;
+    w->size = 1;
+    w->u.empty.icon = (uint8_t) icon;
+    scopy(w->label, ZUI_LABEL_MAX, line);
+    zui_id_t l = zui_label(ui, id, line);
+    zui_set_font(ui, l, ZUI_TEXT_BODY, ZUI_TEXT_2);
+    if (action && action[0]) zui_button(ui, id, action, ZUI_BTN_PRIMARY);
+    return id;
+}
+
 /* ---- damage ------------------------------------------------------------- */
 
 void zui_invalidate(zui_ui_t *ui, zui_id_t id)
 {
     const zui_widget_t *w = cw(ui, id);
     if (!w) return;
-    /* the focus ring sits just outside a widget */
-    zui_damage_add(&ui->damage, inset(w->r, -PX(ui, 3)));
+    /* the focus ring (two tones, W3) sits just outside a widget */
+    zui_damage_add(&ui->damage, inset(w->r, -PX(ui, 4)));
 }
 
 void zui_relayout(zui_ui_t *ui)
@@ -496,6 +706,86 @@ void zui_set_shortcut(zui_ui_t *ui, zui_id_t id, const char *keys)
     if (!w) return;
     scopy(w->shortcut, sizeof w->shortcut, keys);
     dirty_layout(ui, id);
+}
+
+void zui_set_tooltip(zui_ui_t *ui, zui_id_t id, const char *tip)
+{
+    zui_widget_t *w = zui_w(ui, id);
+    if (w) scopy(w->tip, sizeof w->tip, tip);
+}
+
+void zui_set_wrap(zui_ui_t *ui, zui_id_t id, bool wrap)
+{
+    zui_widget_t *w = zui_w(ui, id);
+    if (!w) return;
+    w->wrap = wrap;
+    ui->layout_dirty = true;
+}
+
+void zui_set_checked(zui_ui_t *ui, zui_id_t id, uint8_t state)
+{
+    zui_widget_t *w = zui_w(ui, id);
+    if (!w || (w->kind != ZUI_W_TOGGLE && w->kind != ZUI_W_CHECK && w->kind != ZUI_W_RADIO)) return;
+    if (state > (w->kind == ZUI_W_CHECK ? 2u : 1u)) state = 1;
+    if (w->kind == ZUI_W_RADIO && state && w->parent != ZUI_NONE)
+        for (zui_id_t c = ui->w[w->parent].first; c != ZUI_NONE; c = ui->w[c].next)
+            if (c != id && ui->w[c].kind == ZUI_W_RADIO && ui->w[c].u.check.state) {
+                ui->w[c].u.check.state = 0;
+                zui_invalidate(ui, c);
+            }
+    if (w->u.check.state == state) return;
+    w->u.check.state = state;
+    zui_invalidate(ui, id);
+}
+
+uint8_t zui_checked(const zui_ui_t *ui, zui_id_t id)
+{
+    const zui_widget_t *w = cw(ui, id);
+    return w && (w->kind == ZUI_W_TOGGLE || w->kind == ZUI_W_CHECK || w->kind == ZUI_W_RADIO)
+               ? w->u.check.state
+               : 0u;
+}
+
+void zui_slider_set(zui_ui_t *ui, zui_id_t id, int32_t v)
+{
+    zui_widget_t *w = zui_w(ui, id);
+    if (!w || w->kind != ZUI_W_SLIDER) return;
+    int32_t lo = w->u.range.min, hi = w->u.range.max, st = imax(1, w->u.range.step);
+    v = imax(lo, imin(v, hi));
+    int64_t k = ((int64_t) v - lo + st / 2) / st; /* to the nearest step */
+    int64_t on = lo + k * st;
+    v = on > hi ? hi : (int32_t) on;
+    if (w->u.range.value == v) return;
+    w->u.range.value = v;
+    zui_invalidate(ui, id);
+}
+
+int32_t zui_slider_value(const zui_ui_t *ui, zui_id_t id)
+{
+    const zui_widget_t *w = cw(ui, id);
+    return w && w->kind == ZUI_W_SLIDER ? w->u.range.value : 0;
+}
+
+void zui_tabs_select(zui_ui_t *ui, zui_id_t id, int32_t sel)
+{
+    zui_widget_t *w = zui_w(ui, id);
+    if (!w || w->kind != ZUI_W_TABS) return;
+    int32_t n = 0;
+    for (zui_id_t c = w->first; c != ZUI_NONE; c = ui->w[c].next) n++;
+    sel = n ? imax(0, imin(sel, n - 1)) : -1;
+    if (w->u.tabs.sel == sel) return;
+    w->u.tabs.sel = sel;
+    zui_invalidate(ui, id);
+}
+
+int32_t zui_choice_index(const zui_ui_t *ui, zui_id_t id)
+{
+    const zui_widget_t *w = cw(ui, id);
+    if (!w || w->parent == ZUI_NONE || (w->kind != ZUI_W_RADIO && w->kind != ZUI_W_TAB)) return -1;
+    int32_t i = 0;
+    for (zui_id_t c = ui->w[w->parent].first; c != ZUI_NONE && c != id; c = ui->w[c].next)
+        if (ui->w[c].kind == w->kind) i++;
+    return i;
 }
 
 /* ---- lists ---------------------------------------------------------------- */
@@ -605,6 +895,92 @@ static int32_t field_text_w(const zui_ui_t *ui, const zui_widget_t *w)
     return imax(1, w->r.w - 2 * PX(ui, ZUI_S2));
 }
 
+/* ---- W14: a line in visual order ------------------------------------------- */
+
+static zui_caret_line_t VLINE; /* scratch: one line at a time, as zui paints */
+
+/* Lay out line L of field w through ui->caret; false (the left-to-right
+ * path) when there is no hook, it declines, or nothing on the line runs
+ * right to left. *off is where the line starts (it aligns right in a
+ * right-to-left paragraph), 1/256 px from the text's left. */
+static bool vline(const zui_ui_t *ui, const zui_widget_t *w, line_t L, int32_t *off)
+{
+    const zui_field_t *f = &w->u.field;
+    if (!ui->caret || !f->buf || f->secret) return false;
+    if (!ui->caret(face(ui, w->font), span_q8, f->buf, f->len, L.a, L.b, &VLINE)) return false;
+    bool any = VLINE.rtl;
+    for (uint32_t i = 0; i < VLINE.n && !any; i++) any = VLINE.c[i].rtl;
+    if (!any) return false;
+    *off = VLINE.rtl ? imax(0, field_text_w(ui, w) * 256 - VLINE.width) : 0;
+    return true;
+}
+
+/* The caret at logical position pos: after the character before it (on
+ * its trailing side), else before the character at it. */
+static int32_t vcaret(uint32_t pos)
+{
+    const zui_caret_line_t *v = &VLINE;
+    for (uint32_t i = 0; i < v->n; i++)
+        if (v->c[i].b == pos) return v->c[i].rtl ? v->c[i].x0 : v->c[i].x1;
+    for (uint32_t i = 0; i < v->n; i++)
+        if (v->c[i].a == pos) return v->c[i].rtl ? v->c[i].x1 : v->c[i].x0;
+    return v->rtl ? 0 : v->width;
+}
+
+/* The logical position nearest x (1/256 px along the line). */
+static uint32_t vpos(int32_t x, uint32_t empty)
+{
+    const zui_caret_line_t *v = &VLINE;
+    if (!v->n) return empty;
+    uint32_t lo = 0, hi = 0;
+    for (uint32_t i = 0; i < v->n; i++) {
+        if (x >= v->c[i].x0 && x < v->c[i].x1) {
+            bool left = x < (v->c[i].x0 + v->c[i].x1) / 2;
+            return left == v->c[i].rtl ? v->c[i].b : v->c[i].a;
+        }
+        if (v->c[i].x0 < v->c[lo].x0) lo = i;
+        if (v->c[i].x1 > v->c[hi].x1) hi = i;
+    }
+    if (x < v->c[lo].x0) return v->c[lo].rtl ? v->c[lo].b : v->c[lo].a;
+    return v->c[hi].rtl ? v->c[hi].a : v->c[hi].b;
+}
+
+/* One step left (dir < 0) or right on screen; UINT32_MAX at the line's end. */
+static uint32_t vstep(uint32_t pos, int32_t dir)
+{
+    const zui_caret_line_t *v = &VLINE;
+    int32_t cur = vcaret(pos), bx = 0;
+    uint32_t best = 0xFFFFFFFFu;
+    for (uint32_t i = 0; i < v->n; i++)
+        for (int k = 0; k < 2; k++) {
+            uint32_t p = k ? v->c[i].b : v->c[i].a;
+            int32_t x = vcaret(p);
+            if (dir < 0 ? x < cur : x > cur) {
+                if (best == 0xFFFFFFFFu || (dir < 0 ? x > bx : x < bx)) {
+                    best = p;
+                    bx = x;
+                }
+            }
+        }
+    return best;
+}
+
+/* The line holding byte position pos, and its index. */
+static line_t line_of(const zui_ui_t *ui, const zui_widget_t *w, uint32_t pos, int32_t *li)
+{
+    const zui_field_t *f = &w->u.field;
+    const zui_text_t *t = face(ui, w->font);
+    int32_t width = field_text_w(ui, w);
+    uint32_t at = 0;
+    *li = 0;
+    for (;;) {
+        line_t L = line_at(t, f, at, width);
+        if (pos <= L.b || pos < L.next || L.next > f->len) return L; /* as caret_xy */
+        at = L.next;
+        (*li)++;
+    }
+}
+
 /* Line index and x (px from the text's left) of byte position pos. */
 static void caret_xy(const zui_ui_t *ui, const zui_widget_t *w, uint32_t pos, int32_t *line,
                      int32_t *x)
@@ -616,19 +992,18 @@ static void caret_xy(const zui_ui_t *ui, const zui_widget_t *w, uint32_t pos, in
     int32_t li = 0;
     for (;;) {
         line_t L = line_at(t, f, at, width);
-        if (pos <= L.b || L.next > f->len) {
+        bool here = pos <= L.b || L.next > f->len;
+        if (here || pos < L.next) {
+            int32_t off;
             *line = li;
-            *x = (span_q8(t, f->buf, L.a,
-                          imin((int32_t) pos, (int32_t) L.b) < (int32_t) L.a
-                              ? L.a
-                              : (uint32_t) imin((int32_t) pos, (int32_t) L.b)) +
-                  128) >>
-                 8;
-            return;
-        }
-        if (pos < L.next) { /* on the space a wrap swallowed */
-            *line = li;
-            *x = (span_q8(t, f->buf, L.a, L.b) + 128) >> 8;
+            if (vline(ui, w, L, &off)) { /* W14 */
+                *x = (off + vcaret(pos > L.b ? L.b : pos) + 128) >> 8;
+            } else if (here) {
+                uint32_t to = pos < L.a ? L.a : pos > L.b ? L.b : pos;
+                *x = (span_q8(t, f->buf, L.a, to) + 128) >> 8;
+            } else { /* on the space a wrap swallowed */
+                *x = (span_q8(t, f->buf, L.a, L.b) + 128) >> 8;
+            }
             return;
         }
         at = L.next;
@@ -648,6 +1023,8 @@ static uint32_t pos_at(const zui_ui_t *ui, const zui_widget_t *w, int32_t line, 
         at = L.next;
         L = line_at(t, f, at, width);
     }
+    int32_t off;
+    if (vline(ui, w, L, &off)) return vpos(x * 256 - off, L.a); /* W14 */
     int32_t pen = 0;
     uint32_t i = L.a;
     while (i < L.b) {
@@ -825,17 +1202,33 @@ static bool field_key(zui_ui_t *ui, zui_id_t id, const zui_event_t *e)
     int32_t line, x;
     switch (e->key) {
     case ZUI_KEY_LEFT:
-        if (!shift && s0 != s1)
-            p = s0;
-        else
-            p = cmd && !word ? 0 : word ? word_left(f, p) : zui_utf8_prev(f->buf, p);
+    case ZUI_KEY_RIGHT: {
+        bool left = e->key == ZUI_KEY_LEFT;
+        int32_t li, off;
+        line_t L = line_of(ui, w, p, &li);
+        if (!cmd && !word && (shift || s0 == s1) && vline(ui, w, L, &off)) {
+            /* W14: the caret moves the way it looks */
+            uint32_t q = vstep(p, left ? -1 : 1);
+            bool fwd = left == VLINE.rtl; /* toward the next line */
+            if (q == 0xFFFFFFFFu)
+                q = fwd ? (L.next <= f->len ? L.next : f->len)
+                        : (L.a ? zui_utf8_prev(f->buf, L.a) : 0);
+            p = q;
+        } else if (left) {
+            if (!shift && s0 != s1)
+                p = s0;
+            else
+                p = cmd && !word ? 0 : word ? word_left(f, p) : zui_utf8_prev(f->buf, p);
+        } else {
+            if (!shift && s0 != s1)
+                p = s1;
+            else
+                p = cmd && !word ? f->len
+                    : word       ? word_right(f, p)
+                                 : zui_utf8_next(f->buf, f->len, p);
+        }
         break;
-    case ZUI_KEY_RIGHT:
-        if (!shift && s0 != s1)
-            p = s1;
-        else
-            p = cmd && !word ? f->len : word ? word_right(f, p) : zui_utf8_next(f->buf, f->len, p);
-        break;
+    }
     case ZUI_KEY_HOME:
     case ZUI_KEY_END:
         if (!f->multiline || cmd) {
@@ -888,11 +1281,8 @@ static bool field_key(zui_ui_t *ui, zui_id_t id, const zui_event_t *e)
             if (!f->readonly) field_replace(ui, id, s0, s1, "\n", 1);
             return true;
         }
-        if (!f->multiline) {
-            emit(ui, id, ZUI_ACT_SUBMIT, 0);
-            return true;
-        }
-        return false;
+        emit(ui, id, ZUI_ACT_SUBMIT, 0); /* one line, or Cmd-Enter in a text area */
+        return true;
     case ZUI_KEY_TAB:
         if (f->multiline && !f->readonly && !shift && !cmd && !(e->mods & ZUI_MOD_CTRL)) {
             field_replace(ui, id, s0, s1, "\t", 1);
@@ -943,6 +1333,63 @@ static int32_t btn_pad(const zui_ui_t *ui)
     return PX(ui, ZUI_S3);
 }
 
+/* A row of buttons only (or one marked to wrap) wraps onto more lines when
+ * they do not fit, instead of running past the edge (compact screens). */
+static bool row_wraps(const zui_ui_t *ui, const zui_widget_t *w)
+{
+    if (w->dir != ZUI_ROW || w->kind != ZUI_W_BOX) return false;
+    if (w->wrap) return true;
+    int32_t n = 0;
+    for (zui_id_t c = w->first; c != ZUI_NONE; c = ui->w[c].next) {
+        const zui_widget_t *cc = &ui->w[c];
+        if (cc->hidden) continue;
+        if (cc->kind != ZUI_W_BUTTON || cc->sizing != ZUI_SIZE_FIT) return false;
+        n++;
+    }
+    return n >= 2;
+}
+
+static void layout(zui_ui_t *ui, zui_id_t id, zui_rect_t r);
+
+/* Children of a wrapping row, line by line inside `in`; places them when
+ * `place`. Returns the height the lines take. */
+static int32_t wrap_flow(zui_ui_t *ui, zui_id_t id, zui_rect_t in, bool place)
+{
+    zui_widget_t *w = &ui->w[id];
+    int32_t x = 0, y = 0, lh = 0, gap = PX(ui, w->gap);
+    for (zui_id_t c = w->first; c != ZUI_NONE; c = ui->w[c].next) {
+        zui_widget_t *cc = &ui->w[c];
+        if (cc->hidden) {
+            cc->r = rect(0, 0, 0, 0);
+            continue;
+        }
+        int32_t nw, nh;
+        natural(ui, c, &nw, &nh);
+        if (cc->sizing == ZUI_SIZE_FIXED) nw = PX(ui, cc->size);
+        nw = imin(nw, in.w);
+        if (x > 0 && x + nw > in.w) {
+            y += lh + gap;
+            x = 0;
+            lh = 0;
+        }
+        if (place) layout(ui, c, rect(in.x + x, in.y + y, nw, nh));
+        x += nw + gap;
+        lh = imax(lh, nh);
+    }
+    return y + lh;
+}
+
+static bool in_flow(const zui_widget_t *c)
+{
+    return !c->hidden && c->kind != ZUI_W_DIALOG; /* W9: dialogs lie over the screen */
+}
+
+/* Widgets whose natural height depends on the width they are given. */
+static bool width_first(const zui_ui_t *ui, const zui_widget_t *c)
+{
+    return (c->kind == ZUI_W_FIELD && c->u.field.multiline) || row_wraps(ui, c);
+}
+
 static void natural(zui_ui_t *ui, zui_id_t id, int32_t *nw, int32_t *nh)
 {
     zui_widget_t *w = &ui->w[id];
@@ -983,12 +1430,31 @@ static void natural(zui_ui_t *ui, zui_id_t id, int32_t *nw, int32_t *nh)
         H = PX(ui, 48);
         W = PX(ui, 48);
         break;
+    case ZUI_W_TOGGLE:
+        W = PX(ui, 36) + PX(ui, ZUI_S2) + text_w(t, w->label);
+        H = imax(ui->plan.target_px, imax(PX(ui, 22), line_h(t)));
+        break;
+    case ZUI_W_CHECK:
+    case ZUI_W_RADIO:
+        W = PX(ui, 18) + PX(ui, ZUI_S2) + text_w(t, w->label);
+        H = imax(ui->plan.target_px, imax(PX(ui, 18), line_h(t)));
+        break;
+    case ZUI_W_SLIDER:
+        W = PX(ui, 160);
+        H = imax(ui->plan.target_px, PX(ui, 24));
+        break;
+    case ZUI_W_TAB:
+        W = text_w(t, w->label) + 2 * btn_pad(ui);
+        H = imax(ui->plan.target_px, line_h(t) + PX(ui, ZUI_S2));
+        break;
     default: {
         /* boxes, panels, scroll areas, held blocks: their children */
         int32_t pad = PX(ui, w->pad), gap = PX(ui, w->gap), k = 0;
         for (zui_id_t c = w->first; c != ZUI_NONE; c = ui->w[c].next) {
-            if (ui->w[c].hidden) continue;
+            if (!in_flow(&ui->w[c])) continue;
             int32_t cw_, ch_;
+            if (w->dir != ZUI_ROW && width_first(ui, &ui->w[c]) && w->r.w > 0)
+                ui->w[c].r.w = imax(0, w->r.w - 2 * pad);
             natural(ui, c, &cw_, &ch_);
             const zui_widget_t *cc = &ui->w[c];
             if (cc->sizing == ZUI_SIZE_FIXED) {
@@ -1008,6 +1474,14 @@ static void natural(zui_ui_t *ui, zui_id_t id, int32_t *nw, int32_t *nh)
         }
         W += 2 * pad;
         H += 2 * pad;
+        if (w->kind == ZUI_W_EMPTY) { /* W12: the icon above */
+            H += PX(ui, 48) + (k ? gap : 0);
+            W = imax(W, PX(ui, 48) + 2 * pad);
+        }
+        if (row_wraps(ui, w) && w->r.w > 0 && W > w->r.w) {
+            H = wrap_flow(ui, id, inset(rect(0, 0, w->r.w, 0x3FFFFFFF), pad), false) + 2 * pad;
+            W = w->r.w;
+        }
         break;
     }
     }
@@ -1022,6 +1496,31 @@ static void natural(zui_ui_t *ui, zui_id_t id, int32_t *nw, int32_t *nh)
 
 /* ---- layout --------------------------------------------------------------- */
 
+/* W12: the line and the action centred under the icon, the block centred. */
+static void layout_empty(zui_ui_t *ui, zui_id_t id, zui_rect_t in)
+{
+    zui_widget_t *w = &ui->w[id];
+    int32_t gap = PX(ui, w->gap), total = PX(ui, 48);
+    for (zui_id_t c = w->first; c != ZUI_NONE; c = ui->w[c].next) {
+        int32_t nw, nh;
+        if (!in_flow(&ui->w[c])) continue;
+        natural(ui, c, &nw, &nh);
+        total += gap + nh;
+    }
+    int32_t y = in.y + imax(0, (in.h - total) / 2) + PX(ui, 48) + gap;
+    for (zui_id_t c = w->first; c != ZUI_NONE; c = ui->w[c].next) {
+        int32_t nw, nh;
+        if (!in_flow(&ui->w[c])) {
+            ui->w[c].r = rect(0, 0, 0, 0);
+            continue;
+        }
+        natural(ui, c, &nw, &nh);
+        nw = imin(nw, in.w);
+        layout(ui, c, rect(in.x + (in.w - nw) / 2, y, nw, nh));
+        y += nh + gap;
+    }
+}
+
 static void layout(zui_ui_t *ui, zui_id_t id, zui_rect_t r)
 {
     zui_widget_t *w = &ui->w[id];
@@ -1031,13 +1530,31 @@ static void layout(zui_ui_t *ui, zui_id_t id, zui_rect_t r)
     int32_t pad = PX(ui, w->pad), gap = PX(ui, w->gap);
     zui_rect_t in = inset(r, pad);
     if (w->kind == ZUI_W_HELD) in = inset(r, pad + PX(ui, 2));
+    if (w->kind == ZUI_W_EMPTY) {
+        layout_empty(ui, id, in);
+        return;
+    }
+    if (row_wraps(ui, w)) {
+        int32_t total = 0, k = 0;
+        for (zui_id_t c = w->first; c != ZUI_NONE; c = ui->w[c].next) {
+            if (!in_flow(&ui->w[c])) continue;
+            int32_t nw, nh;
+            natural(ui, c, &nw, &nh);
+            total +=
+                (ui->w[c].sizing == ZUI_SIZE_FIXED ? PX(ui, ui->w[c].size) : nw) + (k++ ? gap : 0);
+        }
+        if (total > in.w) {
+            wrap_flow(ui, id, in, true);
+            return;
+        }
+    }
     bool row = w->dir == ZUI_ROW && w->kind != ZUI_W_SCROLL;
     int32_t avail = row ? in.w : in.h;
     int32_t fixed = 0, weight = 0, count = 0;
     /* first pass: what the fixed and natural children take */
     for (zui_id_t c = w->first; c != ZUI_NONE; c = ui->w[c].next) {
         zui_widget_t *cc = &ui->w[c];
-        if (cc->hidden) continue;
+        if (!in_flow(cc)) continue;
         if (count) fixed += gap;
         count++;
         if (cc->sizing == ZUI_SIZE_FLEX && w->kind != ZUI_W_SCROLL) {
@@ -1046,7 +1563,7 @@ static void layout(zui_ui_t *ui, zui_id_t id, zui_rect_t r)
             continue;
         }
         int32_t nw, nh;
-        if (cc->kind == ZUI_W_FIELD && cc->u.field.multiline && !row) cc->r.w = in.w;
+        if (width_first(ui, cc) && !row) cc->r.w = in.w;
         natural(ui, c, &nw, &nh);
         fixed += cc->sizing == ZUI_SIZE_FIXED ? PX(ui, cc->size) : row ? nw : nh;
     }
@@ -1056,6 +1573,7 @@ static void layout(zui_ui_t *ui, zui_id_t id, zui_rect_t r)
     int32_t given = 0, wsum = 0;
     for (zui_id_t c = w->first; c != ZUI_NONE; c = ui->w[c].next) {
         zui_widget_t *cc = &ui->w[c];
+        if (cc->kind == ZUI_W_DIALOG) continue;
         if (cc->hidden) {
             cc->r = rect(0, 0, 0, 0);
             continue;
@@ -1071,7 +1589,7 @@ static void layout(zui_ui_t *ui, zui_id_t id, zui_rect_t r)
             len = PX(ui, cc->size);
         } else {
             int32_t nw, nh;
-            if (cc->kind == ZUI_W_FIELD && cc->u.field.multiline && !row) cc->r.w = in.w;
+            if (width_first(ui, cc) && !row) cc->r.w = in.w;
             natural(ui, c, &nw, &nh);
             len = row ? nw : nh;
         }
@@ -1090,11 +1608,31 @@ static void layout(zui_ui_t *ui, zui_id_t id, zui_rect_t r)
     }
 }
 
+/* W9: the open dialog, centred (or a sheet along the bottom on a phone). */
+static void layout_modal(zui_ui_t *ui)
+{
+    zui_widget_t *w = &ui->w[ui->modal];
+    int32_t W = (int32_t) ui->screen.px_w, H = (int32_t) ui->screen.px_h, g = ui->plan.gutter_px;
+    w->u.dialog.sheet = ui->plan.cls == ZUI_COMPACT;
+    int32_t maxw = w->u.dialog.sheet ? W : imax(0, imin(W - 2 * g, PX(ui, 480)));
+    int32_t nw, nh;
+    w->r.w = maxw;
+    natural(ui, ui->modal, &nw, &nh);
+    int32_t dw = w->u.dialog.sheet ? W : imin(maxw, imax(nw, PX(ui, 320)));
+    w->r.w = dw;
+    natural(ui, ui->modal, &nw, &nh);
+    int32_t dh = imin(nh, imax(0, H - 2 * g));
+    zui_rect_t r =
+        w->u.dialog.sheet ? rect(0, H - dh, W, dh) : rect((W - dw) / 2, (H - dh) * 2 / 5, dw, dh);
+    layout(ui, ui->modal, r);
+}
+
 static void do_layout(zui_ui_t *ui)
 {
     if (!ui->layout_dirty || ui->root == ZUI_NONE) return;
     ui->layout_dirty = false;
     layout(ui, ui->root, rect(0, 0, (int32_t) ui->screen.px_w, (int32_t) ui->screen.px_h));
+    if (ui->modal != ZUI_NONE && cw(ui, ui->modal)) layout_modal(ui);
     zui_damage_all(&ui->damage, (int32_t) ui->screen.px_w, (int32_t) ui->screen.px_h);
 }
 
@@ -1125,6 +1663,7 @@ static bool can_focus(const zui_ui_t *ui, zui_id_t id)
 {
     const zui_widget_t *w = &ui->w[id];
     if (!w->focusable || w->disabled || !shown(ui, id)) return false;
+    if (ui->modal != ZUI_NONE && !within(ui, id, ui->modal)) return false; /* W9: the trap */
     if (w->kind == ZUI_W_FIELD && w->u.field.readonly && w->parent != ZUI_NONE &&
         ui->w[w->parent].kind == ZUI_W_HELD)
         return false; /* the held text is read with its buttons */
@@ -1165,6 +1704,7 @@ void zui_focus(zui_ui_t *ui, zui_id_t id, bool from_keyboard)
         if (from_keyboard) scroll_into_view(ui, id);
         zui_invalidate(ui, id);
         ui->caret_ms = ui->now_ms;
+        if (from_keyboard) tip_arm(ui, id, true); /* W10: focus shows a tip too */
     }
 }
 
@@ -1175,6 +1715,23 @@ static zui_id_t preorder_next(const zui_ui_t *ui, zui_id_t id)
     for (; id != ZUI_NONE; id = ui->w[id].parent)
         if (ui->w[id].next != ZUI_NONE) return ui->w[id].next;
     return ZUI_NONE;
+}
+
+/* W8: roving focus. Of a radio group only the chosen radio (the first when
+ * none is) and of a tab list only the chosen tab take Tab-order focus. */
+static bool roving_out(const zui_ui_t *ui, zui_id_t id)
+{
+    const zui_widget_t *w = &ui->w[id];
+    if (w->parent == ZUI_NONE) return false;
+    if (w->kind == ZUI_W_TAB) return zui_choice_index(ui, id) != ui->w[w->parent].u.tabs.sel;
+    if (w->kind != ZUI_W_RADIO || w->u.check.state) return false;
+    zui_id_t first = ZUI_NONE;
+    for (zui_id_t c = ui->w[w->parent].first; c != ZUI_NONE; c = ui->w[c].next) {
+        if (ui->w[c].kind != ZUI_W_RADIO || !can_focus(ui, c)) continue;
+        if (ui->w[c].u.check.state) return true;
+        if (first == ZUI_NONE) first = c;
+    }
+    return first != id;
 }
 
 /* W3: the next (or previous) focusable widget in tree order, wrapping. */
@@ -1189,7 +1746,7 @@ zui_id_t zui_focus_next(zui_ui_t *ui, bool backward)
             seen_focus = true;
             continue;
         }
-        if (!can_focus(ui, id)) continue;
+        if (!can_focus(ui, id) || roving_out(ui, id)) continue;
         if (first == ZUI_NONE) first = id;
         last = id;
         if (!seen_focus) before = id;
@@ -1217,7 +1774,7 @@ zui_id_t zui_focus_toward(zui_ui_t *ui, uint16_t arrow)
     int64_t best_score = 0;
     for (uint32_t i = 0; i < ui->n; i++) {
         zui_id_t id = (zui_id_t) i;
-        if (id == ui->focus || !can_focus(ui, id)) continue;
+        if (id == ui->focus || !can_focus(ui, id) || roving_out(ui, id)) continue;
         zui_rect_t b = ui->w[id].r;
         int32_t bx = b.x + b.w / 2, by = b.y + b.h / 2;
         int32_t along, across;
@@ -1265,6 +1822,7 @@ static zui_id_t hit_in(const zui_ui_t *ui, zui_id_t id, int32_t x, int32_t y)
     if (w->hidden || !inside(w->r, x, y)) return ZUI_NONE;
     zui_id_t found = ZUI_NONE;
     for (zui_id_t c = w->first; c != ZUI_NONE; c = ui->w[c].next) {
+        if (ui->w[c].kind == ZUI_W_DIALOG) continue; /* W9: only as the modal layer */
         zui_id_t h = hit_in(ui, c, x, y);
         if (h != ZUI_NONE) found = h; /* later siblings paint on top */
     }
@@ -1274,6 +1832,10 @@ static zui_id_t hit_in(const zui_ui_t *ui, zui_id_t id, int32_t x, int32_t y)
 zui_id_t zui_hit(const zui_ui_t *ui, int32_t x, int32_t y)
 {
     if (ui->root == ZUI_NONE) return ZUI_NONE;
+    if (ui->modal != ZUI_NONE) { /* W9: the scrim takes every press outside */
+        zui_id_t h = hit_in(ui, ui->modal, x, y);
+        return h != ZUI_NONE ? h : ui->modal;
+    }
     return hit_in(ui, ui->root, x, y);
 }
 
@@ -1297,7 +1859,165 @@ static void press(zui_ui_t *ui, zui_id_t id)
         emit(ui, held, accept ? ZUI_ACT_ACCEPT : ZUI_ACT_REJECT, 0);
         return;
     }
+    if (w->parent != ZUI_NONE && ui->w[w->parent].kind == ZUI_W_EMPTY) { /* W12 */
+        emit(ui, w->parent, ZUI_ACT_PRESS, 0);
+        return;
+    }
     emit(ui, id, ZUI_ACT_PRESS, 0);
+}
+
+/* ---- W8: choosing ---------------------------------------------------------- */
+
+static bool is_choice(zui_kind_t k)
+{
+    return k == ZUI_W_TOGGLE || k == ZUI_W_CHECK || k == ZUI_W_RADIO || k == ZUI_W_TAB;
+}
+
+/* A press, Enter or Space on a button or a choice. */
+static void activate(zui_ui_t *ui, zui_id_t id)
+{
+    zui_widget_t *w = &ui->w[id];
+    if (w->disabled) return;
+    switch (w->kind) {
+    case ZUI_W_BUTTON:
+        press(ui, id);
+        break;
+    case ZUI_W_TOGGLE:
+    case ZUI_W_CHECK: {
+        uint8_t to = w->u.check.state == 1u ? 0u : 1u; /* mixed turns on */
+        zui_set_checked(ui, id, to);
+        emit(ui, id, ZUI_ACT_CHANGE, to);
+        break;
+    }
+    case ZUI_W_RADIO:
+        if (!w->u.check.state) {
+            zui_set_checked(ui, id, 1);
+            emit(ui, id, ZUI_ACT_SELECT, zui_choice_index(ui, id));
+        }
+        break;
+    case ZUI_W_TAB: {
+        int32_t i = zui_choice_index(ui, id);
+        if (w->parent != ZUI_NONE && ui->w[w->parent].u.tabs.sel != i) {
+            zui_tabs_select(ui, w->parent, i);
+            emit(ui, w->parent, ZUI_ACT_SELECT, i);
+        }
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+/* Arrows in a radio group or a tab list: the next one of the same kind
+ * (wrapping, skipping disabled ones) takes focus and is chosen. */
+static bool choice_step(zui_ui_t *ui, zui_id_t id, int32_t dir, bool to_end)
+{
+    zui_widget_t *w = &ui->w[id];
+    if (w->parent == ZUI_NONE) return false;
+    zui_id_t sib[ZUI_MENU_ITEMS * 2];
+    int32_t n = 0, at = -1;
+    for (zui_id_t c = ui->w[w->parent].first;
+         c != ZUI_NONE && n < (int32_t) (sizeof sib / sizeof sib[0]); c = ui->w[c].next)
+        if (ui->w[c].kind == w->kind && (c == id || can_focus(ui, c))) {
+            if (c == id) at = n;
+            sib[n++] = c;
+        }
+    if (n < 2 || at < 0) return true;
+    int32_t to = to_end ? (dir < 0 ? 0 : n - 1) : (at + dir + n) % n;
+    zui_focus(ui, sib[to], true);
+    activate(ui, sib[to]);
+    return true;
+}
+
+static int32_t slider_x0(const zui_ui_t *ui, const zui_widget_t *w)
+{
+    return w->r.x + PX(ui, 10);
+}
+
+static int32_t slider_len(const zui_ui_t *ui, const zui_widget_t *w)
+{
+    return imax(1, w->r.w - 2 * PX(ui, 10));
+}
+
+static void slider_to(zui_ui_t *ui, zui_id_t id, int32_t v)
+{
+    int32_t was = ui->w[id].u.range.value;
+    zui_slider_set(ui, id, v);
+    if (ui->w[id].u.range.value != was) emit(ui, id, ZUI_ACT_CHANGE, ui->w[id].u.range.value);
+}
+
+static void slider_at(zui_ui_t *ui, zui_id_t id, int32_t x)
+{
+    const zui_widget_t *w = &ui->w[id];
+    int32_t len = slider_len(ui, w), d = imax(0, imin(x - slider_x0(ui, w), len));
+    int64_t span = (int64_t) w->u.range.max - w->u.range.min;
+    slider_to(ui, id, w->u.range.min + (int32_t) ((span * d + len / 2) / len));
+}
+
+static bool choice_key(zui_ui_t *ui, zui_id_t id, const zui_event_t *e)
+{
+    zui_widget_t *w = &ui->w[id];
+    bool space = e->key == ZUI_KEY_SPACE || e->key == ZUI_KEY_ENTER;
+    switch (w->kind) {
+    case ZUI_W_TOGGLE:
+    case ZUI_W_CHECK:
+        if (!space) return false;
+        activate(ui, id);
+        return true;
+    case ZUI_W_RADIO:
+    case ZUI_W_TAB: {
+        if (space) {
+            activate(ui, id);
+            return true;
+        }
+        bool tab = w->kind == ZUI_W_TAB;
+        if (e->key == ZUI_KEY_LEFT || (!tab && e->key == ZUI_KEY_UP))
+            return choice_step(ui, id, -1, false);
+        if (e->key == ZUI_KEY_RIGHT || (!tab && e->key == ZUI_KEY_DOWN))
+            return choice_step(ui, id, 1, false);
+        if (e->key == ZUI_KEY_HOME || e->key == ZUI_KEY_END)
+            return choice_step(ui, id, e->key == ZUI_KEY_HOME ? -1 : 1, true);
+        return false;
+    }
+    case ZUI_W_SLIDER: {
+        int32_t st = imax(1, w->u.range.step), v = w->u.range.value;
+        bool vert = ui->screen.input != ZUI_INPUT_REMOTE; /* a remote's up/down move focus */
+        switch (e->key) {
+        case ZUI_KEY_LEFT:
+            v -= st;
+            break;
+        case ZUI_KEY_RIGHT:
+            v += st;
+            break;
+        case ZUI_KEY_DOWN:
+            if (!vert) return false;
+            v -= st;
+            break;
+        case ZUI_KEY_UP:
+            if (!vert) return false;
+            v += st;
+            break;
+        case ZUI_KEY_PAGE_DOWN:
+            v -= 10 * st;
+            break;
+        case ZUI_KEY_PAGE_UP:
+            v += 10 * st;
+            break;
+        case ZUI_KEY_HOME:
+            v = w->u.range.min;
+            break;
+        case ZUI_KEY_END:
+            v = w->u.range.max;
+            break;
+        default:
+            return false;
+        }
+        slider_to(ui, id, v);
+        return true;
+    }
+    default:
+        return false;
+    }
 }
 
 /* ---- the held block -------------------------------------------------------- */
@@ -1653,6 +2373,167 @@ static bool menu_event(zui_ui_t *ui, const zui_event_t *e)
     }
 }
 
+/* ---- W11: scroll indicators --------------------------------------------------- */
+
+static int32_t field_lines(const zui_ui_t *ui, const zui_widget_t *w);
+
+/* How far a list, scroll area or text area can scroll, where it is, and
+ * how much of it shows (all in the same unit). False when it all fits. */
+static bool scroll_state(const zui_ui_t *ui, const zui_widget_t *w, int32_t *total, int32_t *at,
+                         int32_t *view)
+{
+    if (w->kind == ZUI_W_LIST) {
+        *view = list_visible(ui, w);
+        *total = w->u.list.rows;
+        *at = w->u.list.top;
+    } else if (w->kind == ZUI_W_SCROLL) {
+        *view = w->r.h;
+        *total = w->u.scroll.content_h;
+        *at = w->u.scroll.offset;
+    } else if (w->kind == ZUI_W_FIELD && w->u.field.multiline) {
+        *view = imax(1, w->r.h - 2 * PX(ui, ZUI_S1));
+        *total = field_lines(ui, w) * line_h(face(ui, w->font));
+        *at = w->u.field.scroll_y;
+    } else {
+        return false;
+    }
+    return *total > *view && w->r.h > PX(ui, 16);
+}
+
+zui_rect_t zui_scroll_track(const zui_ui_t *ui, zui_id_t id)
+{
+    const zui_widget_t *w = cw(ui, id);
+    int32_t total, at, view;
+    if (!w || w->hidden || !scroll_state(ui, w, &total, &at, &view)) return rect(0, 0, 0, 0);
+    int32_t m = PX(ui, 3);
+    return rect(w->r.x + w->r.w - PX(ui, 8), w->r.y + m, PX(ui, 8), imax(0, w->r.h - 2 * m));
+}
+
+static zui_rect_t scroll_thumb(const zui_ui_t *ui, const zui_widget_t *w, zui_rect_t tr)
+{
+    int32_t total, at, view;
+    scroll_state(ui, w, &total, &at, &view);
+    int32_t th = imax(PX(ui, 16), (int32_t) (((int64_t) tr.h * view) / imax(1, total)));
+    th = imin(th, tr.h);
+    int32_t ty = tr.y + (int32_t) (((int64_t) (tr.h - th) * at) / imax(1, total - view));
+    return rect(tr.x + tr.w - PX(ui, 5), ty, imax(2, PX(ui, 3)), th);
+}
+
+/* The colour a widget sits on (for its edge fades). */
+static uint32_t ground_of(const zui_ui_t *ui, zui_id_t id)
+{
+    const zui_widget_t *w = &ui->w[id];
+    if (w->kind == ZUI_W_FIELD && !(w->parent != ZUI_NONE && ui->w[w->parent].kind == ZUI_W_HELD))
+        return C(RAISED);
+    for (zui_id_t p = w->parent; p != ZUI_NONE; p = ui->w[p].parent) {
+        const zui_widget_t *pw = &ui->w[p];
+        if ((pw->kind == ZUI_W_BOX && pw->panel) || pw->kind == ZUI_W_HELD ||
+            pw->kind == ZUI_W_DIALOG)
+            return C(PANEL);
+    }
+    return C(VOID);
+}
+
+/* W11: a track and a thumb at the right, and a fade where more is hidden. */
+static void paint_scroll(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
+{
+    const zui_widget_t *w = &ui->w[id];
+    zui_rect_t tr = zui_scroll_track(ui, id);
+    if (!tr.w) return;
+    int32_t total, at, view;
+    scroll_state(ui, w, &total, &at, &view);
+    uint32_t g = ground_of(ui, id);
+    int32_t fh = imin(PX(ui, 16), w->r.h / 4), steps = 8;
+    zui_rect_t keep = s->clip;
+    zui_clip(s, w->r);
+    for (int32_t i = 0; i < steps && fh > 0; i++) {
+        int32_t y0 = i * fh / steps, y1 = (i + 1) * fh / steps;
+        uint32_t a = (uint32_t) (200 - i * 200 / steps);
+        if (at > 0) zui_fill_a(s, rect(w->r.x, w->r.y + y0, w->r.w, y1 - y0), g, a);
+        if (at < total - view)
+            zui_fill_a(s, rect(w->r.x, w->r.y + w->r.h - y1, w->r.w, y1 - y0), g, a);
+    }
+    zui_fill(s, rect(tr.x + tr.w - PX(ui, 4), tr.y, imax(1, PX(ui, 1)), tr.h), C(HAIRLINE));
+    zui_rect_t th = scroll_thumb(ui, w, tr);
+    zui_fill_rrect(s, th, th.w / 2, C(MUTED), 255);
+    s->clip = keep;
+}
+
+/* ---- W10: tooltips ------------------------------------------------------------ */
+
+static bool tip_due(const zui_ui_t *ui)
+{
+    const zui_widget_t *w = cw(ui, ui->tip_for);
+    if (!w || !w->tip[0] || !shown(ui, ui->tip_for)) return false;
+    if (ui->modal != ZUI_NONE && !within(ui, ui->tip_for, ui->modal)) return false;
+    return ui->now_ms - ui->tip_since >= ZUI_TIP_MS;
+}
+
+static zui_rect_t tip_rect(const zui_ui_t *ui)
+{
+    const zui_widget_t *w = &ui->w[ui->tip_for];
+    const zui_text_t *t = &ui->theme.label;
+    int32_t pad = PX(ui, ZUI_S2), h = line_h(t) + 2 * PX(ui, ZUI_S1);
+    int32_t W = (int32_t) ui->screen.px_w, H = (int32_t) ui->screen.px_h;
+    int32_t tw = imin(text_w(t, w->tip) + 2 * pad, imax(0, W - 2 * PX(ui, ZUI_S2)));
+    zui_rect_t r = seen(ui, ui->tip_for);
+    int32_t x = imax(PX(ui, ZUI_S2), imin(r.x + (r.w - tw) / 2, W - tw - PX(ui, ZUI_S2)));
+    int32_t y = r.y + r.h + PX(ui, 6);
+    if (y + h > H) y = r.y - h - PX(ui, 6); /* no room below: above */
+    return rect(x, imax(0, y), tw, h);
+}
+
+static void tip_hide(zui_ui_t *ui)
+{
+    if (ui->tip_r.w) zui_damage_add(&ui->damage, inset(ui->tip_r, -PX(ui, 2)));
+    ui->tip_r = rect(0, 0, 0, 0);
+    ui->tip_for = ZUI_NONE;
+    ui->tip_kbd = false;
+}
+
+static void tip_arm(zui_ui_t *ui, zui_id_t id, bool kbd)
+{
+    if (id == ui->tip_for) return;
+    tip_hide(ui);
+    if (id == ZUI_NONE || !ui->w[id].tip[0]) return;
+    ui->tip_for = id;
+    ui->tip_since = ui->now_ms;
+    ui->tip_kbd = kbd;
+}
+
+/* 0 before it shows; then up to 255 over ZUI_MOTION_MS, or 255 at once
+ * under reduce motion. */
+static uint32_t tip_alpha(const zui_ui_t *ui)
+{
+    if (!tip_due(ui)) return 0;
+    uint32_t t = ui->now_ms - ui->tip_since - ZUI_TIP_MS;
+    if (ui->reduce_motion || t >= ZUI_MOTION_MS) return 255;
+    return 40u + t * 215u / ZUI_MOTION_MS;
+}
+
+const char *zui_tooltip_shown(const zui_ui_t *ui, zui_rect_t *r)
+{
+    if (!tip_alpha(ui)) {
+        if (r) *r = rect(0, 0, 0, 0);
+        return 0;
+    }
+    if (r) *r = tip_rect(ui);
+    return ui->w[ui->tip_for].tip;
+}
+
+static void paint_tip(zui_ui_t *ui, zui_surface_t *s)
+{
+    uint32_t a = tip_alpha(ui);
+    if (!a) return;
+    const zui_text_t *t = &ui->theme.label;
+    zui_rect_t r = tip_rect(ui);
+    ui->tip_r = r;
+    zui_fill_rrect(s, r, PX(ui, ZUI_R_CONTROL), C(RAISED), a);
+    zui_stroke_rrect(s, r, PX(ui, ZUI_R_CONTROL), imax(1, PX(ui, 1)), C(MUTED), a);
+    zui_text_a(s, t, r.x + PX(ui, ZUI_S2), cap_base(t, r.y, r.h), C(TEXT), a,
+               ui->w[ui->tip_for].tip);
+}
+
 /* ---- events --------------------------------------------------------------- */
 
 static zui_id_t scroller_of(const zui_ui_t *ui, zui_id_t id)
@@ -1753,8 +2634,15 @@ static bool key_event(zui_ui_t *ui, const zui_event_t *e)
     zui_id_t f = ui->focus;
     zui_widget_t *w = cw(ui, f) ? &ui->w[f] : 0;
     bool cmd = (e->mods & ZUI_MOD_CMD) != 0;
-    /* W5: the palette, from anywhere */
-    if (cmd && e->key == 'k') {
+    /* W9: Escape (or Back) closes the open dialog, wherever focus is in it */
+    if (ui->modal != ZUI_NONE && (e->key == ZUI_KEY_ESCAPE || e->key == ZUI_KEY_BACK)) {
+        zui_id_t d = ui->modal;
+        zui_dialog_close(ui, d);
+        emit(ui, d, ZUI_ACT_DISMISS, 0);
+        return true;
+    }
+    /* W5: the palette, from anywhere (not over a dialog) */
+    if (cmd && e->key == 'k' && ui->modal == ZUI_NONE) {
         zui_palette_open(ui, "");
         return true;
     }
@@ -1775,6 +2663,7 @@ static bool key_event(zui_ui_t *ui, const zui_event_t *e)
     }
     if (w && w->kind == ZUI_W_FIELD && field_key(ui, f, e)) return true;
     if (w && w->kind == ZUI_W_LIST && list_key(ui, f, e)) return true;
+    if (w && !w->disabled && choice_key(ui, f, e)) return true;
     switch (e->key) {
     case ZUI_KEY_TAB:
         zui_focus_next(ui, (e->mods & ZUI_MOD_SHIFT) != 0);
@@ -1827,6 +2716,10 @@ bool zui_ui_event(zui_ui_t *ui, const zui_event_t *e)
         ui->layout_dirty = true;
     }
     do_layout(ui);
+    /* W10: any press, key or scroll takes the tooltip down */
+    if (e->type == ZUI_EV_KEY_DOWN || e->type == ZUI_EV_PTR_DOWN || e->type == ZUI_EV_SCROLL ||
+        e->type == ZUI_EV_TOUCH_BEGIN || e->type == ZUI_EV_TEXT || e->type == ZUI_EV_FOCUS_OUT)
+        tip_hide(ui);
     zui_gesture_t g = zui_gesture_feed(&ui->gesture, e);
     if (ui->palette.open) return palette_event(ui, e);
     if (ui->menu.open && menu_event(ui, e)) return true;
@@ -1852,6 +2745,21 @@ bool zui_ui_event(zui_ui_t *ui, const zui_event_t *e)
     case ZUI_EV_PTR_DOWN: {
         zui_id_t h = zui_hit(ui, e->x, e->y);
         if (h == ZUI_NONE) return false;
+        if (h == ui->modal && !inside(ui->w[h].r, e->x, e->y)) return true; /* W9: the scrim */
+        {
+            /* W11: a press on a scroll track pages toward it */
+            zui_id_t sc = scroller_of(ui, h);
+            zui_rect_t tr = sc != ZUI_NONE ? zui_scroll_track(ui, sc) : rect(0, 0, 0, 0);
+            if (tr.w && inside(tr, e->x, e->y) && e->button != ZUI_BTN_RIGHT) {
+                zui_rect_t th = scroll_thumb(ui, &ui->w[sc], tr);
+                int32_t page = ui->w[sc].kind == ZUI_W_LIST
+                                   ? (list_visible(ui, &ui->w[sc]) - 1) * row_px(ui, &ui->w[sc])
+                                   : ui->w[sc].r.h * 7 / 8;
+                if (e->y < th.y) scroll_by(ui, sc, -imax(1, page));
+                if (e->y >= th.y + th.h) scroll_by(ui, sc, imax(1, page));
+                return true;
+            }
+        }
         if (e->button == ZUI_BTN_RIGHT) {
             int32_t row = ui->w[h].kind == ZUI_W_LIST ? zui_list_row_at(ui, h, e->x, e->y) : 0;
             if (ui->w[h].kind == ZUI_W_LIST && row >= 0 && row != ui->w[h].u.list.sel) {
@@ -1865,7 +2773,11 @@ bool zui_ui_event(zui_ui_t *ui, const zui_event_t *e)
         if (w->disabled) return true;
         ui->pressed = h;
         if (can_focus(ui, h)) zui_focus(ui, h, false);
-        if (w->kind == ZUI_W_BUTTON) zui_invalidate(ui, h);
+        if (w->kind == ZUI_W_BUTTON || is_choice(w->kind)) zui_invalidate(ui, h);
+        if (w->kind == ZUI_W_SLIDER) {
+            slider_at(ui, h, e->x);
+            ui->drag_list = h;
+        }
         if (w->kind == ZUI_W_FIELD) {
             field_click(ui, h, e->x, e->y, (e->mods & ZUI_MOD_SHIFT) != 0);
             ui->drag_list = h;
@@ -1882,14 +2794,25 @@ bool zui_ui_event(zui_ui_t *ui, const zui_event_t *e)
     case ZUI_EV_PTR_MOVE: {
         zui_id_t h = zui_hit(ui, e->x, e->y);
         if (h != ui->hover) {
-            if (ui->hover != ZUI_NONE && ui->w[ui->hover].kind == ZUI_W_BUTTON)
+            if (ui->hover != ZUI_NONE &&
+                (ui->w[ui->hover].kind == ZUI_W_BUTTON || is_choice(ui->w[ui->hover].kind)))
                 zui_invalidate(ui, ui->hover);
-            if (h != ZUI_NONE && ui->w[h].kind == ZUI_W_BUTTON) zui_invalidate(ui, h);
+            if (h != ZUI_NONE && (ui->w[h].kind == ZUI_W_BUTTON || is_choice(ui->w[h].kind)))
+                zui_invalidate(ui, h);
             ui->hover = h;
+            if (h != ZUI_NONE && ui->w[h].tip[0])
+                tip_arm(ui, h, false); /* W10: rests from now */
+            else if (!ui->tip_kbd)
+                tip_hide(ui);
         }
         if (ui->drag_list != ZUI_NONE && (e->button & ZUI_BTN_LEFT) &&
             ui->w[ui->drag_list].kind == ZUI_W_FIELD) {
             field_click(ui, ui->drag_list, e->x, e->y, true);
+            return true;
+        }
+        if (ui->drag_list != ZUI_NONE && (e->button & ZUI_BTN_LEFT) &&
+            ui->w[ui->drag_list].kind == ZUI_W_SLIDER) {
+            slider_at(ui, ui->drag_list, e->x);
             return true;
         }
         if (g == ZUI_GESTURE_DRAG && ui->pressed != ZUI_NONE &&
@@ -1901,6 +2824,12 @@ bool zui_ui_event(zui_ui_t *ui, const zui_event_t *e)
         return false;
     }
     case ZUI_EV_TICK:
+        if (tip_alpha(ui)) { /* W10: it shows, or fades in */
+            zui_rect_t tr = tip_rect(ui);
+            if (tr.x != ui->tip_r.x || tr.y != ui->tip_r.y || tr.w != ui->tip_r.w ||
+                ui->now_ms - ui->tip_since < ZUI_TIP_MS + ZUI_MOTION_MS + 40u)
+                zui_damage_add(&ui->damage, inset(tr, -PX(ui, 2)));
+        }
         if (g == ZUI_GESTURE_LONG_PRESS) goto long_press;
         return false;
     case ZUI_EV_PTR_UP: {
@@ -1910,9 +2839,9 @@ bool zui_ui_event(zui_ui_t *ui, const zui_event_t *e)
         if (g == ZUI_GESTURE_LONG_PRESS) goto long_press;
         if (was == ZUI_NONE) return false;
         zui_widget_t *w = &ui->w[was];
-        if (w->kind == ZUI_W_BUTTON) {
+        if (w->kind == ZUI_W_BUTTON || is_choice(w->kind)) {
             zui_invalidate(ui, was);
-            if (inside(w->r, e->x, e->y)) press(ui, was);
+            if (inside(w->r, e->x, e->y)) activate(ui, was);
             return true;
         }
         if (w->kind == ZUI_W_LIST && g == ZUI_GESTURE_DOUBLE_TAP) {
@@ -1930,7 +2859,14 @@ bool zui_ui_event(zui_ui_t *ui, const zui_event_t *e)
         return true;
     }
     case ZUI_EV_SCROLL: {
-        zui_id_t s = scroller_of(ui, zui_hit(ui, e->x, e->y));
+        zui_id_t h = zui_hit(ui, e->x, e->y);
+        if (h != ZUI_NONE && ui->w[h].kind == ZUI_W_SLIDER && !ui->w[h].disabled && e->dy) {
+            /* W8: the wheel steps a slider; up is more */
+            int32_t st = imax(1, ui->w[h].u.range.step);
+            slider_to(ui, h, ui->w[h].u.range.value + (e->dy < 0 ? st : -st));
+            return true;
+        }
+        zui_id_t s = scroller_of(ui, h);
         return s != ZUI_NONE && scroll_by(ui, s, e->dy);
     }
     case ZUI_EV_FOCUS_OUT:
@@ -1944,6 +2880,7 @@ long_press: {
     /* I3: a long press is the touch right click; on empty ground it is Ask */
     zui_id_t h = zui_hit(ui, ui->gesture.x0, ui->gesture.y0);
     ui->pressed = ZUI_NONE;
+    if (ui->modal != ZUI_NONE && (h == ZUI_NONE || h == ui->modal)) return true;
     if (h == ZUI_NONE || h == ui->root || ui->w[h].kind == ZUI_W_BOX ||
         ui->w[h].kind == ZUI_W_LABEL) {
         zui_palette_open(ui, "");
@@ -1958,10 +2895,70 @@ long_press: {
 
 /* ---- painting ---------------------------------------------------------------- */
 
+/* W3: two tones, so the ring shows on a gold button too: a ground-coloured
+ * gap hugging the control, the gold ring outside it. */
 static void paint_focus(zui_ui_t *ui, zui_surface_t *s, zui_rect_t r)
 {
-    int32_t d = PX(ui, 2);
-    zui_stroke_rrect(s, inset(r, -d), PX(ui, ZUI_R_CONTROL) + d, imax(1, PX(ui, 2)), ZUI_GOLD, 255);
+    int32_t d = imax(1, PX(ui, 2)), rad = PX(ui, ZUI_R_CONTROL);
+    zui_stroke_rrect(s, inset(r, -d), rad + d, d, C(VOID), 255);
+    zui_stroke_rrect(s, inset(r, -2 * d), rad + 2 * d, d, C(GOLD), 255);
+}
+
+/* A thick segment from (x0, y0) to (x1, y1), stamped (icons, check marks). */
+static void seg(zui_surface_t *s, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t th,
+                uint32_t rgb, uint32_t a)
+{
+    int32_t n = imax(iabs(x1 - x0), iabs(y1 - y0));
+    for (int32_t i = 0; i <= n; i++) {
+        int32_t x = x0 + (n ? (x1 - x0) * i / n : 0), y = y0 + (n ? (y1 - y0) * i / n : 0);
+        zui_fill_a(s, rect(x - th / 2, y - th / 2, th, th), rgb, a);
+    }
+}
+
+/* W12: an icon's strokes in one colour; u is the icon's unit (1/12 of it). */
+static void icon_strokes(zui_ui_t *ui, zui_surface_t *s, zui_icon_t icon, zui_rect_t b, int32_t dx,
+                         int32_t dy, uint32_t rgb, uint32_t a)
+{
+    int32_t u = imax(1, b.w / 12), th = imax(1, PX(ui, 2)), x = b.x + dx, y = b.y + dy;
+    switch (icon) {
+    case ZUI_ICON_PICTURE:
+        zui_stroke_rrect(s, rect(x + u, y + 2 * u, 10 * u, 8 * u), u, th, rgb, a);
+        seg(s, x + 2 * u, y + 9 * u, x + 5 * u, y + 5 * u, th, rgb, a);
+        seg(s, x + 5 * u, y + 5 * u, x + 7 * u, y + 8 * u, th, rgb, a);
+        seg(s, x + 7 * u, y + 8 * u, x + 8 * u, y + 7 * u, th, rgb, a);
+        seg(s, x + 8 * u, y + 7 * u, x + 10 * u, y + 9 * u, th, rgb, a);
+        zui_stroke_rrect(s, rect(x + 8 * u, y + 3 * u + u / 2, 2 * u, 2 * u), u, th, rgb, a);
+        break;
+    case ZUI_ICON_CONSOLE:
+        zui_stroke_rrect(s, rect(x + u, y + 2 * u, 10 * u, 8 * u), u, th, rgb, a);
+        seg(s, x + 3 * u, y + 4 * u, x + 5 * u, y + 6 * u, th, rgb, a);
+        seg(s, x + 5 * u, y + 6 * u, x + 3 * u, y + 8 * u, th, rgb, a);
+        zui_fill_a(s, rect(x + 6 * u, y + 8 * u - th / 2, 3 * u, th), rgb, a);
+        break;
+    case ZUI_ICON_BELL:
+        zui_stroke_rrect(s, rect(x + 3 * u, y + 2 * u, 6 * u, 8 * u), 3 * u, th, rgb, a);
+        zui_fill_a(s, rect(x + 2 * u, y + 8 * u, 8 * u, th), rgb, a);
+        zui_fill_rrect(s, rect(x + 5 * u, y + 10 * u, 2 * u, u + u / 2), u, rgb, a);
+        break;
+    case ZUI_ICON_SEARCH:
+        zui_stroke_rrect(s, rect(x + 2 * u, y + 2 * u, 6 * u, 6 * u), 3 * u, th, rgb, a);
+        seg(s, x + 7 * u, y + 7 * u, x + 10 * u, y + 10 * u, th + th / 2, rgb, a);
+        break;
+    default: /* a folder */
+        zui_stroke_rrect(s, rect(x + u, y + 4 * u, 10 * u, 6 * u), u, th, rgb, a);
+        seg(s, x + u, y + 4 * u, x + u, y + 3 * u, th, rgb, a);
+        seg(s, x + u, y + 3 * u, x + 4 * u, y + 3 * u, th, rgb, a);
+        seg(s, x + 4 * u, y + 3 * u, x + 5 * u, y + 4 * u, th, rgb, a);
+        break;
+    }
+}
+
+/* Engraved: the shade above, the light lip below, then the line itself. */
+static void paint_icon(zui_ui_t *ui, zui_surface_t *s, zui_icon_t icon, zui_rect_t b)
+{
+    icon_strokes(ui, s, icon, b, 0, -1, C(ENGRAVE_LO), 255);
+    icon_strokes(ui, s, icon, b, 0, 1, C(ENGRAVE_HI), 40);
+    icon_strokes(ui, s, icon, b, 0, 0, C(MUTED), 255);
 }
 
 static void paint_button(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
@@ -1971,35 +2968,35 @@ static void paint_button(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
     zui_rect_t r = w->r;
     int32_t rad = PX(ui, ZUI_R_CONTROL);
     bool hot = ui->hover == id, down = ui->pressed == id && hot;
-    uint32_t fg = ZUI_TEXT;
+    uint32_t fg = C(TEXT);
     switch (w->style) {
     case ZUI_BTN_PRIMARY:
-        zui_fill_rrect(s, r, rad, down ? ZUI_GOLD : hot ? ZUI_GOLD_HI : ZUI_GOLD, 255);
-        fg = ZUI_VOID;
+        zui_fill_rrect(s, r, rad, down ? C(GOLD) : hot ? C(GOLD_HI) : C(GOLD), 255);
+        fg = C(VOID);
         break;
     case ZUI_BTN_DANGER:
-        zui_fill_rrect(s, r, rad, down ? ZUI_RAISED : ZUI_PANEL, 255);
-        zui_stroke_rrect(s, r, rad, imax(1, PX(ui, 1)), ZUI_ALERT, 255);
-        fg = ZUI_ALERT;
+        zui_fill_rrect(s, r, rad, down ? C(RAISED) : C(PANEL), 255);
+        zui_stroke_rrect(s, r, rad, imax(1, PX(ui, 1)), C(ALERT), 255);
+        fg = C(ALERT);
         break;
     case ZUI_BTN_GHOST:
-        if (hot || down) zui_fill_rrect(s, r, rad, ZUI_RAISED, down ? 255 : 160);
-        fg = ZUI_TEXT_2;
+        if (hot || down) zui_fill_rrect(s, r, rad, C(RAISED), down ? 255 : 160);
+        fg = C(TEXT_2);
         break;
     default:
-        zui_fill_rrect(s, r, rad, down ? ZUI_HAIRLINE : hot ? ZUI_RAISED : ZUI_PANEL, 255);
-        zui_engrave(s, r, rad, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 40);
+        zui_fill_rrect(s, r, rad, down ? C(HAIRLINE) : hot ? C(RAISED) : C(PANEL), 255);
+        zui_engrave(s, r, rad, C(ENGRAVE_LO), C(ENGRAVE_HI), 40);
         break;
     }
-    if (w->disabled) fg = ZUI_FAINT;
+    if (w->disabled) fg = C(FAINT);
     int32_t tw = text_w(t, w->label);
     int32_t kw = w->shortcut[0] ? text_w(&ui->theme.label, w->shortcut) + PX(ui, ZUI_S2) : 0;
-    int32_t x = r.x + (r.w - tw - kw) / 2;
-    int32_t base = r.y + (r.h + ascent(t) - (line_h(t) - ascent(t)) / 2) / 2;
+    int32_t x = r.x + imax(0, (r.w - tw - kw) / 2);
+    int32_t base = cap_base(t, r.y, r.h); /* capitals centred, not the ascent */
     zui_text_fit(s, t, x, base, r.w - 2 * PX(ui, ZUI_S2), fg, w->label);
     if (kw)
         zui_text(s, &ui->theme.label, x + tw + PX(ui, ZUI_S2), base,
-                 w->style == ZUI_BTN_PRIMARY ? ZUI_HAIRLINE : ZUI_MUTED, w->shortcut);
+                 w->style == ZUI_BTN_PRIMARY ? C(HAIRLINE) : C(MUTED), w->shortcut);
 }
 
 static void paint_list(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
@@ -2009,43 +3006,48 @@ static void paint_list(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
     const zui_text_t *t = face(ui, w->font);
     const zui_text_t *tl = &ui->theme.label;
     int32_t rh = row_px(ui, w), pad = PX(ui, ZUI_S3);
+    /* the lead-mark column is kept on every row once one visible row has a
+     * mark, so the text of every row starts at the same x */
+    bool leads = false;
+    for (int32_t i = 0; i < list_visible(ui, w) + 1 && !leads && l->row; i++) {
+        if (l->top + i >= l->rows) break;
+        zui_row_t r;
+        mset(&r, sizeof r);
+        l->row(ui, id, l->top + i, &r, l->row_ctx);
+        leads = r.lead_rgb != 0;
+    }
     zui_clip(s, w->r);
     for (int32_t i = 0; i < list_visible(ui, w) + 1; i++) {
         int32_t row = l->top + i;
         if (row >= l->rows) break;
         zui_rect_t rr = rect(w->r.x, w->r.y + i * rh, w->r.w, rh);
         bool sel = row == l->sel;
-        if (sel) zui_fill_rrect(s, inset(rr, PX(ui, 1)), PX(ui, ZUI_R_CONTROL), ZUI_RAISED, 255);
+        if (sel) zui_fill_rrect(s, inset(rr, PX(ui, 1)), PX(ui, ZUI_R_CONTROL), C(RAISED), 255);
         zui_row_t r;
         mset(&r, sizeof r);
         if (l->row) l->row(ui, id, row, &r, l->row_ctx);
         int32_t x = rr.x + pad;
-        int32_t base = rr.y + (rh + ascent(t) - (line_h(t) - ascent(t)) / 2) / 2;
-        if (r.lead_rgb) {
+        int32_t base = cap_base(t, rr.y, rh);
+        if (leads) {
             int32_t d = PX(ui, 8);
-            zui_fill_rrect(s, rect(x, rr.y + (rh - d) / 2, d, d), d / 2, r.lead_rgb, 255);
+            if (r.lead_rgb)
+                zui_fill_rrect(s, rect(x, rr.y + (rh - d) / 2, d, d), d / 2,
+                               zui_color_remap(ui->colors, r.lead_rgb), 255);
             x += d + PX(ui, ZUI_S2);
         }
-        int32_t dw = r.detail[0] ? text_w(tl, r.detail) + PX(ui, ZUI_S3) : 0;
-        uint32_t fg = r.muted ? ZUI_FAINT : sel ? ZUI_TEXT : ZUI_TEXT_2;
+        /* the detail never takes more than two fifths of the row (phones) */
+        int32_t dt = r.detail[0] ? imin(text_w(tl, r.detail), rr.w * 2 / 5) : 0;
+        int32_t dw = dt ? dt + PX(ui, ZUI_S3) : 0;
+        uint32_t fg = r.muted ? C(FAINT) : sel ? C(TEXT) : C(TEXT_2);
         zui_text_fit(s, t, x, base, rr.x + rr.w - pad - dw - x, fg, r.text);
-        if (dw)
-            zui_text(s, tl, rr.x + rr.w - pad - (dw - PX(ui, ZUI_S3)), base, ZUI_MUTED, r.detail);
+        if (dw) zui_text_fit(s, tl, rr.x + rr.w - pad - dt, base, dt, C(MUTED), r.detail);
         if (sel && ui->focus == id && ui->focus_visible)
-            zui_fill(s, rect(rr.x, rr.y + PX(ui, 4), imax(1, PX(ui, 2)), rh - PX(ui, 8)), ZUI_GOLD);
+            zui_fill(s, rect(rr.x, rr.y + PX(ui, 4), imax(1, PX(ui, 2)), rh - PX(ui, 8)), C(GOLD));
     }
     if (!l->rows && w->label[0])
-        zui_text(s, t, w->r.x + pad, w->r.y + pad + ascent(t), ZUI_FAINT, w->label);
-    /* a hairline scroll thumb when there is more than fits */
-    int32_t vis = list_visible(ui, w);
-    if (l->rows > vis) {
-        int32_t th = imax(PX(ui, 16), (int32_t) (((int64_t) w->r.h * vis) / l->rows));
-        int32_t ty =
-            w->r.y + (int32_t) (((int64_t) (w->r.h - th) * l->top) / imax(1, l->rows - vis));
-        zui_fill_rrect(s, rect(w->r.x + w->r.w - PX(ui, 4), ty, PX(ui, 3), th), PX(ui, 2), ZUI_EDGE,
-                       255);
-    }
+        zui_text(s, t, w->r.x + pad, w->r.y + pad + ascent(t), C(MUTED), w->label);
     zui_unclip(s);
+    paint_scroll(ui, s, id); /* W11 */
 }
 
 static void paint_field(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
@@ -2056,8 +3058,8 @@ static void paint_field(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
     bool in_held = w->parent != ZUI_NONE && ui->w[w->parent].kind == ZUI_W_HELD;
     int32_t rad = PX(ui, ZUI_R_CONTROL);
     if (!in_held) {
-        zui_fill_rrect(s, w->r, rad, ZUI_RAISED, 255);
-        zui_engrave(s, w->r, rad, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 50);
+        zui_fill_rrect(s, w->r, rad, C(RAISED), 255);
+        zui_engrave(s, w->r, rad, C(ENGRAVE_LO), C(ENGRAVE_HI), 50);
     }
     zui_rect_t in =
         rect(w->r.x + PX(ui, ZUI_S2), w->r.y + PX(ui, ZUI_S1), imax(0, w->r.w - 2 * PX(ui, ZUI_S2)),
@@ -2069,7 +3071,7 @@ static void paint_field(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
     zui_field_selection(ui, id, &s0, &s1);
     bool focused = ui->focus == id && !f->readonly;
     if (!f->len && f->placeholder[0] && !f->preedit[0]) {
-        zui_text(s, t, in.x, y0 + asc + (lh - asc) / 4, ZUI_FAINT, f->placeholder);
+        zui_text(s, t, in.x, y0 + asc + (lh - asc) / 4, C(FAINT), f->placeholder);
     } else if (f->buf) {
         uint32_t at = 0;
         int32_t li = 0;
@@ -2078,7 +3080,37 @@ static void paint_field(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
             line_t L = line_at(t, f, at, width);
             int32_t ly = y0 + li * lh;
             if (ly > in.y + in.h) break;
-            if (ly + lh >= in.y) {
+            int32_t off;
+            if (ly + lh >= in.y && vline(ui, w, L, &off)) {
+                /* W14: each character at its place in visual order */
+                int32_t x = (in.x - f->scroll_x) * 256 + off, base = ly + asc + (lh - asc) / 4;
+                uint32_t ink = w->color ? zui_color_remap(ui->colors, w->color) : C(TEXT);
+                for (uint32_t i = 0; i < VLINE.n; i++) {
+                    int32_t xa = (x + VLINE.c[i].x0) >> 8, xb = (x + VLINE.c[i].x1) >> 8;
+                    if (s1 > s0 && VLINE.c[i].a >= s0 && VLINE.c[i].b <= s1)
+                        zui_fill_a(s, rect(xa, ly, imax(1, xb - xa), lh), C(GOLD), 70);
+                    char g[8];
+                    uint32_t cp = VLINE.c[i].cp, gn = 0;
+                    if (cp == '\t' || cp < 0x20u) continue;
+                    if (cp < 0x80u) {
+                        g[gn++] = (char) cp;
+                    } else if (cp < 0x800u) {
+                        g[gn++] = (char) (0xC0u | (cp >> 6));
+                        g[gn++] = (char) (0x80u | (cp & 0x3Fu));
+                    } else if (cp < 0x10000u) {
+                        g[gn++] = (char) (0xE0u | (cp >> 12));
+                        g[gn++] = (char) (0x80u | ((cp >> 6) & 0x3Fu));
+                        g[gn++] = (char) (0x80u | (cp & 0x3Fu));
+                    } else {
+                        g[gn++] = (char) (0xF0u | (cp >> 18));
+                        g[gn++] = (char) (0x80u | ((cp >> 12) & 0x3Fu));
+                        g[gn++] = (char) (0x80u | ((cp >> 6) & 0x3Fu));
+                        g[gn++] = (char) (0x80u | (cp & 0x3Fu));
+                    }
+                    g[gn] = 0;
+                    if (t->font && t->cache) zui_text(s, t, xa, base, ink, g);
+                }
+            } else if (ly + lh >= in.y) {
                 int32_t x = in.x - f->scroll_x, base = ly + asc + (lh - asc) / 4;
                 /* selection behind the text */
                 if (s1 > s0 && s1 > L.a && s0 <= L.b) {
@@ -2086,16 +3118,18 @@ static void paint_field(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
                     int32_t xa = x + ((span_q8(t, f->buf, L.a, a) + 128) >> 8);
                     int32_t xb = x + ((span_q8(t, f->buf, L.a, b) + 128) >> 8);
                     if (s1 > L.b && L.next <= f->len) xb += PX(ui, 4); /* the newline */
-                    zui_fill_a(s, rect(xa, ly, imax(1, xb - xa), lh), ZUI_GOLD, 70);
+                    zui_fill_a(s, rect(xa, ly, imax(1, xb - xa), lh), C(GOLD), 70);
                 }
                 if (f->secret) {
                     int32_t d = imax(2, fsize(t) / 3), n = 0;
                     for (uint32_t i = L.a; i < L.b; i = zui_utf8_next(f->buf, f->len, i)) n++;
                     for (int32_t i = 0; i < n; i++)
                         zui_fill_rrect(s, rect(x + i * (d + d), base - d - d / 2, d, d), d / 2,
-                                       ZUI_TEXT, 255);
+                                       C(TEXT), 255);
                 } else {
-                    draw_span(s, t, x, base, w->color ? w->color : ZUI_TEXT, f->buf, L.a, L.b);
+                    draw_span(s, t, x, base,
+                              w->color ? zui_color_remap(ui->colors, w->color) : C(TEXT), f->buf,
+                              L.a, L.b);
                 }
             }
             if (L.next > f->len) break;
@@ -2109,16 +3143,33 @@ static void paint_field(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
         int32_t cx = in.x - f->scroll_x + x, cy = y0 + line * lh;
         if (f->preedit[0]) { /* I4: the composition, underlined, at the caret */
             int32_t pw = text_w(t, f->preedit);
-            zui_fill(s, rect(cx, cy, pw, lh), ZUI_PANEL);
-            draw_span(s, t, cx, cy + asc + (lh - asc) / 4, ZUI_GOLD_GLOW, f->preedit, 0,
+            zui_fill(s, rect(cx, cy, pw, lh), C(PANEL));
+            draw_span(s, t, cx, cy + asc + (lh - asc) / 4, C(GOLD_GLOW), f->preedit, 0,
                       slen(f->preedit));
-            zui_fill(s, rect(cx, cy + lh - imax(1, PX(ui, 1)), pw, imax(1, PX(ui, 1))), ZUI_GOLD);
+            zui_fill(s, rect(cx, cy + lh - imax(1, PX(ui, 1)), pw, imax(1, PX(ui, 1))), C(GOLD));
             cx += pw;
         }
         bool on = ui->reduce_motion || ((ui->now_ms - ui->caret_ms) / 530u) % 2u == 0;
-        if (on) zui_fill(s, rect(cx, cy + PX(ui, 1), imax(1, PX(ui, 2)), lh - PX(ui, 2)), ZUI_GOLD);
+        if (on) zui_fill(s, rect(cx, cy + PX(ui, 1), imax(1, PX(ui, 2)), lh - PX(ui, 2)), C(GOLD));
     }
     zui_unclip(s);
+    if (f->multiline && !in_held) paint_scroll(ui, s, id); /* W11 */
+}
+
+void zui_field_caret_rect(const zui_ui_t *ui, zui_id_t id, zui_rect_t *out)
+{
+    const zui_widget_t *w = cw(ui, id);
+    *out = rect(0, 0, 0, 0);
+    if (!w || w->kind != ZUI_W_FIELD) return;
+    const zui_field_t *f = &w->u.field;
+    const zui_text_t *t = face(ui, w->font);
+    int32_t lh = line_h(t), line, x;
+    int32_t inx = w->r.x + PX(ui, ZUI_S2), iny = w->r.y + PX(ui, ZUI_S1);
+    int32_t inh = imax(0, w->r.h - 2 * PX(ui, ZUI_S1));
+    int32_t y0 = f->multiline ? iny - f->scroll_y : iny + (inh - lh) / 2;
+    caret_xy(ui, w, f->caret, &line, &x);
+    *out =
+        rect(inx - f->scroll_x + x, y0 + line * lh + PX(ui, 1), imax(1, PX(ui, 2)), lh - PX(ui, 2));
 }
 
 static void paint_held(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
@@ -2126,12 +3177,103 @@ static void paint_held(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
     zui_widget_t *w = &ui->w[id];
     int32_t rad = PX(ui, ZUI_R_PANEL);
     /* S0: at the glass, a dashed gold edge, the panel step behind it */
-    zui_fill_rrect(s, w->r, rad, ZUI_PANEL, 255);
+    zui_fill_rrect(s, w->r, rad, C(PANEL), 255);
     if (w->u.held.state == 1)
-        zui_dash_rrect(s, w->r, rad, imax(1, PX(ui, 2)), PX(ui, 6), ZUI_GOLD);
+        zui_dash_rrect(s, w->r, rad, imax(1, PX(ui, 2)), PX(ui, 6), C(GOLD));
     else
-        zui_stroke_rrect(s, w->r, rad, imax(1, PX(ui, 1)),
-                         w->u.held.state == 2 ? ZUI_OK : ZUI_FAINT, 255);
+        zui_stroke_rrect(s, w->r, rad, imax(1, PX(ui, 1)), w->u.held.state == 2 ? C(OK) : C(FAINT),
+                         255);
+}
+
+/* W8: a toggle, check box or radio: the control at the left, its label. */
+static void paint_choice(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
+{
+    zui_widget_t *w = &ui->w[id];
+    const zui_text_t *t = face(ui, w->font);
+    zui_rect_t r = w->r;
+    bool on = w->u.check.state != 0, hot = ui->hover == id, off = w->disabled;
+    int32_t cy = r.y + r.h / 2, x = r.x, lw = imax(1, PX(ui, 2));
+    uint32_t edge = off ? C(FAINT) : C(MUTED), fill = off ? C(FAINT) : C(TEXT_2);
+    if (w->kind == ZUI_W_TOGGLE) {
+        int32_t tw = PX(ui, 36), th = PX(ui, 20), k = th - 2 * PX(ui, 3);
+        zui_rect_t tr = rect(x, cy - th / 2, tw, th);
+        if (on) {
+            zui_fill_rrect(s, tr, th / 2, fill, 255);
+        } else {
+            zui_fill_rrect(s, tr, th / 2, hot ? C(RAISED) : C(PANEL), 255);
+            zui_stroke_rrect(s, tr, th / 2, imax(1, PX(ui, 1)), edge, 255);
+        }
+        int32_t kx = on ? tr.x + tw - PX(ui, 3) - k : tr.x + PX(ui, 3);
+        zui_fill_rrect(s, rect(kx, cy - k / 2, k, k), k / 2, on ? C(VOID) : edge, 255);
+        x += tw + PX(ui, ZUI_S2);
+    } else {
+        int32_t b = PX(ui, 18);
+        zui_rect_t br = rect(x, cy - b / 2, b, b);
+        int32_t rad = w->kind == ZUI_W_RADIO ? b / 2 : PX(ui, 4);
+        if (on && w->kind == ZUI_W_CHECK) {
+            zui_fill_rrect(s, br, rad, fill, 255);
+            if (w->u.check.state == 2) {
+                zui_fill(s, rect(br.x + b / 4, cy - lw / 2, b / 2, lw), C(VOID));
+            } else {
+                seg(s, br.x + b / 4, cy, br.x + b * 5 / 12, cy + b / 5, lw, C(VOID), 255);
+                seg(s, br.x + b * 5 / 12, cy + b / 5, br.x + b * 3 / 4, cy - b / 4, lw, C(VOID),
+                    255);
+            }
+        } else {
+            zui_fill_rrect(s, br, rad, hot ? C(RAISED) : C(PANEL), 255);
+            zui_stroke_rrect(s, br, rad, imax(1, PX(ui, on ? 2 : 1)), on ? fill : edge, 255);
+            if (on) {
+                int32_t d = b / 2;
+                zui_fill_rrect(s, rect(br.x + (b - d) / 2, cy - d / 2, d, d), d / 2, fill, 255);
+            }
+        }
+        x += b + PX(ui, ZUI_S2);
+    }
+    zui_text_fit(s, t, x, cap_base(t, r.y, r.h), r.x + r.w - x, off ? C(FAINT) : C(TEXT_2),
+                 w->label);
+}
+
+/* W8: an engraved track, the part up to the value lit, a knob. */
+static void paint_slider(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
+{
+    zui_widget_t *w = &ui->w[id];
+    int32_t x0 = slider_x0(ui, w), len = slider_len(ui, w), cy = w->r.y + w->r.h / 2;
+    int32_t th = imax(2, PX(ui, 4)), k = PX(ui, 18);
+    int64_t span = (int64_t) w->u.range.max - w->u.range.min;
+    int32_t at = span ? (int32_t) (((int64_t) w->u.range.value - w->u.range.min) * len / span) : 0;
+    zui_rect_t tr = rect(x0, cy - th / 2, len, th);
+    zui_fill_rrect(s, tr, th / 2, C(RAISED), 255);
+    zui_engrave(s, tr, th / 2, C(ENGRAVE_LO), C(ENGRAVE_HI), 60u);
+    uint32_t lit = w->disabled ? C(FAINT) : C(TEXT_2);
+    if (at > 0) zui_fill_rrect(s, rect(x0, cy - th / 2, at, th), th / 2, lit, 255);
+    zui_rect_t kr = rect(x0 + at - k / 2, cy - k / 2, k, k);
+    zui_fill_rrect(s, kr, k / 2, w->disabled ? C(FAINT) : C(TEXT), 255);
+    zui_stroke_rrect(s, kr, k / 2, imax(1, PX(ui, 1)), C(ENGRAVE_LO), 255);
+}
+
+/* W8: a tab (an underline when chosen) or a segment (a raised step). */
+static void paint_tab(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
+{
+    zui_widget_t *w = &ui->w[id];
+    const zui_text_t *t = face(ui, w->font);
+    zui_rect_t r = w->r;
+    const zui_widget_t *p = w->parent != ZUI_NONE ? &ui->w[w->parent] : 0;
+    bool sel = p && p->u.tabs.sel == zui_choice_index(ui, id), seg_ = p && p->u.tabs.segmented;
+    bool hot = ui->hover == id;
+    if (seg_ && sel) {
+        zui_fill_rrect(s, r, PX(ui, ZUI_R_CONTROL), C(RAISED), 255);
+        zui_engrave(s, r, PX(ui, ZUI_R_CONTROL), C(ENGRAVE_LO), C(ENGRAVE_HI), 50u);
+    } else if (hot && !w->disabled) {
+        zui_fill_rrect(s, r, PX(ui, ZUI_R_CONTROL), C(RAISED), 120);
+    }
+    if (!seg_ && sel)
+        zui_fill(s,
+                 rect(r.x + PX(ui, ZUI_S2), r.y + r.h - imax(2, PX(ui, 2)),
+                      imax(0, r.w - 2 * PX(ui, ZUI_S2)), imax(2, PX(ui, 2))),
+                 C(TEXT));
+    int32_t tw = text_w(t, w->label);
+    uint32_t fg = w->disabled ? C(FAINT) : sel ? C(TEXT) : C(TEXT_2);
+    zui_text_fit(s, t, r.x + imax(0, (r.w - tw) / 2), cap_base(t, r.y, r.h), r.w, fg, w->label);
 }
 
 static void paint_one(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
@@ -2141,18 +3283,18 @@ static void paint_one(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
     switch (w->kind) {
     case ZUI_W_BOX:
         if (w->panel) {
-            zui_fill_rrect(s, w->r, PX(ui, ZUI_R_PANEL), ZUI_PANEL, 255);
-            zui_engrave(s, w->r, PX(ui, ZUI_R_PANEL), ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 36);
+            zui_fill_rrect(s, w->r, PX(ui, ZUI_R_PANEL), C(PANEL), 255);
+            zui_engrave(s, w->r, PX(ui, ZUI_R_PANEL), C(ENGRAVE_LO), C(ENGRAVE_HI), 36);
         } else if (id == ui->root) {
-            zui_fill(s, w->r, ZUI_VOID);
+            zui_fill(s, w->r, C(VOID));
         }
         break;
     case ZUI_W_LABEL: {
-        uint32_t fg = w->color                    ? w->color
-                      : w->font == ZUI_TEXT_LABEL ? ZUI_MUTED
-                      : w->font == ZUI_TEXT_TITLE ? ZUI_TEXT
-                                                  : ZUI_TEXT_2;
-        if (w->disabled) fg = ZUI_FAINT;
+        uint32_t fg = w->color                    ? zui_color_remap(ui->colors, w->color)
+                      : w->font == ZUI_TEXT_LABEL ? C(MUTED)
+                      : w->font == ZUI_TEXT_TITLE ? C(TEXT)
+                                                  : C(TEXT_2);
+        if (w->disabled) fg = C(FAINT);
         int32_t base = w->r.y + (w->r.h - line_h(t)) / 2 + ascent(t);
         zui_text_fit(s, t, w->r.x, base, w->r.w, fg, w->label);
         break;
@@ -2170,7 +3312,8 @@ static void paint_one(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
         paint_held(ui, s, id);
         break;
     case ZUI_W_PROGRESS:
-        zui_bar_draw(s, w->r, (zui_bar_mode_t) w->u.bar.mode, w->u.bar.p, ui->now_ms / 16u, 0, 0);
+        zui_bar_draw_in(s, w->r, (zui_bar_mode_t) w->u.bar.mode, w->u.bar.p, ui->now_ms / 16u, 0, 0,
+                        ui->colors);
         break;
     case ZUI_W_CANVAS:
         if (w->u.canvas.paint) {
@@ -2180,9 +3323,46 @@ static void paint_one(zui_ui_t *ui, zui_surface_t *s, zui_id_t id)
         }
         break;
     case ZUI_W_SEPARATOR:
-        zui_hline(s, w->r.x, w->r.y + w->r.h / 2, w->r.w, imax(1, PX(ui, 1)), ZUI_HAIRLINE);
+        zui_hline(s, w->r.x, w->r.y + w->r.h / 2, w->r.w, imax(1, PX(ui, 1)), C(HAIRLINE));
         break;
     case ZUI_W_SCROLL:
+        break;
+    case ZUI_W_TOGGLE:
+    case ZUI_W_CHECK:
+    case ZUI_W_RADIO:
+        paint_choice(ui, s, id);
+        break;
+    case ZUI_W_SLIDER:
+        paint_slider(ui, s, id);
+        break;
+    case ZUI_W_TABS:
+        if (w->u.tabs.segmented) {
+            zui_fill_rrect(s, w->r, PX(ui, ZUI_R_CONTROL) + 2, C(PANEL), 255);
+            zui_engrave(s, w->r, PX(ui, ZUI_R_CONTROL) + 2, C(ENGRAVE_LO), C(ENGRAVE_HI), 40u);
+        } else {
+            zui_hline(s, w->r.x, w->r.y + w->r.h - imax(1, PX(ui, 1)), w->r.w, imax(1, PX(ui, 1)),
+                      C(HAIRLINE));
+        }
+        break;
+    case ZUI_W_TAB:
+        paint_tab(ui, s, id);
+        break;
+    case ZUI_W_DIALOG: {
+        int32_t rad = PX(ui, ZUI_R_PANEL);
+        zui_fill_rrect(s, w->r, rad, C(PANEL), 255);
+        if (w->u.dialog.sheet) /* square at the bottom edge */
+            zui_fill(s, rect(w->r.x, w->r.y + w->r.h - rad, w->r.w, rad), C(PANEL));
+        zui_engrave(s, w->r, rad, C(ENGRAVE_LO), C(ENGRAVE_HI), 60u);
+        zui_stroke_rrect(s, w->r, rad, imax(1, PX(ui, 1)), C(HAIRLINE), 255);
+        break;
+    }
+    case ZUI_W_EMPTY:
+        if (w->first != ZUI_NONE) {
+            int32_t d = PX(ui, 48);
+            zui_rect_t b =
+                rect(w->r.x + (w->r.w - d) / 2, ui->w[w->first].r.y - PX(ui, w->gap) - d, d, d);
+            paint_icon(ui, s, (zui_icon_t) w->u.empty.icon, b);
+        }
         break;
     }
 }
@@ -2195,16 +3375,10 @@ static void paint_tree(zui_ui_t *ui, zui_surface_t *s, zui_id_t id, zui_rect_t d
     bool clip = w->kind == ZUI_W_SCROLL;
     zui_rect_t keep = s->clip;
     if (clip) zui_clip(s, w->r);
-    for (zui_id_t c = w->first; c != ZUI_NONE; c = ui->w[c].next) paint_tree(ui, s, c, dmg);
+    for (zui_id_t c = w->first; c != ZUI_NONE; c = ui->w[c].next)
+        if (ui->w[c].kind != ZUI_W_DIALOG) paint_tree(ui, s, c, dmg); /* W9: painted last */
     if (clip) s->clip = keep;
-    if (w->kind == ZUI_W_SCROLL && w->u.scroll.content_h > w->r.h) {
-        int32_t th =
-            imax(PX(ui, 16), (int32_t) (((int64_t) w->r.h * w->r.h) / w->u.scroll.content_h));
-        int32_t ty = w->r.y + (int32_t) (((int64_t) (w->r.h - th) * w->u.scroll.offset) /
-                                         imax(1, w->u.scroll.content_h - w->r.h));
-        zui_fill_rrect(s, rect(w->r.x + w->r.w - PX(ui, 4), ty, PX(ui, 3), th), PX(ui, 2), ZUI_EDGE,
-                       255);
-    }
+    if (w->kind == ZUI_W_SCROLL) paint_scroll(ui, s, id); /* W11 */
     if (ui->focus == id && ui->focus_visible && w->kind != ZUI_W_LIST)
         paint_focus(ui, s, seen(ui, id));
 }
@@ -2213,23 +3387,23 @@ static void paint_menu(zui_ui_t *ui, zui_surface_t *s)
 {
     zui_menu_t *m = &ui->menu;
     int32_t rh = menu_row(ui), pad = PX(ui, ZUI_S3);
-    zui_fill_rrect(s, m->r, PX(ui, ZUI_R_PANEL), ZUI_RAISED, 255);
-    zui_stroke_rrect(s, m->r, PX(ui, ZUI_R_PANEL), imax(1, PX(ui, 1)), ZUI_EDGE, 255);
+    zui_fill_rrect(s, m->r, PX(ui, ZUI_R_PANEL), C(RAISED), 255);
+    zui_stroke_rrect(s, m->r, PX(ui, ZUI_R_PANEL), imax(1, PX(ui, 1)), C(EDGE), 255);
     const zui_text_t *t = &ui->theme.body;
     for (uint32_t i = 0; i < m->n; i++) {
         zui_rect_t rr = rect(m->r.x, m->r.y + PX(ui, ZUI_S1) + (int32_t) i * rh, m->r.w, rh);
         if (seq(m->item[i], "-")) {
             zui_hline(s, rr.x + pad, rr.y + rh / 2, rr.w - 2 * pad, imax(1, PX(ui, 1)),
-                      ZUI_HAIRLINE);
+                      C(HAIRLINE));
             continue;
         }
         if ((int32_t) i == m->hot)
-            zui_fill_rrect(s, inset(rr, PX(ui, 2)), PX(ui, ZUI_R_CONTROL), ZUI_HAIRLINE, 255);
+            zui_fill_rrect(s, inset(rr, PX(ui, 2)), PX(ui, ZUI_R_CONTROL), C(HAIRLINE), 255);
         int32_t base = rr.y + (rh + ascent(t) - (line_h(t) - ascent(t)) / 2) / 2;
-        zui_text(s, t, rr.x + pad, base, m->off[i] ? ZUI_FAINT : ZUI_TEXT, m->item[i]);
+        zui_text(s, t, rr.x + pad, base, m->off[i] ? C(FAINT) : C(TEXT), m->item[i]);
         if (m->key[i][0])
             zui_text(s, &ui->theme.label, rr.x + rr.w - pad - text_w(&ui->theme.label, m->key[i]),
-                     base, ZUI_MUTED, m->key[i]);
+                     base, C(MUTED), m->key[i]);
     }
 }
 
@@ -2239,21 +3413,21 @@ static void paint_palette(zui_ui_t *ui, zui_surface_t *s)
     zui_rect_t r = pl->r;
     int32_t pad = PX(ui, ZUI_S3), rh = menu_row(ui);
     /* the screen behind recedes a step */
-    zui_fill_a(s, rect(0, 0, (int32_t) ui->screen.px_w, (int32_t) ui->screen.px_h), ZUI_VOID, 150);
-    zui_fill_rrect(s, r, PX(ui, ZUI_R_PANEL), ZUI_PANEL, 255);
-    zui_stroke_rrect(s, r, PX(ui, ZUI_R_PANEL), imax(1, PX(ui, 1)), ZUI_GOLD, 255);
+    zui_fill_a(s, rect(0, 0, (int32_t) ui->screen.px_w, (int32_t) ui->screen.px_h), C(VOID), 150);
+    zui_fill_rrect(s, r, PX(ui, ZUI_R_PANEL), C(PANEL), 255);
+    zui_stroke_rrect(s, r, PX(ui, ZUI_R_PANEL), imax(1, PX(ui, 1)), C(GOLD), 255);
     const zui_text_t *t = &ui->theme.body, *tl = &ui->theme.label;
     zui_rect_t q = rect(r.x + pad, r.y + pad, r.w - 2 * pad, PX(ui, 44) - pad);
-    zui_fill_rrect(s, q, PX(ui, ZUI_R_CONTROL), ZUI_RAISED, 255);
+    zui_fill_rrect(s, q, PX(ui, ZUI_R_CONTROL), C(RAISED), 255);
     int32_t base = q.y + (q.h + ascent(t) - (line_h(t) - ascent(t)) / 2) / 2;
     int32_t x = q.x + PX(ui, ZUI_S2);
     if (pl->q.len) {
-        int32_t end = draw_span(s, t, x, base, ZUI_TEXT, pl->query, 0, pl->q.caret);
-        draw_span(s, t, end, base, ZUI_TEXT, pl->query, pl->q.caret, pl->q.len);
-        zui_fill(s, rect(end, q.y + PX(ui, 6), imax(1, PX(ui, 2)), q.h - PX(ui, 12)), ZUI_GOLD);
+        int32_t end = draw_span(s, t, x, base, C(TEXT), pl->query, 0, pl->q.caret);
+        draw_span(s, t, end, base, C(TEXT), pl->query, pl->q.caret, pl->q.len);
+        zui_fill(s, rect(end, q.y + PX(ui, 6), imax(1, PX(ui, 2)), q.h - PX(ui, 12)), C(GOLD));
     } else {
-        zui_fill(s, rect(x, q.y + PX(ui, 6), imax(1, PX(ui, 2)), q.h - PX(ui, 12)), ZUI_GOLD);
-        zui_text(s, t, x + PX(ui, 6), base, ZUI_FAINT, "Ask the swarm, or pick an action");
+        zui_fill(s, rect(x, q.y + PX(ui, 6), imax(1, PX(ui, 2)), q.h - PX(ui, 12)), C(GOLD));
+        zui_text(s, t, x + PX(ui, 6), base, C(FAINT), "Ask the swarm, or pick an action");
     }
     int32_t top = r.y + PX(ui, 44) + PX(ui, ZUI_S2);
     for (uint32_t i = 0; i < pl->n_match; i++) {
@@ -2261,9 +3435,9 @@ static void paint_palette(zui_ui_t *ui, zui_surface_t *s)
             rect(r.x + PX(ui, ZUI_S1), top + (int32_t) i * rh, r.w - 2 * PX(ui, ZUI_S1), rh);
         if (rr.y + rh > r.y + r.h - PX(ui, 28)) break;
         const zui_palette_item_t *it = &pl->item[pl->match[i]];
-        if ((int32_t) i == pl->hot) zui_fill_rrect(s, rr, PX(ui, ZUI_R_CONTROL), ZUI_RAISED, 255);
+        if ((int32_t) i == pl->hot) zui_fill_rrect(s, rr, PX(ui, ZUI_R_CONTROL), C(RAISED), 255);
         int32_t b = rr.y + (rh + ascent(t) - (line_h(t) - ascent(t)) / 2) / 2;
-        zui_text(s, t, rr.x + pad, b, (int32_t) i == pl->hot ? ZUI_TEXT : ZUI_TEXT_2, it->name);
+        zui_text(s, t, rr.x + pad, b, (int32_t) i == pl->hot ? C(TEXT) : C(TEXT_2), it->name);
         char meta[64];
         uint32_t n = 0;
         for (const char *p = it->agent ? it->agent : ""; *p && n < 40; p++) meta[n++] = *p;
@@ -2277,27 +3451,37 @@ static void paint_palette(zui_ui_t *ui, zui_surface_t *s)
         } while (v && k < sizeof num);
         while (k) meta[n++] = num[--k];
         meta[n] = 0;
-        zui_text(s, tl, rr.x + rr.w - pad - text_w(tl, meta), b, ZUI_MUTED, meta);
+        zui_text(s, tl, rr.x + rr.w - pad - text_w(tl, meta), b, C(MUTED), meta);
     }
     if (!pl->n_match && pl->q.len)
-        zui_text(s, t, r.x + pad, top + ascent(t) + PX(ui, 6), ZUI_TEXT_2,
+        zui_text(s, t, r.x + pad, top + ascent(t) + PX(ui, 6), C(TEXT_2),
                  "Enter asks the swarm this question");
     /* W4 said where it is read: answers come back held */
     const char *foot =
         pl->context[0] ? pl->context : "Answers arrive held. Nothing changes until you accept.";
-    zui_text_fit(s, tl, r.x + pad, r.y + r.h - PX(ui, 10), r.w - 2 * pad, ZUI_MUTED, foot);
+    zui_text_fit(s, tl, r.x + pad, r.y + r.h - PX(ui, 10), r.w - 2 * pad, C(MUTED), foot);
 }
 
 void zui_ui_paint(zui_ui_t *ui, zui_surface_t *s)
 {
     do_layout(ui);
     if (ui->root == ZUI_NONE || !ui->damage.n) return;
+    if (ui->modal != ZUI_NONE) /* W9: the scrim covers the screen: repaint it whole */
+        zui_damage_all(&ui->damage, (int32_t) ui->screen.px_w, (int32_t) ui->screen.px_h);
     for (uint32_t i = 0; i < ui->damage.n; i++) {
         zui_rect_t d = ui->damage.r[i];
         zui_clip(s, d);
-        zui_fill(s, d, ZUI_VOID);
+        zui_fill(s, d, C(VOID));
         paint_tree(ui, s, ui->root, d);
+        if (ui->modal != ZUI_NONE) {
+            zui_clip(s, d);
+            zui_fill_a(s, d, C(VOID), 170);
+            paint_tree(ui, s, ui->modal, d);
+            zui_clip(s, d);
+        }
         if (ui->menu.open) paint_menu(ui, s);
+        zui_clip(s, d);
+        paint_tip(ui, s);
         zui_unclip(s);
     }
     if (ui->palette.open) {
@@ -2305,7 +3489,7 @@ void zui_ui_paint(zui_ui_t *ui, zui_surface_t *s)
         zui_unclip(s);
         zui_rect_t all = rect(0, 0, (int32_t) ui->screen.px_w, (int32_t) ui->screen.px_h);
         zui_damage_all(&ui->damage, all.w, all.h);
-        zui_fill(s, all, ZUI_VOID);
+        zui_fill(s, all, C(VOID));
         paint_tree(ui, s, ui->root, all);
         paint_palette(ui, s);
     }
@@ -2363,6 +3547,22 @@ const char *zui_role_name(zui_kind_t k)
         return "image";
     case ZUI_W_SEPARATOR:
         return "separator";
+    case ZUI_W_TOGGLE:
+        return "switch";
+    case ZUI_W_CHECK:
+        return "checkbox";
+    case ZUI_W_RADIO:
+        return "radio";
+    case ZUI_W_SLIDER:
+        return "slider";
+    case ZUI_W_TABS:
+        return "tablist";
+    case ZUI_W_TAB:
+        return "tab";
+    case ZUI_W_DIALOG:
+        return "dialog";
+    case ZUI_W_EMPTY:
+        return "note";
     }
     return "group";
 }
@@ -2438,6 +3638,43 @@ static void a11y(const zui_ui_t *ui, zui_id_t id, int depth, sb_t *b)
             sb_s(b, " by ");
             sb_s(b, w->u.held.agent);
         }
+        if (w->kind == ZUI_W_TOGGLE) sb_s(b, w->u.check.state ? " on" : " off");
+        if (w->kind == ZUI_W_CHECK)
+            sb_s(b, w->u.check.state == 2 ? " mixed"
+                    : w->u.check.state    ? " checked"
+                                          : " not checked");
+        if (w->kind == ZUI_W_RADIO) sb_s(b, w->u.check.state ? " selected" : " not selected");
+        if (w->kind == ZUI_W_TAB && w->parent != ZUI_NONE &&
+            ui->w[w->parent].u.tabs.sel == zui_choice_index(ui, id))
+            sb_s(b, " selected");
+        if (w->kind == ZUI_W_SLIDER) {
+            sb_s(b, " value ");
+            sb_u(b, w->u.range.value);
+            sb_s(b, " of ");
+            sb_u(b, w->u.range.min);
+            sb_s(b, "..");
+            sb_u(b, w->u.range.max);
+        }
+        if (w->kind == ZUI_W_DIALOG) sb_s(b, " modal");
+        {
+            int32_t total, at, view; /* W11 */
+            if (scroll_state(ui, w, &total, &at, &view)) {
+                int32_t below = total - view - at;
+                bool rows = w->kind == ZUI_W_LIST;
+                if (at > 0) {
+                    sb_s(b, ", ");
+                    sb_u(b, at);
+                    sb_s(b, !rows ? " px" : at == 1 ? " row" : " rows");
+                    sb_s(b, " above");
+                }
+                if (below > 0) {
+                    sb_s(b, ", ");
+                    sb_u(b, below);
+                    sb_s(b, !rows ? " px" : below == 1 ? " row" : " rows");
+                    sb_s(b, " below");
+                }
+            }
+        }
         if (w->kind == ZUI_W_PROGRESS) {
             if (w->u.bar.p == ZUI_BAR_UNKNOWN) {
                 sb_s(b, " busy");
@@ -2450,6 +3687,11 @@ static void a11y(const zui_ui_t *ui, zui_id_t id, int depth, sb_t *b)
         if (w->shortcut[0]) {
             sb_s(b, " shortcut ");
             sb_s(b, w->shortcut);
+        }
+        if (w->tip[0]) {
+            sb_s(b, " tip \"");
+            sb_s(b, w->tip);
+            sb_s(b, "\"");
         }
         if (w->disabled) sb_s(b, " disabled");
         if (ui->focus == id) sb_s(b, " focused");

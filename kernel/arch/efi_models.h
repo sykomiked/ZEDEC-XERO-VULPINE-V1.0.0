@@ -1,19 +1,30 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* efi_models.h — check the AI models a golden disc carries, from the EFI stub.
+/* efi_models.h — check the boot partition's AI models from the EFI stub.
  *
- * Included by both kernel/arch/{arm64,x86_64}/efi_stub.c. Before the stub
- * leaves boot services it opens the volume it was loaded from (LoadedImage ->
- * DeviceHandle -> SimpleFileSystem) and looks for \ZXV\MODELS.SHA, written by
- * build_system/mk_golden_disc.sh. One line per model:
+ * Included by kernel/arch/arm64/efi_stub.c. Before the stub leaves boot
+ * services it opens the volume it was loaded from (LoadedImage ->
+ * DeviceHandle -> SimpleFileSystem) and looks for \ZXV\MODELS.SHA, written
+ * by build_system/mk_golden_disc.sh. One line per model:
  *
- *     <sha256, 64 hex> <bytes> <file name in \ZXV\MODELS\>
+ *     <sha256, 64 hex> <bytes> <name> <esp|swarm> <8.3 file name>
  *
- * Each file is streamed through SHA-256 in 4 MiB reads and compared with its
- * line, so a corrupt or swapped model is caught on the machine that boots it.
- * It prints one serial line per model and a summary:
+ * Only the "esp" models (the small boot core in \ZXV\MODELS\) are checked
+ * here: each is streamed through SHA-256 in 4 MiB reads, never loaded
+ * whole, and compared with its line. The smallest "esp" model is the boot
+ * model: it is read into pages of its own and, when it verifies, handed to
+ * the kernel with a scratch region through the record in zxv_aimodel.h
+ * ("[AI_HANDOFF] <name> in memory for the kernel"), so the kernel can run
+ * it (swarm_bootmodel.h). "swarm" models live on the disc's
+ * second partition, which firmware does not mount; they are counted as
+ * deferred. The x86_64 stub does not include this file at all: its kernel
+ * reads the disc itself and checks every model after boot
+ * (kernel/src/hwdrv/hw_models.h). arm64 keeps this check until its kernel
+ * has a PCI storage driver. It prints one serial line per model and a
+ * summary:
  *
  *     [MODEL_OK] <name> <bytes>      or  [MODEL_BAD] <name> <why>
+ *     [MODELS_DEFERRED] <s> on the swarm partition ...
  *     [MODELS_OK] <n> verified       or  [MODELS_FAIL] <bad> of <n>
  *
  * A plain disc has no MODELS.SHA and this prints nothing. A failed model never
@@ -25,9 +36,13 @@
 #ifndef ZXV_EFI_MODELS_H
 #define ZXV_EFI_MODELS_H
 
+#include "zxv_aimodel.h"
+
 typedef EFI_STATUS(EFIAPI *EM_HANDLEPROTO)(EFI_HANDLE, EFI_GUID *, void **);
 typedef EFI_STATUS(EFIAPI *EM_POOL)(u32, u64, void **);
 typedef EFI_STATUS(EFIAPI *EM_FREE)(void *);
+typedef EFI_STATUS(EFIAPI *EM_PAGES)(u32, u32, u64, u64 *);
+typedef EFI_STATUS(EFIAPI *EM_FREEPAGES)(u64, u64);
 
 typedef struct EM_FILE EM_FILE;
 struct EM_FILE {
@@ -202,22 +217,162 @@ static void em_putn(const u8 *s, u32 n)
 }
 
 /* Models the last efi_check_models call found bad (missing, wrong size or
- * hash, unreadable manifest line). */
-static int em_last_bad;
+ * hash, unreadable manifest line), and swarm models it left to the kernel. */
+static int em_last_bad, em_last_deferred;
+
+/* One manifest line [i, ln):
+ *   <64 hex> <bytes> <name> <esp|swarm> <8.3 file>
+ * 1 when it parses; *swarm says which partition it names. */
+static int em_parse(const u8 *man, u64 i, u64 ln, u8 want[32], u64 *size, const u8 **name,
+                    u32 *nlen, const u8 **file, u32 *flen, int *swarm)
+{
+    int ok = (ln - i) > 67;
+    for (int k = 0; ok && k < 32; k++) {
+        int hi = em_hexval(man[i + 2 * k]), lo = em_hexval(man[i + 2 * k + 1]);
+        if (hi < 0 || lo < 0)
+            ok = 0;
+        else
+            want[k] = (u8) (hi << 4 | lo);
+    }
+    u64 p = i + 64, sz = 0;
+    if (ok && man[p] != ' ') ok = 0;
+    p++;
+    while (ok && p < ln && man[p] >= '0' && man[p] <= '9') sz = sz * 10 + (man[p++] - '0');
+    if (ok && (p >= ln || man[p] != ' ')) ok = 0;
+    p++;
+    /* three space-separated words: name, partition, 8.3 file */
+    u64 w[3], wl[3];
+    for (int k = 0; k < 3; k++) {
+        w[k] = p;
+        while (p < ln && man[p] != ' ') p++;
+        wl[k] = p - w[k];
+        if (wl[k] == 0) ok = 0;
+        p++;
+    }
+    if (p <= ln) ok = 0; /* a fourth word */
+    const u8 *part = man + w[1];
+    *name = man + w[0];
+    *file = man + w[2];
+    *nlen = (u32) wl[0];
+    *flen = (u32) wl[2];
+    if (*nlen > 63 || *flen > 12) ok = 0;
+    int sw = wl[1] == 5 && part[0] == 's' && part[1] == 'w' && part[2] == 'a' && part[3] == 'r' &&
+             part[4] == 'm';
+    int esp = wl[1] == 3 && part[0] == 'e' && part[1] == 's' && part[2] == 'p';
+    if (!sw && !esp) ok = 0;
+    *swarm = sw;
+    *size = sz;
+    return ok;
+}
+
+/* The end of the line starting at i, and the end without a trailing CR. */
+static u64 em_line_end(const u8 *man, u64 mlen, u64 i, u64 *ln)
+{
+    u64 e = i;
+    while (e < mlen && man[e] != '\n') e++;
+    *ln = e;
+    if (*ln > i && man[*ln - 1] == '\r') (*ln)--;
+    return e;
+}
+
+/* Read the boot model into pages of its own below max_addr, hash it there,
+ * and on a match allocate its scratch and fill rec (zxv_aimodel.h).
+ * Returns 1 when the bytes match (handed over or not), 0 when they differ,
+ * -1 when there was no memory for it (the caller then streams it as for any
+ * other model). *got receives the bytes read. */
+static int em_load_boot_model(EM_FILE *f, EM_PAGES AllocatePages, EM_FREEPAGES FreePages,
+                              u64 max_addr, u64 size, const u8 want[32], const u8 *name, u32 nlen,
+                              u8 *buf, u64 chunk, zxai_rec_t *rec, u64 *got)
+{
+    u64 mpages = (size + 0xFFF) / 0x1000;
+    u64 maddr = max_addr - 1;
+    *got = 0;
+    if (!size || AllocatePages(1 /*AllocateMaxAddress*/, 2 /*EfiLoaderData*/, mpages, &maddr))
+        return -1;
+    u8 *m = (u8 *) maddr;
+    em_sha s;
+    em_sha_init(&s);
+    u64 have = 0;
+    for (;;) {
+        u64 r = size - have;
+        if (r > chunk) r = chunk;
+        if (r == 0) {
+            /* Every listed byte is in: one more read says whether the file is
+             * longer than the manifest claims. */
+            r = chunk;
+            if (f->Read(f, &r, buf) == 0 && r) have += r;
+            break;
+        }
+        if (f->Read(f, &r, m + have) || r == 0) break;
+        em_sha_update(&s, m + have, r);
+        have += r;
+    }
+    *got = have;
+    u8 dig[32];
+    em_sha_final(&s, dig);
+    int same = have == size;
+    for (int k = 0; k < 32; k++)
+        if (dig[k] != want[k]) same = 0;
+    if (!same) {
+        FreePages(maddr, mpages);
+        return 0;
+    }
+    u64 sbytes = zxai_scratch_bytes(size);
+    u64 saddr = max_addr - 1;
+    if (AllocatePages(1 /*AllocateMaxAddress*/, 2 /*EfiLoaderData*/, sbytes / 0x1000, &saddr)) {
+        FreePages(maddr, mpages);
+        uputs("[AI_HANDOFF_NONE] no memory for the boot model's scratch (");
+        udec(sbytes);
+        uputs(" bytes)\n");
+        return 1;
+    }
+    rec->model_phys = maddr;
+    rec->model_bytes = size;
+    rec->scratch_phys = saddr;
+    rec->scratch_bytes = sbytes;
+    for (int k = 0; k < 32; k++) rec->sha256[k] = dig[k];
+    rec->name_len = nlen;
+    for (u32 k = 0; k < nlen; k++) rec->name[k] = (char) name[k];
+    zxai_seal(rec);
+    uputs("[AI_HANDOFF] ");
+    em_putn(name, nlen);
+    uputs(" in memory for the kernel: ");
+    udec(size);
+    uputs(" bytes at ");
+    udec(maddr);
+    uputs(", ");
+    udec(sbytes);
+    uputs(" bytes scratch at ");
+    udec(saddr);
+    uputs("\n");
+    return 1;
+}
 
 /* Returns 0 when the disc has no model manifest, -1 when the check could
- * not run, else the number checked (em_last_bad of them bad). */
+ * not run, else the number of boot-partition models checked (em_last_bad of
+ * them bad; em_last_deferred swarm models not checked).
+ *
+ * rec (may be NULL: no record page) is the boot model handoff. The smallest
+ * "esp" model (the first of equal sizes) is the boot model: it is read into
+ * pages below max_addr instead of a reusable buffer, and when it verifies,
+ * rec describes it and its scratch. Every other model, and the boot model
+ * when there is no record page or no memory, is streamed through a 4 MiB
+ * buffer. The caller zeroes rec. */
 static int efi_check_models(EFI_HANDLE image, void *handle_protocol, void *allocate_pool,
-                            void *free_pool)
+                            void *free_pool, void *allocate_pages, void *free_pages, u64 max_addr,
+                            zxai_rec_t *rec)
 {
     EM_HANDLEPROTO HandleProtocol = (EM_HANDLEPROTO) handle_protocol;
     EM_POOL AllocatePool = (EM_POOL) allocate_pool;
     EM_FREE FreePool = (EM_FREE) free_pool;
+    EM_PAGES AllocatePages = (EM_PAGES) allocate_pages;
+    EM_FREEPAGES FreePages = (EM_FREEPAGES) free_pages;
     EFI_GUID li_guid, sfs_guid;
     em_guid(&li_guid, 0x5B1B31A1, 0x9562, 0x11d2, 0x8E, 0x3F, 0x00, 0xA0, 0xC9, 0x69, 0x72, 0x3B);
     em_guid(&sfs_guid, 0x964E5B22, 0x6459, 0x11d2, 0x8E, 0x39, 0x00, 0xA0, 0xC9, 0x69, 0x72, 0x3B);
 
     em_last_bad = 0;
+    em_last_deferred = 0;
     EM_LOADED_IMAGE *li = 0;
     EM_SFS *sfs = 0;
     EM_FILE *root = 0, *mf = 0;
@@ -241,61 +396,84 @@ static int efi_check_models(EFI_HANDLE image, void *handle_protocol, void *alloc
     if (mf->Read(mf, &mlen, man)) mlen = 0;
     mf->Close(mf);
 
-    int n = 0, bad = 0;
-    u64 i = 0;
-    while (i < mlen) {
-        u64 e = i;
-        while (e < mlen && man[e] != '\n') e++;
-        u64 ln = e;
-        if (ln > i && man[ln - 1] == '\r') ln--;
+    /* The boot model: the smallest readable "esp" line. */
+    int boot = -1, idx = 0;
+    u64 boot_size = 0;
+    for (u64 i = 0; i < mlen;) {
+        u64 ln;
+        u64 e = em_line_end(man, mlen, i, &ln);
         if (ln > i && man[i] != '#') {
-            /* <64 hex> <bytes> <name> */
             u8 want[32];
-            int ok = (ln - i) > 67;
-            for (int k = 0; ok && k < 32; k++) {
-                int hi = em_hexval(man[i + 2 * k]), lo = em_hexval(man[i + 2 * k + 1]);
-                if (hi < 0 || lo < 0)
-                    ok = 0;
-                else
-                    want[k] = (u8) (hi << 4 | lo);
+            u64 size;
+            const u8 *name, *file;
+            u32 nlen, flen;
+            int swarm;
+            int ok = em_parse(man, i, ln, want, &size, &name, &nlen, &file, &flen, &swarm);
+            if (ok && !swarm && (boot < 0 || size < boot_size)) {
+                boot = idx;
+                boot_size = size;
             }
-            u64 p = i + 64, size = 0;
-            if (ok && man[p] != ' ') ok = 0;
-            p++;
-            while (ok && p < ln && man[p] >= '0' && man[p] <= '9')
-                size = size * 10 + (man[p++] - '0');
-            if (ok && (p >= ln || man[p] != ' ')) ok = 0;
-            p++;
-            const u8 *name = man + p;
-            u32 nlen = (u32) (ln > p ? ln - p : 0);
-            if (nlen == 0 || nlen > 120) ok = 0;
-            n++;
+            if (!ok || !swarm) idx++; /* counted as the loop below counts n */
+        }
+        i = e + 1;
+    }
+    if (!rec || !AllocatePages) boot = -1;
+
+    int n = 0, bad = 0, deferred = 0;
+    for (u64 i = 0; i < mlen;) {
+        u64 ln;
+        u64 e = em_line_end(man, mlen, i, &ln);
+        if (ln > i && man[i] != '#') {
+            u8 want[32];
+            u64 size;
+            const u8 *name, *file;
+            u32 nlen, flen;
+            int swarm;
+            int ok = em_parse(man, i, ln, want, &size, &name, &nlen, &file, &flen, &swarm);
             if (!ok) {
+                n++;
                 uputs("[MODEL_BAD] unreadable manifest line\n");
                 bad++;
+            } else if (swarm) {
+                deferred++;
             } else {
+                int this_boot = n == boot;
+                n++;
                 EM_FILE *f = 0;
-                if (em_open(root, "\\ZXV\\MODELS\\", name, nlen, &f)) {
+                if (em_open(root, "\\ZXV\\MODELS\\", file, flen, &f)) {
                     uputs("[MODEL_BAD] ");
                     em_putn(name, nlen);
                     uputs(" missing\n");
                     bad++;
                 } else {
-                    em_sha s;
-                    em_sha_init(&s);
                     u64 got = 0;
-                    for (;;) {
-                        u64 r = CHUNK;
-                        if (f->Read(f, &r, buf) || r == 0) break;
-                        em_sha_update(&s, buf, r);
-                        got += r;
+                    int same = -1;
+                    if (this_boot) {
+                        same = em_load_boot_model(f, AllocatePages, FreePages, max_addr, size, want,
+                                                  name, nlen, buf, CHUNK, rec, &got);
+                        if (same < 0) {
+                            uputs("[AI_HANDOFF_NONE] no memory below the kernel's map for ");
+                            em_putn(name, nlen);
+                            uputs("\n");
+                        }
+                    }
+                    if (same < 0) {
+                        em_sha s;
+                        em_sha_init(&s);
+                        got = 0;
+                        for (;;) {
+                            u64 r = CHUNK;
+                            if (f->Read(f, &r, buf) || r == 0) break;
+                            em_sha_update(&s, buf, r);
+                            got += r;
+                        }
+                        u8 dig[32];
+                        em_sha_final(&s, dig);
+                        same = got == size;
+                        for (int k = 0; k < 32; k++)
+                            if (dig[k] != want[k]) same = 0;
                     }
                     f->Close(f);
-                    u8 dig[32];
-                    em_sha_final(&s, dig);
-                    int same = got == size;
-                    for (int k = 0; k < 32; k++)
-                        if (dig[k] != want[k]) same = 0;
                     uputs(same ? "[MODEL_OK] " : "[MODEL_BAD] ");
                     em_putn(name, nlen);
                     uputs(" ");
@@ -311,7 +489,14 @@ static int efi_check_models(EFI_HANDLE image, void *handle_protocol, void *alloc
     FreePool(man);
     root->Close(root);
     em_last_bad = bad;
+    em_last_deferred = deferred;
+    if (deferred) {
+        uputs("[MODELS_DEFERRED] ");
+        udec((u64) deferred);
+        uputs(" on the swarm partition, not checked: this kernel cannot read that partition yet\n");
+    }
     if (n == 0) {
+        if (deferred) return 0;
         uputs("[MODELS_FAIL] MODELS.SHA lists no models\n");
         return -1;
     }

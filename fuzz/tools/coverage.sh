@@ -34,6 +34,8 @@ echo "=== coverage: host test suite (make -C kernel verify-all) ==="
 if ! env PATH="$OUT/bin:$PATH" SANCC_CC="$CCX" SANCC_FLAGS="$FLAGS" SANCC_COV_DIR="$OUT/bins" \
     make -C "$ROOT/kernel" verify-all > "$OUT/verify-all.log" 2>&1; then
     tail -40 "$OUT/verify-all.log"
+    echo "--- every failed check in the run:"
+    grep -a '\[FAIL\]' "$OUT/verify-all.log" | head -40
     echo "[FAIL] verify-all under coverage instrumentation"
     exit 1
 fi

@@ -18,7 +18,7 @@
 # Every package is started once before it is attached: the .deb and
 # zxvd.exe answer the control-socket tests, the Mac bundle passes lipo and
 # codesign checks, ZXV Studio launches once in --smoke mode, and each disc
-# boots under real UEFI firmware to [AI_OK].
+# boots under real UEFI firmware to [BOOT_OK] and [AI_SELFCHECK_OK].
 #
 #   - Manual only (workflow_dispatch). No push, tag or schedule starts it.
 #   - It never publishes. The release stays a draft until the owner reviews it
@@ -299,7 +299,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { arch: arm64, screen: "[AI_OK]" }
+          - { arch: arm64, screen: "[AI_SELFCHECK_OK]" }
           - { arch: x86_64, screen: "UEFI GOP text console" }
     env:
       V: ${{ needs.preflight.outputs.version }}
@@ -312,7 +312,7 @@ jobs:
       - name: Build the ${{ matrix.arch }} kernel and disc
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/baremetal_images.sh ${{ matrix.arch }}
       - name: Boot the disc under UEFI firmware (fails closed)
-        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/uefi_boot_check.sh ${{ matrix.arch }} "" 90 "[AI_OK]" "${{ matrix.screen }}"
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/uefi_boot_check.sh ${{ matrix.arch }} "" 90 "[AI_NO_MODEL]" "${{ matrix.screen }}"
       - name: Compress
         run: |
           set -eu

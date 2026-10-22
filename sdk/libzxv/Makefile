@@ -117,7 +117,7 @@ endif
 ifeq ($(ZXV_NO_TENSOR),)
   INC  += -I$(K)/src/tensor
   KSRC += $(addprefix $(K)/src/tensor/,zt.c zt_gguf.c zt_tok.c zt_rope.c zt_model.c \
-          zt_simd.c zt_simd_x86.c zt_simd_neon.c)
+          zt_simd.c zt_simd_x86.c zt_simd_sve.c zt_simd_neon.c zt_simd_rvv.c)
 else
   DEFS += -DZXV_NO_TENSOR
   KFLAGS += -DHWE_NO_TENSOR

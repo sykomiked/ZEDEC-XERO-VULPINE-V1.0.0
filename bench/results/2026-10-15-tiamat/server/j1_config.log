@@ -1,0 +1,4 @@
+  ok Spinewyrm (Qwen/Qwen2.5-1.5B-Instruct, Qwen team, Alibaba Cloud) <- qwen2.5-1.5b-instruct-q4_k_m.gguf
+  ok Codelindworm (Qwen/Qwen2.5-Coder-1.5B-Instruct, Qwen team, Alibaba Cloud) <- qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
+  ok Vouchwyvern (HuggingFaceTB/SmolLM2-1.7B-Instruct, Hugging Face (SmolLM / SmolVLM team)) <- smollm2-1.7b-instruct-q4_k_m.gguf
+wrote /srv/tiamat/tests/2026-10-15/h1.conf

@@ -113,6 +113,7 @@ typedef struct {
     /* delivered, in-order data waiting for the application */
     uint8_t  rx[TCP_RCV_BUF];
     uint32_t rx_len;
+    uint32_t rcv_adv; /* the window the last segment we sent advertised */
 
     bool     fin_sent;      /* our FIN is in flight or acknowledged */
     bool     fin_acked;
@@ -181,6 +182,13 @@ uint32_t tcp_tick(tcp_conn_t *c, uint8_t *out, uint32_t cap);
 
 /* Copy up to `cap` bytes of received data out; returns how many. */
 uint32_t tcp_read(tcp_conn_t *c, uint8_t *dst, uint32_t cap);
+
+/* After tcp_read: a bare ACK announcing the reopened window, when it has
+ * grown by at least min(half the buffer, one segment) since we last
+ * advertised it (RFC 1122 4.2.3.3). Without it a peer that saw the window
+ * close waits on its persist timer, which backs off to a minute. Returns the
+ * segment's length, 0 when no update is due. */
+uint32_t tcp_window_update(tcp_conn_t *c, uint8_t *out, uint32_t cap);
 
 static inline bool tcp_is_established(const tcp_conn_t *c) {
     return c && c->state == TCPS_ESTABLISHED;

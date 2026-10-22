@@ -3601,7 +3601,11 @@ int aml_eval_node(aml_ctx_t *c, aml_node_t *n, const aml_val_t *args, uint32_t a
     if (!n) return AML_ENOENT;
     if (argc > 7) return AML_EARG;
     for (uint32_t i = 0; i < 7; i++) val_zero(&a[i]);
-    for (uint32_t i = 0; i < argc && !r; i++) r = aml_val_copy(c, &a[i], &args[i]);
+    for (uint32_t i = 0; i < argc && !r; i++) {
+        r = aml_val_copy(c, &a[i], &args[i]);
+        /* a caller's integer takes the table's width, like any AML integer */
+        if (a[i].type == AML_T_INT) a[i].u.i = imask(c, a[i].u.i);
+    }
     if (r) {
         for (uint32_t i = 0; i < argc; i++) aml_val_free(c, &a[i]);
         return r;

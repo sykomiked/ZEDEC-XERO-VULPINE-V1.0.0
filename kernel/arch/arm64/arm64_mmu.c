@@ -17,6 +17,7 @@
  */
 #include "arm64_arch.h"
 #include "board_profile.h"
+#include "mmu_window.h"
 
 /* Page table constants */
 #define PAGE_SIZE       4096
@@ -34,6 +35,8 @@
 #define PTE_SH_OUTER    (2 << 8)    /* Outer shareable */
 #define PTE_ATTR_NORMAL (0 << 2)    /* Normal memory */
 #define PTE_ATTR_DEVICE (1 << 2)    /* Device memory */
+#define PTE_ATTR_NC     (2 << 2)    /* Normal Non-cacheable (framebuffers) */
+#define PTE_PXN_UXN     (3ULL << 53) /* never executable, at EL1 or EL0 */
 #define PTE_AP_RW       (0 << 6)    /* Read/Write */
 #define PTE_AP_RO       (1 << 7)    /* Read-only */
 #define PTE_NS          (1 << 5)    /* Non-secure */
@@ -41,6 +44,7 @@
 /* MAIR (Memory Attribute Indirection Register) values */
 #define MAIR_NORMAL     0xFF        /* Normal, WB, inner+outer */
 #define MAIR_DEVICE     0x00        /* Device-nGnRnE */
+#define MAIR_NC         0x44        /* Normal, Non-cacheable inner+outer */
 
 /* Page table storage (16KB aligned) */
 static uint64_t l0_table[TABLE_ENTRIES] __attribute__((aligned(4096)));
@@ -54,6 +58,12 @@ static uint64_t l2_table[TABLE_ENTRIES] __attribute__((aligned(4096)));
  * kernel image) is refined again to 4KB pages by kernel_l3. */
 static uint64_t kernel_ram_l2[TABLE_ENTRIES] __attribute__((aligned(4096)));
 static uint64_t kernel_l3[TABLE_ENTRIES]     __attribute__((aligned(4096)));
+/* Peripheral GB above the kernel's RAM GB. RK3588, Zynq UltraScale+ and
+ * Versal keep their console UART and GIC in 0xC0000000-0xFFFFFFFF, which the
+ * ram_base loop below would otherwise map as one Normal 1GB block. When a
+ * board profile puts peripherals there, that GB gets this 2MB-grained table
+ * with the same padded device windows the first GB uses. */
+static uint64_t periph_hi_l2[TABLE_ENTRIES] __attribute__((aligned(4096)));
 
 /* Expose the kernel's L1 entries so USER page tables can share the kernel's
  * identity mapping (VA 1-4GB, where kernel code/data/RAM live). Without this,
@@ -86,12 +96,13 @@ void arm64_copy_pt_template(uint64_t *l2_dst, uint64_t *l1_block_1gb) {
      * kernel stays fully mapped after a TTBR0 switch to this user table — the
      * root cause of the proc_enter_el0 +0x50 fault the Game Master found was the
      * kernel becoming unmapped mid-context-restore. l1_block_1gb points at the
-     * user's l1[1]; l1[1..3] cover 0x40000000-0xFFFFFFFF (kernel image + RAM). */
-    if (l1_block_1gb) {
-        l1_block_1gb[0] = l1_table[1];   /* VA 1-2GB: kernel image + first RAM GB */
-        l1_block_1gb[1] = l1_table[2];   /* VA 2-3GB */
-        l1_block_1gb[2] = l1_table[3];   /* VA 3-4GB */
-    }
+     * user's l1[1]. */
+    /* Every kernel L1 slot past the user's own L1[0]: the RAM above 4 GB and
+     * any window arm64_mmu_map_window added (the framebuffer AAVMF puts near
+     * the top of RAM) must stay mapped while a user table is live, or the
+     * kernel's next write there is a level-1 translation fault. */
+    if (l1_block_1gb)
+        for (int i = 1; i < TABLE_ENTRIES; i++) l1_block_1gb[i - 1] = l1_table[i];
 }
 
 /* True if the 2MB block [block_start, block_start+2MB) overlaps the
@@ -108,11 +119,66 @@ static bool block_overlaps_periph(uint64_t block_start, uint64_t periph_base, ui
     return block_start < win_end && block_end > win_start;
 }
 
+/* True if the 2MB block at addr lies in any of the board's device windows. */
+static bool block_is_device(const board_profile_t *bp, uint64_t addr)
+{
+    return block_overlaps_periph(addr, bp->uart_base, 0x1000000) ||
+           block_overlaps_periph(addr, bp->gicd_base, 0x1000000) ||
+           (bp->gicr_base && block_overlaps_periph(addr, bp->gicr_base, 0x1000000)) ||
+           (bp->gicc_base && block_overlaps_periph(addr, bp->gicc_base, 0x1000000)) ||
+           (bp->virtio_mmio_base && block_overlaps_periph(addr, bp->virtio_mmio_base, 0x1000000));
+}
+
+/* The GB (other than 0 and the kernel's RAM GB) holding the board's console
+ * UART and GIC, or 0 when they all sit in the first GB (QEMU virt, Tank). */
+static uint64_t periph_hi_gb(const board_profile_t *bp)
+{
+    uint64_t ram_gb = bp->ram_base >> 30;
+    uint64_t g = bp->uart_base >> 30;
+    if (g == 0 || g == ram_gb) g = bp->gicd_base >> 30;
+    return (g == 0 || g == ram_gb) ? 0 : g;
+}
+
+/* TCR_EL1.IPS and the PA limit it gives, from ID_AA64MMFR0_EL1.PARange */
+static uint32_t g_ips;
+static uint64_t g_pa_top = 1ULL << 32;
+
+/* Spare L2 tables for windows outside the RAM the boot tables map as
+ * tables (arm64_mmu_map_window); two cover any window up to 1 GB. */
+static uint64_t window_l2[2][TABLE_ENTRIES] __attribute__((aligned(4096)));
+static uint32_t window_used;
+
+int arm64_mmu_map_window(uint64_t base, uint64_t len)
+{
+    int rc = mmu_window_map(l1_table, window_l2, 2, &window_used, base, len, g_pa_top,
+                            PTE_ATTR_NC | PTE_AF | PTE_SH_INNER | PTE_AP_RW | PTE_PXN_UXN);
+    if (rc == MMU_W_OK) {
+        __asm__ __volatile__("dsb ishst" ::: "memory");
+        tlb_invalidate_all();
+    }
+    return rc;
+}
+
+uint64_t arm64_mmu_pa_top(void)
+{
+    return g_pa_top;
+}
+
 void arm64_mmu_init(void) {
     const board_profile_t *bp = board_get_profile();
 
+    {
+        static const uint8_t bits[6] = {32, 36, 40, 42, 44, 48};
+        uint64_t mmfr0;
+        __asm__ __volatile__("mrs %0, id_aa64mmfr0_el1" : "=r"(mmfr0));
+        g_ips = (uint32_t) (mmfr0 & 0xF);
+        if (g_ips > 5) g_ips = 5; /* 52-bit PA needs LPA tables: not used */
+        g_pa_top = 1ULL << bits[g_ips];
+    }
+
     /* Set MAIR_EL1 */
-    uint64_t mair = ((uint64_t)MAIR_NORMAL << 0) | ((uint64_t)MAIR_DEVICE << 8);
+    uint64_t mair =
+        ((uint64_t) MAIR_NORMAL << 0) | ((uint64_t) MAIR_DEVICE << 8) | ((uint64_t) MAIR_NC << 16);
     __asm__ __volatile__("msr mair_el1, %0" :: "r"(mair));
 
     /* Clear page tables */
@@ -142,6 +208,18 @@ void arm64_mmu_init(void) {
      * enabled, causing an immediate Level-1 instruction-abort loop. */
     uint64_t ram_base_gb = bp->ram_base / (1024ULL * 1024 * 1024);
     for (i = (int)ram_base_gb; i < (int)ram_base_gb + 4 && i < TABLE_ENTRIES; i++) {
+        if (periph_hi_gb(bp) == (uint64_t) i) {
+            uint64_t gb = (uint64_t) i << 30;
+            for (int j = 0; j < TABLE_ENTRIES; j++) {
+                uint64_t addr = gb + (uint64_t) j * (2 * 1024 * 1024);
+                uint64_t attr = block_is_device(bp, addr)
+                                    ? (PTE_ATTR_DEVICE | PTE_AF | PTE_SH_OUTER)
+                                    : (PTE_ATTR_NORMAL | PTE_AF | PTE_SH_INNER);
+                periph_hi_l2[j] = addr | attr | PTE_BLOCK | PTE_VALID | PTE_AP_RW;
+            }
+            l1_table[i] = ((uint64_t) periph_hi_l2) | PTE_TABLE | PTE_VALID;
+            continue;
+        }
         if (i == (int)ram_base_gb) {
             /* First RAM GB via a table (not a 1GB block) so we can enforce W^X
              * on the kernel image that lives in its first 2MB. */
@@ -204,15 +282,7 @@ void arm64_mmu_init(void) {
          * virt). Both are mapped unconditionally because this runs
          * BEFORE gic_init(): the MMU must cover both layouts so the
          * GICD_PIDR2 probe itself has somewhere to read from. */
-        bool is_device =
-            block_overlaps_periph(addr, bp->uart_base, 0x1000000) ||
-            block_overlaps_periph(addr, bp->gicd_base, 0x1000000) ||
-            (bp->gicr_base &&
-             block_overlaps_periph(addr, bp->gicr_base, 0x1000000)) ||
-            (bp->gicc_base &&
-             block_overlaps_periph(addr, bp->gicc_base, 0x1000000)) ||
-            (bp->virtio_mmio_base &&
-             block_overlaps_periph(addr, bp->virtio_mmio_base, 0x1000000));
+        bool is_device = block_is_device(bp, addr);
 
         if (is_device) {
             attr = PTE_ATTR_DEVICE | PTE_AF | PTE_SH_OUTER;
@@ -224,19 +294,16 @@ void arm64_mmu_init(void) {
     }
 
     /* TCR_EL1: Translation Control Register
-     * IPS=0 (32-bit PA), TG0=4KB, T0SZ=24 → start-at-level-0 walk
+     * IPS = the CPU's own PA range (ID_AA64MMFR0_EL1.PARange, at most 48 bits):
+     * with 4 GB of RAM, QEMU virt puts RAM up to 0x13FFFFFFF and AAVMF its
+     * framebuffer there, and a 32-bit IPS turns every access above 4 GB into
+     * an address-size fault. TG0=4KB, T0SZ=24 → start-at-level-0 walk
      * (T0SZ 16-24 = 4 levels from L0; T0SZ 25-33 shifts the start to L1,
      * which would silently reinterpret l0/l1/l2 as L1/L2/L3 and turn the
      * intended L2 block entries into bogus L3 table pointers). */
-    uint64_t tcr = ((uint64_t)0 << 32) |   /* IPS: 32-bit PA -- was a plain
-                                             * `int` shifted by 32 (UB, and
-                                             * GCC now warns: "shift count
-                                             * >= width of type"); harmless
-                                             * with a literal 0 operand on
-                                             * this compiler/opt level, but
-                                             * real UB nonetheless. */
-                   (0 << 14) |   /* TG0: 4KB */
-                   (24 << 0);    /* T0SZ: start walk at L0 */
+    uint64_t tcr = ((uint64_t) g_ips << 32) | /* IPS (uint64_t: no UB shift) */
+                   (0 << 14) |                /* TG0: 4KB */
+                   (24 << 0);                 /* T0SZ: start walk at L0 */
     __asm__ __volatile__("msr tcr_el1, %0" :: "r"(tcr));
 
     /* Set TTBR0_EL1 (user space) — not used yet */

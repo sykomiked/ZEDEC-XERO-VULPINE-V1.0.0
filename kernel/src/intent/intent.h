@@ -13,13 +13,14 @@
  *        invoice <amount> <CCY> from <account> [memo "<text>"]
  *        route <amount> <CCY> to <account>
  *        report balance_sheet | report tax
+ *        act <verb> <object> [memo "<text>"]                   (I7)
  *      Words are lower case and separated by single spaces. <amount> is
  *      decimal with at most the currency's minor digits; <CCY> must be one
  *      the owner configured; <account> is a decimal account number. A memo
  *      is printable ASCII without quotes or backslashes. Anything else is
  *      refused (INTENT_E_PARSE): no partial reads, no guessing.
  *   I2 NEVER WRITES. Proposals and drafts are data. Reports and routes are
- *      read-only and need no approval; pay and invoice drafts do.
+ *      read-only and need no approval; pay, invoice and act drafts do.
  *   I3 GUARD. A pay proposal must pass every invariant; the tags combine
  *      with lpx_and (lpres_hex.h), so the worst one decides:
  *        G1 the payer is always the owner's first account (cfg.own[0]):
@@ -47,6 +48,20 @@
  *      received, the lowest fee, the fewest hops. It ranks; it never
  *      executes.
  *
+ *   I7 ACTS. The chiglet proposes changes at every layer of the stack the
+ *      same way it proposes money: "act <verb> <object>". The verb is one of
+ *      the held acts in chiglet/chg_vocab.h V2 (trust_device, stage_update,
+ *      run_command ...); the object names what it acts on, 1 to
+ *      INTENT_OBJECT_MAX characters of [a-z0-9._:/-] (a device id, an
+ *      update id, an app slot, a command id the caller keeps). An act moves
+ *      no money: G7 is its guard, the owner's mask of the acts a model may
+ *      propose at all (cfg.acts, bit i for act i; zero refuses every act),
+ *      and G5 counts it like any proposal. An act always waits for approval
+ *      (I4, I5); its digest covers the verb and object, so approving
+ *      "trust_device usb:1-2" cannot release "trust_device usb:1-3". The
+ *      caller performs a released act through that layer's own checked
+ *      path; this layer never does.
+ *
  * HONEST LIMITS. The guard checks what it is told: it cannot tell whether
  * the person meant to approve, only that their key signed. Keeping the
  * approval key away from the model (a separate device or a passkey prompt)
@@ -67,13 +82,15 @@
 #define INTENT_MAX_OWN  8u
 #define INTENT_MAX_DENY 8u
 #define INTENT_SLOTS    16u
+#define INTENT_OBJECT_MAX 48u /* I7 */
 
 typedef enum {
     INTENT_PAY = 1,
     INTENT_INVOICE = 2,
     INTENT_ROUTE = 3,
     INTENT_REPORT_BALANCE_SHEET = 4,
-    INTENT_REPORT_TAX = 5
+    INTENT_REPORT_TAX = 5,
+    INTENT_ACT = 6 /* I7 */
 } intent_kind_t;
 
 typedef enum {
@@ -104,6 +121,8 @@ typedef struct {
     char ccy[4];
     uint32_t from, to; /* accounts; for an invoice `from` is who is asked */
     char memo[INTENT_MEMO_MAX + 1];
+    uint8_t act;                        /* I7: CHGV_A_* */
+    char object[INTENT_OBJECT_MAX + 1]; /* I7 */
 } intent_req_t;
 
 typedef struct {
@@ -138,6 +157,7 @@ typedef struct {
     intent_verify_fn verify;
     void *vctx;
     juris_host_t *juris; /* G6, optional */
+    uint64_t acts;       /* G7 (I7): bit i lets a model propose act i */
 } intent_cfg_t;
 
 typedef struct {

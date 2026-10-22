@@ -37,6 +37,7 @@
 #ifndef ZXV_TERMS_H
 #define ZXV_TERMS_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -216,5 +217,34 @@ int terms_log_status(const char *log, size_t len, const char *seat, const terms_
  * matches "zh-Hans") and falls back to the reference. */
 const terms_doc_t *terms_builtin(void);
 const terms_doc_t *terms_builtin_lang(const char *lang);
+
+/* ---- sign-in gate ----
+ * The shell's order at sign-in: seat_unlock succeeds -> terms_gate_check;
+ * when it returns 1, open zui_terms on g->doc before the desktop. "I agree"
+ * -> terms_gate_accept and append the line it writes to the log (to a new
+ * log when g->fresh_log, keeping the old file aside for inspection), then
+ * enter. "Decline" writes nothing: the seat locks again and the login
+ * screen returns. */
+typedef struct {
+    char seat[TERMS_SEAT_MAX];
+    const terms_doc_t *doc;      /* the text to show, in the person's language */
+    int status;                  /* TERMS_STATUS_*, or the log's verify error */
+    bool fresh_log;              /* the log failed verification */
+    uint32_t bad_line;           /* first bad line when fresh_log */
+    uint8_t tip[TERMS_HASH_LEN]; /* the record a new one chains to */
+} terms_gate_t;
+
+/* A seat's 16-byte id as the 32 lowercase hex characters used as `seat` in
+ * records: stable when a person renames themselves, and never their name. */
+void terms_seat_hex(const uint8_t id[16], char out[33]);
+/* 1: show g->doc first; 0: this text was already accepted, enter; < 0 an
+ * argument error. `doc` is the text in the person's language, usually
+ * terms_builtin_lang(their tag). */
+int terms_gate_check(terms_gate_t *g, const char *seat, const char *log, size_t len,
+                     const terms_doc_t *doc);
+/* The person chose "I agree" in `r`, which was opened on g->doc: write the
+ * record line to append. Returns its length, or a negative TERMS_ERR_*. */
+int terms_gate_accept(const terms_gate_t *g, const terms_reader_t *r, uint64_t time, char *line,
+                      size_t cap);
 
 #endif /* ZXV_TERMS_H */

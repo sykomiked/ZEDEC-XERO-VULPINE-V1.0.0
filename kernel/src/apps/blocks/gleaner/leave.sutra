@@ -1,0 +1,12 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# May what would leave the Hoard go (gleaner_rules.h GR5), in Sutra: when
+# it holds no personal row (personal = 0) or the owner said yes to it
+# (consent = 1). personal is a count of rows and fits 9(4); a negative
+# count, or one past 9999, does not fit its picture: refused.
+record leave-hoard
+  personal: 9(4)
+  consent: 9
+procedure
+  answer personal = 0 or consent = 1

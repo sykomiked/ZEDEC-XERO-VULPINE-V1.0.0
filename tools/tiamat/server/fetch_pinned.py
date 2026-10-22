@@ -72,16 +72,25 @@ def main():
             for s in m["source_files"]:
                 url = f"{HUB}/{m['model_id']}/resolve/{m['revision']}/{s['path']}"
                 print(m["dragon_name"], s["path"], get(url, base / "src" / s["path"], s["sha256"], s["size"]))
-            # small non-weight files (config, tokenizer, licence, notice) from the same revision
+            # small non-weight files (config, tokenizer, licence, notice) from the same revision;
+            # a sharded checkpoint cannot load without its index, nor a LoRA without its config
+            paths = [s["path"] for s in m["source_files"]]
+            needed = set()
+            if sum(p.endswith(".safetensors") and "-of-" in p for p in paths) > 1:
+                needed.add("model.safetensors.index.json")
+            if "adapter_model.safetensors" in paths:
+                needed.add("adapter_config.json")
             for extra in ("config.json", "tokenizer.json", "tokenizer_config.json", "generation_config.json",
-                          "special_tokens_map.json", "LICENSE", "NOTICE", "README.md"):
+                          "special_tokens_map.json", "vocab.json", "merges.txt", "chat_template.jinja",
+                          "LICENSE", "NOTICE", "README.md", *sorted(needed)):
                 url = f"{HUB}/{m['model_id']}/resolve/{m['revision']}/{extra}"
                 try:
                     with urllib.request.urlopen(url, timeout=60) as r:
                         (base / "src").mkdir(parents=True, exist_ok=True)
                         (base / "src" / extra).write_bytes(r.read())
-                except Exception:
-                    pass
+                except Exception as e:
+                    if extra in needed:
+                        sys.exit(f"{m['dragon_name']}: {extra} is needed and could not be fetched ({e})")
 
 
 if __name__ == "__main__":

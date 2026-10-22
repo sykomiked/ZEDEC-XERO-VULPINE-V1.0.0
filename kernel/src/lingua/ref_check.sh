@@ -8,13 +8,19 @@
 # .out file to agree byte for byte. Run from kernel/. A missing reference
 # tool is a SKIP unless ZXV_REQUIRE_LINGUA_REF=1. BASIC has no reference in
 # CI (bwBASIC crashes in batch mode); its .out files are checked by test_zl.
+# A golden that reads input has its integers, one per line, in <golden>.in:
+# the reference reads that file on stdin and zxlang takes the same integers
+# as its inputs (zxlang run file [input ...]); test_zl runs it the same way.
 T=${ZXV_TMP:-/tmp}
 d=$(mktemp -d "$T/zl_ref.XXXXXX") || exit 1
 G=src/lingua/golden
-gcc -std=c11 -O2 -Wall -Werror -Wextra -Isrc/lingua src/lingua/zxlang.c src/lingua/zl_ir.c \
-    src/lingua/zl_basic.c src/lingua/zl_fortran.c src/lingua/zl_forth.c src/lingua/zl_pack.c -o "$d/zxlang" || { echo "[FAIL] zxlang build"; exit 1; }
+gcc -std=c11 -O2 -Wall -Werror -Wextra -Isrc/lingua src/lingua/zxlang.c src/lingua/zl_*.c -o "$d/zxlang" || { echo "[FAIL] zxlang build"; exit 1; }
 fail=0
 ran=0
+# ref_in f: the file the reference reads on stdin (/dev/null without .in);
+# ref_args f: the inputs for zxlang, word-split by the caller.
+ref_in() { if [ -f "$1.in" ]; then echo "$1.in"; else echo /dev/null; fi; }
+ref_args() { if [ -f "$1.in" ]; then cat "$1.in"; fi; }
 need() {
     if command -v "$1" >/dev/null 2>&1; then return 0; fi
     if [ "$ZXV_REQUIRE_LINGUA_REF" = 1 ]; then echo "[FAIL] lingua reference: $1 not installed"; fail=1; return 1; fi
@@ -65,9 +71,15 @@ if command -v gforth >/dev/null 2>&1; then
         diffs=$((diffs + 1)); s=$((s + 1))
     done
 fi
-for f in $G/*.bas $G/*.f $G/*.fs; do
+# Per-language reference checks: each ref_<lang>.sh adds to ran, diffs, fail.
+for x in src/lingua/ref_*.sh; do
+    case "$x" in */ref_check.sh) continue ;; esac
+    [ -f "$x" ] && . "$x"
+done
+for f in $G/*; do
+    case "$f" in *.out | *.in) continue ;; esac
     "$d/zxlang" check "$f" > /dev/null || { echo "[FAIL] twin round trip $f"; fail=1; }
 done
 rm -rf "$d"
-[ $fail = 0 ] && echo "[PASS] lingua reference check ($ran golden and $diffs generated programs byte-identical to gfortran/gforth; twins round-trip)"
+[ $fail = 0 ] && echo "[PASS] lingua reference check ($ran golden and $diffs generated programs byte-identical to their reference tools; twins round-trip)"
 exit $fail

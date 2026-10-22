@@ -1,0 +1,182 @@
+// Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+// SPDX-License-Identifier: Apache-2.0
+//
+// zvt_vk.comp — the vectoriser's per-pixel stages (zvt_kern.h) in GLSL, line
+// for line, for zvt_vk.c. Unsigned 32-bit arithmetic wraps the same way in
+// GLSL as in C, so every result is the CPU reference's bits (test_zvt_gpu
+// checks it on whatever Vulkan device is present, lavapipe included).
+//
+// Built once per stage by gen_zvt_vk_spv.sh with -DZK=<stage>:
+//   0 smooth  b0 in px          b1 out px                   one thread a pixel
+//   1 quant   b0 px  b1 palette b2 index (a word a pixel)   one thread a pixel
+//   2 edges   b0 index (bytes, packed in words)  b1 edge (a word a pixel)
+//   3 sse     b0 a  b1 b  b2 per-row sums                    one thread a row
+//   4 win     b0 a  b1 b  b2 5 sums per window               one thread a window
+//   5 diff    b0 a  b1 b  b2 mask (a word a pixel)  b3 per-row counts, a row
+// Portable on purpose: 32-bit words only (no 8-bit storage, no 64-bit
+// integers); byte results are written a word each and narrowed by the host.
+#version 450
+
+layout(local_size_x = 64) in;
+
+layout(std430, set = 0, binding = 0) readonly buffer B0 { uint w[]; } b0;
+layout(std430, set = 0, binding = 1) buffer B1 { uint w[]; } b1;
+layout(std430, set = 0, binding = 2) buffer B2 { uint w[]; } b2;
+layout(std430, set = 0, binding = 3) buffer B3 { uint w[]; } b3;
+
+// p[0..6]: the stage's numbers (below); p[7]: workgroups per grid row
+layout(push_constant) uniform PC { uint p[8]; } pc;
+
+uint zk_luma(uint c)
+{
+    return (((c >> 16) & 255u) * 77u + ((c >> 8) & 255u) * 150u + (c & 255u) * 29u + 128u) >> 8;
+}
+
+uint zk_absd(uint a, uint b)
+{
+    return a > b ? a - b : b - a;
+}
+
+uint zk_maxd(uint a, uint b)
+{
+    uint r = zk_absd((a >> 16) & 255u, (b >> 16) & 255u);
+    uint g = zk_absd((a >> 8) & 255u, (b >> 8) & 255u);
+    uint c = zk_absd(a & 255u, b & 255u);
+    uint m = r > g ? r : g;
+    return m > c ? m : c;
+}
+
+#if ZK == 0
+uint zk_smooth_px(uint w, uint h, uint x, uint y, uint thr)
+{
+    uint c = b0.w[y * w + x];
+    if ((c >> 24) < 128u) return c;
+    uint sr = 0u, sg = 0u, sb = 0u, n = 0u;
+    for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+            int nx = int(x) + dx, ny = int(y) + dy;
+            if (nx < 0 || ny < 0 || nx >= int(w) || ny >= int(h)) continue;
+            uint q = b0.w[uint(ny) * w + uint(nx)];
+            if ((q >> 24) < 128u || zk_maxd(c, q) > thr) continue;
+            uint k = (dx == 0 && dy == 0) ? 4u : (dx == 0 || dy == 0) ? 2u : 1u;
+            sr += ((q >> 16) & 255u) * k;
+            sg += ((q >> 8) & 255u) * k;
+            sb += (q & 255u) * k;
+            n += k;
+        }
+    }
+    return (c & 0xFF000000u) | (((sr + n / 2u) / n) << 16) | (((sg + n / 2u) / n) << 8) |
+           ((sb + n / 2u) / n);
+}
+#endif
+
+#if ZK == 1
+uint zk_quant_px(uint c, uint npal)
+{
+    if ((c >> 24) < 128u) return 255u;
+    uint best = 0u, bd = 0xFFFFFFFFu;
+    for (uint i = 0u; i < npal; i++) {
+        uint p = b1.w[i];
+        uint dr = zk_absd((c >> 16) & 255u, (p >> 16) & 255u);
+        uint dg = zk_absd((c >> 8) & 255u, (p >> 8) & 255u);
+        uint db = zk_absd(c & 255u, p & 255u);
+        uint d = 2u * dr * dr + 4u * dg * dg + 3u * db * db;
+        if (d < bd) {
+            bd = d;
+            best = i;
+        }
+    }
+    return best;
+}
+#endif
+
+#if ZK == 2
+uint zk_edge_px(uint c, uint right, uint down, uint has_right, uint has_down)
+{
+    return (has_right != 0u && right != c ? 1u : 0u) | (has_down != 0u && down != c ? 2u : 0u);
+}
+uint ld8(uint o)
+{
+    return (b0.w[o >> 2] >> ((o & 3u) << 3)) & 255u;
+}
+#endif
+
+#if ZK == 3
+uint zk_sse_row(uint w, uint y)
+{
+    uint s = 0u;
+    for (uint x = 0u; x < w; x++) {
+        uint p = b0.w[y * w + x], q = b1.w[y * w + x];
+        uint dr = zk_absd((p >> 16) & 255u, (q >> 16) & 255u);
+        uint dg = zk_absd((p >> 8) & 255u, (q >> 8) & 255u);
+        uint db = zk_absd(p & 255u, q & 255u);
+        s += dr * dr + dg * dg + db * db;
+    }
+    return s;
+}
+#endif
+
+#if ZK == 4
+void zk_win(uint w, uint x0, uint y0, uint wx, uint wy, uint o)
+{
+    uint sx = 0u, sy = 0u, sxx = 0u, syy = 0u, sxy = 0u;
+    for (uint y = y0; y < y0 + wy; y++) {
+        for (uint x = x0; x < x0 + wx; x++) {
+            uint p = zk_luma(b0.w[y * w + x]), q = zk_luma(b1.w[y * w + x]);
+            sx += p;
+            sy += q;
+            sxx += p * p;
+            syy += q * q;
+            sxy += p * q;
+        }
+    }
+    b2.w[o] = sx;
+    b2.w[o + 1u] = sy;
+    b2.w[o + 2u] = sxx;
+    b2.w[o + 3u] = syy;
+    b2.w[o + 4u] = sxy;
+}
+#endif
+
+#if ZK == 5
+uint zk_diff_row(uint w, uint y, uint thr)
+{
+    uint n = 0u;
+    for (uint x = 0u; x < w; x++) {
+        uint ch = zk_maxd(b0.w[y * w + x], b1.w[y * w + x]) > thr ? 1u : 0u;
+        b2.w[y * w + x] = ch;
+        n += ch;
+    }
+    return n;
+}
+#endif
+
+void main()
+{
+    uint i = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * pc.p[7] * 64u;
+#if ZK == 0
+    // p: w h thr
+    uint w = pc.p[0], h = pc.p[1];
+    if (i < w * h) b1.w[i] = zk_smooth_px(w, h, i % w, i / w, pc.p[2]);
+#elif ZK == 1
+    // p: n npal
+    if (i < pc.p[0]) b2.w[i] = zk_quant_px(b0.w[i], pc.p[1]);
+#elif ZK == 2
+    // p: w h
+    uint w = pc.p[0], h = pc.p[1];
+    if (i >= w * h) return;
+    uint x = i % w, y = i / w;
+    uint r = x + 1u < w ? ld8(i + 1u) : 0u, d = y + 1u < h ? ld8(i + w) : 0u;
+    b1.w[i] = zk_edge_px(ld8(i), r, d, x + 1u < w ? 1u : 0u, y + 1u < h ? 1u : 0u);
+#elif ZK == 3
+    // p: w h
+    if (i < pc.p[1]) b2.w[i] = zk_sse_row(pc.p[0], i);
+#elif ZK == 4
+    // p: w wx wy step nwx nwin
+    uint nwx = pc.p[4];
+    if (i < pc.p[5]) zk_win(pc.p[0], (i % nwx) * pc.p[3], (i / nwx) * pc.p[3], pc.p[1], pc.p[2], 5u * i);
+#elif ZK == 5
+    // p: w h thr
+    if (i < pc.p[1]) b3.w[i] = zk_diff_row(pc.p[0], i, pc.p[2]);
+#endif
+}

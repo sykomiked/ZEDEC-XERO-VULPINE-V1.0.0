@@ -86,6 +86,7 @@
 #include <stdint.h>
 
 #include "zui_canvas.h"
+#include "zui_palette.h"
 #include "zui_input.h"
 
 #define ZUI_DOCK_ITEMS     32u /* open and pinned apps it holds          */
@@ -193,6 +194,7 @@ struct zui_dock {
     const zui_text_t *text; /* labels and initials; NULL draws none */
     void (*on_move)(zui_dock_t *d, int32_t slot, void *ctx); /* DK9 */
     void *on_move_ctx;
+    const zui_colors_t *colors; /* zui_palette.h C6: the set painted with; NULL dark */
 };
 
 void zui_dock_init(zui_dock_t *d, int32_t w, int32_t h, bool touch);

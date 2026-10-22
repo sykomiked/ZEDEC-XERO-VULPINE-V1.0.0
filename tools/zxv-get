@@ -1,0 +1,752 @@
+#!/usr/bin/env python3
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+"""zxv-get - download the ZXV golden discs for your machine from the bucket.
+
+    tools/zxv-get [ORIGIN_CID]         core disc for this machine + everything else
+    tools/zxv-get --arch arm64         another architecture's core disc
+    tools/zxv-get --list               what the bucket holds, download nothing
+    tools/zxv-get --core-only          only the core disc (it boots alone)
+
+Disc 1, the core disc, is the only one tied to an architecture (x86_64,
+arm64, riscv64); the swarm discs 2..N are the same for all and stack on top
+of it. Each is at most 1.8 GB.
+
+What. One CID installs everything: the origin CID, the root of the release
+bucket, computed last because the release is built leaves first
+(docs/BUCKET.md). Its root holds exactly one <cid>.install, the installer
+file, named by its own CID; it lists every disc, layer and file in install
+order by kind, CID, size and SHA-256, and each of those is named <cid>.<ext>
+too. A name that is not its file's CID is refused, so a name is a check.
+
+Where from. The origin CID given, else --cid, else the CID in
+build_system/zxv_upstream.cid (the trusted list the core discs carry). If that file names an IPNS key (or --ipns
+is given) and a local IPFS node is running, the newest bucket is resolved
+through it; a public gateway cannot prove an IPNS answer here, so without a
+node the CID is used and that is said.
+
+How. With a local node (`ipfs` on PATH and its daemon or repo usable, or
+--ipfs), files come through `ipfs cat`, which checks every block. Otherwise
+from gateways (--gateway, repeatable; default the upstream file's gateway
+lines, then https://trustless-gateway.link), one raw block at a time: each
+block is hashed and must match its CID before it is used, so no gateway can
+change a byte. The gateway that served last is asked first, then the others
+in turn; one that sends a block that does not match is not asked again. If
+none can, attach the discs by hand. Either way every file is then checked
+against the installer file (size and SHA-256) and against the CID the
+bucket's directory gives it, which must also be its name. A disc already present with the right SHA-256 is kept,
+not fetched again.
+
+Elastic. Fetching can be slow, so it waits rather than gives up: when no
+gateway serves a block it says it is waiting for peers and tries again
+after 1 s, then 2, 4 ... up to a minute between tries, with no overall
+deadline (--patience SECONDS sets one). A slow gateway's timeout doubles
+(30 s up to 4 min) and eases back once it answers. Ctrl-C, a dropped link
+or a gateway that lies leaves the verified part as <disc>.part; the next run
+hashes it again (it is never trusted unread) and fetches only the rest. A
+disc whose finished SHA-256 does not match is deleted, never left behind;
+one resumed from a .part is first fetched once more from the start.
+
+Needs only Python 3.8+. Writes into --out (default ./zxv-discs).
+"""
+
+import argparse
+import concurrent.futures
+import hashlib
+import json
+import os
+import platform
+import re
+import shutil
+import socket
+import subprocess
+import sys
+import threading
+import time
+import urllib.error
+import urllib.request
+
+B32 = "abcdefghijklmnopqrstuvwxyz234567"
+RAW, DAG_PB = 0x55, 0x70
+FORMAT = "zxv-install 1"
+CID_RE = re.compile(r"b[a-z2-7]{20,120}")
+IPNS_RE = re.compile(r"k[0-9a-z]{20,120}")
+NAME_RE = re.compile(r"[A-Za-z0-9._+-]{1,200}")
+ARCHS = ("x86_64", "arm64", "riscv64")
+
+
+class Fail(Exception):
+    pass
+
+
+class Bad(Fail):
+    """The image itself is wrong (size or SHA-256): nothing of it is kept."""
+
+
+class Wait(Exception):
+    """No gateway served a block: time may cure it."""
+
+
+# ---- CIDs, dag-pb, UnixFS ----------------------------------------------------
+
+
+def b32decode(s):
+    acc, bits, out = 0, 0, bytearray()
+    for ch in s:
+        i = B32.find(ch)
+        if i < 0:
+            raise Fail("'%s' is not base32" % s)
+        acc = (acc << 5) | i
+        bits += 5
+        if bits >= 8:
+            bits -= 8
+            out.append((acc >> bits) & 0xFF)
+    return bytes(out)
+
+
+def b32encode(b):
+    acc, bits, out = 0, 0, []
+    for x in b:
+        acc = (acc << 8) | x
+        bits += 8
+        while bits >= 5:
+            bits -= 5
+            out.append(B32[(acc >> bits) & 31])
+    if bits:
+        out.append(B32[(acc << (5 - bits)) & 31])
+    return "b" + "".join(out)
+
+
+def uvarint(b, i):
+    v, shift = 0, 0
+    while True:
+        if i >= len(b) or shift > 63:
+            raise Fail("truncated varint")
+        x = b[i]
+        i += 1
+        v |= (x & 0x7F) << shift
+        if not x & 0x80:
+            return v, i
+        shift += 7
+
+
+def parse_cid(cb):
+    """Binary CIDv1 -> (codec, sha256 digest). Only sha2-256 is accepted."""
+    ver, i = uvarint(cb, 0)
+    codec, i = uvarint(cb, i)
+    mh, i = uvarint(cb, i)
+    ln, i = uvarint(cb, i)
+    if ver != 1 or codec not in (RAW, DAG_PB) or mh != 0x12 or ln != 32 or len(cb) != i + 32:
+        raise Fail("unsupported CID (want CIDv1, raw or dag-pb, sha2-256)")
+    return codec, cb[i:]
+
+
+def cid_text(cb):
+    return b32encode(cb)
+
+
+def cid_bin(s):
+    if not CID_RE.fullmatch(s):
+        raise Fail("'%s' is not a base32 CIDv1" % s)
+    cb = b32decode(s[1:])
+    parse_cid(cb)
+    return cb
+
+
+def fields(b):
+    """Protobuf fields of b: [(number, value)], value bytes or int."""
+    out, i = [], 0
+    while i < len(b):
+        key, i = uvarint(b, i)
+        num, wt = key >> 3, key & 7
+        if wt == 0:
+            v, i = uvarint(b, i)
+        elif wt == 2:
+            n, i = uvarint(b, i)
+            if i + n > len(b):
+                raise Fail("truncated protobuf field")
+            v, i = b[i:i + n], i + n
+        else:
+            raise Fail("unexpected protobuf wire type %d" % wt)
+        out.append((num, v))
+    return out
+
+
+def pb_node(block):
+    """dag-pb block -> (links [(name, cid_bin)], unixfs type, inline data)."""
+    links, data = [], b""
+    for num, v in fields(block):
+        if num == 2:
+            h, name = None, ""
+            for n2, v2 in fields(v):
+                if n2 == 1:
+                    h = bytes(v2)
+                elif n2 == 2:
+                    name = bytes(v2).decode("utf-8")
+            if h is None:
+                raise Fail("dag-pb link without a hash")
+            links.append((name, h))
+        elif num == 1:
+            data = bytes(v)
+    typ, inline = None, b""
+    for num, v in fields(data):
+        if num == 1:
+            typ = v
+        elif num == 2:
+            inline = bytes(v)
+    return links, typ, inline
+
+
+def blocksizes(block):
+    """The UnixFS blocksizes of a dag-pb file node, one per link."""
+    data = b""
+    for num, v in fields(block):
+        if num == 1:
+            data = bytes(v)
+    out = []
+    for num, v in fields(data):
+        if num == 4:
+            if isinstance(v, int):
+                out.append(v)
+            else:  # packed
+                i = 0
+                while i < len(v):
+                    x, i = uvarint(v, i)
+                    out.append(x)
+    return out
+
+
+# ---- sources -----------------------------------------------------------------
+
+
+class Gateway:
+    BACKOFF, BACKOFF_MAX = 1, 60       # seconds between tries when no gateway serves
+    STALL, STALL_MAX = 30.0, 240.0     # per-gateway timeout, adaptive
+
+    def __init__(self, urls, jobs, patience=None, note=None, sleep=time.sleep):
+        self.urls = [u.rstrip("/") for u in urls]
+        self.jobs = jobs
+        self.patience = patience
+        self.note = note or (lambda msg: print(msg, file=sys.stderr, flush=True))
+        self.sleep = sleep
+        self.halt = threading.Event()
+        self.stall = {u: self.STALL for u in self.urls}
+        self.bad = set()
+        self.first = 0
+        self.lock = threading.Lock()
+
+    def once(self, cb):
+        """One try at each gateway, the last good one first. The block, or
+        Wait (some may answer later), or Fail (every one lied)."""
+        _, digest = parse_cid(cb)
+        why = []
+        with self.lock:
+            order = [self.urls[(self.first + i) % len(self.urls)] for i in range(len(self.urls))]
+        for url in order:
+            if url in self.bad:
+                continue
+            req = urllib.request.Request("%s/ipfs/%s?format=raw" % (url, cid_text(cb)),
+                                         headers={"Accept": "application/vnd.ipld.raw"})
+            try:
+                with urllib.request.urlopen(req, timeout=self.stall[url]) as r:
+                    data = r.read(4 * 1024 * 1024 + 1)
+            except (OSError, ValueError) as e:
+                slow = isinstance(e, socket.timeout) or \
+                    isinstance(getattr(e, "reason", None), socket.timeout)
+                with self.lock:
+                    if slow:
+                        self.stall[url] = min(self.stall[url] * 2, self.STALL_MAX)
+                why.append("%s: %s" % (url, "timed out" if slow else e))
+                continue
+            if hashlib.sha256(data).digest() == digest:
+                with self.lock:
+                    self.first = self.urls.index(url)
+                    self.stall[url] -= (self.stall[url] - self.STALL) / 4
+                return data
+            with self.lock:
+                self.bad.add(url)
+            why.append("%s sent a block that does not match its CID; not asked again" % url)
+        if all(u in self.bad for u in self.urls):
+            raise Fail("block %s: %s" % (cid_text(cb), "; ".join(why)))
+        raise Wait("; ".join(why))
+
+    def block(self, cb):
+        """The block for cb, waiting for peers as long as it takes (or
+        --patience): a block is refused unless its SHA-256 matches the CID,
+        so any gateway serving the same CID will do."""
+        tries, waited = 0, 0
+        while True:
+            if self.halt.is_set():
+                raise Fail("stopped")
+            try:
+                return self.once(cb)
+            except Wait as w:
+                pause = min(self.BACKOFF << tries, self.BACKOFF_MAX) if tries < 7 else \
+                    self.BACKOFF_MAX
+                if self.patience is not None and waited + pause > self.patience:
+                    raise Fail("block %s: %s (gave up after waiting %d s, --patience)"
+                               % (cid_text(cb), w, waited))
+                tries += 1
+                self.note("  waiting for peers: block %s: %s; retry %d in %d s"
+                          % (cid_text(cb)[:20] + "...", w, tries, pause))
+                if self.sleep is time.sleep:
+                    self.halt.wait(pause)
+                else:
+                    self.sleep(pause)
+                waited += pause
+
+    def lookup(self, root, path):
+        cb = root
+        for part in path:
+            links, typ, _ = pb_node(self.dir_block(cb))
+            hit = [h for n, h in links if n == part]
+            if len(hit) != 1:
+                raise Fail("'%s' is not in the bucket" % "/".join(path))
+            cb = hit[0]
+        return cb
+
+    def dir_block(self, cb):
+        codec, _ = parse_cid(cb)
+        if codec != DAG_PB:
+            raise Fail("%s is a file, not a directory" % cid_text(cb))
+        block = self.block(cb)
+        _, typ, _ = pb_node(block)
+        if typ == 5:
+            raise Fail("HAMT-sharded directories are not supported (the bucket is small)")
+        if typ != 1:
+            raise Fail("%s is not a UnixFS directory" % cid_text(cb))
+        return block
+
+    def write(self, cb, out, sink, skip=0):
+        """Stream the file under cb into out from byte skip on, in order,
+        fetching a node's children in parallel. A child that ends before
+        skip is not fetched: its size is in its parent, which was verified."""
+        codec, _ = parse_cid(cb)
+        self._emit(codec, self.block(cb), out, sink, 0, skip)
+
+    def _emit(self, codec, data, out, sink, at, skip):
+        if codec == RAW:
+            cut = max(0, skip - at)
+            if cut < len(data):
+                out.write(data[cut:])
+                sink(len(data) - cut)
+            return at + len(data)
+        links, typ, inline = pb_node(data)
+        if typ not in (0, 2):
+            raise Fail("not a UnixFS file node")
+        sizes = blocksizes(data)
+        if len(sizes) != len(links):
+            raise Fail("a file node's blocksizes do not match its links")
+        if inline:
+            at = self._emit(RAW, inline, out, sink, at, skip)
+        kids = []
+        for (_, h), bs in zip(links, sizes):
+            if bs and at + bs <= skip:
+                at += bs
+                continue
+            kids.append((h, at, bs))
+            at += bs
+        with concurrent.futures.ThreadPoolExecutor(self.jobs) as ex:
+            futs = [ex.submit(self.block, k[0]) for k in kids]
+            try:
+                for (h, start, bs), fut in zip(kids, futs):
+                    end = self._emit(parse_cid(h)[0], fut.result(), out, sink, start, skip)
+                    if end - start != bs:
+                        raise Fail("block %s: %d bytes where its parent says %d"
+                                   % (cid_text(h), end - start, bs))
+            except BaseException:
+                self.halt.set()  # the waiting fetches stop too, so Ctrl-C is prompt
+                for fut in futs:
+                    fut.cancel()
+                raise
+        return at
+
+    def read(self, cb, cap):
+        buf = bytearray()
+
+        class Out:
+            def write(self, b):
+                if len(buf) + len(b) > cap:
+                    raise Fail("%s is larger than %d bytes" % (cid_text(cb), cap))
+                buf.extend(b)
+
+        self.write(cb, Out(), lambda n: None)
+        return bytes(buf)
+
+
+class Node:
+    """A local IPFS node: it verifies every block itself."""
+
+    def __init__(self, exe):
+        self.exe = exe
+
+    def run(self, *args, **kw):
+        try:
+            return subprocess.run([self.exe] + list(args), check=True, **kw)
+        except (OSError, subprocess.CalledProcessError) as e:
+            raise Fail("ipfs %s: %s" % (" ".join(args), e))
+
+    def lookup(self, root, path):
+        p = "/ipfs/%s/%s" % (cid_text(root), "/".join(path))
+        r = self.run("resolve", p, stdout=subprocess.PIPE, text=True)
+        return cid_bin(r.stdout.strip().rsplit("/", 1)[-1])
+
+    def write(self, cb, out, sink, skip=0):
+        p = subprocess.Popen([self.exe, "cat", "--offset", str(skip), "/ipfs/" + cid_text(cb)],
+                             stdout=subprocess.PIPE)
+        while True:
+            chunk = p.stdout.read(1 << 20)
+            if not chunk:
+                break
+            out.write(chunk)
+            sink(len(chunk))
+        if p.wait() != 0:
+            raise Fail("ipfs cat %s failed" % cid_text(cb))
+
+    def block(self, cb):
+        return self.run("block", "get", cid_text(cb), stdout=subprocess.PIPE).stdout
+
+    # the same directory check as a gateway's, over the node's own block
+    dir_block = Gateway.dir_block
+
+    def read(self, cb, cap):
+        out = self.run("cat", "/ipfs/" + cid_text(cb), stdout=subprocess.PIPE).stdout
+        if len(out) > cap:
+            raise Fail("%s is larger than %d bytes" % (cid_text(cb), cap))
+        return out
+
+    def resolve(self, name):
+        r = self.run("name", "resolve", "/ipns/" + name, stdout=subprocess.PIPE, text=True)
+        return r.stdout.strip().rsplit("/", 1)[-1]
+
+
+# ---- the bucket --------------------------------------------------------------
+
+
+def machine_arch():
+    m = platform.machine().lower()
+    return {"x86_64": "x86_64", "amd64": "x86_64", "arm64": "arm64", "aarch64": "arm64",
+            "riscv64": "riscv64"}.get(m)
+
+
+def read_upstream(path):
+    up = {"cid": None, "ipns": None, "gateways": []}
+    if not os.path.isfile(path):
+        return up
+    for raw in open(path, encoding="ascii"):
+        f = raw.split("#", 1)[0].split()
+        if len(f) == 2 and f[0] == "gateway" and re.fullmatch(r"https?://[!-~]+", f[1]):
+            up["gateways"].append(f[1])
+        elif len(f) == 2 and f[0] in ("cid", "ipns"):
+            up[f[0]] = f[1]
+    return up
+
+
+KINDS = ("core", "layer", "swarm", "cartridge", "doc", "tree")
+
+
+def parse_installer(text):
+    """The stages of an installer file (docs/BUCKET.md): after the header
+    "# zxv-install 1", lines "max_disc_bytes N", "seal MODE", "gateway URL",
+    then one stage per line,
+        <kind> <arch> <disc|-> <GROUP|-> <bytes> <sha256> <cid> <dir>/<cid>.<ext>
+    each file named by its own CID, and then any number of
+        tree all - - <tsize> - <cid> <name>
+    a directory or file at the root, linked by its CID (no sha256: each of
+    its blocks is checked against its CID as it is fetched)."""
+    lines = text.split("\n")
+    if lines[0] != "# " + FORMAT:
+        raise Fail("the installer file does not start with '# %s'" % FORMAT)
+    cap, stages = None, []
+    for n, raw in enumerate(lines[1:], 2):
+        f = raw.split()
+        if not f or raw.startswith("#"):
+            continue
+        if f[0] == "max_disc_bytes" and len(f) == 2 and f[1].isdigit():
+            cap = int(f[1])
+            continue
+        if f[0] in ("seal", "gateway") and len(f) == 2:
+            continue
+        ok = len(f) == 8 and f[0] in KINDS and cap is not None
+        if ok and f[0] == "tree":
+            kind, arch, disc, group, size, sha, cid, path = f
+            ok = (arch == "all" and disc == "-" and group == "-" and sha == "-" and size.isdigit()
+                  and CID_RE.fullmatch(cid) and NAME_RE.fullmatch(path)
+                  and path not in (".", "..") and not path.endswith(".install"))
+            if not ok:
+                raise Fail("installer file line %d is not a tree linked by its CID: %r" % (n, raw))
+            stages.append({"kind": kind, "arch": arch, "disc": None, "group": None,
+                           "bytes": int(size), "sha256": None, "cid": cid, "dir": None, "file": path})
+            continue
+        if ok:
+            kind, arch, disc, group, size, sha, cid, path = f
+            d, _, name = path.partition("/")
+            stem, dot, ext = name.partition(".")
+            ok = ((arch in ARCHS if kind == "core" else arch == "all")
+                  and (disc.isdigit() if kind in ("core", "swarm") else disc == "-")
+                  and (re.fullmatch(r"[A-Z0-9]{1,16}", group) if kind == "swarm" else group == "-")
+                  and size.isdigit() and int(size) <= cap and re.fullmatch(r"[0-9a-f]{64}", sha)
+                  and CID_RE.fullmatch(cid) and NAME_RE.fullmatch(d) and d not in (".", "..")
+                  and stem == cid and dot and re.fullmatch(r"[a-z0-9]{1,8}", ext))
+        if not ok:
+            raise Fail("installer file line %d is not a stage named by its CID: %r" % (n, raw))
+        stages.append({"kind": kind, "arch": arch, "disc": int(disc) if disc.isdigit() else None,
+                       "group": group if group != "-" else None, "bytes": int(size),
+                       "sha256": sha, "cid": cid, "dir": d, "file": name})
+    if not stages:
+        raise Fail("the installer file lists nothing")
+    return stages
+
+
+def find_installer(src, root):
+    """(cid_bin, name) of the one <cid>.install at the root, whose name must
+    be its CID."""
+    links, _, _ = pb_node(src.dir_block(root))
+    hits = [(n, h) for n, h in links if re.fullmatch(r"b[a-z2-7]{20,120}\.install", n)]
+    if len(hits) != 1:
+        raise Fail("the root %s holds %d <cid>.install files, not one" % (cid_text(root), len(hits)))
+    name, cb = hits[0]
+    if cid_text(cb) + ".install" != name:
+        raise Fail("%s is not named by its CID %s" % (name, cid_text(cb)))
+    return cb, name
+
+
+def pick(stages, arch, core_only):
+    cores = [s for s in stages if s["kind"] == "core"]
+    mine = [s for s in cores if s["arch"] == arch]
+    if not mine:
+        have = " ".join(sorted(s["arch"] for s in cores)) or "none"
+        raise Fail("this bucket has no core disc for %s (it has: %s)" % (arch, have))
+    if core_only:
+        return mine[:1]
+    rest = [s for s in stages if s["kind"] != "core"]
+    rest.sort(key=lambda s: (KINDS.index(s["kind"]), s["disc"] or 0, s["dir"], s["file"]))
+    return mine[:1] + rest
+
+
+def sha_of(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def bar(got, want, rate):
+    n = got * 20 // max(want, 1)
+    return "[%s%s] %3d%% %.1f of %.1f MB%s" % (
+        "#" * n, "-" * (20 - n), got * 100 // max(want, 1), got / 1e6, want / 1e6,
+        ", %.1f MB/s" % (rate / 1e6) if rate else "")
+
+
+def fetch(src, root, s, outdir, quiet, again=False):
+    dst = os.path.join(outdir, s["file"])
+    label = "%s/%s" % (s["dir"], s["file"])
+    if os.path.isfile(dst) and os.path.getsize(dst) == s["bytes"] and sha_of(dst) == s["sha256"]:
+        print("  have   %s (sha256 matches)" % label)
+        return
+    cb = src.lookup(root, [s["dir"], s["file"]])
+    if cid_text(cb) != s["cid"]:
+        raise Fail("%s: the bucket's directory gives CID %s, the installer file says %s"
+                   % (label, cid_text(cb), s["cid"]))
+    part = dst + ".part"
+    h, got = hashlib.sha256(), [0]
+    if os.path.isfile(part) and not again:
+        if os.path.getsize(part) > s["bytes"]:
+            os.remove(part)
+        else:  # hash what is there: a .part is never trusted unread
+            with open(part, "rb") as f:
+                for chunk in iter(lambda: f.read(1 << 20), b""):
+                    h.update(chunk)
+                    got[0] += len(chunk)
+            print("  resume %s at %d of %d bytes (the part on disk re-hashed)"
+                  % (label, got[0], s["bytes"]))
+    elif os.path.exists(part):
+        os.remove(part)
+    resumed = got[0]
+    t0, shown = time.monotonic(), [0.0]
+    tty = not quiet and sys.stderr.isatty()
+
+    class Hashing:
+        def __init__(self, f):
+            self.f = f
+
+        def write(self, b):
+            if got[0] + len(b) > s["bytes"]:
+                raise Bad("%s: longer than the installer file's %d bytes" % (label, s["bytes"]))
+            h.update(b)
+            self.f.write(b)
+
+    def progress(n):
+        got[0] += n
+        now = time.monotonic()
+        if tty and (now - shown[0] >= 0.2 or got[0] == s["bytes"]):
+            shown[0] = now
+            rate = (got[0] - resumed) / (now - t0) if now > t0 else 0
+            sys.stderr.write("\r  fetch  %s %s" % (label, bar(got[0], s["bytes"], rate)))
+
+    try:
+        with open(part, "ab") as f:
+            src.write(cb, Hashing(f), progress, skip=got[0])
+        if tty:
+            sys.stderr.write("\n")
+        if got[0] != s["bytes"]:
+            raise Bad("%s: %d bytes, the installer file says %d" % (label, got[0], s["bytes"]))
+        if h.hexdigest() != s["sha256"]:
+            os.remove(part)
+            if resumed and not again:
+                print("  again  %s: the kept part was not the image; fetching it from the start"
+                      % label)
+                return fetch(src, root, s, outdir, quiet, again=True)
+            raise Bad("%s: sha256 differs from the installer file" % label)
+        os.replace(part, dst)
+    except Bad:
+        if os.path.exists(part):
+            os.remove(part)  # the image itself is wrong: nothing worth keeping
+        raise
+    except Fail:
+        if os.path.exists(part):
+            print("  kept   %s.part: %d verified bytes; run again to resume" % (label, got[0]))
+        raise
+    except KeyboardInterrupt:
+        if tty:
+            sys.stderr.write("\n")
+        print("  kept   %s.part: %d verified bytes; run again to resume" % (label, got[0]))
+        raise
+    print("  ok     %s %d bytes, sha256 matches" % (label, s["bytes"]))
+
+
+def fetch_tree(src, root, s, outdir):
+    """A tree stage: the root's link of that name must be the listed CID; then
+    every directory and file under it is written to outdir/<name>, each block
+    checked against its CID. Links named @NNN (a matrix layer's inclusion
+    links to the layers it is built from) are not followed: those layers are
+    fetched at their own place in the tree."""
+    name = s["file"]
+    cb = src.lookup(root, [name])
+    if cid_text(cb) != s["cid"]:
+        raise Fail("%s: the bucket's root gives CID %s, the installer file says %s"
+                   % (name, cid_text(cb), s["cid"]))
+    count = [0, 0]
+
+    def walk(c, dst):
+        codec, _ = parse_cid(c)
+        if codec == DAG_PB:
+            block = src.block(c)
+            links, typ, _ = pb_node(block)
+            if typ == 1:
+                os.makedirs(dst, exist_ok=True)
+                for n, h in links:
+                    if n.startswith("@"):
+                        continue
+                    if not NAME_RE.fullmatch(n.replace(":", "_")) or n in (".", "..") or "/" in n:
+                        raise Fail("%s: a link named %r" % (name, n))
+                    walk(h, os.path.join(dst, n))
+                return
+            if typ == 5:
+                raise Fail("%s: HAMT-sharded directories are not supported" % name)
+        part = dst + ".part"
+        with open(part, "wb") as f:
+            src.write(c, f, lambda k: None)
+        os.replace(part, dst)
+        count[0] += 1
+        count[1] += os.path.getsize(dst)
+
+    target = os.path.join(outdir, name)
+    if os.path.isdir(target):
+        shutil.rmtree(target)
+    walk(cb, target)
+    print("  ok     %s: %d files, %d bytes, every block checked" % (name, count[0], count[1]))
+
+
+def main():
+    here = os.path.dirname(os.path.abspath(__file__))
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0],
+                                 formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 epilog="\n".join(__doc__.split("\n")[2:]))
+    ap.add_argument("origin", nargs="?", help="the origin CID (default: --cid, then the upstream file)")
+    ap.add_argument("--arch", choices=ARCHS, help="core disc to fetch (default: this machine)")
+    ap.add_argument("--cid", help="bucket root CID (default: build_system/zxv_upstream.cid)")
+    ap.add_argument("--ipns", help="IPNS name to resolve through a local node")
+    ap.add_argument("--upstream", default=os.path.join(here, "..", "build_system", "zxv_upstream.cid"))
+    ap.add_argument("--gateway", action="append",
+                    help="gateway URL, repeatable, tried in order (default: the upstream "
+                         "file's gateway lines, then https://trustless-gateway.link)")
+    ap.add_argument("--ipfs", nargs="?", const="ipfs", metavar="EXE",
+                    help="use a local IPFS node (default when `ipfs` works)")
+    ap.add_argument("--no-ipfs", action="store_true", help="use the gateway even if a node exists")
+    ap.add_argument("--jobs", type=int, default=8, help="parallel block fetches from a gateway")
+    ap.add_argument("--patience", type=int, metavar="SECONDS",
+                    help="stop waiting for peers after this long on one block (default: never)")
+    ap.add_argument("--out", default="zxv-discs")
+    ap.add_argument("--core-only", action="store_true")
+    ap.add_argument("--list", action="store_true")
+    ap.add_argument("--quiet", action="store_true")
+    a = ap.parse_args()
+    try:
+        up = read_upstream(a.upstream)
+        node = None
+        exe = a.ipfs or (None if a.no_ipfs else shutil.which("ipfs"))
+        if exe:
+            try:
+                subprocess.run([exe, "id"], check=True, stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL, timeout=30)
+                node = Node(exe)
+            except (OSError, subprocess.SubprocessError):
+                if a.ipfs:
+                    raise Fail("the IPFS node '%s' is not usable (is its daemon running?)" % exe)
+        a.cid = a.origin or a.cid
+        ipns = a.ipns or (None if a.cid else up["ipns"])
+        if ipns and not IPNS_RE.fullmatch(ipns):
+            raise Fail("'%s' is not an IPNS name (k51...)" % ipns)
+        root = a.cid
+        if ipns and node:
+            root = node.resolve(ipns)
+            print("bucket: ipns %s -> %s (resolved by the local node)" % (ipns, root))
+        else:
+            if ipns:
+                print("bucket: no local IPFS node to resolve ipns %s safely; using the CID" % ipns)
+            root = root or up["cid"]
+            if not root:
+                raise Fail("no bucket: pass --cid, or run from a checkout with "
+                           "build_system/zxv_upstream.cid")
+            print("bucket: %s" % root)
+        rb = cid_bin(root)
+        gws = a.gateway or (up["gateways"] + ["https://trustless-gateway.link"])
+        src = node or Gateway(gws, max(1, a.jobs), a.patience)
+        print("from:   %s" % ("the local IPFS node" if node else
+                              ", then ".join(gws) + " (every block checked)"))
+        icb, iname = find_installer(src, rb)
+        try:
+            text = src.read(icb, 1 << 20).decode("ascii")
+        except UnicodeDecodeError:
+            raise Fail("%s is not ASCII text" % iname)
+        stages = parse_installer(text)
+        print("install: %s (named by its own CID)" % iname)
+        if a.list:
+            for s in stages:
+                print("  %-18s %-36s %-8s %11d" % (s["dir"] or ".", s["file"], s["arch"], s["bytes"]))
+            return 0
+        arch = a.arch or machine_arch()
+        if not arch:
+            raise Fail("cannot tell this machine's architecture (%s); pass --arch" % platform.machine())
+        todo = pick(stages, arch, a.core_only)
+        os.makedirs(a.out, exist_ok=True)
+        print("arch:   %s, %d disc(s) into %s" % (arch, len(todo), a.out))
+        for s in todo:
+            if s["kind"] == "tree":
+                fetch_tree(src, rb, s, a.out)
+            else:
+                fetch(src, rb, s, a.out, a.quiet)
+    except Fail as e:
+        print("zxv-get: %s" % e, file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        return 130
+    print("done: write disc 1 to a USB stick or boot it in a VM; attach the swarm discs, or let")
+    print("the OS fetch them later (docs/BAREMETAL.md, Golden discs)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

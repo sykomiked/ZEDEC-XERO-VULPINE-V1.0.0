@@ -190,6 +190,24 @@ static void p_status(zxvd_buf_t *o)
     zxvd_buf_raw(o, "{\"sold\":2}", 10);
 }
 static const zxvd_peer_ops_t PEER_STUB = {p_ask, p_serve, p_status};
+
+static int organ_asks;
+static uint8_t last_organ;
+static char last_organ_prompt[64];
+static const char *o_ask(uint8_t organ, const char *prompt, zxvd_buf_t *o)
+{
+    organ_asks++;
+    last_organ = organ;
+    snprintf(last_organ_prompt, sizeof last_organ_prompt, "%s", prompt);
+    if (!strcmp(prompt, "fail")) {
+        zxvd_buf_raw(o, "{\"partial\":", 11); /* must be discarded */
+        return "the organ's budget is spent";
+    }
+    zxvd_buf_printf(o, "{\"organ\":%u}", (unsigned) organ);
+    return NULL;
+}
+static const zxvd_organ_ops_t ORGAN_STUB = {o_ask};
+static const zxvd_organ_ops_t ORGAN_NONE = {0};
 static const zxvd_peer_ops_t PEER_NONE = {0};
 
 /* phone.* stubs (zxvd_phone.h) */
@@ -526,7 +544,8 @@ static void test_host_methods(void)
         REQ("11", "rpc.discover", ""),
         OK("11",
            "{\"protocol\":\"zxvd-rpc/1\",\"methods\":[\"rpc.discover\",\"zxvd.version\","
-           "\"zxvd.shutdown\",\"swarm.state\",\"swarm.ask\",\"model.info\",\"notes.list\","
+           "\"zxvd.shutdown\",\"swarm.state\",\"swarm.ask\",\"swarm.organ\",\"model.info\","
+           "\"notes.list\","
            "\"notes.mark_read\",\"net.command\",\"net.peers\",\"net.offers\",\"player.card\","
            "\"peer.ask\",\"peer.serve\",\"peer.status\","
            "\"update.check\",\"currency.enable\","
@@ -845,6 +864,12 @@ static void test_spaces_methods(void)
               "\"members\":[],\"governance\":\"horizontal\",\"quorum_pct\":60,\"self\":\"me\","
               "\"proposals\":[],\"next_proposal\":0,\"cid\":\"\"}"),
           "horizontal space: %s", OUT.p);
+    EXPECT(REQ("10", "spaces.create",
+               ",\"params\":{\"kind\":\"office\",\"name\":\"\",\"quorum_pct\":1}"),
+           FERR("10", "not a valid name or path in the Hoard"));
+    EXPECT(REQ("10", "spaces.create",
+               ",\"params\":{\"kind\":\"office\",\"name\":\"\",\"quorum_pct\":100}"),
+           FERR("10", "not a valid name or path in the Hoard"));
     EXPECT(REQ("10", "spaces.set_members", ",\"params\":{\"space\":\"votes\",\"members\":[]}"),
            SERR("10", "this space decides its members by vote"));
     /* alone, the owner's own yes is the whole quorum */
@@ -923,6 +948,10 @@ static void test_spaces_methods(void)
                ",\"params\":{\"space\":\"votes\",\"proposal\":4294967296,"
                "\"vote\":\"yes\"}"),
            ERR("10", "-32602", "\\\"proposal\\\" must be a proposal id"));
+    EXPECT(REQ("10", "spaces.vote",
+               ",\"params\":{\"space\":\"votes\",\"proposal\":4294967295,"
+               "\"vote\":\"yes\"}"),
+           SERR("10", "no open proposal with that id"));
     EXPECT(REQ("10", "spaces.vote", ",\"params\":{\"proposal\":1,\"vote\":\"yes\"}"),
            ERR("10", "-32602", "missing string parameter \\\"space\\\""));
     EXPECT(REQ("10", "spaces.propose",
@@ -1244,14 +1273,19 @@ static void test_books_closed(void)
     CHECK(zxvd_rpc_earnings_sync(5) == 0, "earnings: nothing to mirror before the books open");
     /* E1: the code is 3..8 bytes, the rate 1..ZXV_AMOUNT_MAX */
     CHECK(zxvd_rpc_earnings_set("VF", 1) == -1, "earnings: a 2-byte code is refused");
+    /* E6: own-device work never earns vouchers, in any letter case */
+    CHECK(zxvd_rpc_earnings_set("VFV", 1) == -1, "E6: VFV is refused");
+    CHECK(zxvd_rpc_earnings_set("vfv", 1) == -1, "E6: vfv is refused");
+    CHECK(zxvd_rpc_earnings_set("vFv", 1) == -1, "E6: vFv is refused");
+    CHECK(zxvd_rpc_earnings_set("VFVX", 1) == 0, "E6: a longer code that starts VFV is a unit");
     CHECK(zxvd_rpc_earnings_set("ABCDEFGHI", 1) == -1, "earnings: a 9-byte code is refused");
     CHECK(zxvd_rpc_earnings_set("ABCDEFGH", 1) == 0, "earnings: an 8-byte code is accepted");
-    CHECK(zxvd_rpc_earnings_set("VFV", 0) == -1, "earnings: rate 0 is refused");
-    CHECK(zxvd_rpc_earnings_set("VFV", (uint64_t) ZXV_AMOUNT_MAX + 1u) == -1,
+    CHECK(zxvd_rpc_earnings_set("SWC", 0) == -1, "earnings: rate 0 is refused");
+    CHECK(zxvd_rpc_earnings_set("SWC", (uint64_t) ZXV_AMOUNT_MAX + 1u) == -1,
           "earnings: a rate above ZXV_AMOUNT_MAX is refused");
-    CHECK(zxvd_rpc_earnings_set("VFV", (uint64_t) ZXV_AMOUNT_MAX) == 0,
+    CHECK(zxvd_rpc_earnings_set("SWC", (uint64_t) ZXV_AMOUNT_MAX) == 0,
           "earnings: rate ZXV_AMOUNT_MAX is accepted");
-    CHECK(zxvd_rpc_earnings_set("VFV", 1) == 0, "earnings: back to the default");
+    CHECK(zxvd_rpc_earnings_set("SWC", 1) == 0, "earnings: back to the default");
 }
 
 static void test_books(void)
@@ -1537,7 +1571,7 @@ static void send_pumped(int fd, const char *buf, size_t len)
     fcntl(fd, F_SETFL, fl);
 }
 
-/* zxvd_rpc.h E1-E4. Runs after test_books: the books are open, in VFV. */
+/* zxvd_rpc.h E1-E4. Runs after test_books: the books are open, in SWC. */
 static size_t count(const char *s, const char *needle)
 {
     size_t n = 0;
@@ -1550,27 +1584,28 @@ static void test_earnings(void)
     char req[400], want[400];
     CHECK(zxvd_rpc_earnings_set("USD", 1) == -1, "earnings: no change once the books are open");
     EXPECT(REQ("1", "swarm.earnings", ""),
-           OK("1", "{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"source_account\":null,"
+           OK("1", "{\"currency\":\"SWC\",\"rate_minor\":\"1\",\"source_account\":null,"
                    "\"owner_account\":null,\"balance_minor\":\"0\",\"postings\":\"0\","
-                   "\"cycles\":\"0\",\"resumed\":false}"));
+                   "\"cycles\":\"0\",\"resumed\":false,\"vfv_reversed_minor\":\"0\"}"));
     uint32_t src = (uint32_t) count(rpc(REQ("1", "ledger.accounts", "")), "\"account\":");
     uint32_t own = src + 1u;
     CHECK(zxvd_rpc_earnings_sync(1000) == 0, "earnings: the first cycle posts");
 #define EARN(bal, posts, cycles)                                                                   \
     snprintf(want, sizeof want,                                                                    \
-             OK("1", "{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"source_account\":%u,"           \
-                     "\"owner_account\":%u,\"balance_minor\":\"" bal "\",\"postings\":\"" posts    \
-                     "\",\"cycles\":\"" cycles "\",\"resumed\":false}"),                           \
+             OK("1",                                                                               \
+                "{\"currency\":\"SWC\",\"rate_minor\":\"1\",\"source_account\":%u,"                \
+                "\"owner_account\":%u,\"balance_minor\":\"" bal "\",\"postings\":\"" posts         \
+                "\",\"cycles\":\"" cycles "\",\"resumed\":false,\"vfv_reversed_minor\":\"0\"}"),   \
              src, own);                                                                            \
     EXPECT(REQ("1", "swarm.earnings", ""), want)
     EARN("1000", "1", "1");
     snprintf(req, sizeof req, REQ("2", "ledger.accounts", ""));
     snprintf(want, sizeof want,
-             "{\"account\":%u,\"name\":\"swarm market\",\"currency\":\"VFV\",\"kind\":\"issuer\"},"
-             "{\"account\":%u,\"name\":\"owner: swarm earnings\",\"currency\":\"VFV\","
+             "{\"account\":%u,\"name\":\"swarm market\",\"currency\":\"SWC\",\"kind\":\"issuer\"},"
+             "{\"account\":%u,\"name\":\"owner: swarm earnings\",\"currency\":\"SWC\","
              "\"kind\":\"holder\"}]",
              src, own);
-    CHECK(has(req, want), "earnings: an issuer and a holder in VFV: %s", OUT.p);
+    CHECK(has(req, want), "earnings: an issuer and a holder in SWC: %s", OUT.p);
 #define BAL(acct, d, cr, eq)                                                                       \
     snprintf(req, sizeof req, REQ("3", "ledger.balance", ",\"params\":{\"account\":%u}"), acct);   \
     EXPECT(req, OK("3", "{\"debit_minor\":\"" d "\",\"credit_minor\":\"" cr                        \
@@ -1603,7 +1638,7 @@ static void test_earnings(void)
     /* a refused posting (its reference already used) changes nothing */
     snprintf(req, sizeof req,
              REQ("5", "ledger.post",
-                 ",\"params\":{\"from\":%u,\"to\":%u,\"amount_minor\":1,\"currency\":\"VFV\","
+                 ",\"params\":{\"from\":%u,\"to\":%u,\"amount_minor\":1,\"currency\":\"SWC\","
                  "\"reference\":\"swarm earnings 5\"}"),
              src, own);
     CHECK(has(req, "\"result\""), "a manual posting takes the next reference: %s", OUT.p);
@@ -1624,41 +1659,45 @@ static void test_earnings(void)
     EARN("7", "7", "8");
     BAL(own, "1009", "1001", "8");
 
-    /* another currency and rate: an ISO code is enabled from the table */
+    /* E6: an ISO 4217 currency is money, so the books refuse to open in it */
     zxvd_rpc_books_close();
     EXPECT(REQ("1", "swarm.earnings", ""), ERR("1", "-32603", "the books are not open"));
-    CHECK(zxvd_rpc_earnings_set("USD", 100) == 0, "earnings: USD at 100 per credit");
-    CHECK(zxvd_rpc_books_open() == 0, "books open in USD");
+    CHECK(zxvd_rpc_earnings_set("USD", 100) == 0, "earnings: USD is set while closed");
+    CHECK(zxvd_rpc_books_open() == -1, "E6: and the books refuse to open in it");
+    EXPECT(REQ("1", "ledger.check", ""), ERR("1", "-32603", "the books are not open"));
+    /* another private unit and rate */
+    CHECK(zxvd_rpc_earnings_set("PTS", 100) == 0, "earnings: PTS at 100 per credit");
+    CHECK(zxvd_rpc_books_open() == 0, "books open in PTS");
     EXPECT(REQ("1", "swarm.earnings", ""),
-           OK("1", "{\"currency\":\"USD\",\"rate_minor\":\"100\",\"source_account\":null,"
+           OK("1", "{\"currency\":\"PTS\",\"rate_minor\":\"100\",\"source_account\":null,"
                    "\"owner_account\":null,\"balance_minor\":\"0\",\"postings\":\"0\","
-                   "\"cycles\":\"0\",\"resumed\":false}"));
+                   "\"cycles\":\"0\",\"resumed\":false,\"vfv_reversed_minor\":\"0\"}"));
     CHECK(zxvd_rpc_earnings_sync((uint64_t) ZXV_AMOUNT_MAX / 100u + 1u) == -1,
           "earnings: credits times the rate above ZXV_AMOUNT_MAX are refused");
     EXPECT(REQ("1", "ledger.accounts", ""), OK("1", "{\"accounts\":[]}"));
     CHECK(zxvd_rpc_earnings_sync(3) == 0, "earnings: 3 credits");
     EXPECT(REQ("1", "swarm.earnings", ""),
-           OK("1", "{\"currency\":\"USD\",\"rate_minor\":\"100\",\"source_account\":0,"
+           OK("1", "{\"currency\":\"PTS\",\"rate_minor\":\"100\",\"source_account\":0,"
                    "\"owner_account\":1,\"balance_minor\":\"300\",\"postings\":\"1\","
-                   "\"cycles\":\"1\",\"resumed\":false}"));
+                   "\"cycles\":\"1\",\"resumed\":false,\"vfv_reversed_minor\":\"0\"}"));
     BAL(1u, "300", "0", "300");
     /* a code libzxv refuses keeps the books closed */
     zxvd_rpc_books_close();
-    CHECK(zxvd_rpc_earnings_set("vfv", 1) == 0, "earnings: a lower-case code is set");
+    CHECK(zxvd_rpc_earnings_set("swc", 1) == 0, "earnings: a lower-case code is set");
     CHECK(zxvd_rpc_books_open() == -1, "and refused when the books open");
     EXPECT(REQ("1", "ledger.check", ""), ERR("1", "-32603", "the books are not open"));
     CHECK(zxvd_rpc_earnings_sync(3) == 0, "earnings: nothing to mirror while closed");
     /* the accounts open at the first settled cycle, after any the owner opened */
-    CHECK(zxvd_rpc_earnings_set("VFV", 1) == 0, "earnings: back to VFV");
-    CHECK(zxvd_rpc_books_open() == 0, "books open in VFV");
+    CHECK(zxvd_rpc_earnings_set("SWC", 1) == 0, "earnings: back to SWC");
+    CHECK(zxvd_rpc_books_open() == 0, "books open in SWC");
     EXPECT(
-        REQ("1", "ledger.open_account", ",\"params\":{\"name\":\"filler\",\"currency\":\"VFV\"}"),
+        REQ("1", "ledger.open_account", ",\"params\":{\"name\":\"filler\",\"currency\":\"SWC\"}"),
         OK("1", "{\"account\":0}"));
     CHECK(zxvd_rpc_earnings_sync(2) == 0, "earnings: 2 credits");
     EXPECT(REQ("1", "swarm.earnings", ""),
-           OK("1", "{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"source_account\":1,"
+           OK("1", "{\"currency\":\"SWC\",\"rate_minor\":\"1\",\"source_account\":1,"
                    "\"owner_account\":2,\"balance_minor\":\"2\",\"postings\":\"1\","
-                   "\"cycles\":\"1\",\"resumed\":false}"));
+                   "\"cycles\":\"1\",\"resumed\":false,\"vfv_reversed_minor\":\"0\"}"));
 #undef EARN
 #undef BAL
 }
@@ -1739,6 +1778,26 @@ static void reopen(void)
     CHECK(zxvd_rpc_books_open() == 0, "the books reopen from the file");
 }
 
+/* open the books; on a refusal, why is the reason zxvd gave on stderr */
+static char WHY[600];
+static int books_open_why(void)
+{
+    fflush(stderr);
+    int saved = dup(2);
+    FILE *f = tmpfile();
+    if (saved < 0 || !f) return zxvd_rpc_books_open();
+    dup2(fileno(f), 2);
+    int rc = zxvd_rpc_books_open();
+    fflush(stderr);
+    dup2(saved, 2);
+    close(saved);
+    rewind(f);
+    size_t n = fread(WHY, 1, sizeof WHY - 1, f);
+    WHY[n] = 0;
+    fclose(f);
+    return rc;
+}
+
 static void test_books_file(void)
 {
     char tmpl[] = "/tmp/zxvdbooks.XXXXXX", req[400], want[400];
@@ -1758,7 +1817,7 @@ static void test_books_file(void)
     char *b = slurp(BOOKS, &n);
     CHECK(b && n > 66 && !memcmp(b + 65, "{\"op\":\"books\",\"v\":1}\n", 21),
           "F2: the first record is the books header: %s", b ? b : "(none)");
-    CHECK(b && strstr(b, " {\"op\":\"unit\",\"code\":\"VFV\",\"minor\":2}\n"),
+    CHECK(b && strstr(b, " {\"op\":\"unit\",\"code\":\"SWC\",\"minor\":2}\n"),
           "F3: the earnings unit is a record");
     free(b);
     CHECK(has(REQ("1", "books.file", ""), "\"saved\":true") && strstr(OUT.p, "\"records\":\"2\"") &&
@@ -1790,7 +1849,7 @@ static void test_books_file(void)
     b = slurp(BOOKS, &n);
     size_t lines = 0;
     for (long i = 0; b && i < n; i++) lines += b[i] == '\n';
-    CHECK(lines == 10, "F3: header, VFV, USD once, 2 + 2 accounts, 1 + 2 postings = 10 (%zu)",
+    CHECK(lines == 10, "F3: header, SWC, USD once, 2 + 2 accounts, 1 + 2 postings = 10 (%zu)",
           lines);
     free(b);
 
@@ -1801,8 +1860,8 @@ static void test_books_file(void)
               "{\"accounts\":[{\"account\":0,\"name\":\"bank \\\"one\\\"\",\"currency\":\"USD\","
               "\"kind\":\"issuer\"},{\"account\":1,\"name\":\"cash\",\"currency\":\"USD\","
               "\"kind\":\"holder\"},{\"account\":2,\"name\":\"swarm market\",\"currency\":"
-              "\"VFV\",\"kind\":\"issuer\"},{\"account\":3,\"name\":\"owner: swarm "
-              "earnings\",\"currency\":\"VFV\",\"kind\":\"holder\"}]}"));
+              "\"SWC\",\"kind\":\"issuer\"},{\"account\":3,\"name\":\"owner: swarm "
+              "earnings\",\"currency\":\"SWC\",\"kind\":\"holder\"}]}"));
     EXPECT(REQ("6", "ledger.balance", ",\"params\":{\"account\":1}"),
            OK("6", "{\"debit_minor\":\"9007199254740991\",\"credit_minor\":\"0\","
                    "\"equity_minor\":\"9007199254740991\"}"));
@@ -1810,16 +1869,16 @@ static void test_books_file(void)
            OK("6", "{\"entries\":[{\"entry_id\":\"1\",\"signed_minor\":\"9007199254740991\","
                    "\"counterparty\":0,\"reference\":\"e2e \xc3\xa9 1\"}]}"));
     EXPECT(REQ("7", "swarm.earnings", ""),
-           OK("7", "{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"source_account\":2,"
+           OK("7", "{\"currency\":\"SWC\",\"rate_minor\":\"1\",\"source_account\":2,"
                    "\"owner_account\":3,\"balance_minor\":\"25\",\"postings\":\"2\","
-                   "\"cycles\":\"0\",\"resumed\":true}"));
+                   "\"cycles\":\"0\",\"resumed\":true,\"vfv_reversed_minor\":\"0\"}"));
     EXPECT(REQ("8", "ledger.check", ""), OK("8", "{\"ok\":true}"));
     /* E5: the fresh swarm's holdings are the base; only the change posts */
     CHECK(zxvd_rpc_earnings_sync(1000) == 0, "E5: first sync of the run sets the base");
     EXPECT(REQ("7", "swarm.earnings", ""),
-           OK("7", "{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"source_account\":2,"
+           OK("7", "{\"currency\":\"SWC\",\"rate_minor\":\"1\",\"source_account\":2,"
                    "\"owner_account\":3,\"balance_minor\":\"25\",\"postings\":\"2\","
-                   "\"cycles\":\"1\",\"resumed\":true}"));
+                   "\"cycles\":\"1\",\"resumed\":true,\"vfv_reversed_minor\":\"0\"}"));
     CHECK(zxvd_rpc_earnings_sync(1010) == 0, "E5: +10 credits");
     CHECK(has(REQ("7", "swarm.earnings", ""), "\"balance_minor\":\"35\",\"postings\":\"3\""),
           "E5: 25 carried + 10: %s", OUT.p);
@@ -1853,25 +1912,32 @@ static void test_books_file(void)
     *amt = '8';
     spit(BOOKS, copy, n);
     zxvd_rpc_books_close();
-    CHECK(zxvd_rpc_books_open() == -1, "F4: an edited amount breaks the chain");
+    CHECK(books_open_why() == -1 && strstr(WHY, "record 6: the hash chain is broken"),
+          "F4: an edited amount breaks the chain: %s", WHY);
     CHECK(file_size(BOOKS) == n, "F4: the damaged file is left as it was");
     memcpy(copy, b, (size_t) n + 1);
     copy[3] = copy[3] == 'a' ? 'b' : 'a';
     spit(BOOKS, copy, n);
-    CHECK(zxvd_rpc_books_open() == -1, "F4: an edited hash breaks the chain");
+    CHECK(books_open_why() == -1 && strstr(WHY, "record 1: the hash chain is broken"),
+          "F4: an edited hash breaks the chain: %s", WHY);
     memcpy(copy, b, (size_t) n + 1);
     copy[64] = 'x';
     spit(BOOKS, copy, n);
-    CHECK(zxvd_rpc_books_open() == -1, "F4: a malformed record is refused");
+    CHECK(books_open_why() == -1 && strstr(WHY, "record 1: malformed record"),
+          "F4: a malformed record is refused: %s", WHY);
     memcpy(copy, b, (size_t) n + 1);
     copy[10] = 'G';
     spit(BOOKS, copy, n);
-    CHECK(zxvd_rpc_books_open() == -1, "F4: a non-hex hash is refused");
+    CHECK(books_open_why() == -1 && strstr(WHY, "record 1: malformed record"),
+          "F4: a non-hex hash is refused: %s", WHY);
     char *nl = strchr(copy, '\n');
     spit(BOOKS, nl + 1, n - (long) (nl + 1 - copy));
-    CHECK(zxvd_rpc_books_open() == -1, "F4: a file without its header is refused");
+    CHECK(books_open_why() == -1 && strstr(WHY, "record 1: the hash chain is broken"),
+          "F4: a file without its header is refused: %s", WHY);
     spit(BOOKS, b, n);
     static const char *const BAD[] = {
+        "",
+        "x",
         "{\"op\":\"nope\"}",
         "[1]",
         "{\"code\":\"USD\"}",
@@ -1879,6 +1945,7 @@ static void test_books_file(void)
         "{\"op\":\"ccy\",\"code\":5}",
         "{\"op\":\"unit\",\"code\":\"GBP\",\"minor\":2}",
         "{\"op\":\"unit\",\"code\":\"QQQ\",\"minor\":256}",
+        "{\"op\":\"unit\",\"code\":\"QQQ\",\"minor\":255}",
         "{\"op\":\"acct\",\"name\":\"x\",\"ccy\":\"USD\",\"kind\":0,\"id\":9}",
         "{\"op\":\"acct\",\"name\":\"x\",\"ccy\":\"USD\",\"kind\":2,\"id\":4}",
         "{\"op\":\"acct\",\"name\":\"x\",\"ccy\":\"XXX\",\"kind\":0,\"id\":4}",
@@ -1895,11 +1962,42 @@ static void test_books_file(void)
         "{\"op\":\"post\",\"from\":1,\"to\":0,\"amount\":\"1\",\"ccy\":\"USD\","
         "\"ref\":\"e2e \\u00e9 1\",\"id\":\"5\"}",
         "{\"op\":\"books\",\"v\":1}",
+        "{\"op\":\"post\",\"from\":4294967295,\"to\":1,\"amount\":\"1\",\"ccy\":\"USD\","
+        "\"ref\":\"r\",\"id\":\"5\"}",
+        "{\"op\":\"post\",\"from\":1,\"to\":4294967295,\"amount\":\"1\",\"ccy\":\"USD\","
+        "\"ref\":\"r\",\"id\":\"5\"}",
+    };
+    /* the reason each is refused with */
+    static const char *const BADWHY[] = {
+        "malformed record",
+        "not a JSON object",
+        "unknown op",
+        "not a JSON object",
+        "no op",
+        "currency refused",
+        "bad ccy record",
+        "unit refused",
+        "bad unit record",
+        "unit refused",
+        "account number differs",
+        "bad account record",
+        "account refused",
+        "posting refused",
+        "bad posting record",
+        "bad posting record",
+        "bad posting record",
+        "bad posting record",
+        "posting refused",
+        "unknown op",
+        "posting refused",
+        "posting refused",
     };
     for (size_t i = 0; i < sizeof BAD / sizeof BAD[0]; i++) {
         spit(BOOKS, b, n);
         append_chained(BOOKS, BAD[i]);
-        CHECK(zxvd_rpc_books_open() == -1, "F4: refused: %s", BAD[i]);
+        CHECK(books_open_why() == -1 && i < sizeof BADWHY / sizeof BADWHY[0] &&
+                  strstr(WHY, BADWHY[i]),
+              "F4: refused: %s: %s", BAD[i], WHY);
     }
     /* the same kinds of record, well formed, replay */
     static const char *const GOOD[] = {
@@ -1916,6 +2014,41 @@ static void test_books_file(void)
     EXPECT(REQ("9", "ledger.balance", ",\"params\":{\"account\":5}"),
            OK("9", "{\"debit_minor\":\"7\",\"credit_minor\":\"0\",\"equity_minor\":\"7\"}"));
     CHECK(has(REQ("1", "books.file", ""), "\"records\":\"17\""), "books.file: 17 records: %s",
+          OUT.p);
+    /* a books file past the 64 KiB first read buffer (it grows twice) replays whole */
+    zxvd_rpc_books_close();
+    {
+        long m;
+        char *cur = slurp(BOOKS, &m), hx[65], rec[160];
+        last_hash(cur, m, hx);
+        uint8_t h[32];
+        for (int i = 0; i < 32; i++) {
+            unsigned v;
+            sscanf(hx + 2 * i, "%2x", &v);
+            h[i] = (uint8_t) v;
+        }
+        free(cur);
+        FILE *f = fopen(BOOKS, "ab");
+        for (int r = 0; r < 1500; r++) {
+            snprintf(rec, sizeof rec,
+                     "{\"op\":\"post\",\"from\":4,\"to\":5,\"amount\":\"1\",\"ccy\":\"EUR\","
+                     "\"ref\":\"b%d\",\"id\":\"%d\"}",
+                     r, 7 + r);
+            sha256_ctx_t c;
+            sha256_init(&c);
+            sha256_update(&c, h, 32);
+            sha256_update(&c, (const uint8_t *) rec, strlen(rec));
+            sha256_final(&c, h);
+            for (int i = 0; i < 32; i++) fprintf(f, "%02x", h[i]);
+            fprintf(f, " %s\n", rec);
+        }
+        fclose(f);
+    }
+    CHECK(stat(BOOKS, &st) == 0 && st.st_size > 3 * 65536, "the books file is past 192 KiB");
+    CHECK(zxvd_rpc_books_open() == 0, "a large books file replays");
+    EXPECT(REQ("9", "ledger.balance", ",\"params\":{\"account\":5}"),
+           OK("9", "{\"debit_minor\":\"1507\",\"credit_minor\":\"0\",\"equity_minor\":\"1507\"}"));
+    CHECK(has(REQ("1", "books.file", ""), "\"records\":\"1517\""), "books.file: 1517 records: %s",
           OUT.p);
     free(copy);
     free(b);
@@ -1993,6 +2126,59 @@ static void test_books_file(void)
     unlink(lnk);
     rmdir(dir);
     unlink(BOOKS);
+    rmdir(tmpl);
+}
+
+/* ---------------- own-device work never earns VFV (zxvd_rpc.h E6) ---------------- */
+
+static void test_books_vfv_reversal(void)
+{
+    char tmpl[] = "/tmp/zxvdrev.XXXXXX", path[200];
+    CHECK(mkdtemp(tmpl) != NULL, "temp dir");
+    snprintf(path, sizeof path, "%s/books.zxvb", tmpl);
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_file(path) == 0 && zxvd_rpc_books_open() == 0, "E6: a new books file");
+    zxvd_rpc_books_close();
+    /* a mirror written by an older zxvd: 500 VFV credited for own-device work */
+    static const char *const OLD[] = {
+        "{\"op\":\"unit\",\"code\":\"VFV\",\"minor\":2}",
+        "{\"op\":\"acct\",\"name\":\"swarm market\",\"ccy\":\"VFV\",\"kind\":1,\"id\":0}",
+        "{\"op\":\"acct\",\"name\":\"owner: swarm earnings\",\"ccy\":\"VFV\",\"kind\":0,\"id\":1}",
+        ("{\"op\":\"post\",\"from\":0,\"to\":1,\"amount\":\"500\",\"ccy\":\"VFV\","
+         "\"ref\":\"swarm earnings 1\",\"id\":\"1\"}"),
+    };
+    for (size_t i = 0; i < sizeof OLD / sizeof OLD[0]; i++) append_chained(path, OLD[i]);
+    CHECK(zxvd_rpc_books_open() == 0, "E6: the old books open");
+    EXPECT(REQ("1", "ledger.balance", ",\"params\":{\"account\":1}"),
+           OK("1", "{\"debit_minor\":\"500\",\"credit_minor\":\"500\",\"equity_minor\":\"0\"}"));
+    CHECK(has(REQ("2", "ledger.entries", ",\"params\":{\"account\":1}"),
+              "{\"entry_id\":\"1\",\"signed_minor\":\"500\",\"counterparty\":0,"
+              "\"reference\":\"swarm earnings 1\"},{\"entry_id\":\"2\",\"signed_minor\":\"-500\","
+              "\"counterparty\":0,\"reference\":\"vfv reversal 1\"}]"),
+          "E6: the old entry stays and one reversal follows it: %s", OUT.p);
+    CHECK(has(REQ("3", "swarm.earnings", ""),
+              "\"currency\":\"SWC\",\"rate_minor\":\"1\",\"source_account\":null,"
+              "\"owner_account\":null,\"balance_minor\":\"0\",\"postings\":\"0\","
+              "\"cycles\":\"0\",\"resumed\":false,\"vfv_reversed_minor\":\"500\"}"),
+          "E6: the mirror starts again in SWC and reports the reversal: %s", OUT.p);
+    EXPECT(REQ("4", "ledger.check", ""), OK("4", "{\"ok\":true}"));
+    /* the reversal is a record of the file, and is not made twice */
+    reopen();
+    CHECK(has(REQ("3", "swarm.earnings", ""), "\"vfv_reversed_minor\":\"0\"}"),
+          "E6: a second open finds nothing to reverse: %s", OUT.p);
+    CHECK(has(REQ("2", "ledger.entries", ",\"params\":{\"account\":1}"),
+              "\"reference\":\"vfv reversal 1\"}]"),
+          "E6: still one reversal: %s", OUT.p);
+    /* own-device credit after the reversal goes to SWC, never VFV */
+    CHECK(zxvd_rpc_earnings_sync(30) == 0, "E6: a cycle posts");
+    EXPECT(REQ("5", "ledger.balance", ",\"params\":{\"account\":1}"),
+           OK("5", "{\"debit_minor\":\"500\",\"credit_minor\":\"500\",\"equity_minor\":\"0\"}"));
+    CHECK(has(REQ("3", "swarm.earnings", ""), "\"currency\":\"SWC\"") &&
+              strstr(OUT.p, "\"balance_minor\":\"30\""),
+          "E6: the credit is SWC: %s", OUT.p);
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_file("") == 0 && zxvd_rpc_books_open() == 0, "back to memory");
+    unlink(path);
     rmdir(tmpl);
 }
 
@@ -2308,7 +2494,8 @@ static void test_jurisdiction(void)
     for (unsigned i = 0; i < sizeof bad / sizeof *bad; i++) {
         spit(path, orig, keep);
         append_chained(path, bad[i]);
-        CHECK(zxvd_rpc_books_open() == -1, "bad jurisdiction record %u stops the start", i);
+        CHECK(books_open_why() == -1 && strstr(WHY, ": bad jurisdiction record."),
+              "bad jurisdiction record %u stops the start: %s", i, WHY);
         zxvd_rpc_books_close();
     }
     spit(path, orig, keep);
@@ -2735,6 +2922,44 @@ static void test_socket(void)
     rmdir(nd);
     unlink(fileparent);
     rmdir(tmpl);
+}
+
+/* ---------------- swarm.organ ---------------- */
+
+static void test_organ_method(void)
+{
+    zxvd_rpc_set_organ_ops(NULL);
+    EXPECT(REQ("1", "swarm.organ", ",\"params\":{\"organ\":\"smith\",\"prompt\":\"x\"}"),
+           ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_organ_ops(&ORGAN_NONE);
+    EXPECT(REQ("1", "swarm.organ", ",\"params\":{\"organ\":\"smith\",\"prompt\":\"x\"}"),
+           ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_organ_ops(&ORGAN_STUB);
+    EXPECT(REQ("2", "swarm.organ", ",\"params\":{\"organ\":\"smith\",\"prompt\":\"fix it\"}"),
+           OK("2", "{\"organ\":2}"));
+    CHECK(last_organ == 2 && !strcmp(last_organ_prompt, "fix it"),
+          "swarm.organ passes the organ index and prompt (%u %s)", (unsigned) last_organ,
+          last_organ_prompt);
+    EXPECT(
+        REQ("3", "swarm.organ", ",\"params\":{\"organ\":\"voice_of_tiamat\",\"prompt\":\"hello\"}"),
+        OK("3", "{\"organ\":0}"));
+    EXPECT(REQ("3", "swarm.organ", ",\"params\":{\"organ\":\"clerk\",\"prompt\":\"hello\"}"),
+           OK("3", "{\"organ\":19}"));
+    EXPECT(REQ("4", "swarm.organ", ",\"params\":{\"organ\":\"smith\",\"prompt\":\"fail\"}"),
+           ERR("4", "-32071", "the organ's budget is spent"));
+    int n = organ_asks;
+    EXPECT(REQ("5", "swarm.organ", ",\"params\":{\"organ\":\"blacksmith\",\"prompt\":\"x\"}"),
+           ERR("5", "-32602", "\\\"organ\\\" is not a Tiamat organ"));
+    EXPECT(REQ("5", "swarm.organ", ",\"params\":{\"organ\":\"Smith\",\"prompt\":\"x\"}"),
+           ERR("5", "-32602", "\\\"organ\\\" is not a Tiamat organ"));
+    EXPECT(REQ("5", "swarm.organ", ",\"params\":{\"prompt\":\"x\"}"),
+           ERR("5", "-32602", "missing string parameter \\\"organ\\\""));
+    EXPECT(REQ("5", "swarm.organ", ",\"params\":{\"organ\":\"smith\"}"),
+           ERR("5", "-32602", "missing string parameter \\\"prompt\\\""));
+    CHECK(has(REQ("5", "swarm.organ", ",\"params\":{\"organ\":7,\"prompt\":\"x\"}"), "-32602"),
+          "a non-string organ is refused");
+    CHECK(organ_asks == n, "bad params never reach the host");
+    zxvd_rpc_set_organ_ops(NULL);
 }
 
 /* ---------------- peer.* ---------------- */
@@ -3227,6 +3452,10 @@ static void test_phone_methods(void)
            ERR("2", "-32602", "\\\"on\\\" must be true or false"));
     EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":65536}"),
            ERR("2", "-32602", "\\\"port\\\" must be 0..65535"));
+    CHECK(!has(REQ("2", "phone.link",
+                   ",\"params\":{\"on\":true,\"port\":65535,\"bind\":\"8.8.8.8\"}"),
+               "must be 0..65535"),
+          "port 65535 passes the range check: %s", OUT.p);
     EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":-1}"),
            ERR("2", "-32602", "\\\"port\\\" is out of range"));
     EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":1}"),
@@ -3749,6 +3978,24 @@ static void test_groups(void)
     for (uint32_t i = 0; i < ZXVD_EXT_MAX_GROUPS; i++)
         CHECK(zxvd_rpc_add_group(&gs[i]) == 0, "group %u fits", (unsigned) i);
     CHECK(zxvd_rpc_add_group(&gs[ZXVD_EXT_MAX_GROUPS]) == -1, "one more is refused");
+    /* removing one from the middle keeps the rest; its feature stays known */
+    zxvd_rpc_remove_group(&gs[5]);
+    CHECK(has(REQ("1", "m5.x", ""), "method not found") &&
+              !has(REQ("1", "m6.x", ""), "method not found") &&
+              !has(REQ("1", "m31.x", ""), "method not found") &&
+              !has(REQ("1", "m0.x", ""), "method not found"),
+          "the others still answer: %s", OUT.p);
+    CHECK(zxvd_rpc_add_group(&gs[ZXVD_EXT_MAX_GROUPS]) == -1, "a 33rd feature is refused");
+    CHECK(zxvd_rpc_add_group(&gs[5]) == 0, "a known feature's group comes back");
+    zxvd_rpc_groups_reset();
+    /* a method a table added already has its name */
+    static const zxvd_method_t XT[] = {{"gx.ext", x_echo}};
+    static const zxvd_group_method_t G_DUP_EXT[] = {{"gx.ext", g_status, false}};
+    const zxvd_group_t dup_ext = {"gx", false, "", G_DUP_EXT, 1, NULL};
+    zxvd_rpc_add_methods(XT, 1);
+    CHECK(zxvd_rpc_add_group(&dup_ext) == -1, "a table's method name is refused");
+    zxvd_rpc_remove_methods(XT);
+    CHECK(zxvd_rpc_add_group(&dup_ext) == 0, "and is free once the table goes");
     zxvd_rpc_groups_reset();
 }
 
@@ -3826,7 +4073,8 @@ static void test_feature_save(void)
     for (unsigned i = 0; i < sizeof bad / sizeof *bad; i++) {
         spit(path, orig, keep);
         append_chained(path, bad[i]);
-        CHECK(zxvd_rpc_books_open() == -1, "bad feature record %u stops the start", i);
+        CHECK(books_open_why() == -1 && strstr(WHY, ": bad feature record."),
+              "bad feature record %u stops the start: %s", i, WHY);
         zxvd_rpc_books_close();
     }
     spit(path, orig, keep);
@@ -4694,6 +4942,8 @@ static void test_print(void)
     CHECK(has(REQ("1", "print.job", ",\"params\":{\"uri\":\"ftp://h/p\",\"job_id\":2147483647}"),
               "-32022"),
           "the biggest id reaches the device check");
+    CHECK(has(REQ("1", "print.job", ",\"params\":{\"uri\":\"ftp://h/p\",\"job_id\":1}"), "-32022"),
+          "id 1 reaches the device check");
     EXPECT(REQ("1", "print.submit",
                ",\"params\":{\"uri\":\"ipp://h/p\",\"path\":\"a.pdf\",\"copies\":1000}"),
            ERR("1", "-32602", "\\\"copies\\\" must be 1 to 999"));
@@ -5433,6 +5683,31 @@ static void test_backup(void)
              "\"max\":101}}",
              BK_DEST);
     CHECK(strstr(rpc(req), "\"code\":-32602"), "max 101");
+    /* the edges of each range are inside it */
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.list\",\"params\":{\"dest\":\"%s\","
+             "\"max\":1}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"result\":{\"space\":\"home\",\"total\":") &&
+              count(OUT.p, "{\"snapshot\":") == 1,
+          "max 1, one snapshot: %s", OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.versions\",\"params\":{\"dest\":"
+             "\"%s\",\"path\":\"o.txt\"}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"result\":{\"space\":\"home\",\"versions\":[]}"),
+          "no versions in this space: %s", OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.verify\",\"params\":{\"dest\":"
+             "\"%s\",\"snapshot\":100000}}",
+             BK_DEST);
+    CHECK(!strstr(rpc(req), "-32602") && strstr(OUT.p, "\"error\""),
+          "snapshot 100000 passes the range check: %s", OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.prune\",\"params\":{\"dest\":"
+             "\"%s\",\"keep\":100000}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"result\":{\"space\":\"home\","), "keep 100000: %s", OUT.p);
     snprintf(req, sizeof req,
              "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.list\",\"params\":{\"dest\":\"%s\","
              "\"max\":100}}",
@@ -5733,6 +6008,10 @@ static void test_journal(void)
     CHECK(strstr(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.verify\"}"),
                  "\"result\":{\"on\":true,\"ok\":true,\"segments\":"),
           "journal.verify: %s", OUT.p);
+    CHECK(has(REQ("1", "journal.query", ",\"params\":{\"max\":1}"),
+              "\"result\":{\"on\":true,\"entries\":[{") &&
+              count(OUT.p, "{\"seq\":") == 1,
+          "max 1: %s", OUT.p);
     EXPECT(REQ("1", "journal.query", ",\"params\":{\"max\":0}"),
            ERR("1", "-32602", "\\\"max\\\" must be 1 to 500"));
     EXPECT(REQ("1", "journal.query", ",\"params\":{\"max\":501}"),
@@ -6128,6 +6407,26 @@ static void test_screen(void)
            ERR("1", "-32602", "\\\"minutes\\\" must be 1 to 1440"));
     EXPECT(REQ("1", "screen.grant", ",\"params\":{\"app\":\"nolimit\",\"minutes\":5}"),
            ERR("1", "-32019", "no limit for that app"));
+    /* the edges of each range are inside it */
+    CHECK(has(REQ("1", "screen.status", ",\"params\":{\"days\":31}"), "\"result\":{\"locked\":"),
+          "31 days: %s", OUT.p);
+    EXPECT(REQ("1", "screen.set_limit", ",\"params\":{\"app\":\"quillon\",\"minutes\":1440}"),
+           OK("1", "{\"app\":\"quillon\",\"set\":true}"));
+    EXPECT(REQ("1", "screen.set_limit", ",\"params\":{\"app\":\"edge\",\"from\":1439,\"to\":0}"),
+           OK("1", "{\"app\":\"edge\",\"set\":true}"));
+    CHECK(has(REQ("1", "screen.grant", ",\"params\":{\"app\":\"quillon\",\"minutes\":1}"),
+              "\"result\":{\"app\":\"quillon\",\"left\":"),
+          "grant 1: %s", OUT.p);
+    CHECK(has(REQ("1", "screen.grant", ",\"params\":{\"app\":\"quillon\",\"minutes\":1440}"),
+              "\"result\":{\"app\":\"quillon\",\"left\":"),
+          "grant 1440: %s", OUT.p);
+    EXPECT(
+        REQ("1", "screen.lock", ",\"params\":{\"passphrase\":\"a\"}"),
+        ERR("1", "-32602", "\\\"passphrase\\\" must be at least 4 bytes, or \\\"\\\" to unlock"));
+    EXPECT(REQ("1", "screen.lock", ",\"params\":{\"passphrase\":\"abcd\"}"),
+           OK("1", "{\"locked\":true}"));
+    EXPECT(REQ("1", "screen.lock", ",\"params\":{\"passphrase\":\"\",\"old\":\"abcd\"}"),
+           OK("1", "{\"locked\":false}"));
     zsc_close();
     zsc_set_clock(NULL);
     CHECK(zsc_today() > 20260000, "the real clock");
@@ -6372,6 +6671,19 @@ static void test_place(void)
                "lon within 180 degrees"));
     EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":0,\"lon\":0,\"accuracy_m\":0}"),
            ERR("1", "-32602", "\\\"accuracy_m\\\" must be 1 to 1000000"));
+    EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":0,\"lon\":0,\"accuracy_m\":1000001}"),
+           ERR("1", "-32602", "\\\"accuracy_m\\\" must be 1 to 1000000"));
+    EXPECT(REQ("1", "place.set_here",
+               ",\"params\":{\"lat\":90000000,\"lon\":180000000,\"accuracy_m\":1000000,"
+               "\"source\":\"x\"}"),
+           OK("1", "{\"known\":true,\"lat\":90000000,\"lon\":180000000,\"accuracy_m\":1000000,"
+                   "\"source\":\"x\",\"time\":1791799801,\"stale\":false}"));
+    EXPECT(REQ("1", "place.set_here",
+               ",\"params\":{\"lat\":-90000000,\"lon\":-180000000,\"accuracy_m\":1}"),
+           OK("1", "{\"known\":true,\"lat\":-90000000,\"lon\":-180000000,\"accuracy_m\":1,"
+                   "\"source\":\"owner\",\"time\":1791799801,\"stale\":false}"));
+    rpc(REQ("1", "place.set_here",
+            ",\"params\":{\"lat\":-1,\"lon\":-2,\"accuracy_m\":9,\"source\":\"corelocation\"}"));
     EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":0,\"lon\":0,\"source\":\"a b\"}"),
            ERR("1", "-32602", "a bad name, app or coordinate"));
     EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":0}"),
@@ -6431,6 +6743,7 @@ int main(void)
     test_protocol();
     test_host_methods();
     test_peer_methods();
+    test_organ_method();
     test_phone_methods();
     test_aipi_methods();
     test_files_methods();
@@ -6448,6 +6761,7 @@ int main(void)
     test_books();
     test_earnings();
     test_books_file();
+    test_books_vfv_reversal();
     test_mesh();
     test_views();
     test_play();

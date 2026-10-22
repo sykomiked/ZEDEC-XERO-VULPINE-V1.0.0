@@ -779,3 +779,43 @@ int terms_log_status(const char *log, size_t len, const char *seat, const terms_
     rc = walk(log, len, 0, 0, status_fn, &s);
     return rc < 0 ? rc : s.status;
 }
+
+/* ---- sign-in gate ---- */
+void terms_seat_hex(const uint8_t id[16], char out[33])
+{
+    static const char hx[] = "0123456789abcdef";
+    for (int i = 0; i < 16; i++) {
+        out[2 * i] = hx[id[i] >> 4];
+        out[2 * i + 1] = hx[id[i] & 15];
+    }
+    out[32] = 0;
+}
+
+int terms_gate_check(terms_gate_t *g, const char *seat, const char *log, size_t len,
+                     const terms_doc_t *doc)
+{
+    if (!g || !doc || !terms_seat_valid(seat) || (!log && len)) return TERMS_ERR_ARG;
+    memset(g, 0, sizeof *g);
+    memcpy(g->seat, seat, strlen(seat) + 1);
+    g->doc = doc;
+    int n = terms_log_verify(log ? log : "", len, g->tip, &g->bad_line);
+    if (n < 0) { /* never trust a damaged log: show the text, start afresh */
+        g->fresh_log = true;
+        memset(g->tip, 0, sizeof g->tip);
+        g->status = n;
+        return 1;
+    }
+    g->status = terms_log_status(log ? log : "", len, seat, g->doc);
+    return g->status == TERMS_STATUS_CURRENT ? 0 : 1;
+}
+
+int terms_gate_accept(const terms_gate_t *g, const terms_reader_t *r, uint64_t time, char *line,
+                      size_t cap)
+{
+    if (!g || !r || !line || !g->doc || r->doc != g->doc) return TERMS_ERR_ARG;
+    terms_record_t rec;
+    int rc = terms_accept(r, g->seat, time, g->tip, &rec);
+    if (rc != TERMS_OK) return rc;
+    size_t n = terms_record_format(&rec, line, cap);
+    return n ? (int) n : TERMS_ERR_ARG;
+}

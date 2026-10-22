@@ -20,6 +20,13 @@ baseline recorded in the config):
   shard), so every target lands in exactly one shard and each shard still
   fails below its own targets' baselines.
 
+  A target too big for one job splits by mutant with --part K/M: part K runs
+  every M-th mutant (ids K-1, K-1+M, ...), writes <name>.after.partK.json and
+  does not gate. --gate DIR then sums the parts' counts per target and fails
+  below the baseline, so the score is the whole target's:
+    mutate.py --config ... --ci --only zxvd_rpc --part 2/4 --out parts
+    mutate.py --config ... --gate parts
+
 How it works
   The target is scanned with comments, string/char literals and preprocessor
   lines masked out, so only real code is mutated. Each mutant changes exactly
@@ -268,8 +275,17 @@ def copy_tree(dst):
     return dst
 
 
+# --mem-mb: each test command's address-space limit in KiB (ulimit -v), or 0. A
+# mutant that grows memory without bound otherwise takes jobs x its growth
+# before the timeout ends it; on a CI runner that has run the machine out of
+# memory and lost the job.
+MEM_KB = 0
+
+
 def run_cmd(cmd, cwd, timeout, env):
     t0 = time.time()
+    if MEM_KB:
+        cmd = "ulimit -v %d; %s" % (MEM_KB, cmd)
     p = subprocess.Popen(cmd, shell=True, cwd=cwd, env=env, stdout=subprocess.DEVNULL,
                          stderr=subprocess.DEVNULL, start_new_session=True)
     try:
@@ -285,13 +301,16 @@ def run_cmd(cmd, cwd, timeout, env):
 
 
 def run_target(name, target, cmd, lines, ops, jobs, workers, build_code, out_dir, phase,
-               timeout_factor, max_mutants, verbose):
+               timeout_factor, max_mutants, verbose, part=None):
     src_path = os.path.join(ROOT, target)
     with open(src_path) as f:
         src = f.read()
     muts = gen_mutants(src, ops, lines)
     if max_mutants:
         muts = muts[:max_mutants]
+    if part:
+        k, m = part
+        muts = muts[k - 1::m]
     env = dict(os.environ)
     env["ZXV_MUT_TARGET"] = target
     env["ZXV_OBJ_CACHE"] = os.path.join(out_dir, "objcache")
@@ -376,9 +395,12 @@ def run_target(name, target, cmd, lines, ops, jobs, workers, build_code, out_dir
     res = dict(name=name, target=target, phase=phase, command=cmd, lines=lines, ops=ops,
                counts=cnt, mutants=len(muts), score=round(score, 4), mutant_list=muts)
     os.makedirs(out_dir, exist_ok=True)
-    with open(os.path.join(out_dir, "%s.%s.json" % (name, phase)), "w") as f:
+    stem = "%s.%s%s" % (name, phase, ".part%d" % part[0] if part else "")
+    if part:
+        res["part"] = list(part)
+    with open(os.path.join(out_dir, stem + ".json"), "w") as f:
         json.dump(res, f, indent=1)
-    with open(os.path.join(out_dir, "%s.%s.txt" % (name, phase)), "w") as f:
+    with open(os.path.join(out_dir, stem + ".txt"), "w") as f:
         f.write("%s (%s): score %.1f%% = %d killed + %d timeout of %d valid; %d compile-error; "
                 "%d mutants\n" % (target, phase, 100 * score, cnt["killed"], cnt["timeout"],
                                   valid, cnt["compile-error"], len(muts)))
@@ -561,6 +583,64 @@ def shard_names(cfg, names, spec, ops):
     return shards[i - 1]
 
 
+def parse_part(spec):
+    k, _, m = (spec or "").partition("/")
+    try:
+        k, m = int(k), int(m)
+    except ValueError:
+        raise SystemExit("--part %s: want K/M with 1 <= K <= M" % spec)
+    if not 1 <= k <= m:
+        raise SystemExit("--part %s: want K/M with 1 <= K <= M" % spec)
+    return k, m
+
+
+def gate_parts(cfg, out_dir):
+    """Sum the --part results in out_dir per target and fail below the baseline.
+    Every part 1..M of a target must be there: a missing part fails the gate."""
+    got = {}
+    for fn in sorted(os.listdir(out_dir)):
+        if not re.match(r".+\.after\.part\d+\.json$", fn):
+            continue
+        with open(os.path.join(out_dir, fn)) as f:
+            r = json.load(f)
+        k, m = r["part"]
+        g = got.setdefault(r["name"], {"m": m, "parts": set(),
+                                       "counts": {c: 0 for c in r["counts"]}})
+        if g["m"] != m or k in g["parts"]:
+            print("[FAIL] %s: part %d/%d does not fit the other parts" % (r["name"], k, m))
+            return 1
+        g["parts"].add(k)
+        for c, v in r["counts"].items():
+            g["counts"][c] += v
+    if not got:
+        print("[FAIL] no --part results in %s" % out_dir)
+        return 1
+    bad = 0
+    for name, g in sorted(got.items()):
+        c = g["counts"]
+        missing = sorted(set(range(1, g["m"] + 1)) - g["parts"])
+        valid = c["killed"] + c["timeout"] + c["survived"]
+        score = (c["killed"] + c["timeout"]) / valid if valid else 0.0
+        base = cfg["ci"]["baseline"].get(name)
+        print("%s: %d parts, score %.1f%% (killed %d, timeout %d, survived %d, compile-error %d)"
+              % (name, len(g["parts"]), 100 * score, c["killed"], c["timeout"], c["survived"],
+                 c["compile-error"]))
+        if missing:
+            print("[FAIL] %s: parts %s of %d are missing" % (name, missing, g["m"]))
+            bad += 1
+        elif base is None:
+            print("[FAIL] %s has no measured baseline in the config" % name)
+            bad += 1
+        elif score + 1e-9 < base:
+            print("[FAIL] %s mutation score %.1f%% is below the baseline %.1f%%"
+                  % (name, 100 * score, 100 * base))
+            bad += 1
+        else:
+            print("[PASS] %s mutation score %.1f%% (baseline %.1f%%)"
+                  % (name, 100 * score, 100 * base))
+    return 1 if bad else 0
+
+
 def check_config(cfg, path):
     """Fail fast (quick-checks) on a config the mutation jobs would choke on:
     duplicate names, missing target files, unknown CI targets, a bad "lines"
@@ -602,11 +682,17 @@ def main(argv):
     ap.add_argument("--ci", action="store_true",
                     help="run the config's CI subset and fail below its baselines")
     ap.add_argument("--shard", help="with --ci: run shard I of N (I/N, 1-based)")
+    ap.add_argument("--part", help="run every M-th mutant of each target, starting at K (K/M); "
+                    "no gate: --gate sums the parts")
+    ap.add_argument("--gate", metavar="DIR",
+                    help="with --config: sum the --part results in DIR and gate them")
     ap.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2)))
     ap.add_argument("--build-code", type=int, default=3,
                     help="exit status of the test command meaning 'did not build' (tiers.py: 3)")
     ap.add_argument("--timeout-factor", type=float, default=4.0)
     ap.add_argument("--max-mutants", type=int, default=0)
+    ap.add_argument("--mem-mb", type=int, default=0,
+                    help="limit each test command's address space to this many MiB (0: none)")
     ap.add_argument("--list", action="store_true", help="print the mutants and exit")
     ap.add_argument("--out", default=None, help="results directory")
     ap.add_argument("-v", "--verbose", action="store_true")
@@ -614,9 +700,12 @@ def main(argv):
     ap.add_argument("--check-config", action="store_true",
                     help="with --config: check the config parses and is consistent, then exit")
     a = ap.parse_args(argv)
+    global MEM_KB
+    MEM_KB = max(0, a.mem_mb) * 1024
     if a.selftest:
         return selftest()
     ops = a.ops.split(",")
+    part = parse_part(a.part) if a.part else None
 
     jobs = []  # (name, target, lines, phase, cmd)
     cfg = None
@@ -630,6 +719,8 @@ def main(argv):
                 return 1
         if a.check_config:
             return check_config(cfg, a.config)
+        if a.gate:
+            return gate_parts(cfg, a.gate)
         names = None
         if a.ci:
             names = cfg["ci"]["targets"]
@@ -677,7 +768,7 @@ def main(argv):
     try:
         for name, target, lines, ph, cmd in jobs:
             r = run_target(name, target, cmd, lines, ops, a.jobs, workers, a.build_code, out_dir,
-                           ph, a.timeout_factor, a.max_mutants, a.verbose)
+                           ph, a.timeout_factor, a.max_mutants, a.verbose, part)
             if r is None:
                 return 2
             results.append(r)
@@ -691,6 +782,9 @@ def main(argv):
         print("%-16s %-7s %6.1f%% %7d %8d %8d %8d" % (r["name"], r["phase"], 100 * r["score"],
                                                      c["killed"], c["timeout"], c["survived"],
                                                      c["compile-error"]))
+    if a.ci and part:
+        print("part %d/%d: no gate here; mutate.py --gate sums the parts" % part)
+        return 0
     if a.ci:
         bad = 0
         for r in results:

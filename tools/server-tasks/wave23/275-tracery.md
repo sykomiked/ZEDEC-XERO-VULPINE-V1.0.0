@@ -1,6 +1,6 @@
 # Wave 23 task: Tracery (slot 275), Reserve records
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 7 (093 understory); wave 12 (154 chainman); wave 14 (176 verderer); wave 15 (192 coppice); wave 19 (230 fen).
+Depends on: wave 8 (093 understory), wave 12 (154 chainman), wave 14 (176 verderer), wave 15 (192 coppice), wave 19 (230 fen).
 Manifest: `slot 275`, `layer L3`, `icon icons/l3/275-tracery.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: records wildlife sightings, herd counts and habitat health across a reserve (`place.here`, `place.list`, `place.add`, `files.read`, `files.write`, `search.query`) for rangers and landowners.
 Uses: `use coppice 1` (felling allowed, stand grid); `use verderer 1` (population estimate, "share this place"); `use chainman 1` (parcel area, overlaps); `use fen 1` (specimen register, held identification); `use understory 1` (rolling-window totals). Call these composed entries; do not re-implement them.

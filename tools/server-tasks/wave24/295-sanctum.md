@@ -1,6 +1,6 @@
 # Wave 24 task: Sanctum (slot 295), Custody
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 1 (009 lockbox); wave 6 (081 heirloom); wave 12 (153 pavise); wave 14 (173 warding); wave 19 (234 neap).
+Depends on: wave 2 (009 lockbox), wave 8 (081 heirloom), wave 12 (153 pavise), wave 14 (173 warding), wave 19 (234 neap).
 Manifest: `slot 295`, `layer L3`, `icon icons/l3/295-sanctum.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: custody for valuables and digital assets: who holds what, guardians, withdrawal rules and signed audits (`ledger.accounts`, `ledger.balance`, `ledger.holds`, `recovery.status`, `journal.query`, `journal.verify`).
 Uses: `use warding 1` ("key active", key register); `use pavise 1` (combined "allow"); `use neap 1` ("entry may post", A = L + E); `use heirloom 1` ("release due", split preview); `use lockbox 1` (key expiry, limits). Call these composed entries; do not re-implement them.

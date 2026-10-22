@@ -80,7 +80,7 @@ static struct {
     uint32_t crown_caps;
     int min_mode;
     surplus_real_t min_arg;
-    int ipfs_mode; /* 1: corrupt byte 0, 2: corrupt byte 1 */
+    int ipfs_mode; /* 1: corrupt byte 0, 2: corrupt byte 1, 3: corrupt byte 31 */
     uint8_t ipfs_data[8];
     uint32_t ipfs_len;
 } F;
@@ -241,6 +241,7 @@ int32_t __wrap_ipfs_cid_from_bytes(const uint8_t *data, uint32_t len, uint8_t ou
     int32_t r = __real_ipfs_cid_from_bytes(data, len, out_cid);
     if (F.ipfs_mode == 1) out_cid[0] ^= 1;
     if (F.ipfs_mode == 2) out_cid[1] ^= 1;
+    if (F.ipfs_mode == 3) out_cid[31] ^= 1;
     return r;
 }
 
@@ -548,6 +549,10 @@ static void test_economy(void)
     F.ipfs_mode = 2;
     CHECK(boot_economy_init(cap) == 4, "cid[1] wrong -> 4");
     expect_economy(E_OP, E_ZC, E_CR, E_MI, "  [??] ipfs\n", s4, "ipfs byte 1 ?? text");
+    reset();
+    F.ipfs_mode = 3;
+    CHECK(boot_economy_init(cap) == 4, "cid[31] wrong -> 4");
+    expect_economy(E_OP, E_ZC, E_CR, E_MI, "  [??] ipfs\n", s4, "ipfs last byte ?? text");
 
     reset();
     F.op_mode = 1;

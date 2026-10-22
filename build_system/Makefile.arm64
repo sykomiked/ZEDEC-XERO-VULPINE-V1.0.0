@@ -40,6 +40,16 @@ MAKEFLAGS += -j$(JOBS)
 # collision that this variable removes.
 OBJDIR := build/arm64
 
+# BOARD picks a profile from kernel/arch/arm64/board_profile.h (default 0, QEMU
+# virt): 5 RK3588, 6 Zynq UltraScale+, 7 Versal. A board build gets its own
+# object tree and ELF name, so it never mixes with the default image.
+# build_system/boards_boot_check.sh boots 6 and 7 in QEMU's models of them.
+BOARD ?=
+ifneq ($(BOARD),)
+OBJDIR := build/arm64-board$(BOARD)
+BOARD_CFLAGS := -DTARGET_BOARD=$(BOARD)
+endif
+
 # NOTE: -fno-tree-vectorize/-fno-tree-slp-vectorize below are REQUIRED for
 # correctness, not speed: the IRQ vector (boot.s SAVE_REGS) saves only x0-x30,
 # NOT the FP/SIMD register file, so any live state the compiler parks in NEON
@@ -54,7 +64,7 @@ OBJDIR := build/arm64
 # -Wtautological-compare) were fixed rather than suppressed. Same rationale as the
 # Linux kernel disabling this one sub-warning.
 CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
-         -fno-stack-protector -fno-pie -no-pie -fno-builtin \
+         -fno-stack-protector -fno-pie -no-pie -fno-builtin $(BOARD_CFLAGS) \
          -ffunction-sections -fdata-sections \
          -fno-tree-vectorize -fno-tree-slp-vectorize -mgeneral-regs-only \
          -Werror=double-promotion -Werror=float-conversion \
@@ -88,7 +98,7 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -Ikernel/src/oseq -Ikernel/src/rmag -Ikernel/src/lpres \
          -Ikernel/src/iphase -Ikernel/src/choice -Ikernel/src/phase_coord \
          -Ikernel/src/crit168 -Ikernel/include/freestanding_stubs \
-         -Ikernel/src/net \
+         -Ikernel/src/net -Ikernel/src/passport -Ikernel/src/ident -Ikernel/src/tls -Ikernel/src/ipfs_node \
          -Ikernel/src/count_house -Ikernel/src/porter_house \
          -Ikernel/src/event_sched \
          -Ikernel/src/mesh_token \
@@ -203,6 +213,7 @@ ARM64_ARCH_OBJS = \
     $(OBJDIR)/kernel/arch/arm64/gicv3.o \
     $(OBJDIR)/kernel/arch/arm64/arm64_timer.o \
     $(OBJDIR)/kernel/arch/arm64/arm64_mmu.o \
+    $(OBJDIR)/kernel/arch/arm64/mmu_window.o \
     $(OBJDIR)/kernel/arch/arm64/arm64_exceptions.o \
     $(OBJDIR)/kernel/arch/arm64/boot_evidence.o \
     $(OBJDIR)/kernel/arch/arm64/kernel_main_arm64.o \
@@ -326,6 +337,9 @@ KERNEL_SRCS = \
     kernel/src/lightningrod/lightningrod.c \
     kernel/src/bios/zbios.c \
     kernel/src/chiglet/chiglet.c \
+    kernel/src/chiglet/chg_abi.c \
+    kernel/src/chiglet/chg_cells.c \
+    kernel/src/chiglet/chg_cells_table.c \
     kernel/src/cards/cards.c \
     kernel/src/cards/zca.c \
     kernel/src/cards/sigil.c \
@@ -395,6 +409,10 @@ KERNEL_SRCS = \
     kernel/src/vbe/vbe.c \
     kernel/src/desktop/zxv_shell.c \
     kernel/src/desktop/zxv_shell_font.c \
+    kernel/src/desktop/zxv_shell_apps.c \
+    kernel/src/zui/zui_vec.c \
+    kernel/src/zui/zui_apps.c \
+    kernel/src/zui/zui_applib.c \
     kernel/src/zui/zui_desk.c \
     kernel/src/zui/zui_wm.c \
     kernel/src/zui/zui_dock.c \
@@ -508,6 +526,24 @@ KERNEL_SRCS = \
     kernel/src/pqsec/mldsa/rounding.c \
     kernel/src/pqsec/mldsa/sign.c \
     kernel/src/pqsec/mldsa/symmetric-shake.c \
+    kernel/src/pqsec/pq_slhdsa.c \
+    kernel/src/pqsec/slhdsa/sha3_api.c \
+    kernel/src/pqsec/slhdsa/sha3_f1600.c \
+    kernel/src/pqsec/slhdsa/slh_dsa.c \
+    kernel/src/pqsec/slhdsa/slh_shake.c \
+    kernel/src/pqsec/pq_matrix.c \
+    kernel/src/pqsec/pq_mlkem1024.c \
+    kernel/src/pqsec/pq_mldsa87.c \
+    kernel/src/pqsec/pq_hqc5.c \
+    kernel/src/pqsec/pq_slh256s.c \
+    kernel/src/ident/id_argon2.c \
+    kernel/src/ident/id_core.c \
+    kernel/src/ident/id_passkey.c \
+    kernel/src/ipfs_node/ipfsn_multiformats.c \
+    kernel/src/passport/pp_core.c \
+    kernel/src/passport/pp_state.c \
+    kernel/src/passport/pp_cafe.c \
+    kernel/src/passport/pp_console.c \
     kernel/src/browser/browser.c \
     kernel/src/choice/choice.c \
     kernel/src/clock/event_clock.c \
@@ -552,6 +588,7 @@ KERNEL_SRCS = \
     kernel/src/wifi/wifi.c \
     kernel/src/zxpkg/zxpkg.c \
     kernel/src/swarm/swarm_boot.c \
+    kernel/src/swarm/swarm_bootmodel.c \
     kernel/src/swarm/swarm_budget.c \
     kernel/src/swarm/swarm_dna.c \
     kernel/src/swarm/swarm_emotion.c \
@@ -642,8 +679,13 @@ KERNEL_OBJS = $(patsubst %.c,$(OBJDIR)/%.o,$(KERNEL_SRCS))
 OBJDIRS := $(sort $(dir $(ARM64_ARCH_OBJS) $(KERNEL_OBJS)))
 $(shell mkdir -p $(OBJDIRS))
 
+ifneq ($(BOARD),)
+TARGET = kernel_arm64_board$(BOARD).elf
+TARGET_BIN = kernel_arm64_board$(BOARD).bin
+else
 TARGET = kernel_arm64.elf
 TARGET_BIN = kernel_arm64.bin
+endif
 
 # Auto-generated header dependencies (from -MMD -MP): rebuild any .o when a
 # header it includes changes. Without this, editing a struct in a .h left stale
@@ -703,9 +745,10 @@ $(TARGET_BIN): $(TARGET)
 # Stub is -fno-pic (PC-relative adrp/add, no runtime relocs) + no FP/NEON.
 EFI_APP = BOOTAA64.EFI
 EFI_OBJS = kernel/arch/arm64/efi_header.o kernel/arch/arm64/efi_stub.o kernel/arch/arm64/efi_tramp.o kernel/arch/arm64/efi_kernel_blob.o
-$(EFI_APP): $(TARGET_BIN) kernel/arch/arm64/efi_stub.c kernel/arch/efi_models.h kernel/arch/zxv_handoff.h kernel/arch/arm64/efi_header.S kernel/arch/arm64/efi_tramp.S kernel/arch/arm64/efi_kernel_blob.S build_system/efi_stub.ld
-	@# handoff v2 checks the kernel's whole window, image AND BSS, so the stub
-	@# needs __kernel_end (the boot stack sits inside it on arm64).
+$(EFI_APP): $(TARGET_BIN) kernel/arch/arm64/efi_stub.c kernel/arch/efi_models.h kernel/arch/zxv_handoff.h kernel/arch/zxv_aimodel.h kernel/arch/arm64/efi_header.S kernel/arch/arm64/efi_tramp.S kernel/arch/arm64/efi_kernel_blob.S build_system/efi_stub.ld
+	@# handoff v2 checks the kernel's whole window, image AND BSS, and keeps the
+	@# boot model out of it, so the stub needs __kernel_end (the boot stack sits
+	@# inside it on arm64).
 	@KEND=$$($(CROSS_COMPILE)nm $(TARGET) | awk '/ __kernel_end$$/{print "0x"$$1}'); \
 	 test -n "$$KEND" || { echo "  [EFI][arm64] ERROR: __kernel_end not found in $(TARGET)"; exit 1; }; \
 	 echo "  [EFI][arm64] kernel window 0x40080000 .. $$KEND"; \

@@ -63,7 +63,6 @@ typedef struct {
     u8 Daylight, Pad2;
 } EFI_TIME;
 
-#include "../efi_models.h" /* golden disc: verify \ZXV\MODELS\*.gguf */
 #include "../zxv_handoff.h" /* handoff v2: memory map, ACPI, clock, verdicts */
 
 /* UEFI function-pointer types (all EFIAPI / ms_abi) */
@@ -237,13 +236,13 @@ EFIAPI unsigned long efi_main(EFI_HANDLE image, SYSTAB *st){
         }
     }
 
-    /* A golden disc carries AI models: check each one's SHA-256 while the
-     * firmware's file system is still there. Nothing happens on a plain disc. */
-    int nmod = efi_check_models(image, st->BootSvc->HandleProtocol, st->BootSvc->AllocatePool,
-                                st->BootSvc->FreePool);
-    hx.models_bad = (u32) em_last_bad;
-    hx.models_ok = nmod > em_last_bad ? (u32) (nmod - em_last_bad) : 0;
-    hx.models = nmod == 0 ? 0 /*NEITHER*/ : (nmod < 0 || em_last_bad) ? 2 /*FALSE*/ : 1 /*TRUE*/;
+    /* A golden disc's AI models are not read here. The kernel finds them on
+     * the disc with its own storage drivers and hashes each one after boot
+     * (kernel/src/hwdrv/hw_models.h), so boot time no longer grows with the
+     * disc and no model passes through firmware. hx.models stays NEITHER. */
+    hx.models = 0;
+    hx.models_ok = 0;
+    hx.models_bad = 0;
 
     /* ---- GetMemoryMap + ExitBootServices (UEFI spec 7.4) ---- */
     u64 msz=0, mkey=0, dsz=0; u32 dver=0; void *mmap=0;
