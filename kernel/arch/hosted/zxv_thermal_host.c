@@ -354,7 +354,9 @@ static void linux_zones(zth_report_t *rep, const char *root)
 /* ---- T1: macOS (compiled only on macOS; not compiled or tested in CI) ------- */
 
 #if defined(__APPLE__)
-/* whole millidegrees from the OS's double, or false for NaN and the absurd */
+#    if defined(__arm64__) || defined(__aarch64__)
+/* whole millidegrees from the OS's double, or false for NaN and the absurd
+ * (only the Apple silicon reader takes a double) */
 static bool mdeg_of(double c, int32_t *mdeg)
 {
     if (!(c > -1000.0 && c < 1000.0)) return false; /* also false for NaN */
@@ -363,7 +365,6 @@ static bool mdeg_of(double c, int32_t *mdeg)
     return true;
 }
 
-#    if defined(__arm64__) || defined(__aarch64__)
 /* Apple silicon: the HID event system's temperature services. These calls
  * are exported by IOKit.framework but not in its public headers. */
 typedef struct __IOHIDEvent *IOHIDEventRef;

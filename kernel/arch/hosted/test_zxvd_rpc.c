@@ -8451,7 +8451,9 @@ static void test_proc(void)
     rpc(r);
     usleep(50000);
     e = proc_entry((long) kid, false);
-    CHECK(e && strstr(e, "\"state\":\"sleeping\""), "going again: %s", e ? e : "");
+    /* not stopped: Linux says sleeping; macOS reports SRUN for a sleep(1) */
+    CHECK(e && (strstr(e, "\"state\":\"sleeping\"") || strstr(e, "\"state\":\"running\"")),
+          "going again: %s", e ? e : "");
     snprintf(r, sizeof r,
              "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"proc.signal\",\"params\":{\"pid\":%ld,"
              "\"signal\":\"usr1\"}}",

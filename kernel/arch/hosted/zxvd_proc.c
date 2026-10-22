@@ -212,12 +212,45 @@ static bool read_cmd(long pid, char *exe, size_t exe_cap, char *args, size_t *le
 
 static mach_timebase_info_data_t TB;
 
+/* macOS reports SRUN, SSLEEP, SSTOP, SZOMB and SIDL as the BSD status */
+static char state_of(uint32_t st)
+{
+    return st == SRUN     ? 'r'
+           : st == SSLEEP ? 's'
+           : st == SSTOP  ? 't'
+           : st == SZOMB  ? 'z'
+           : st == SIDL   ? 'i'
+                          : '?';
+}
+
+/* Another user's process (launchd, pid 1, among them): the full BSD info is
+ * refused, the short one is not; it has no start time or CPU figures. */
+static bool read_short(long pid, pinfo_t *p)
+{
+    struct proc_bsdshortinfo si;
+    if (proc_pidinfo((int) pid, PROC_PIDT_SHORTBSDINFO, 0, &si, PROC_PIDT_SHORTBSDINFO_SIZE) !=
+        PROC_PIDT_SHORTBSDINFO_SIZE)
+        return false;
+    memset(p, 0, sizeof *p);
+    p->pid = pid;
+    p->ppid = (long) si.pbsi_ppid;
+    p->pgid = (long) si.pbsi_pgid;
+    p->uid = (long) si.pbsi_uid;
+    pid_t sid = getsid((pid_t) pid);
+    p->sid = sid < 0 ? -1 : (long) sid;
+    size_t nn = strnlen(si.pbsi_comm, sizeof si.pbsi_comm);
+    if (nn >= sizeof p->name) nn = sizeof p->name - 1;
+    memcpy(p->name, si.pbsi_comm, nn);
+    p->state = state_of(si.pbsi_status);
+    return true;
+}
+
 static bool read_proc(long pid, pinfo_t *p)
 {
     struct proc_bsdinfo bi;
     if (proc_pidinfo((int) pid, PROC_PIDTBSDINFO, 0, &bi, PROC_PIDTBSDINFO_SIZE) !=
         PROC_PIDTBSDINFO_SIZE)
-        return false;
+        return read_short(pid, p);
     memset(p, 0, sizeof *p);
     p->pid = pid;
     p->ppid = (long) bi.pbi_ppid;
@@ -229,12 +262,7 @@ static bool read_proc(long pid, pinfo_t *p)
     size_t nn = strnlen(nm, bi.pbi_name[0] ? sizeof bi.pbi_name : sizeof bi.pbi_comm);
     if (nn >= sizeof p->name) nn = sizeof p->name - 1;
     memcpy(p->name, nm, nn);
-    p->state = bi.pbi_status == SRUN     ? 'r'
-               : bi.pbi_status == SSLEEP ? 's'
-               : bi.pbi_status == SSTOP  ? 't'
-               : bi.pbi_status == SZOMB  ? 'z'
-               : bi.pbi_status == SIDL   ? 'i'
-                                         : '?';
+    p->state = state_of(bi.pbi_status);
     p->started_ms = (int64_t) bi.pbi_start_tvsec * 1000 + (int64_t) bi.pbi_start_tvusec / 1000;
     struct proc_taskinfo ti;
     if (proc_pidinfo((int) pid, PROC_PIDTASKINFO, 0, &ti, PROC_PIDTASKINFO_SIZE) ==
@@ -356,7 +384,9 @@ static bool gone(long pid, int64_t started_ms)
 {
     if (kill((pid_t) pid, 0) != 0 && errno == ESRCH) return true;
     pinfo_t p;
-    if (!read_proc(pid, &p)) return kill((pid_t) pid, 0) != 0 && errno == ESRCH;
+    /* a pid this zxvd may signal but cannot read has exited: macOS keeps no
+     * task, so no BSD info, for a zombie */
+    if (!read_proc(pid, &p)) return kill((pid_t) pid, 0) != 0 ? errno == ESRCH : true;
     return p.state == 'z' || p.started_ms != started_ms;
 }
 

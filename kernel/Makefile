@@ -2225,7 +2225,7 @@ ZXV_AI_MODEL ?=
 test-ai-web:
 	@mkdir -p $(ZXV_TMP)/zxv_ai_web
 	@gcc -std=c11 -O2 -Wall -Werror -Wextra -Iarch/hosted -Isrc/tensor arch/hosted/write_test_model.c src/tensor/zt_gguf.c src/tensor/zt.c -o $(ZXV_TMP)/write_test_model && $(ZXV_TMP)/write_test_model $(ZXV_TMP)/zxv_ai_web/tiny.gguf > /dev/null || { echo "[FAIL] write_test_model"; exit 1; }
-	@gcc -std=c11 -O2 -Wall -Werror -Wextra -Iarch/hosted -Isrc/tensor ../web/ai/test_zxv_ai_engine.c ../web/ai/zxv_ai_engine.c arch/hosted/zxv_zt_glue.c src/tensor/zt*.c -ldl -lpthread -lm -o $(ZXV_TMP)/test_zxv_ai_engine || { echo "[FAIL] test_zxv_ai_engine build"; exit 1; }
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -Iarch/hosted -Isrc/tensor -Iinclude -Isrc/modbind ../web/ai/test_zxv_ai_engine.c ../web/ai/zxv_ai_engine.c arch/hosted/zxv_zt_glue.c src/tensor/zt*.c src/robin_debanks/sha256.c -ldl -lpthread -lm -o $(ZXV_TMP)/test_zxv_ai_engine || { echo "[FAIL] test_zxv_ai_engine build"; exit 1; }
 	@for m in $(ZXV_TMP)/zxv_ai_web/tiny.gguf $(ZXV_AI_MODEL); do n=$$(basename $$m .gguf); \
 	  $(ZXV_TMP)/test_zxv_ai_engine $$m 24 > $(ZXV_TMP)/zxv_ai_web/$$n.native.log 2>&1 && grep '^ZW' $(ZXV_TMP)/zxv_ai_web/$$n.native.log > $(ZXV_TMP)/zxv_ai_web/$$n.native.zw && echo "[PASS] test_zxv_ai_engine $$n: the browser's engine answers as the app does ($$(tail -1 $(ZXV_TMP)/zxv_ai_web/$$n.native.log))" || { cat $(ZXV_TMP)/zxv_ai_web/$$n.native.log; echo "[FAIL] test_zxv_ai_engine $$n"; exit 1; }; \
 	done
