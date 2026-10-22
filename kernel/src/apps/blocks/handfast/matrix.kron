@@ -1,0 +1,4 @@
+t:1&+/1-1&abs ((4*clause)+mark)-\:(4*clause)+1
+f:1&+/1-1&abs ((4*clause)+mark)-\:(4*clause)+2
+u:1&+/1-1&abs ((4*clause)+mark)-\:4*clause
+(3*t*f)+(2*f*1-t)+t*(1-f)*1-u

@@ -1,0 +1,37 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! One party's obligation on one due date, in Trebago (handfast_rules.h
+! HR4), one obligation per row: floor(amount / obligors), plus one minor
+! unit for the first amount mod obligors parties (pos 1..obligors), so the
+! parts sum to the amount exactly. Trebago is exact and has no floor, so
+! q = floor(amount / obligors) is counted three digits at a time from the
+! top: each group the count of k = 1 to 999 with k * step * obligors <=
+! what is left, which min(1, max(0, y - k * step * obligors + 1)) is for
+! integers. q is at most amount, below 10^15, so the top group is 10^12.
+! What is left at the end is the remainder, amount - q * obligors, and it
+! gives the extra unit when pos <= it. ok is 0 for an amount outside
+! 0..999999999999999, obligors outside 1..999 or pos outside
+! 1..obligors, and the answer is divided by it: refused. share.sutra
+! holds obligors to 9(2): past it the two disagree and it is held.
+trebago obligation_share
+  in  amount(n), obligors(n), pos(n)
+  out share(n)
+  var y(n), a(n), b(n), c(n), d(n), e(n), q(n), ok(n)
+  ok(i) = min(1, max(0, amount(i) + 1)) * min(1, max(0, 999999999999999 - amount(i) + 1)) &
+        * min(1, max(0, obligors(i))) * min(1, max(0, 999 - obligors(i) + 1)) &
+        * min(1, max(0, pos(i))) * min(1, max(0, obligors(i) - pos(i) + 1))
+  y(i) = amount(i) * ok(i)
+  a(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000000000000 * obligors(i) + 1)))
+  y(i) = y(i) - a(i) * 1000000000000 * obligors(i)
+  b(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000000000 * obligors(i) + 1)))
+  y(i) = y(i) - b(i) * 1000000000 * obligors(i)
+  c(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000000 * obligors(i) + 1)))
+  y(i) = y(i) - c(i) * 1000000 * obligors(i)
+  d(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000 * obligors(i) + 1)))
+  y(i) = y(i) - d(i) * 1000 * obligors(i)
+  e(i) = sum(k = 1:999, min(1, max(0, y(i) - k * obligors(i) + 1)))
+  y(i) = y(i) - e(i) * obligors(i)
+  q(i) = a(i) * 1000000000000 + b(i) * 1000000000 + c(i) * 1000000 + d(i) * 1000 + e(i)
+  share(i) = (q(i) + min(1, max(0, y(i) - pos(i) + 1))) / ok(i)
+end

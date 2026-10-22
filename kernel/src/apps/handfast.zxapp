@@ -1,0 +1,167 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Handfast, agreements: L2, slot 164. It drafts, negotiates and keeps the
+# signatures of a multi-party agreement in the Hoard (files.read,
+# files.write, files.mkdir): its parties, its clauses (each clause's text
+# a file of its own, its revisions in a clause tree), each party's mark on
+# each clause, the obligations and the payment schedule. Every clause
+# revision is stamped with the journal's newest seq (journal.query) and
+# its history proven against the journal (journal.verify). Negotiation
+# notes go to the agreement's room across nodes (pspace.list,
+# pspace.post), and each party's signed copy is checked with web4.verify
+# against that party's key. See handfast_model.h HM1-HM8 and
+# handfast_rules.h HR1-HR5.
+#
+# Legal and financial: advice only. Signing is each party's own act:
+# Handfast never signs, sends a signature or moves money. Every change it
+# keeps (an agreement opened, a party, a clause, a mark, an obligation,
+# the schedule, a payment the parties report, the room, a note posted)
+# takes the owner's confirmed word. zxvd has no notification method, so
+# what falls due is composed as text for the view (notify).
+#
+# Composed, not written again (six uses of ZXAPP_USES 8; its own 8 logic
+# lines and its parts' are inside ZXAPP_LOGIC_MAX 128, the test counts
+# them):
+#   witness.chain_ok, witness.audit_ok  each clause's revisions on the
+#                         journal, linked and each one a fitting record
+#   commons.room_post_ok  "may I post here" for the negotiation room, and
+#   commons.message_text_ok  a note's length
+#   kindred.contact_fields_ok  a party's name inside the field limits, and
+#   kindred.contact_record_ok  the party as a contact (the contact index)
+#   sealwax.sign_ready    "ready to sign" for the signature page (one
+#                         field a party and one an obligation), and
+#   sealwax.field_record_ok  each obligation's amount field
+#   furrow.money_cell     the amount fields: Sealwax takes its amounts from
+#                         Furrow's rule and exports only its own entries,
+#                         so Handfast uses the owner, Furrow
+#   trickle.stream_due    the payment schedule: instalment n of N owes
+#                         floor(total x n / N) minus paid, the task's rule
+#                         exactly; Trickle owns it (Sutra + Trebago, as the
+#                         task asks), so it is used, never written again
+#
+# matrix: zxapp.c takes 0..144 and slot 164 is no matrix layer; an L2 app
+# sits on the layer of its part outermost in MATRIX_ORDER.tsv: Trickle
+# (place 85, layer 77), past Sealwax (70), Kindred (67), Furrow (63),
+# Commons (16) and Witness (10).
+#
+# "Ready to sign" (agreement_ready) is Ada as Eve and APL as KRON, both
+# truths over counts; the party matrix (clause_party_state) is APL as
+# KRON; the obligations are COBOL as Sutra and FORTRAN as Trebago
+# witnessed, with ALGOL 60 (twin Rootwyrm) as a third witness of the
+# formula. Sutra runs one row at a time, so an obligation is one party's
+# part of one clause's amount on its due date; the model adds a party's
+# parts on a date. The limits are Eve, the clause tree MYRA.
+#
+# Defaults taken (the task names none): at most 64 clauses in an
+# agreement (each up to 8192 bytes, so the clause texts fit 512 KiB), at
+# least 2 parties, clause numbers 1..999.
+#
+# Later layers (Umbra, Lunette, Consonance, Carrick, Equant, Syzygy,
+# Consort) use "ready to sign" and the obligations, so both are registered
+# in CONCEPTS.tsv with Handfast as owner. The party matrix is near
+# Assize's evidence matrix, but not the same rule: a clause is agreed only
+# when every party agreed (one silent party keeps it from TRUE), where a
+# claim is TRUE on any one support; and Assize is no nearer the core.
+# Kept in C: text (the agreement file, paths, hex), zxvd's answers, and
+# the BOTH of a clause one party agreed and another disputed: it is held
+# in escrow, while the clauses every party agreed can go ahead.
+#
+# Planned (no runtime yet): Eiffel (design by contract) waits on "ready to
+# sign", Haskell (types and proofs) on the clause limits, and Solidity
+# (contract rules; ZXV settles in Sutra) on the obligation share.
+zxapp 1
+id     handfast
+name   Handfast
+version 1.0.0
+slot   164
+layer  L2
+matrix 77
+icon   icons/l2/164-handfast.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  journal
+needs  peers
+needs  notify
+model  apps/handfast_model.c
+use    witness 1   # @logic.witness_chain_ok @logic.witness_audit_ok
+use    commons 1   # @logic.commons_room_post_ok @logic.commons_message_text_ok
+use    kindred 1   # @logic.kindred_contact_fields_ok @logic.kindred_contact_record_ok
+use    sealwax 1   # @logic.sealwax_sign_ready @logic.sealwax_field_record_ok
+use    furrow 1    # @num.furrow_money_cell
+use    trickle 1   # @num.trickle_stream_due
+# what it exports, so apps built from it can use them too (C1)
+provides witness.chain_ok truth seq prev last
+provides witness.audit_ok truth seq prev kind stamp
+provides commons.room_post_ok truth member joined enabled
+provides commons.message_text_ok truth bytes
+provides kindred.contact_fields_ok truth namelen phone mail note
+provides kindred.contact_record_ok truth contact card node name verified stamp
+provides sealwax.sign_ready truth fields missing outside
+provides sealwax.field_record_ok truth form field kind required lo hi len
+provides furrow.money_cell num units cents
+provides trickle.stream_due num total tick ticks paid
+
+# Ready to sign (HR3, critical): every clause agreed by every party, the
+# party matrix all TRUE. Ada as Eve and APL as KRON; a count below zero
+# is no count to Eve and passes KRON's "below one": held.
+provides agreement_ready truth parties clauses unagreed
+logic    eve  agreement_ready apps/blocks/handfast/ready.eve
+logic    kron agreement_ready apps/blocks/handfast/ready.kron
+pending  Eiffel agreement_ready
+
+# One party's obligation on one due date (HR4, critical): COBOL as Sutra
+# and FORTRAN as Trebago; obligors past Sutra's 9(2), Sutra (and ALGOL)
+# refuse, Trebago answers: held.
+provides obligation_share num amount obligors pos
+logic    sutra   obligation_share apps/blocks/handfast/share.sutra
+logic    trebago obligation_share apps/blocks/handfast/share.tb
+# ALGOL 60, twin Rootwyrm
+logic    algol60 obligation_share apps/blocks/handfast/share.alg
+pending  Solidity obligation_share
+
+# Clause limits (HR1): 2..16 parties, a clause's text 1..8192 bytes. Ada as Eve.
+provides clause_limits_ok truth parties bytes
+logic    eve clause_limits_ok apps/blocks/handfast/limits.eve
+pending  Haskell clause_limits_ok
+
+# The party matrix (HR2), party by clause, four values. APL as KRON.
+provides clause_party_state num clause mark
+logic    kron clause_party_state apps/blocks/handfast/matrix.kron
+
+# The clause tree (HR5): ^ZXHANDFAST(deal, clause, rev) = parent ^ bytes ^ state. MUMPS as MYRA.
+provides clause_node_ok truth deal clause rev parent bytes state
+logic    myra clause_node_ok apps/blocks/handfast/tree.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check agreement_ready parties=2,16,1,17,3,3,3,3 clauses=1,64,5,5,0,65,5,5 unagreed=0,0,0,0,0,0,1,0 = true,true,false,false,false,false,false,true
+check agreement_ready parties=3,3 clauses=5,5 unagreed=0,-1 = both
+# one row a line: ALGOL 60 reads one row a call (zxapp_lingua.c L1)
+check obligation_share amount=1000 obligors=3 pos=1 = 334
+check obligation_share amount=1000 obligors=3 pos=3 = 333
+check obligation_share amount=0 obligors=1 pos=1 = 0
+check obligation_share amount=999999999999999 obligors=7 pos=1 = 142857142857143
+check obligation_share amount=999999999999999 obligors=7 pos=7 = 142857142857142
+check obligation_share amount=1000 obligors=100 pos=1 = both
+check clause_limits_ok parties=2,16,1,17,5,5,5,5 bytes=1,8192,10,10,0,8193,-1,4096 = true,true,false,false,false,false,false,true
+check clause_party_state clause=4,4,7,7,9,9,3,3 mark=1,2,1,1,2,2,1,0 = 3,3,1,1,2,2,0,0
+check clause_party_state clause=1,1,1,2 mark=0,0,0,2 = 0,0,0,2
+check clause_node_ok deal=1,999999999,1000000000,1,1,1,1 clause=1,999,1,1000,1,1,1 rev=1,999999,1,1,1,1,1 parent=0,999,0,0,1000,0,0 bytes=1,8192,1,1,1,10000,1 state=0,3,0,0,0,0,10 = true,true,false,false,false,false,false
+# The parts: a revision's history, a room, a party, the signature page, an amount and the schedule
+check witness.chain_ok seq=5,9,14,14 prev=0,5,9,9 last=0,5,9,14 = true,true,true,false
+check witness.chain_ok seq=2,-1 prev=1,1 last=1,1 = both
+check witness.audit_ok seq=5,1000000000000000000 prev=0,0 kind=1,1 stamp=1700000000000,0 = true,false
+check commons.room_post_ok member=1,0,1,1 joined=1,1,0,1 enabled=1,1,1,0 = true,false,false,false
+check commons.room_post_ok member=1,2 joined=1,1 enabled=1,1 = both
+check commons.message_text_ok bytes=0,1,1024,1025 = false,true,true,false
+check kindred.contact_fields_ok namelen=1,128,0,129 phone=0,0,0,0 mail=0,0,0,0 note=0,0,0,0 = true,true,false,false
+# agree: kindred.contact_fields_ok Eve and KRON hold the same four ranges, each on its own, with nothing relating them, so no integer input can split them
+check kindred.contact_record_ok contact=1,1000000 card=0,0 node=0,0 name=102030000000000000,1 verified=0,0 stamp=0,1 = true,false
+check sealwax.sign_ready fields=2,32,33,4,4 missing=0,0,0,1,0 outside=0,0,0,0,1 = true,true,false,false,false
+check sealwax.sign_ready fields=5,5 missing=0,-1 outside=0,0 = both
+check sealwax.field_record_ok form=164,1000000000 field=1,1 kind=2,2 required=1,1 lo=0,0 hi=999999999999999,1 len=0,0 = true,false
+check furrow.money_cell units=0,12,9999999999999 cents=0,5,99 = 0,1205,999999999999999
+check furrow.money_cell units=1,1 cents=5,100 = both
+check trickle.stream_due total=1000,1000,1000,1000 tick=1,2,3,3 ticks=3,3,3,3 paid=0,333,666,0 = 333,333,334,1000
+check trickle.stream_due total=1000,1000 tick=1,1 ticks=3,100000 paid=0,0 = both

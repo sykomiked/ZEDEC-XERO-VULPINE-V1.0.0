@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Handfast files a clause revision in its clause tree, in MYRA
+; (handfast_rules.h HR5): the agreement, the clause and its revision, then
+; the clause it sits under (its parent, 0 at the top), its text's bytes and
+; its four-valued state in the kernel's codes (0 NEITHER, 1 TRUE, 2 FALSE,
+; 3 BOTH). The model asks whether the numbers fit before it writes a line.
+^ZXHANDFAST(deal:i9, clause:i3, rev:i6) = parent:i3! ^ bytes:i4! ^ state:i1!

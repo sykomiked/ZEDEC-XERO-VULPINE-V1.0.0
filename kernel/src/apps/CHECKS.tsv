@@ -609,6 +609,33 @@ hamlet	check post_show_ok roleroom=0,0 muteroom=0,1 = both
 hamlet	check read_marker_ok group=0,999,1000,1,1 lamport=0,999999999999999999,1,1000000000000000000,1 stamp=0,999999999999,0,0,1000000000000 = true,true,false,false,false
 hamlet	check commons.room_unread newest=7,3,2 seen=4,3,5 = 3,0,0
 hamlet	check ramble.consent_covers scopegap=0,0 ceilingleft=7500,-1 secondsleft=600,600 = true,false
+handfast	check agreement_ready parties=2,16,1,17,3,3,3,3 clauses=1,64,5,5,0,65,5,5 unagreed=0,0,0,0,0,0,1,0 = true,true,false,false,false,false,false,true
+handfast	check agreement_ready parties=3,3 clauses=5,5 unagreed=0,-1 = both
+handfast	check obligation_share amount=1000 obligors=3 pos=1 = 334
+handfast	check obligation_share amount=1000 obligors=3 pos=3 = 333
+handfast	check obligation_share amount=0 obligors=1 pos=1 = 0
+handfast	check obligation_share amount=999999999999999 obligors=7 pos=1 = 142857142857143
+handfast	check obligation_share amount=999999999999999 obligors=7 pos=7 = 142857142857142
+handfast	check obligation_share amount=1000 obligors=100 pos=1 = both
+handfast	check clause_limits_ok parties=2,16,1,17,5,5,5,5 bytes=1,8192,10,10,0,8193,-1,4096 = true,true,false,false,false,false,false,true
+handfast	check clause_party_state clause=4,4,7,7,9,9,3,3 mark=1,2,1,1,2,2,1,0 = 3,3,1,1,2,2,0,0
+handfast	check clause_party_state clause=1,1,1,2 mark=0,0,0,2 = 0,0,0,2
+handfast	check clause_node_ok deal=1,999999999,1000000000,1,1,1,1 clause=1,999,1,1000,1,1,1 rev=1,999999,1,1,1,1,1 parent=0,999,0,0,1000,0,0 bytes=1,8192,1,1,1,10000,1 state=0,3,0,0,0,0,10 = true,true,false,false,false,false,false
+handfast	check witness.chain_ok seq=5,9,14,14 prev=0,5,9,9 last=0,5,9,14 = true,true,true,false
+handfast	check witness.chain_ok seq=2,-1 prev=1,1 last=1,1 = both
+handfast	check witness.audit_ok seq=5,1000000000000000000 prev=0,0 kind=1,1 stamp=1700000000000,0 = true,false
+handfast	check commons.room_post_ok member=1,0,1,1 joined=1,1,0,1 enabled=1,1,1,0 = true,false,false,false
+handfast	check commons.room_post_ok member=1,2 joined=1,1 enabled=1,1 = both
+handfast	check commons.message_text_ok bytes=0,1,1024,1025 = false,true,true,false
+handfast	check kindred.contact_fields_ok namelen=1,128,0,129 phone=0,0,0,0 mail=0,0,0,0 note=0,0,0,0 = true,true,false,false
+handfast	check kindred.contact_record_ok contact=1,1000000 card=0,0 node=0,0 name=102030000000000000,1 verified=0,0 stamp=0,1 = true,false
+handfast	check sealwax.sign_ready fields=2,32,33,4,4 missing=0,0,0,1,0 outside=0,0,0,0,1 = true,true,false,false,false
+handfast	check sealwax.sign_ready fields=5,5 missing=0,-1 outside=0,0 = both
+handfast	check sealwax.field_record_ok form=164,1000000000 field=1,1 kind=2,2 required=1,1 lo=0,0 hi=999999999999999,1 len=0,0 = true,false
+handfast	check furrow.money_cell units=0,12,9999999999999 cents=0,5,99 = 0,1205,999999999999999
+handfast	check furrow.money_cell units=1,1 cents=5,100 = both
+handfast	check trickle.stream_due total=1000,1000,1000,1000 tick=1,2,3,3 ticks=3,3,3,3 paid=0,333,666,0 = 333,333,334,1000
+handfast	check trickle.stream_due total=1000,1000 tick=1,1 ticks=3,100000 paid=0,0 = both
 hedgerow	check path_open sw=1,1,1,0,1,1,1,-1 moderoom=0,2,1,1,-1,0,-2,0 bindroom=0,2,0,1,0,-1,-2,0 = true,true,true,false,false,false,false,false
 hedgerow	check path_open sw=1,2 moderoom=0,0 bindroom=0,0 = both
 hedgerow	check path_open sw=1,1 moderoom=0,3 bindroom=0,0 = both

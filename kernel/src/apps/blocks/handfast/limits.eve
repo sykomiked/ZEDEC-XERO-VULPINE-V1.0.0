@@ -1,0 +1,13 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A clause's limits (handfast_rules.h HR1), in Eve: an agreement has 2 to
+# 16 parties and a clause's text is 1 to 8192 bytes, each on its own range.
+eve handfast
+party_room = 2 .. 16
+clause_bytes = 1 .. 8192
+
+clause_limits {
+  parties: party_room
+  bytes: clause_bytes
+}

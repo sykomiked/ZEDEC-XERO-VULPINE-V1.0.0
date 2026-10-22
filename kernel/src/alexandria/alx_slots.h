@@ -543,7 +543,12 @@
 #define ALX_SLOT_LOGIC_PANNIER_PARCEL_RETRY_OK   535u /* 492.60 pannier.parcel_retry_ok */
 #define ALX_SLOT_LOGIC_PANNIER_PARCEL_SEND_NOW   536u /* 492.61 pannier.parcel_send_now */
 #define ALX_SLOT_NUM_PANNIER_ROUTE_HOURS         537u /* 592.69 pannier.route_hours */
-#define ALX_SLOT__COUNT 537u
+#define ALX_SLOT_LOGIC_HANDFAST_AGREEMENT_READY  538u /* 492.62 handfast.agreement_ready */
+#define ALX_SLOT_LOGIC_HANDFAST_CLAUSE_LIMITS_OK 539u /* 492.63 handfast.clause_limits_ok */
+#define ALX_SLOT_LOGIC_HANDFAST_CLAUSE_NODE_OK   540u /* 492.64 handfast.clause_node_ok */
+#define ALX_SLOT_NUM_HANDFAST_CLAUSE_PARTY_STATE 541u /* 592.70 handfast.clause_party_state */
+#define ALX_SLOT_NUM_HANDFAST_OBLIGATION_SHARE   542u /* 592.71 handfast.obligation_share */
+#define ALX_SLOT__COUNT 542u
 /* clang-format on */
 
 #endif

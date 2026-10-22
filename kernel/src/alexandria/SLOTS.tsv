@@ -572,3 +572,8 @@
 535	logic.pannier_parcel_retry_ok	492.60	pannier.parcel_retry_ok	base
 536	logic.pannier_parcel_send_now	492.61	pannier.parcel_send_now	base
 537	num.pannier_route_hours	592.69	pannier.route_hours	base
+538	logic.handfast_agreement_ready	492.62	handfast.agreement_ready	base
+539	logic.handfast_clause_limits_ok	492.63	handfast.clause_limits_ok	base
+540	logic.handfast_clause_node_ok	492.64	handfast.clause_node_ok	base
+541	num.handfast_clause_party_state	592.70	handfast.clause_party_state	base
+542	num.handfast_obligation_share	592.71	handfast.obligation_share	base

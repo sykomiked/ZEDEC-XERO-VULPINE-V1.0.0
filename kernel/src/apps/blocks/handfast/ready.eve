@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Is an agreement ready to sign (handfast_rules.h HR3), in Eve: 2 to 16
+# parties, 1 to 64 clauses, and no cell of the party matrix that is not
+# agreed (unagreed: the party-by-clause cells silent, disputed or held).
+# Each count must fit its own range, so a count below zero is no count at
+# all and never reads as ready.
+eve handfast
+party_count = 2 .. 16
+clause_count = 1 .. 64
+none_unagreed = 0 .. 0
+
+ready_agreement {
+  parties: party_count
+  clauses: clause_count
+  unagreed: none_unagreed
+}

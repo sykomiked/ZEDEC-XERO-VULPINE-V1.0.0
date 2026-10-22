@@ -1,0 +1,30 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One party's obligation on one due date, in Sutra (handfast_rules.h HR4),
+# one obligation per row: a clause's amount in minor units, owed on that
+# date by `obligors` parties in equal parts, split so the parts sum to the
+# amount exactly: each owes floor(amount / obligors), and the first
+# amount mod obligors of them (by their place, pos 1..obligors) one minor
+# unit more. amount fits 9(15) (Sealwax's amount bounds), obligors and pos
+# 9(2); room (obligors - pos) and first (pos - 1) are unsigned, so a pos
+# past the last or a pos of 0 is a size error, refused, and obligors 0 a
+# division Sutra refuses. share.tb takes obligors to three digits: past
+# 9(2) the two disagree and it is held.
+record obligation-share
+  amount: 9(15)
+  obligors: 9(2)
+  pos: 9(2)
+  room: 9(2)
+  first: 9(2)
+  base: 9(15)
+  rest: 9(2)
+procedure
+  compute room = obligors - pos
+  compute first = pos - 1
+  compute base = amount / obligors
+  compute rest = amount - base * obligors
+  if pos <= rest
+    answer base + 1
+  end-if
+  answer base
