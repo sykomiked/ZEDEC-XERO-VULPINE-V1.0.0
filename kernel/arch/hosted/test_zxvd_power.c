@@ -330,6 +330,14 @@ static void test_ledger(void)
     EXPECT(call("power.budget", "{\"target\":\"device\",\"window_ms\":0,\"max_uj\":0}"),
            ok("{\"ok\":true}"));
     CHECK(zxvd_power_admit(7) && zxvd_power_admit(99), "cleared");
+    /* W4: admitting asks for nothing up front: a window spent to exactly its
+     * limit, here 0 of 0 uJ, still admits */
+    EXPECT(
+        call("power.budget", "{\"target\":\"agent\",\"agent\":7,\"window_ms\":60000,\"max_uj\":0}"),
+        ok("{\"ok\":true}"));
+    CHECK(zxvd_power_admit(7), "W4: a window spent to exactly its limit admits");
+    EXPECT(call("power.budget", "{\"target\":\"agent\",\"agent\":7,\"window_ms\":0,\"max_uj\":0}"),
+           ok("{\"ok\":true}"));
     /* an app not seen yet is added */
     EXPECT(call("power.budget",
                 "{\"target\":\"app\",\"app\":\"brand new\",\"window_ms\":1000,\"max_uj\":5}"),
