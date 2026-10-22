@@ -62,6 +62,7 @@
 #    include <ws2tcpip.h>
 #    include <windows.h>
 #    include <shellapi.h>
+#    include <sys/stat.h>
 typedef SOCKET sock_t;
 #    define CLOSESOCK closesocket
 #    define BAD_SOCK  INVALID_SOCKET
@@ -1758,11 +1759,12 @@ static void state_json(buf_t *b)
     uint64_t rem = cs ? swarm_budget_remaining(&S.b, cs->model_id) : 0;
     bput(b,
          "},\"companion\":{\"cycle_open\":%s,\"allotted\":%llu,\"used\":%llu,\"remaining\":%llu,"
-         "\"exhausted\":%s,\"max_per_answer\":%u,\"asks\":%llu,\"exhausted_asks\":%llu",
+         "\"exhausted\":%s,\"max_per_answer\":%u,\"asks\":%llu,\"exhausted_asks\":%llu,"
+         "\"answered_by_model\":%s",
          S.b.cycle_open ? "true" : "false", (unsigned long long) (cs ? cs->allotted : 0),
          (unsigned long long) (cs ? cs->used : 0), (unsigned long long) rem,
          rem == 0 ? "true" : "false", (unsigned) ZXV_MODEL_MAX_NEW, (unsigned long long) S.asks,
-         (unsigned long long) S.exhausted_asks);
+         (unsigned long long) S.exhausted_asks, ANSWER_REAL ? "true" : "false");
     if (S.have_gate)
         bput(b,
              ",\"last_answer\":{\"remaining_before\":%llu,\"prompt\":%llu,\"allowed\":%u,"
@@ -2108,6 +2110,87 @@ static void send_font(sock_t c, const char *name, size_t n)
     fclose(fp);
 }
 
+/* The browser surface (zxv_http_guard.h G6): with --web-root DIR, GET
+ * /web/<path> serves the sealed root tools/web/build_web_root.sh puts
+ * together (the boot screen, the passport login, the space and the
+ * companion). Its pages talk to this process through the same guarded
+ * /api/ routes as the window, so its HTML gets the window's token plumbing.
+ * They load scripts, a worker and WebAssembly from the root, which the
+ * window's CSP does not allow, so the root has its own: still nothing from
+ * any other origin. */
+static char WEB_ROOT[1024];
+
+static const char WEB_CSP[] =
+    "Content-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline' "
+    "'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' "
+    "data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; "
+    "form-action 'none'\r\n";
+
+static bool web_root_ok(const char *dir)
+{
+    static const char *const NEED[] = {"index.html", "boot.json"};
+    char probe[1100];
+    if (!dir || !dir[0] || strlen(dir) >= sizeof WEB_ROOT) return false;
+    for (size_t i = 0; i < sizeof NEED / sizeof NEED[0]; i++) {
+        snprintf(probe, sizeof probe, "%s/%s", dir, NEED[i]);
+        FILE *fp = fopen(probe, "rb");
+        if (!fp) return false;
+        fclose(fp);
+    }
+    return true;
+}
+
+static void send_web(sock_t c, const char *path, size_t plen)
+{
+    char rel[ZXV_WEB_PATH_MAX], full[sizeof WEB_ROOT + ZXV_WEB_PATH_MAX + 2];
+    if (!WEB_ROOT[0] || zxv_web_path(path, plen, rel, sizeof rel) < 0) {
+        reply(c, "404 Not Found", "text/plain", "not found", 9);
+        return;
+    }
+    const char *type = zxv_web_type(rel);
+    snprintf(full, sizeof full, "%s/%s", WEB_ROOT, rel);
+    struct stat st;
+    if (stat(full, &st) != 0 || !S_ISREG(st.st_mode) || st.st_size < 0 ||
+        st.st_size > 64L * 1024 * 1024) {
+        reply(c, "404 Not Found", "text/plain", "not found", 9);
+        return;
+    }
+    FILE *fp = fopen(full, "rb");
+    if (!fp) {
+        reply(c, "404 Not Found", "text/plain", "not found", 9);
+        return;
+    }
+    size_t len = (size_t) st.st_size;
+    bool html = !strncmp(type, "text/html", 9);
+    char *body = malloc(len ? len : 1);
+    if (!body || fread(body, 1, len, fp) != len) {
+        free(body);
+        fclose(fp);
+        reply(c, "500 Internal Server Error", "text/plain", "read failed", 11);
+        return;
+    }
+    fclose(fp);
+    /* a page gets the token plumbing first thing in its <head> */
+    size_t cut = 0, extra = 0;
+    if (html) {
+        const char *at = NULL;
+        for (size_t i = 0; i + 6 <= len && !at; i++)
+            if (!memcmp(body + i, "<head>", 6)) at = body + i;
+        cut = at ? (size_t) (at - body) + 6 : 0;
+        extra = sizeof TOKEN_SCRIPT - 1;
+    }
+    char head[1024];
+    int n = snprintf(head, sizeof head,
+                     "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %zu\r\n%s" SAFE_HEADERS
+                     "\r\n",
+                     type, len + extra, WEB_CSP);
+    send_all(c, head, (size_t) n);
+    send_all(c, body, cut);
+    if (html) send_all(c, TOKEN_SCRIPT, sizeof TOKEN_SCRIPT - 1);
+    send_all(c, body + cut, len - cut);
+    free(body);
+}
+
 static zxv_guard_t G;
 
 /* A request: the headers and the largest body a route takes, with room for
@@ -2283,6 +2366,11 @@ static void handle(sock_t c)
     } else if (plen > 7 && !memcmp(path, "/fonts/", 7)) {
         if (is_get)
             send_font(c, path + 7, plen - 7);
+        else
+            reply(c, "405 Method Not Allowed", "text/plain", "use GET", 7);
+    } else if (plen >= 5 && !memcmp(path, "/web/", 5)) {
+        if (is_get)
+            send_web(c, path + 5, plen - 5);
         else
             reply(c, "405 Method Not Allowed", "text/plain", "use GET", 7);
     } else if (PATH_IS("/api/state") && is_get) {
@@ -2965,6 +3053,7 @@ int main(int argc, char **argv)
     const char *model = NULL, *models_dir = NULL, *fonts_dir = NULL, *state_dir = NULL;
     const char *receipts = NULL; /* R24: --receipts, else the state folder's */
     const char *tiamat = NULL, *ask_once = NULL, *ask_file = NULL, *check_file = NULL;
+    const char *web_root = NULL;
     bool lan_discovery = true;
     const char *peers[MAX_PEERS_ARG], *gateway = NULL, *notify = "auto";
     int npeers = 0;
@@ -3026,6 +3115,8 @@ int main(int argc, char **argv)
             receipts = argv[++i];
         else if (!strcmp(argv[i], "--fonts-dir") && i + 1 < argc)
             fonts_dir = argv[++i];
+        else if (!strcmp(argv[i], "--web-root") && i + 1 < argc)
+            web_root = argv[++i];
         else if (!strcmp(argv[i], "--net") && i + 1 < argc) {
             if (zxv_net_mode_parse(argv[++i], &S.net_want) != 0) {
                 fprintf(stderr, "zxv-host: --net takes off, lan or online\n");
@@ -3176,6 +3267,8 @@ int main(int argc, char **argv)
                    "  --receipts FILE     one sealed receipt per answer (zxv_receipt.h);\n"
                    "                      default receipts.jsonl in the state folder\n"
                    "  --fonts-dir DIR     ASCW Golden fonts for the window\n"
+                   "  --web-root DIR      serve the browser surface from DIR at /web/\n"
+                   "                      (tools/web/build_web_root.sh puts it together)\n"
                    "  --exit-with-parent  stop when stdin closes\n"
                    "  --net MODE          off (default), lan or online: the Vinea peer network\n"
                    "  --net-port N        its UDP port (default 8723; 0 = any free port)\n"
@@ -3308,6 +3401,13 @@ int main(int argc, char **argv)
 #endif
 
     pal_find_fonts(fonts_dir, argc > 0 ? argv[0] : NULL);
+    if (web_root) {
+        if (!web_root_ok(web_root)) {
+            fprintf(stderr, "zxv-host: --web-root %s has no index.html and boot.json\n", web_root);
+            return 2;
+        }
+        snprintf(WEB_ROOT, sizeof WEB_ROOT, "%s", web_root);
+    }
 
     /* the model slot: an explicit file, else the first *.gguf in the
      * models folder, else none (the swarm runs without one) */
@@ -3623,6 +3723,7 @@ int main(int argc, char **argv)
                "then open the ZXV-URL below (keep the #token part private)\n",
                port, port);
     printf("ZXV-URL: %s\n", url_tok);
+    if (WEB_ROOT[0]) printf("ZXV-WEB: %sweb/boot.html#token=%s\n", url, G.token);
 #if defined(ZXVD)
     if (zxvd_phone_port())
         printf("ZXVD-PHONE: TCP %u (pair a phone with phone.pair)\n", (unsigned) zxvd_phone_port());

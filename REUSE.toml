@@ -25,6 +25,11 @@ path = "docs/circuit-board/**"
 SPDX-FileCopyrightText = "2024-2026 Michael Laurence Curzi & 36N9 GENETICS LLC"
 SPDX-License-Identifier = "Apache-2.0"
 
+# The browser's boot screen, built from kernel/src (tools/web/build_boot_wasm.sh);
+# a .wasm cannot carry a header.
+[[annotations]]
+path = "web/boot/zxv_boot.wasm"
+SPDX-FileCopyrightText = "2024-2026 Michael Laurence Curzi & 36N9 GENETICS LLC"
 [[annotations]]
 path = ["docs/release/swarm_model_manifest.json", "tools/tiamat/tiamat_swarm.json"]
 SPDX-FileCopyrightText = "2026 Michael Laurence Curzi & 36N9 GENETICS LLC"

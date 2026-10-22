@@ -221,3 +221,68 @@ const char *zxv_guard_reason(zxv_guard_verdict_t v)
     }
     return "refused";
 }
+
+/* ---------- G6: the web root ---------- */
+
+static bool web_char(char ch)
+{
+    return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') ||
+           ch == '.' || ch == '_' || ch == '-';
+}
+
+int zxv_web_path(const char *path, size_t len, char *out, size_t cap)
+{
+    static const char INDEX[] = "index.html";
+    if (!out || cap == 0) return -1;
+    out[0] = 0;
+    if (!path && len) return -1;
+    bool folder = len == 0 || path[len - 1] == '/';
+    size_t need = len + (folder ? sizeof INDEX - 1 : 0);
+    if (need + 1 > cap || need + 1 > ZXV_WEB_PATH_MAX) return -1;
+    /* every segment is checked before anything is written */
+    uint32_t depth = 0;
+    size_t at = 0;
+    while (at < len) {
+        size_t end = at;
+        while (end < len && path[end] != '/') {
+            if (!web_char(path[end])) return -1;
+            end++;
+        }
+        if (end == at || path[at] == '.') return -1; /* empty, "..", or hidden */
+        if (++depth > ZXV_WEB_DEPTH) return -1;
+        at = end + 1; /* past the slash; a trailing slash ends the loop */
+    }
+    if (folder && depth >= ZXV_WEB_DEPTH) return -1; /* the index is one more segment */
+    if (len) memcpy(out, path, len);
+    if (folder) memcpy(out + len, INDEX, sizeof INDEX - 1);
+    out[need] = 0;
+    if (!zxv_web_type(out)) {
+        out[0] = 0;
+        return -1;
+    }
+    return (int) need;
+}
+
+const char *zxv_web_type(const char *rel)
+{
+    static const struct {
+        const char *ext, *type;
+    } T[] = {
+        {".html", "text/html; charset=utf-8"},
+        {".js", "text/javascript; charset=utf-8"},
+        {".wasm", "application/wasm"},
+        {".json", "application/json"},
+        {".css", "text/css; charset=utf-8"},
+        {".zxvg", "application/octet-stream"},
+        {".ttf", "font/ttf"},
+        {".otf", "font/otf"},
+        {".svg", "image/svg+xml"},
+    };
+    if (!rel) return NULL;
+    size_t n = strlen(rel);
+    for (size_t i = 0; i < sizeof T / sizeof T[0]; i++) {
+        size_t e = strlen(T[i].ext);
+        if (n > e && !memcmp(rel + n - e, T[i].ext, e) && rel[n - e - 1] != '/') return T[i].type;
+    }
+    return NULL;
+}

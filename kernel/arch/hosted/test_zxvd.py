@@ -1276,8 +1276,12 @@ def main(binary, gguf=None):
                 check(tag.get('tokens', 0) > 0 and tag.get('base') == 'true' and
                       comp.get('quarantined') == 0,
                       'the answer was generated under the budget gate and tagged: %s' % tag)
+                check(comp.get('answered_by_model') is True,
+                      'swarm.state says the model wrote the last answer')
             else:
                 check('tokens' in a, 'without the forward pass the gate still reports tokens')
+                check(comp.get('answered_by_model') is False,
+                      'swarm.state says the model did not write the last answer')
             power_checks(c, mi['can_generate'])
         else:
             check(not mi['loaded'], 'model.info: no model is a normal state')
@@ -1288,6 +1292,8 @@ def main(binary, gguf=None):
                   'swarm.organ: the smith answers: %r' % o)
             check(o['verdict'] == 'neither' and not o['witnessed'] and o['action'] == 'wait',
                   'swarm.organ: no fitted head, so no verdict and no witness: %r' % o)
+            check(c.ok('swarm.state')['companion'].get('answered_by_model') is False,
+                  'with no model, swarm.state says no model wrote the answer')
             power_checks(c, False)
         r = c.call('swarm.organ', {'organ': 'blacksmith', 'prompt': 'x'})
         check(r.get('error', {}).get('code') == -32602, 'swarm.organ with an unknown organ: -32602')

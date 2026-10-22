@@ -127,6 +127,10 @@ const zxl_theme_t *zxl_theme_for(const char *app, uint32_t group);
  * NULL for anything else; the caller then uses zxl_theme_for. */
 const zxl_theme_t *zxl_theme_pick(const char *id);
 
+/* The OS boot's own theme ("ZXV", key E): zxl_synth plays its chime as
+ * the begin, a coin as each tile lights and the gong as the end. Never NULL. */
+const zxl_theme_t *zxl_boot_theme(void);
+
 /* The group default for 1..12, or NULL. */
 const zxl_theme_t *zxl_group_theme(uint32_t group);
 

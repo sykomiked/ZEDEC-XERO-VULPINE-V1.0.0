@@ -54,6 +54,25 @@ browser, and a second launch opens the running one's window.
 zxvd opens no window; the loopback HTML window is still served on a free
 port with its token, printed on the `ZXV-URL:` line.
 
+`--web-root DIR` also serves the browser surface (`web/boot`, `web/session`,
+put together by `tools/web/build_web_root.sh DIR`) at `/web/`, and prints
+its link with the token on a `ZXV-WEB:` line: the boot screen, then the
+passport login, the spaces and the companion, all through the same guarded
+`/api/rpc`. Only plain relative paths of known file types under DIR are
+served (`zxv_http_guard.h` G6). `tests/browser/test_browser.sh` drives it end
+to end in headless Chromium. `swarm.state`'s `companion.answered_by_model`
+says whether the model wrote the last answer, which the page shows beside it.
+
+The same root is the front of a sealed IPFS root. Its `index.html`
+(`web/entry`) reads `entry.json` (`tools/web/make_entry_json.py`, written
+last) and offers three ways in: Run here (the boot screen, `boot.html`, then
+the login and the companion with the model running in the tab through
+`web/ai`, named by `boot.json`'s `models` entry), Install (the disc images
+and scripts, this machine's first) and Run as a VM (`vm.json`'s discs and
+launchers, checked against its SHA-256). Without `entry.json`, or under
+zxvd, it opens the boot screen directly; a page that zxvd does not serve
+never calls `/api/rpc`. `tools/web/test_root_tools.py` checks the tools.
+
 ## The socket
 
 - JSON-RPC 2.0, one request per line, one response per line.

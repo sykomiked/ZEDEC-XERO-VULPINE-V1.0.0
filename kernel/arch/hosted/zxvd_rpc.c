@@ -110,19 +110,56 @@ void zxvd_buf_printf(zxvd_buf_t *b, const char *fmt, ...)
     b->len += (size_t) n;
 }
 
+/* The length of the well-formed UTF-8 sequence at s (RFC 3629: no overlong
+ * form, no surrogate, nothing above U+10FFFF), or 0. */
+static uint32_t utf8_seq(const unsigned char *s)
+{
+    unsigned char c = s[0];
+    uint32_t n;
+    unsigned char lo = 0x80, hi = 0xBF; /* the second byte's range */
+    if (c >= 0xC2 && c <= 0xDF)
+        n = 2;
+    else if (c >= 0xE0 && c <= 0xEF) {
+        n = 3;
+        if (c == 0xE0) lo = 0xA0; /* overlong */
+        if (c == 0xED) hi = 0x9F; /* surrogates */
+    } else if (c >= 0xF0 && c <= 0xF4) {
+        n = 4;
+        if (c == 0xF0) lo = 0x90; /* overlong */
+        if (c == 0xF4) hi = 0x8F; /* above U+10FFFF */
+    } else
+        return 0;
+    if (s[1] < lo || s[1] > hi) return 0;
+    for (uint32_t i = 2; i < n; i++)
+        if (s[i] < 0x80 || s[i] > 0xBF) return 0;
+    return n;
+}
+
 void zxvd_buf_json_str(zxvd_buf_t *b, const char *s)
 {
     zxvd_buf_raw(b, "\"", 1);
-    for (; *s; s++) {
+    while (*s) {
         unsigned char c = (unsigned char) *s;
         if (c == '"' || c == '\\') {
             char e[2] = {'\\', (char) c};
             zxvd_buf_raw(b, e, 2);
         } else if (c < 0x20) {
             zxvd_buf_printf(b, "\\u%04x", c);
-        } else {
+        } else if (c < 0x80) {
             zxvd_buf_raw(b, s, 1);
+        } else {
+            /* JSON is UTF-8 (RFC 8259): a model writes byte tokens, so an
+             * answer can hold a cut or invalid sequence; each byte that does
+             * not start a well-formed one is sent as U+FFFD */
+            uint32_t n = utf8_seq((const unsigned char *) s);
+            if (n) {
+                zxvd_buf_raw(b, s, n);
+                s += n;
+                continue;
+            }
+            zxvd_buf_raw(b, "\xEF\xBF\xBD", 3);
         }
+        s++;
     }
     zxvd_buf_raw(b, "\"", 1);
 }

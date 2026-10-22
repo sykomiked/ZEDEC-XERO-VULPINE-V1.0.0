@@ -444,6 +444,56 @@ static void coffer(zxl_cue_t *c) /* a key, tumblers, coins, the lid */
     }
 }
 
+/* The OS boot (tools in zxv-brand/boot: boot_sound_{1_chime,2_coins,3_gong}.py,
+ * read across): a glass chime up E major over a low E as the screen opens,
+ * a struck coin with a bright glint as each logo's tile lights, and a gong on
+ * E2 with its partials blooming in a beat apart as the vault opens. */
+static void hum(zxl_cue_t *c, int32_t m, uint32_t st, uint32_t dur, int32_t a);
+
+static void boot(zxl_cue_t *c)
+{
+    if (c->kind == ZXL_EV_BEGIN) {
+        static const uint8_t M[4] = {76, 83, 90, 92}; /* E5 B5 F#6 G#6 */
+        static const uint16_t ST[4] = {0, 160, 320, 520};
+        static const int16_t P[4] = {-450, 450, -200, 200};
+        for (uint32_t k = 0; k < 4; k++) glass(c, M[k], ST[k], 1100, 1000, P[k]);
+        hum(c, 52, 0, 1800, 400); /* the low E under it */
+    } else if (c->kind == ZXL_EV_TICK) {
+        /* a coin: its disc partials (1, 2.76, 5.40, 8.93), struck in 1.5 ms */
+        static const uint8_t S[7] = {98, 100, 102, 104, 105, 106, 107};
+        static const uint16_t R[4] = {1000, 2760, 5400, 8930};
+        static const uint16_t A[4] = {1000, 900, 810, 729};
+        static const uint16_t D[4] = {90, 56, 41, 32};
+        int32_t p = spread(c->part, 600);
+        zxl_note_t *n = note_new(c, K_TONE, 0, 1000, p);
+        uint32_t f = mhz_of(sc(c, S));
+        for (uint32_t j = 0; j < 4; j++)
+            if ((uint64_t) f * R[j] / 1000u < 21600000u) partial(c, n, f, R[j], A[j], 1500, D[j]);
+        timbre(c, T_GLASS, f / 2, 20, 200, 0, 250, -p); /* the glint, from the other side */
+    } else {
+        /* the gong: E2 and its inharmonic partials, each blooming in a beat later */
+        static const uint16_t R[10] = {1000, 1520, 2000, 2440, 2980, 3560, 4070, 5210, 6310, 7830};
+        static const uint16_t A[10] = {1000, 550, 500, 420, 300, 260, 200, 140, 100, 70};
+        static const uint16_t D[10] = {5500, 4200, 4800, 3400, 3000, 2400, 2000, 1600, 1200, 900};
+        uint32_t f0 = 82410; /* E2, in mHz */
+        for (uint32_t k = 0; k < 10; k++) {
+            zxl_note_t *n = note_new(c, K_TONE, 0, 600, (int32_t) (k % 3) * 300 - 300);
+            partial(c, n, f0, R[k], (int32_t) A[k], 4000u + 12000u * k, D[k]);
+        }
+        static const uint16_t RH[6] = {2000, 3040, 4000, 5080, 6480, 8480};
+        static const uint16_t AH[6] = {550, 350, 300, 220, 180, 100};
+        static const uint16_t DH[6] = {4500, 3600, 3200, 2600, 2200, 1500};
+        static const int16_t PH[6] = {-300, 300, 0, -400, 400, 0};
+        for (uint32_t k = 0; k < 6; k++) {
+            zxl_note_t *n = note_new(c, K_TONE, 0, 450, PH[k]);
+            partial(c, n, f0, RH[k], (int32_t) AH[k], 120000, DH[k]);
+        }
+        noise(c, 0, 30, 1618, 6, 0, 300, 0); /* the mallet */
+        zxl_note_t *sub = note_new(c, K_TONE, 0, 450, 0);
+        partial(c, sub, f0 / 2, 1000, 1000, 200000, 3000);
+    }
+}
+
 static void cutwater(zxl_cue_t *c) /* the projector, a clapper, a swell */
 {
     static const uint8_t S[7] = {72, 74, 76, 79, 81, 84, 86};
@@ -569,14 +619,15 @@ static const recipe_t HAND[] = {
     {"Coffer",      coffer,      {1200, 400, 2000}, {{120, 250}, {150, 220}}},
     {"Cutwater",    cutwater,    {1600, 350, 2100}, {{100, 180}, {180, 200}}},
     {"Commons",     commons,     {1300, 400, 1800}, {{130, 200}, {150, 220}}},
+    {"ZXV",         boot,        {3200, 450, 7000}, {{180, 300}, { 47, 220}}},
 };
 static const recipe_t GENERIC = {0, generic, {1400, 450, 1900}, {{130, 220}, {150, 220}}};
 /* the reference's finish(): peak (thousandths) and fade (ms) per cue kind */
 static const uint16_t PEAK[3] = {700, 450, 850};
-static const uint16_t TICK_PEAK[6] = {450, 400, 400, 600, 400, 450}; /* the six's ticks */
+static const uint16_t TICK_PEAK[7] = {450, 400, 400, 600, 400, 450, 450}; /* the seven's ticks */
 static const uint16_t FADE[3] = {150, 50, 0}; /* end: per recipe below */
-static const uint16_t END_FADE[6] = {400, 300, 500, 500, 600, 500};
-static const uint16_t TICK_FADE[6] = {50, 30, 40, 50, 40, 50};
+static const uint16_t END_FADE[7] = {400, 300, 500, 500, 600, 500, 1000};
+static const uint16_t TICK_FADE[7] = {50, 30, 40, 50, 40, 50, 50};
 /* clang-format on */
 
 static int streq(const char *a, const char *b)

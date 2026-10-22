@@ -1,0 +1,94 @@
+<!doctype html>
+<!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZXV</title>
+<style>
+  @font-face { font-family: 'ZXV UI'; src: url('session/ASCW-Golden-Latin2.ttf') format('truetype'); font-display: block; }
+  :root {
+    --ground: #002911; --ground-2: #003a19; --ground-3: #04471f;
+    --text: #D8F5E1; --text-2: #9CC9AA; --gold: #F2C230; --bad: #FF9E8A;
+    --hair: rgba(242, 194, 48, 0.42);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; min-height: 100%; background: var(--ground); color: var(--text);
+               font: 16px/1.45 'ZXV UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--gold); color: var(--ground); }
+  main { width: min(760px, 100%); margin: 0 auto; padding: 40px 16px 32px; display: flex; flex-direction: column;
+         align-items: center; gap: 22px; animation: rise 360ms cubic-bezier(.2,.7,.2,1); }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { main { animation: none; } }
+  .mark { width: 76px; height: 87px; display: block; }
+  h1 { margin: 0; font-weight: 400; font-size: 26px; letter-spacing: 0.06em; color: var(--gold); }
+  h2 { margin: 0; font-weight: 400; font-size: 19px; letter-spacing: 0.04em; }
+  p { margin: 0; }
+  .lead { color: var(--text-2); text-align: center; max-width: 520px; }
+  .ways { width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+  .way { appearance: none; text-align: left; font: inherit; color: var(--text); cursor: pointer;
+         background: linear-gradient(160deg, var(--ground-3), var(--ground-2)); border: 1px solid var(--hair);
+         border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 8px; min-height: 150px; }
+  .way:hover, .way[aria-pressed="true"] { border-color: var(--gold); }
+  .way:focus-visible, .btn:focus-visible, a:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+  .way:disabled { opacity: 0.5; cursor: default; }
+  .way svg { width: 30px; height: 30px; }
+  .way .name { font-size: 17px; color: var(--gold); }
+  .way .sub { font-size: 13px; color: var(--text-2); }
+  .panel { width: 100%; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--hair); padding-top: 18px; }
+  .item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 12px 14px;
+          border: 1px solid var(--hair); border-radius: 10px; background: var(--ground-2); }
+  .item.mine { border-color: var(--gold); }
+  .item .what { flex: 1 1 260px; min-width: 0; }
+  .item .what b { display: block; font-weight: 400; }
+  .item .what span { display: block; font-size: 12.5px; color: var(--text-2); overflow-wrap: anywhere; }
+  .tag { font-size: 12px; color: var(--ground); background: var(--gold); border-radius: 999px; padding: 1px 9px; margin-left: 6px; }
+  .btn { appearance: none; font: inherit; font-size: 14px; letter-spacing: 0.05em; cursor: pointer; border-radius: 10px;
+         padding: 8px 16px; border: 1px solid var(--gold); background: var(--gold); color: var(--ground); text-decoration: none; }
+  .btn.ghost { background: transparent; color: var(--gold); }
+  pre { margin: 0; width: 100%; padding: 10px 12px; border-radius: 8px; background: var(--ground); border: 1px solid var(--ground-3);
+        color: var(--text); font: 13px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .note { font-size: 13.5px; color: var(--text-2); }
+  .why { min-height: 1.45em; width: 100%; text-align: center; color: var(--bad); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <img class="mark" src="session/fox.svg" alt="">
+  <h1>ZXV</h1>
+  <p class="lead" id="lead">One root, three ways in. Every file here is checked against its SHA-256 before it is used.</p>
+  <div class="ways">
+    <button class="way" type="button" id="w-run" aria-pressed="false">
+      <svg viewBox="0 0 32 32" fill="none" stroke="#F2C230" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="6" width="24" height="18" rx="2"/><path d="M13 11v8l7-4z"/></svg>
+      <span class="name">Run here</span>
+      <span class="sub" id="s-run">In this browser tab, with the model running in the tab.</span>
+    </button>
+    <button class="way" type="button" id="w-install" aria-pressed="false">
+      <svg viewBox="0 0 32 32" fill="none" stroke="#F2C230" stroke-width="1.8" stroke-linejoin="round"><path d="M16 4v15M10 13l6 6 6-6"/><path d="M5 22v5h22v-5"/></svg>
+      <span class="name">Install</span>
+      <span class="sub" id="s-install">On a computer or a server of its own: a disc image to write or boot.</span>
+    </button>
+    <button class="way" type="button" id="w-vm" aria-pressed="false">
+      <svg viewBox="0 0 32 32" fill="none" stroke="#F2C230" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="5" width="24" height="17" rx="2"/><rect x="9" y="9" width="14" height="9" rx="1"/><path d="M11 27h10M16 22v5"/></svg>
+      <span class="name">Run as a VM</span>
+      <span class="sub" id="s-vm">Beside your own system, in QEMU, UTM or Hyper-V.</span>
+    </button>
+  </div>
+  <section class="panel" id="p-install" hidden aria-labelledby="h-install">
+    <h2 id="h-install">Install</h2>
+    <p class="note" id="install-note"></p>
+    <div id="images"></div>
+    <div id="scripts"></div>
+  </section>
+  <section class="panel" id="p-vm" hidden aria-labelledby="h-vm">
+    <h2 id="h-vm">Run as a VM</h2>
+    <p class="note" id="vm-note"></p>
+    <div id="launchers"></div>
+  </section>
+  <div class="why" id="why" role="status" aria-live="polite"></div>
+</main>
+<script src="entry.js"></script>
+</body>
+</html>
