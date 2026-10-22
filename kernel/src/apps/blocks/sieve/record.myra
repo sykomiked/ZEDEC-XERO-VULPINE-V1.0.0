@@ -1,0 +1,11 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Sieve indexes one held suggestion in MYRA (sieve_rules.h SR5): its
+; own id (10 digits), the app it is for (a slot, 3 digits), its source (0
+; answer, 1 draft, 2 envelope), its state (1 pending, 2 accepted,
+; 3 rejected, 4 applied: zxm.h M3 and sieve_model.h SM2), the second its
+; hold lapses (12 digits, to the year 9999) and the version of the target
+; it was made against (18 digits). Sieve asks whether the numbers fit
+; before it keeps them.
+^ZXSIEVE(id:i10) = app:i3! ^ source:i1! ^ state:i1! ^ expires:i12! ^ version:i18!

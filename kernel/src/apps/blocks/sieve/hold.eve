@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The limits of a hold (sieve_rules.h SR4), in Eve: where the suggestion
+# came from (0 a swarm.ask answer, 1 a play.draft draft, 2 a Web4 envelope
+# held for consent), how long it is held before it lapses (1 to 86400
+# seconds: no longer than a day, the longest zxvd's web4.consent grants)
+# and the second it was made (0 to the last second of the year 9999,
+# zxvd's "now"). Any other row does not fit: it is not held.
+eve sieve
+hold_source = 0 .. 2
+hold_ttl = 1 .. 86400
+hold_made = 0 .. 253402300799
+
+suggestion_hold {
+  source: hold_source
+  ttl: hold_ttl
+  made: hold_made
+}

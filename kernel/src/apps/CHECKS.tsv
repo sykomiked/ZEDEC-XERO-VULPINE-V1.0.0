@@ -1088,6 +1088,20 @@ shepherd	check left minutes=60,60,0 extra=0,15,0 used=60,60,0 = 0,15,0
 shepherd	check left minutes=10000 extra=0 used=0 = both
 shepherd	check limit_ok minutes=-2,-1,1440,1441 from=0 to=0 = false,true,true,false
 shepherd	check week minutes=30,0,1440,45,12,0,7 = 1534
+sieve	check suggestion_apply_ok accepted=1,1,0,1,1,1,1 secondsleft=1,86400,600,0,-5,600,600 drift=0,0,0,0,0,1,-1 = true,true,false,false,false,false,false
+sieve	check suggestion_apply_ok accepted=1,2 secondsleft=600,600 drift=0,0 = both
+sieve	check suggestion_apply_ok accepted=1,1 secondsleft=600,86401 drift=0,0 = both
+sieve	check suggestion_apply_n accepted=1,1,0,1,1,1,1 secondsleft=1,86400,600,0,-5,600,600 drift=0,0,0,0,0,1,-1 = 1,1,0,0,0,0,0
+sieve	check suggestion_apply_n accepted=1,2 secondsleft=600,600 drift=0,0 = both
+sieve	check suggestion_apply_n accepted=1,1 secondsleft=600,86401 drift=0,0 = both
+sieve	check held_suggestion_count app=5,5,7,5,9 pending=1,0,1,1,1 want=5 = 2
+sieve	check held_suggestion_count app=5,7 pending=0,1 want=5 = 0
+sieve	check held_suggestion_count app=5,5 pending=1,2 want=5 = both
+sieve	check suggestion_hold_ok source=0,2,3,0,0,0,0,-1 ttl=1,86400,600,0,86401,600,600,600 made=0,253402300799,0,0,0,-1,253402300800,0 = true,true,false,false,false,false,false,false
+sieve	check suggestion_index_ok id=1,9999999999,10000000000,1,1,1,1,1 app=1,999,1,1000,1,1,1,1 source=0,2,0,0,10,0,0,0 state=1,4,1,1,1,10,1,1 expires=0,999999999999,0,0,0,0,1000000000000,0 version=0,999999999999999999,0,0,0,0,0,1000000000000000000 = true,true,false,false,false,false,false,false
+sieve	check witness.kind_count kind=0,1,0,2,0 want=0 = 3
+sieve	check witness.kind_count kind=1,2 want=1,1 = both
+sieve	check ramble.consent_covers scopegap=0,0,1 ceilingleft=0,0,0 secondsleft=600,86400,600 = true,true,false
 signpost	check name_fault label=1,63,64,0,10,10,63 total=1,253,64,5,254,9,63 bad=0,0,0,0,0,0,1 = 0,0,1,1,2,2,3
 signpost	check name_fault label=5,-1 total=10,10 bad=0,0 = both
 signpost	check name_ok label=1,63,64,0,10,10 total=1,253,64,5,254,253 bad=0,0,0,0,0,1 = true,true,false,false,false,false

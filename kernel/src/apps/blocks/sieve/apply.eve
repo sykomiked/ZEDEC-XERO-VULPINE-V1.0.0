@@ -1,0 +1,22 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# May this held suggestion be applied (sieve_rules.h SR1), in Eve. Eve
+# checks each field against its own range, so each part comes as its
+# margin: accepted, the owner's accept, exactly 1; secondsleft, its expiry
+# minus now, 1 to 86400 (no hold lasts longer than a day, the longest
+# zxvd's web4.consent grants); drift, the target's version now minus the
+# version the suggestion was made against, exactly 0. Any other row does
+# not fit: it is not applied. apply.kron says the same in KRON, which
+# reads an accept above 0 as yes and any secondsleft above 0 as live:
+# a row past Eve's ranges is held.
+eve sieve
+accept_yes = 1 .. 1
+hold_left = 1 .. 86400
+no_drift = 0 .. 0
+
+suggestion_apply {
+  accepted: accept_yes
+  secondsleft: hold_left
+  drift: no_drift
+}

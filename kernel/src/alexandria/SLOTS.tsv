@@ -512,3 +512,8 @@
 475	logic.poultice_care_node_ok	492.32	poultice.care_node_ok	base
 476	logic.poultice_dose_in_limit	492.33	poultice.dose_in_limit	base
 477	num.poultice_dose_in_limit_n	592.37	poultice.dose_in_limit_n	base
+478	num.sieve_held_suggestion_count	592.38	sieve.held_suggestion_count	base
+479	num.sieve_suggestion_apply_n	592.39	sieve.suggestion_apply_n	base
+480	logic.sieve_suggestion_apply_ok	492.34	sieve.suggestion_apply_ok	base
+481	logic.sieve_suggestion_hold_ok	492.35	sieve.suggestion_hold_ok	base
+482	logic.sieve_suggestion_index_ok	492.36	sieve.suggestion_index_ok	base

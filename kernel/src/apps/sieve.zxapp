@@ -1,0 +1,121 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Sieve, AI suggestions held until accepted: layer 63 of the matrix. Every
+# held suggestion (zxm.h M3) in one place: the swarm's tagged answers
+# (swarm.ask), untrusted drafts (play.draft), the envelopes zxvd holds for
+# the owner's consent (web4.feed, web4.consent), and what zxvd kept of the
+# consent answers (journal.query). Nothing is applied without the owner's
+# accept, and every accept, reject and apply is logged before Sieve says
+# it is done (sieve_model.h SM3-SM5): a full log refuses the action.
+# Advisory and owner-confirmed: Sieve never accepts, rejects or applies by
+# itself, and it changes no document; it hands an accepted text to the
+# caller only while it may still be applied.
+#
+#   suggestion_apply_ok    may this be applied: accepted (exactly 1), not
+#                          expired (secondsleft 1..86400) and its target
+#                          unchanged since it was made (drift exactly 0)
+#                          (sieve_rules.h SR1). Eve holds each margin to its
+#                          range; KRON reads an accept above 0 as yes and
+#                          any secondsleft above 0 as live: a flag of 2, or
+#                          a hold longer than a day, is held (BOTH).
+#   suggestion_apply_n     the same rule as a number to count with, 1 or 0
+#                          (SR2). C++ (as WebAssembly) traps on an accept
+#                          that is no flag or a hold longer than a day,
+#                          where KRON answers: held (BOTH).
+#   held_suggestion_count  how many suggestions are still held for one app
+#                          (SR3), one app slot and one pending flag per
+#                          suggestion, want one value: KRON holds a flag
+#                          inside 0..1, Trebago adds it as it is, so a flag
+#                          that is no flag makes them disagree (BOTH).
+#   suggestion_hold_ok     the limits of a hold (SR4): source 0..2, ttl
+#                          1..86400 seconds, made 0..253402300799. Eve's
+#                          alone, as the task asks.
+#   suggestion_index_ok   a suggestion makes a ^ZXSIEVE record (SR5), in
+#                          MYRA, as the task asks.
+#
+# The task asks for "may this be applied" in Eve, KRON and C++ wasm as
+# three witnesses of one entry. A witnessed call compares answers exactly
+# and an entry answers one kind (zxapp.c run_one B3): Eve answers truths
+# only (zxapp_eve.c EV2) and WebAssembly numbers only (zxapp_wasm.c W2). So
+# the rule is two entries of one meaning, as Gatehouse's use_ok and
+# use_allowed are: Eve and KRON witness the truth, C++ and KRON the number,
+# and the model's C (sieve_rules.h) is the third witness of both
+# (tests/sieve_zxapp.inc). The hold's limit is zxvd's own: web4.consent
+# never grants longer than 86400 seconds, so no suggestion is held longer.
+#
+# Built on what is nearer the core: held by source is Witness's kind_count
+# (WR2) over the pending suggestions' sources, used as it is; an envelope's
+# accept is a consent the owner grants for the envelope's own scope and
+# amount, checked with Ramble's consent_covers (RR1) before web4.consent is
+# called. Layer 63 leans only on the core; nothing else built before it
+# fits.
+#
+# Two later layers lean on this one, so every entry is a general rule
+# registered in CONCEPTS.tsv with Sieve as owner.
+#
+# Kept in C, since no runnable language owns it: reading zxvd's answers,
+# the table and the log ring. zxvd has no method that posts a notice
+# (notify: the notice is only composed) and none that writes an app's own
+# line to the journal, so Sieve's accept log is its own ring; zxvd journals
+# each web4.consent call itself, and Sieve reads those lines back. needs
+# net is added to the task's three: web4.feed and web4.consent are Web4,
+# the network.
+#
+# Planned languages: Python already has a runtime (python), so no pending
+# line. Occam (concurrency, channels) has no entry of its kind here: Sieve
+# runs nothing in parallel. Common Lisp (large symbolic programs) has none
+# either: Sieve's entries are limits, counts and a record. No pending line
+# for either.
+zxapp 1
+id     sieve
+name   Sieve
+version 1.0.0
+slot   63
+layer  L1
+matrix 63
+icon   icons/l1/063-sieve.svg
+budget 233
+needs  ai.ask
+needs  journal
+needs  notify
+needs  net
+model  apps/sieve_model.c
+use    witness 1   # @num.witness_kind_count
+use    ramble 1    # @logic.ramble_consent_covers
+
+provides suggestion_apply_ok truth accepted secondsleft drift
+logic    eve  suggestion_apply_ok apps/blocks/sieve/apply.eve
+logic    kron suggestion_apply_ok apps/blocks/sieve/apply.kron
+
+provides suggestion_apply_n num accepted secondsleft drift
+logic    wasm suggestion_apply_n apps/blocks/sieve/apply_n.wasm
+logic    kron suggestion_apply_n apps/blocks/sieve/apply_n.kron
+
+provides held_suggestion_count num app pending want
+logic    kron    held_suggestion_count apps/blocks/sieve/held.kron
+logic    trebago held_suggestion_count apps/blocks/sieve/held.tb
+
+provides suggestion_hold_ok truth source ttl made
+logic    eve suggestion_hold_ok apps/blocks/sieve/hold.eve
+
+provides suggestion_index_ok truth id app source state expires version
+logic    myra suggestion_index_ok apps/blocks/sieve/record.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check suggestion_apply_ok accepted=1,1,0,1,1,1,1 secondsleft=1,86400,600,0,-5,600,600 drift=0,0,0,0,0,1,-1 = true,true,false,false,false,false,false
+check suggestion_apply_ok accepted=1,2 secondsleft=600,600 drift=0,0 = both
+check suggestion_apply_ok accepted=1,1 secondsleft=600,86401 drift=0,0 = both
+check suggestion_apply_n accepted=1,1,0,1,1,1,1 secondsleft=1,86400,600,0,-5,600,600 drift=0,0,0,0,0,1,-1 = 1,1,0,0,0,0,0
+check suggestion_apply_n accepted=1,2 secondsleft=600,600 drift=0,0 = both
+check suggestion_apply_n accepted=1,1 secondsleft=600,86401 drift=0,0 = both
+check held_suggestion_count app=5,5,7,5,9 pending=1,0,1,1,1 want=5 = 2
+check held_suggestion_count app=5,7 pending=0,1 want=5 = 0
+check held_suggestion_count app=5,5 pending=1,2 want=5 = both
+check suggestion_hold_ok source=0,2,3,0,0,0,0,-1 ttl=1,86400,600,0,86401,600,600,600 made=0,253402300799,0,0,0,-1,253402300800,0 = true,true,false,false,false,false,false,false
+check suggestion_index_ok id=1,9999999999,10000000000,1,1,1,1,1 app=1,999,1,1000,1,1,1,1 source=0,2,0,0,10,0,0,0 state=1,4,1,1,1,10,1,1 expires=0,999999999999,0,0,0,0,1000000000000,0 version=0,999999999999999999,0,0,0,0,0,1000000000000000000 = true,true,false,false,false,false,false,false
+# Held by source, Witness's: three answers, a draft and an envelope pending
+check witness.kind_count kind=0,1,0,2,0 want=0 = 3
+check witness.kind_count kind=1,2 want=1,1 = both
+# An envelope's accept: its own scope and amount, 600 seconds of the hold left
+check ramble.consent_covers scopegap=0,0,1 ceilingleft=0,0,0 secondsleft=600,86400,600 = true,true,false

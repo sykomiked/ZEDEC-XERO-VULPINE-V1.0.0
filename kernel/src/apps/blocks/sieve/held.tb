@@ -1,0 +1,13 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! How many suggestions are still held for one app (sieve_rules.h SR3), in
+! Trebago: the exact sum of each suggestion's pending flag (1 held, 0 not)
+! over the rows whose app is want (both 1 + app - want and 1 + want - app
+! are at least 1). A flag that is no flag is added as it is, where KRON
+! holds it inside 0..1, so the two disagree and the count is held.
+trebago held_suggestion_count
+  in  app(n), pending(n), want
+  out count
+  count = sum(i, pending(i) * max(0, min(1, 1 + app(i) - want)) * max(0, min(1, 1 + want - app(i))))
+end

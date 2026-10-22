@@ -483,7 +483,12 @@
 #define ALX_SLOT_LOGIC_POULTICE_CARE_NODE_OK     475u /* 492.32 poultice.care_node_ok */
 #define ALX_SLOT_LOGIC_POULTICE_DOSE_IN_LIMIT    476u /* 492.33 poultice.dose_in_limit */
 #define ALX_SLOT_NUM_POULTICE_DOSE_IN_LIMIT_N    477u /* 592.37 poultice.dose_in_limit_n */
-#define ALX_SLOT__COUNT 477u
+#define ALX_SLOT_NUM_SIEVE_HELD_SUGGESTION_COUNT 478u /* 592.38 sieve.held_suggestion_count */
+#define ALX_SLOT_NUM_SIEVE_SUGGESTION_APPLY_N    479u /* 592.39 sieve.suggestion_apply_n */
+#define ALX_SLOT_LOGIC_SIEVE_SUGGESTION_APPLY_OK 480u /* 492.34 sieve.suggestion_apply_ok */
+#define ALX_SLOT_LOGIC_SIEVE_SUGGESTION_HOLD_OK  481u /* 492.35 sieve.suggestion_hold_ok */
+#define ALX_SLOT_LOGIC_SIEVE_SUGGESTION_INDEX_OK 482u /* 492.36 sieve.suggestion_index_ok */
+#define ALX_SLOT__COUNT 482u
 /* clang-format on */
 
 #endif
