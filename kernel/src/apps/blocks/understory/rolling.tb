@@ -1,0 +1,21 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Rolling-window totals (understory_rules.h UR3), in Trebago, one reading
+! per row in order: each row's total is the exact sum of its own amount and
+! the width - 1 before it (fewer at the start), so a window of 1 is the
+! amount itself and a window past the rows is the running total. An amount
+! below 0 (energy, water and land are never negative) or a width outside
+! 1..999999 makes ok 0 and every total a division by zero: refused. A sum
+! past 64 bits is refused by Trebago itself, never wrapped. Row j is inside
+! row i's window when j <= i and j > i - width, which
+! min(1, max(0, i - j + 1)) * min(1, max(0, j - i + width)) is for integers.
+trebago rolling
+  in  amount(n), width
+  out total(n)
+  var s(n), ok
+  ok = min(1, max(0, width)) * min(1, max(0, 999999 - width + 1)) &
+     * (1 - min(1, sum(i, min(1, max(0, 0 - amount(i))))))
+  s(i) = sum(j, amount(j) * min(1, max(0, i - j + 1)) * min(1, max(0, j - i + width)))
+  total(i) = s(i) / ok
+end

@@ -1,0 +1,7 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Understory files a parcel of land in MYRA (understory_rules.h UR5):
+; its number, its kind (1 built, 2 garden, 3 crop, 4 pasture, 5 wild) and
+; its area in square metres.
+^ZXUNDERLAND(parcel:i6) = kind:i1! ^ area:i12!

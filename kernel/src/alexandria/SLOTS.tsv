@@ -167,3 +167,8 @@
 130	num.reckoner_band_tax	590.59	reckoner.band_tax	base
 131	logic.reckoner_report_ok	490.61	reckoner.report_ok	base
 132	num.reckoner_statement_close	590.60	reckoner.statement_close	base
+133	num.understory_energy_cost	590.61	understory.energy_cost	base
+134	logic.understory_land_entry_ok	490.62	understory.land_entry_ok	base
+135	logic.understory_over_budget	490.63	understory.over_budget	base
+136	num.understory_rolling_total	590.62	understory.rolling_total	base
+137	logic.understory_water_entry_ok	490.64	understory.water_entry_ok	base

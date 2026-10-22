@@ -138,7 +138,12 @@
 #define ALX_SLOT_NUM_RECKONER_BAND_TAX           130u /* 590.59 reckoner.band_tax */
 #define ALX_SLOT_LOGIC_RECKONER_REPORT_OK        131u /* 490.61 reckoner.report_ok */
 #define ALX_SLOT_NUM_RECKONER_STATEMENT_CLOSE    132u /* 590.60 reckoner.statement_close */
-#define ALX_SLOT__COUNT 132u
+#define ALX_SLOT_NUM_UNDERSTORY_ENERGY_COST      133u /* 590.61 understory.energy_cost */
+#define ALX_SLOT_LOGIC_UNDERSTORY_LAND_ENTRY_OK  134u /* 490.62 understory.land_entry_ok */
+#define ALX_SLOT_LOGIC_UNDERSTORY_OVER_BUDGET    135u /* 490.63 understory.over_budget */
+#define ALX_SLOT_NUM_UNDERSTORY_ROLLING_TOTAL    136u /* 590.62 understory.rolling_total */
+#define ALX_SLOT_LOGIC_UNDERSTORY_WATER_ENTRY_OK 137u /* 490.64 understory.water_entry_ok */
+#define ALX_SLOT__COUNT 137u
 /* clang-format on */
 
 #endif

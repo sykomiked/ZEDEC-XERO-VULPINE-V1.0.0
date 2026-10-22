@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Over budget (understory_rules.h UR2), in Eve: what was used in a window
+# minus its budget, in the budget's own unit (mJ of energy, litres of
+# water, square metres of land), is the excess; the budget is passed when
+# the excess is 1 to 999999999999999999 (18 digits). 0 or less is inside
+# the budget. An excess past 18 digits is no measurement: Eve refuses it,
+# while over.kron (J, through KRON) reads any excess above 0 as over: held.
+eve understory
+budget_excess = 1 .. 999999999999999999
+
+overrun {
+  excess: budget_excess
+}

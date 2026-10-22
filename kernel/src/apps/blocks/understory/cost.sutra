@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What energy costs at a tariff (understory_rules.h UR1), in Sutra: mj
+# millijoules at tariff minor units of the owner's currency per kWh (one
+# kWh is 3600000000 mJ), floor(mj * tariff / 3600000000), never rounded
+# up. mj fits 9(12) (about 277 kWh) and tariff 9(6), so a larger or a
+# negative one is a size error: refused. cost.cpp says the same in C++
+# (as WebAssembly), which answers to 64 bits: past the pictures the two
+# disagree and the cost is held. Advice only: it is no bill.
+record energy-cost
+  mj: 9(12)
+  tariff: 9(6)
+  cost: 9(9)
+procedure
+  compute cost = mj * tariff / 3600000000
+  answer cost

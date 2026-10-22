@@ -1,0 +1,87 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Understory, nature budgets: layer 93 of the matrix. Energy, water and
+# land budgets, advisory and owner-confirmed (understory_model.h). Energy
+# is read from zxvd's power ledger (power.status, power.top); a budget is
+# proposed, checked and held, and only with the owner's word sent with
+# power.budget. Understory never controls the grid: power.budget limits
+# what this device's own consumers may spend, nothing more.
+#
+# zxvd serves power.status and power.top always (feature "power") and
+# power.budget behind the "power" feature, off by default; the task's
+# "off by default" is zxvd's for power.budget, and the model follows it:
+# a refusal leaves the budget held. zxvd has no water or land method (no
+# meter, no store) and no notification method, and none is invented: the
+# owner enters water readings and parcels in the view, the model holds
+# them in bounded tables, and it composes the notice text for the view.
+#
+# Nothing leans on this layer yet, but its three rules are general (energy
+# at a tariff, a budget passed, rolling-window totals), so each is a
+# concept in CONCEPTS.tsv with Understory as its owner.
+#
+#   energy_cost     mJ at a tariff per kWh, floored (UR1): Sutra and C++
+#                   (as WebAssembly), witnessed. Vintner's sale_value is a
+#                   plain product with no unit scale, so it does not fit.
+#   over_budget     the excess of use over a budget is 1..18 digits (UR2):
+#                   Eve and KRON (the task's J, which runs through KRON),
+#                   witnessed. Eve answers truths and holds one field to
+#                   its own range, so the rule is given as one margin.
+#   rolling_total   rolling-window totals, exact, in Trebago (UR3).
+#   water_entry_ok a water reading's record, ^ZXUNDERWATER, MYRA (UR4).
+#   land_entry_ok  a parcel's record, ^ZXUNDERLAND, MYRA (UR5).
+#
+# Used, never written again: Keystone's energy_budget_ok holds a budget
+# inside its limits and the device's before it is proposed (KS2), and
+# Wellspring's progress_x100 is the share of a budget used (done against
+# a goal, past 10000 when the budget is passed). The task names no planned
+# languages, so nothing is pending.
+zxapp 1
+id     understory
+name   Understory
+version 1.0.0
+slot   93
+layer  L1
+matrix 93
+icon   icons/l1/093-understory.svg
+budget 233
+needs  sys.read
+needs  notify
+model  apps/understory_model.c
+use    keystone 1     # @logic.keystone_energy_budget_ok
+use    wellspring 1   # @num.wellspring_progress_x100
+
+# What energy costs at a tariff (UR1): Sutra and C++.
+provides energy_cost num mj tariff
+logic    sutra energy_cost apps/blocks/understory/cost.sutra
+logic    wasm  energy_cost apps/blocks/understory/cost.wasm
+
+# A budget passed (UR2): Eve and KRON. J, through KRON.
+provides over_budget truth excess
+logic    eve  over_budget apps/blocks/understory/over.eve
+logic    kron over_budget apps/blocks/understory/over.kron
+
+# Rolling-window totals, exact (UR3), in Trebago.
+provides rolling_total num amount width
+logic    trebago rolling_total apps/blocks/understory/rolling.tb
+
+# A water reading's record (UR4), in MYRA.
+provides water_entry_ok truth day source litres
+logic    myra water_entry_ok apps/blocks/understory/water.myra
+
+# A parcel's record (UR5), in MYRA.
+provides land_entry_ok truth parcel kind area
+logic    myra land_entry_ok apps/blocks/understory/land.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check energy_cost mj=0,3600000000,1800000000,999999999999 tariff=0,25,25,999999 = 0,25,12,277777499
+check energy_cost mj=3600000000,1000000000000 tariff=25,25 = both
+check over_budget excess=-5,0,1,999999999999999999 = false,false,true,true
+check over_budget excess=5,1000000000000000000 = both
+check rolling_total amount=5,10,20,40 width=2 = 5,15,30,60
+check rolling_total amount=1,2,3 width=5 = 1,3,6
+check water_entry_ok day=0,999999,1000000,20000 source=1,4,1,10 litres=0,999999999,1,1 = true,true,false,false
+check land_entry_ok parcel=1,999999,1000000,7 kind=1,5,1,10 area=0,999999999999,5,5 = true,true,false,false
+# The budget's limits through Keystone (KS2), and the share used through Wellspring.
+check keystone.energy_budget_ok window=60000,0 spend=500,500 whole=1000,1000 = true,false
+check wellspring.progress_x100 done=0,500,1000,1500 goal=1000,1000,1000,1000 = 0,5000,10000,15000

@@ -1,0 +1,7 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Understory files a water reading in MYRA (understory_rules.h UR4):
+; its day (days since 1970), its source (1 mains, 2 well, 3 rain, 4
+; surface) and the litres drawn that day from that source.
+^ZXUNDERWATER(day:i6, source:i1) = litres:i9!
