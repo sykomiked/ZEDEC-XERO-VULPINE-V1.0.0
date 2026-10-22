@@ -1,0 +1,11 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Pannier files a parcel in MUMPS as MYRA (pannier_rules.h PR6): each
+; freight of a parcel under its peer (one digit) and the parcel's number
+; (9 digits), the freight's place in the parcel (6 digits); the node holds
+; the parcel's bytes (8 digits, 16 MiB at most), the attempts made (2),
+; its tracking status (1, caravan_rules.h CR5) and when it last changed,
+; in seconds since 1970 (12). The rules say what the values may mean;
+; this says whether they make a record.
+^ZXPANNIER(peer:i1, parcel:i9, freight:i6) = size:i8! ^ attempt:i2! ^ state:i1! ^ stamp:i12!

@@ -1,0 +1,18 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Route time (pannier_rules.h PR4), in Trebago: the hours a parcel is
+! expected to take, the sum of its hop times in minutes over 60, an exact
+! reduced fraction, never rounded. ok is 1 for 1..64 hops each of
+! 0..99999 minutes and 0 otherwise (min(1, max(0, 0 - hop(j))) is 1
+! exactly when a hop is below 0, min(1, max(0, hop(j) - 99999)) when it
+! is past 99999 minutes), and the hours are divided by it: anything else
+! is a division by zero, refused.
+trebago route_hours
+  in  hop(n)
+  out hours
+  var ok
+  ok = min(1, max(0, 64 - n + 1)) &
+     * (1 - min(1, sum(j, min(1, max(0, 0 - hop(j))) + min(1, max(0, hop(j) - 99999)))))
+  hours = sum(j, hop(j)) / 60 / ok
+end

@@ -977,6 +977,34 @@ orrery	check almanac.days seconds=0,86399,86400,200000 = 0,0,1,2
 orrery	check almanac.days seconds=86400,-86401 = both
 orrery	check solstice.month_days year=2000 month=2 = 29
 orrery	check solstice.month_days year=1900 month=2 = 28
+pannier	check parcel_send_now peerstate=1,1,1,2,3,1,1,1,1,0 room=0,16777216,100,100,100,-1,100,100,100,100 attempt=1,16,5,5,5,5,0,17,16,1 = true,true,true,false,false,false,false,false,true,false
+pannier	check parcel_send_now peerstate=1,1 room=100,16777217 attempt=1,1 = both
+pannier	check parcel_send_now peerstate=1,1 room=100,999999999 attempt=2,2 = both
+pannier	check parcel_retry_ok attempt=1,16,0,17,1,1,16 backoff=0,3600,0,0,-1,3601,30 = true,true,false,false,false,false,true
+pannier	check route_hours hop=90,60 = 5/2
+pannier	check route_hours hop=0,0,0 = 0
+pannier	check route_hours hop=120,240,0,99999 = 33453/20
+pannier	check parcel_queue_room head=0,16,16,7,1000000 tail=0,0,16,3,999999 cap=16,16,16,16,999999 = 16,0,16,12,999998
+pannier	check parcel_node_ok peer=1,8,10,1,1,1,1,-8 parcel=9,999999999,1,1000000000,1,1,1,-9 freight=0,999999,0,0,1000000,0,0,-1 size=4096,16777216,1,1,1,100000000,1,-1 attempt=1,16,1,1,1,1,100,-1 state=0,5,0,0,0,0,0,-5 stamp=1792627200,999999999999,0,0,0,0,0,-1 = true,true,false,false,false,false,false,true
+pannier	check rookery.letter_send_ok verified=1,1,0,1 room=0,2048,100,-1 consentgap=0,0,0,0 = true,true,false,false
+pannier	check rookery.letter_send_ok verified=1,2 room=100,100 consentgap=0,0 = both
+pannier	check rookery.letter_size_ok subject=0,200,201,10 content=0,1837,0,1838 = true,true,false,false
+pannier	check rookery.letter_record_ok folder=2,10 thread=1,1 letter=1,1 size=2048,0 stamp=1792627200,0 = true,false
+pannier	check trellis.peers_in_state state=1,1,3,2,1 want=1,1,1,1,1 = 3
+pannier	check trellis.peers_in_state state=1,4 want=1,1 = both
+pannier	check trellis.peer_record_ok peer=1,10 state=1,1 role=1,1 admin=0,0 held=0,0 since=1792627200000,1 = true,false
+pannier	check pollen.freight_count size=0,4096,3360,3361 k=1,168,168,168 = 0,2,1,2
+pannier	check pollen.freight_count size=100,100 k=5,169 = both
+pannier	check pollen.freight_packets size=4096,21 k=168,1 = 336,2
+pannier	check pollen.freight_packets size=100,100 k=5,169 = both
+pannier	check ferry.target_fits avail=1000000,1000000,0 need=4096,999000,1 spare=0,1001,0 = true,false,false
+pannier	check ferry.target_fits avail=1000,1000000000000000 need=600,0 spare=400,0 = both
+pannier	check caravan.ship_ok ship=9,1000000 carrier=3,1 mass=4096,0 charged=336,0 status=3,0 stamp=1792627200,0 = true,false
+pannier	check caravan.ship_ok ship=9,9 carrier=3,3 mass=4096,4096 charged=336,336 status=3,7 stamp=1792627200,1792627200 = both
+pannier	check cove.tunnel_seq_gap last=0,4,5 seq=1,5,9 = 1,1,4
+pannier	check cove.tunnel_seq_gap last=0,5 seq=1,1000000000000000000 = both
+pannier	check warren.backoff tries=6 base=30 most=3600 = 30,60,120,240,480,960
+pannier	check warren.backoff tries=4 base=30 most=86401 = both
 pavise	check perimeter_allow gate=1,1,0,1,1,1,1 reach=1,1,1,0,1,1,1 keyok=1,1,1,1,0,1,1 keydays=30,2932896,30,30,30,0,30 deny=0,0,0,0,0,0,1 = true,true,false,false,false,false,false
 pavise	check perimeter_allow gate=1,2 reach=1,1 keyok=1,1 keydays=30,30 deny=0,0 = both
 pavise	check perimeter_allow gate=1,1 reach=1,1 keyok=1,1 keydays=30,2932897 deny=0,0 = both

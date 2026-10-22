@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Send now (pannier_rules.h PR1), in Eve. Each part comes as one count
+# held to its own range: peerstate, the peer's state (Trellis: 1 active,
+# 2 revoked, 3 waiting), exactly 1; room, 16777216 (a parcel's most
+# bytes) less the parcel's bytes, 0..16777216; and attempt, the attempt
+# about to be made, 1..16. send.kron says the same in KRON, which reads
+# any room at or above 0 as within size: a room no parcel gives is held.
+eve pannier_send
+peer_active = 1 .. 1
+parcel_room = 0 .. 16777216
+attempt_no = 1 .. 16
+
+send_now {
+  peerstate: peer_active
+  room: parcel_room
+  attempt: attempt_no
+}

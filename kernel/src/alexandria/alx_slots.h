@@ -538,7 +538,12 @@
 #define ALX_SLOT_LOGIC_BINNACLE_WAYPOINT_NODE_OK 530u /* 492.58 binnacle.waypoint_node_ok */
 #define ALX_SLOT_NUM_BINNACLE_WPT_BEARING_CDEG   531u /* 592.66 binnacle.wpt_bearing_cdeg */
 #define ALX_SLOT_NUM_BINNACLE_WPT_RANGE_M        532u /* 592.67 binnacle.wpt_range_m */
-#define ALX_SLOT__COUNT 532u
+#define ALX_SLOT_LOGIC_PANNIER_PARCEL_NODE_OK    533u /* 492.59 pannier.parcel_node_ok */
+#define ALX_SLOT_NUM_PANNIER_PARCEL_QUEUE_ROOM   534u /* 592.68 pannier.parcel_queue_room */
+#define ALX_SLOT_LOGIC_PANNIER_PARCEL_RETRY_OK   535u /* 492.60 pannier.parcel_retry_ok */
+#define ALX_SLOT_LOGIC_PANNIER_PARCEL_SEND_NOW   536u /* 492.61 pannier.parcel_send_now */
+#define ALX_SLOT_NUM_PANNIER_ROUTE_HOURS         537u /* 592.69 pannier.route_hours */
+#define ALX_SLOT__COUNT 537u
 /* clang-format on */
 
 #endif

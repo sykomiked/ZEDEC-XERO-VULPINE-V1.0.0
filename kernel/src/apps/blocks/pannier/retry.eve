@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Retry limits (pannier_rules.h PR2), in Eve: the attempt about to be
+# made 1..16 and the back-off before it 0..3600 seconds (an hour). The
+# back-off schedule itself is Warren's (warren.backoff); this says
+# whether an attempt and its wait are inside the limits.
+eve pannier_retry
+attempt_no = 1 .. 16
+wait_s = 0 .. 3600
+
+retry_limits {
+  attempt: attempt_no
+  backoff: wait_s
+}

@@ -567,3 +567,8 @@
 530	logic.binnacle_waypoint_node_ok	492.58	binnacle.waypoint_node_ok	base
 531	num.binnacle_wpt_bearing_cdeg	592.66	binnacle.wpt_bearing_cdeg	base
 532	num.binnacle_wpt_range_m	592.67	binnacle.wpt_range_m	base
+533	logic.pannier_parcel_node_ok	492.59	pannier.parcel_node_ok	base
+534	num.pannier_parcel_queue_room	592.68	pannier.parcel_queue_room	base
+535	logic.pannier_parcel_retry_ok	492.60	pannier.parcel_retry_ok	base
+536	logic.pannier_parcel_send_now	492.61	pannier.parcel_send_now	base
+537	num.pannier_route_hours	592.69	pannier.route_hours	base

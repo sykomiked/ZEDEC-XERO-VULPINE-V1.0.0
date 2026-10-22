@@ -1,0 +1,157 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pannier, the store-and-forward carrier: L2, slot 150. Messages and data
+# parcels wait in a bounded queue for a peer (net.peers, peer.status),
+# are cut into freights that survive lost packets (freight.pack,
+# freight.unpack) and are kept with the queue in the Hoard (files.stat,
+# files.read, files.write). See pannier_model.h PM1-PM9 and
+# pannier_rules.h PR1-PR7.
+#
+# Advisory and owner-confirmed: nothing is carried, saved, given up or
+# settled without the owner's word, and Pannier never pays. zxvd has no
+# store-and-forward relay queue, no method that hands a freight's packets
+# to a peer or takes a peer's receipt, and no notification method: the
+# queue is Pannier's own Hoard file, the carrier is this machine (each
+# freight is rebuilt from its last k packets only, as a peer would, into
+# the Hoard), a receipt or a hop report is given to the model by the
+# view, and a notice is text only. None is invented.
+#
+# Composed, not written again (seven uses of ZXAPP_USES 8; its own 6
+# logic lines and its parts' 47 are 53 of ZXAPP_LOGIC_MAX 128):
+#   rookery.letter_send_ok    "may this be sent", for a message parcel
+#   rookery.letter_size_ok    its size limits
+#   rookery.letter_record_ok  the folder and thread index of a message
+#   trellis.peers_in_state    the peers per state (1 active, 2 revoked,
+#                             3 waiting) a carrier may hand parcels to
+#   trellis.peer_record_ok    a carrier peer's record
+#   pollen.freight_count and pollen.freight_packets  the chunk plan
+#   ferry.target_fits         "fits on the receiver": Pollen takes it from
+#                             Ferry and exports only its own entries, so
+#                             Pannier uses the owner, Ferry
+#   caravan.ship_ok           the shipment record and its statuses, the
+#                             tracking pattern for a parcel
+#   cove.tunnel_seq_gap       delivery receipts: the task asks for a
+#                             strictly rising sequence per peer, refused
+#                             on reuse or overflow, in Sutra and KRON;
+#                             that is Cove's nonce discipline (Sutra and
+#                             Rust), registered in CONCEPTS.tsv with Cove
+#                             as owner, so it is used, never written again
+#   warren.backoff            the back-off schedule (min(most, base *
+#                             2^(k - 1))), capped here at 3600 s
+#
+# matrix: zxapp.c takes 0..144 and slot 150 is no matrix layer; an L2 app
+# sits on the layer of its part outermost in MATRIX_ORDER.tsv: Cove
+# (place 57, layer 32), past Pollen (31), Rookery (26), Warren (20),
+# Ferry (12), Trellis (29) and Caravan (90, place 5).
+#
+# Witness pairs answer one kind: "send now" is a truth whose parts each
+# come as one count against its own range, which is what Eve holds; KRON
+# witnesses it, reading any room at or above 0 as within size: a room no
+# parcel's bytes give (past 16 MiB) is held. Later layers use "send now",
+# the retry limits, the route time, the queue room and the parcel tree, so
+# all five are registered in CONCEPTS.tsv with Pannier as owner.
+#
+# Kept in C, since no runnable language owns it: text (paths, NodeIDs,
+# hex and base64 of the freights), zxvd's answers, and the four-valued
+# join of a receipt and a hop report (lpres_kjoin, PR7: a parcel with a
+# signed receipt and a hop report of loss is BOTH, neither sent again nor
+# closed until a second receipt or the recipient settles it).
+#
+# Planned languages: Elixir (messaging, faults) owns fault-tolerant
+# message flows, and the retry limits are that work: pending on
+# parcel_retry_ok. SNOBOL (text, pattern) has no entry of its kind here;
+# C# (objects, view) already has a runtime in LANGUAGE_FIT.tsv (dotnet),
+# so it takes no pending line, and Pannier has no entry of its kind.
+zxapp 1
+id     pannier
+name   Pannier
+version 1.0.0
+slot   150
+layer  L2
+matrix 32
+icon   icons/l2/150-pannier.svg
+budget 233
+needs  peers
+needs  net
+needs  fs.read
+needs  fs.write
+needs  notify
+model  apps/pannier_model.c
+use    rookery 1   # @logic.rookery_letter_send_ok @logic.rookery_letter_size_ok @logic.rookery_letter_record_ok
+use    trellis 1   # @num.trellis_peers_in_state @logic.trellis_peer_record_ok
+use    pollen 1    # @num.pollen_freight_count @num.pollen_freight_packets
+use    ferry 1     # @logic.ferry_target_fits
+use    caravan 1   # @logic.caravan_ship_ok
+use    cove 1      # @num.cove_tunnel_seq_gap
+use    warren 1    # @num.warren_backoff
+# what it exports, so apps built from it can use them too (C1)
+provides rookery.letter_send_ok truth verified room consentgap
+provides rookery.letter_size_ok truth subject content
+provides rookery.letter_record_ok truth folder thread letter size stamp
+provides trellis.peers_in_state num state want
+provides trellis.peer_record_ok truth peer state role admin held since
+provides pollen.freight_count num size k
+provides pollen.freight_packets num size k
+provides ferry.target_fits truth avail need spare
+provides caravan.ship_ok truth ship carrier mass charged status stamp
+provides cove.tunnel_seq_gap num last seq
+provides warren.backoff num tries base most
+
+# Send now (PR1, critical): the peer active AND the parcel within size AND
+# the attempt at most the retry limit. Ada as Eve and APL as KRON.
+provides parcel_send_now truth peerstate room attempt
+logic    eve  parcel_send_now apps/blocks/pannier/send.eve
+logic    kron parcel_send_now apps/blocks/pannier/send.kron
+
+# Retry limits (PR2): at most 16 attempts, a back-off of at most 3600 s.
+# Ada as Eve. Elixir, planned: fault-tolerant message flows.
+provides parcel_retry_ok truth attempt backoff
+logic    eve parcel_retry_ok apps/blocks/pannier/retry.eve
+pending  Elixir parcel_retry_ok
+
+# Route time (PR4): the expected hours, the sum of the hop times in
+# minutes over 60, exact. FORTRAN as Trebago.
+provides route_hours num hop
+logic    trebago route_hours apps/blocks/pannier/route.tb
+
+# The queue (PR5): a bounded ring, cap - (head - tail) slots left, 0 is
+# backpressure, the oldest first. APL as KRON.
+provides parcel_queue_room num head tail cap
+logic    kron parcel_queue_room apps/blocks/pannier/queue.kron
+
+# The parcel tree (PR6): ^ZXPANNIER(peer, parcel, freight). MUMPS as MYRA.
+provides parcel_node_ok truth peer parcel freight size attempt state stamp
+logic    myra parcel_node_ok apps/blocks/pannier/tree.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check parcel_send_now peerstate=1,1,1,2,3,1,1,1,1,0 room=0,16777216,100,100,100,-1,100,100,100,100 attempt=1,16,5,5,5,5,0,17,16,1 = true,true,true,false,false,false,false,false,true,false
+check parcel_send_now peerstate=1,1 room=100,16777217 attempt=1,1 = both
+check parcel_send_now peerstate=1,1 room=100,999999999 attempt=2,2 = both
+check parcel_retry_ok attempt=1,16,0,17,1,1,16 backoff=0,3600,0,0,-1,3601,30 = true,true,false,false,false,false,true
+check route_hours hop=90,60 = 5/2
+check route_hours hop=0,0,0 = 0
+check route_hours hop=120,240,0,99999 = 33453/20
+check parcel_queue_room head=0,16,16,7,1000000 tail=0,0,16,3,999999 cap=16,16,16,16,999999 = 16,0,16,12,999998
+check parcel_node_ok peer=1,8,10,1,1,1,1,-8 parcel=9,999999999,1,1000000000,1,1,1,-9 freight=0,999999,0,0,1000000,0,0,-1 size=4096,16777216,1,1,1,100000000,1,-1 attempt=1,16,1,1,1,1,100,-1 state=0,5,0,0,0,0,0,-5 stamp=1792627200,999999999999,0,0,0,0,0,-1 = true,true,false,false,false,false,false,true
+# The parts: may it be sent, its size, its index, the peers, the chunk plan,
+# room on the receiver, the shipment record, the receipts and the back-off
+check rookery.letter_send_ok verified=1,1,0,1 room=0,2048,100,-1 consentgap=0,0,0,0 = true,true,false,false
+check rookery.letter_send_ok verified=1,2 room=100,100 consentgap=0,0 = both
+check rookery.letter_size_ok subject=0,200,201,10 content=0,1837,0,1838 = true,true,false,false
+check rookery.letter_record_ok folder=2,10 thread=1,1 letter=1,1 size=2048,0 stamp=1792627200,0 = true,false
+check trellis.peers_in_state state=1,1,3,2,1 want=1,1,1,1,1 = 3
+check trellis.peers_in_state state=1,4 want=1,1 = both
+check trellis.peer_record_ok peer=1,10 state=1,1 role=1,1 admin=0,0 held=0,0 since=1792627200000,1 = true,false
+check pollen.freight_count size=0,4096,3360,3361 k=1,168,168,168 = 0,2,1,2
+check pollen.freight_count size=100,100 k=5,169 = both
+check pollen.freight_packets size=4096,21 k=168,1 = 336,2
+check pollen.freight_packets size=100,100 k=5,169 = both
+check ferry.target_fits avail=1000000,1000000,0 need=4096,999000,1 spare=0,1001,0 = true,false,false
+check ferry.target_fits avail=1000,1000000000000000 need=600,0 spare=400,0 = both
+check caravan.ship_ok ship=9,1000000 carrier=3,1 mass=4096,0 charged=336,0 status=3,0 stamp=1792627200,0 = true,false
+check caravan.ship_ok ship=9,9 carrier=3,3 mass=4096,4096 charged=336,336 status=3,7 stamp=1792627200,1792627200 = both
+check cove.tunnel_seq_gap last=0,4,5 seq=1,5,9 = 1,1,4
+check cove.tunnel_seq_gap last=0,5 seq=1,1000000000000000000 = both
+check warren.backoff tries=6 base=30 most=3600 = 30,60,120,240,480,960
+check warren.backoff tries=4 base=30 most=86401 = both
