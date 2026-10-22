@@ -471,7 +471,10 @@
 #define ALX_SLOT_LOGIC_CONCH_HEARING_BALANCE_OK  463u /* 492.27 conch.hearing_balance_ok */
 #define ALX_SLOT_LOGIC_CONCH_HEARING_LEVEL_OK    464u /* 492.28 conch.hearing_level_ok */
 #define ALX_SLOT_LOGIC_CONCH_SOUND_ALERT_MAP_OK  465u /* 492.29 conch.sound_alert_map_ok */
-#define ALX_SLOT__COUNT 465u
+#define ALX_SLOT_NUM_GLIMPSE_CAPTURE_ORIGIN      466u /* 592.30 glimpse.capture_origin */
+#define ALX_SLOT_NUM_GLIMPSE_FIRST_FREE_N        467u /* 592.31 glimpse.first_free_n */
+#define ALX_SLOT_NUM_GLIMPSE_RECORDING_BYTES     468u /* 592.32 glimpse.recording_bytes */
+#define ALX_SLOT__COUNT 468u
 /* clang-format on */
 
 #endif

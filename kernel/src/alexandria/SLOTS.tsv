@@ -500,3 +500,6 @@
 463	logic.conch_hearing_balance_ok	492.27	conch.hearing_balance_ok	base
 464	logic.conch_hearing_level_ok	492.28	conch.hearing_level_ok	base
 465	logic.conch_sound_alert_map_ok	492.29	conch.sound_alert_map_ok	base
+466	num.glimpse_capture_origin	592.30	glimpse.capture_origin	base
+467	num.glimpse_first_free_n	592.31	glimpse.first_free_n	base
+468	num.glimpse_recording_bytes	592.32	glimpse.recording_bytes	base

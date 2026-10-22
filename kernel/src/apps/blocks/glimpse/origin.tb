@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Where a capture region starts along one side of the screen, in Trebago
+! (glimpse_rules.h GR1): min(max(pos, 0), span), never negative and never
+! past the side. For integers min(1, max(0, m + 1)) is 1 exactly when
+! m >= 0, so ok is 1 when -99999 <= pos <= 99999 and 1 <= span <= 16384,
+! else 0, and the answer is divided by it: anything outside is a division
+! by zero, refused, where origin.kron clamps it: held.
+trebago captureorigin
+  in  pos(n), span(n)
+  out origin(n)
+  var ok(n)
+  ok(i) = min(1, max(0, pos(i) + 99999 + 1)) * min(1, max(0, 99999 - pos(i) + 1)) &
+        * min(1, max(0, span(i))) * min(1, max(0, 16384 - span(i) + 1))
+  origin(i) = min(span(i), max(0, pos(i))) / ok(i)
+end

@@ -1,0 +1,24 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The exact raw size of a screen recording, in Trebago (glimpse_rules.h
+! GR3): w * h * bpp * secs * fps bytes when that is at most room, -1 when
+! it is past it. ok is 1 when w and h are 1..16384 pixels, bpp 1..8 bytes
+! a pixel, secs 1..7200 (two hours), fps 1..60 and room
+! 0..999999999999999999 bytes, else 0, and the answer is divided by it:
+! anything outside is a division by zero, refused, where recording.kron
+! multiplies it out: held. Exact; no rounding anywhere.
+trebago recordingbytes
+  in  w(n), h(n), bpp(n), secs(n), fps(n), room(n)
+  out size(n)
+  var ok(n), raw(n), fit(n)
+  ok(i) = min(1, max(0, w(i))) * min(1, max(0, 16384 - w(i) + 1)) &
+        * min(1, max(0, h(i))) * min(1, max(0, 16384 - h(i) + 1)) &
+        * min(1, max(0, bpp(i))) * min(1, max(0, 8 - bpp(i) + 1)) &
+        * min(1, max(0, secs(i))) * min(1, max(0, 7200 - secs(i) + 1)) &
+        * min(1, max(0, fps(i))) * min(1, max(0, 60 - fps(i) + 1)) &
+        * min(1, max(0, room(i) + 1)) * min(1, max(0, 999999999999999999 - room(i) + 1))
+  raw(i) = w(i) * h(i) * bpp(i) * secs(i) * fps(i)
+  fit(i) = min(1, max(0, room(i) - raw(i) + 1))
+  size(i) = (fit(i) * (raw(i) + 1) - 1) / ok(i)
+end
