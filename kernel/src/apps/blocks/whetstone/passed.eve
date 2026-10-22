@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Has the suite passed (whetstone_rules.h WR2), in Eve: the conjoined
+# verdict (WR1) is TRUE exactly when every result is TRUE, so the one
+# record that fits is at least one passed result (1 .. 999999999, a count
+# of 9(9)) and none failed, none held (BOTH) and none undecided (NEITHER),
+# each count on its own range. passed.kron reads any passed count above 0
+# and any other count below 1 as none: a negative count or one past nine
+# digits fits KRON, not this record, held.
+eve whetstone
+passed_some = 1 .. 999999999
+none_seen = 0 .. 0
+
+suite_passed {
+  passed: passed_some
+  failed: none_seen
+  held: none_seen
+  unknown: none_seen
+}

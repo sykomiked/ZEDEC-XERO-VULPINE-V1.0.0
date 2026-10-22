@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Whetstone files a run, in MYRA (whetstone_rules.h WR6): under the
+; run's number in the session, the target's place in the plan, the run's
+; verdict (lpres.h: NEITHER 0, TRUE 1, FALSE 2, BOTH 3), its passed, failed
+; and held counts and its milliseconds (every try summed, WR4). The model
+; asks whether the numbers fit before it keeps a run.
+^ZXWHET(run:i4) = target:i3! ^ verdict:i1! ^ passed:i9! ^ failed:i9! ^ held:i9! ^ ms:i8!

@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A target's retry limits (whetstone_rules.h WR5), in Eve: at most 3
+# retries after the first try (0 .. 3) and a timeout of 1 .. 3600 seconds
+# for each try, each field on its own range.
+eve whetstone
+retry_count = 0 .. 3
+try_seconds = 1 .. 3600
+
+test_retry_ok {
+  retries: retry_count
+  timeout: try_seconds
+}

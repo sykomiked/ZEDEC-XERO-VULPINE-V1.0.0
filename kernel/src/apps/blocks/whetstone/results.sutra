@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A run's results counted (whetstone_rules.h WR3), in Sutra: passed +
+# failed + held, one run per row. Each count fits 9(9) and so must the
+# total, so a negative count, a tenth digit or a total past 999999999 is
+# a size error, refused, never wrapped. results.kron adds as it is: held.
+record results-total
+  passed: 9(9)
+  failed: 9(9)
+  held: 9(9)
+  total: 9(9)
+procedure
+  compute total = passed + failed + held
+  answer total

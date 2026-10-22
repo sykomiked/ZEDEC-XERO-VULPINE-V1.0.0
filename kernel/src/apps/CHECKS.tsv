@@ -1291,6 +1291,24 @@ wellspring	check progress_x100 done=0,75,150,300 goal=150,150,150,150 = 0,5000,1
 wellspring	check progress_x100 done=1,1000000000 goal=150,150 = both
 wellspring	check log_ok day=0,999999,1000000 kind=1,4,1 amount=0,999999999,1 = true,true,false
 wellspring	check log_ok day=20000,20000 kind=1,5 amount=30,30 = both
+whetstone	check suite_verdict outcome=1,1,1 = 1
+whetstone	check suite_verdict outcome=1,3,1 = 3
+whetstone	check suite_verdict outcome=3,0,1 = 0
+whetstone	check suite_verdict outcome=0,2,3,1 = 2
+whetstone	check suite_verdict outcome=1,4 = both
+whetstone	check suite_verdict outcome=1,-1 = both
+whetstone	check suite_passed passed=1,999999999,0,5,5,5 failed=0,0,0,1,0,0 held=0,0,0,0,1,0 unknown=0,0,0,0,0,1 = true,true,false,false,false,false
+whetstone	check suite_passed passed=1,1000000000 failed=0,0 held=0,0 unknown=0,0 = both
+whetstone	check suite_passed passed=1,1 failed=0,-1 held=0,0 unknown=0,0 = both
+whetstone	check test_result_sum passed=0,1,999999999,5,0 failed=0,2,0,6,999999999 held=0,3,0,7,0 = 0,6,999999999,18,999999999
+whetstone	check test_result_sum passed=1,999999999 failed=0,1 held=0,0 = both
+whetstone	check test_result_sum passed=1,-1 failed=0,0 held=0,0 = both
+whetstone	check test_ms_total ms=0,1500,14400000 = 14401500
+whetstone	check test_ms_total ms=0,0 = 0
+whetstone	check test_retry_ok retries=0,3,4,-1,0,0,3 timeout=1,3600,60,60,0,3601,60 = true,true,false,false,false,false,true
+whetstone	check test_record_ok run=0,9999,10000,1,1,1 target=0,999,1,1000,1,1 verdict=1,3,1,1,10,2 passed=0,999999999,1,1,1,1 failed=0,999999999,1,1,1,1 held=0,999999999,1,1,1,1 ms=0,99999999,1,1,1,100000000 = true,true,false,false,false,false
+whetstone	check witness.kind_count kind=1,2,1,3,0 want=1 = 2
+whetstone	check assay.pass_share_x100 passes=0,3,12 runs=4,4,12 = 0,7500,10000
 witness	check chain_ok seq=1,5,5,9,9,5,999999999999999999 prev=0,1,4,5,5,5,1 last=0,1,5,5,9,5,1 = true,true,false,true,false,false,true
 witness	check chain_ok seq=2,-1 prev=1,1 last=1,1 = both
 witness	check kind_count kind=1,2,2,5,3 want=2 = 2

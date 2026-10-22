@@ -1,0 +1,15 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The suite's time (whetstone_rules.h WR4), in Trebago: the exact sum of
+! its runs' milliseconds, added from the first. A run is its first try and
+! at most three retries (WR5), each held to its timeout of at most an hour,
+! so each run is 0 .. 14400000 ms; bad counts a run outside that and the
+! total is divided by 1 - min(1, bad): refused, never added.
+trebago test_ms_total
+  in  ms(n)
+  out total
+  var bad
+  bad = sum(i, min(1, max(0, 0 - ms(i))) + min(1, max(0, ms(i) - 14400000)))
+  total = sum(i, ms(i)) / (1 - min(1, bad))
+end

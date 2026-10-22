@@ -451,7 +451,13 @@
 #define ALX_SLOT_LOGIC_JOINERY_UNDO_RECORD_OK    443u /* 492.18 joinery.undo_record_ok */
 #define ALX_SLOT_NUM_JOINERY_UTF8_COL_OFFSET     444u /* 592.19 joinery.utf8_col_offset */
 #define ALX_SLOT_NUM_JOINERY_UTF8_OFFSET_COL     445u /* 592.20 joinery.utf8_offset_col */
-#define ALX_SLOT__COUNT 445u
+#define ALX_SLOT_LOGIC_WHETSTONE_SUITE_PASSED    446u /* 492.19 whetstone.suite_passed */
+#define ALX_SLOT_NUM_WHETSTONE_SUITE_VERDICT     447u /* 592.21 whetstone.suite_verdict */
+#define ALX_SLOT_NUM_WHETSTONE_TEST_MS_TOTAL     448u /* 592.22 whetstone.test_ms_total */
+#define ALX_SLOT_LOGIC_WHETSTONE_TEST_RECORD_OK  449u /* 492.20 whetstone.test_record_ok */
+#define ALX_SLOT_NUM_WHETSTONE_TEST_RESULT_SUM   450u /* 592.23 whetstone.test_result_sum */
+#define ALX_SLOT_LOGIC_WHETSTONE_TEST_RETRY_OK   451u /* 492.21 whetstone.test_retry_ok */
+#define ALX_SLOT__COUNT 451u
 /* clang-format on */
 
 #endif

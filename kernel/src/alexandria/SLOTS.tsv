@@ -480,3 +480,9 @@
 443	logic.joinery_undo_record_ok	492.18	joinery.undo_record_ok	base
 444	num.joinery_utf8_col_offset	592.19	joinery.utf8_col_offset	base
 445	num.joinery_utf8_offset_col	592.20	joinery.utf8_offset_col	base
+446	logic.whetstone_suite_passed	492.19	whetstone.suite_passed	base
+447	num.whetstone_suite_verdict	592.21	whetstone.suite_verdict	base
+448	num.whetstone_test_ms_total	592.22	whetstone.test_ms_total	base
+449	logic.whetstone_test_record_ok	492.20	whetstone.test_record_ok	base
+450	num.whetstone_test_result_sum	592.23	whetstone.test_result_sum	base
+451	logic.whetstone_test_retry_ok	492.21	whetstone.test_retry_ok	base
