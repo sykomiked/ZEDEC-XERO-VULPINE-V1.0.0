@@ -596,3 +596,6 @@
 559	num.damper_heat_rise_excess	592.77	damper.heat_rise_excess	base
 560	logic.damper_heat_sensor_ok	492.76	damper.heat_sensor_ok	base
 561	num.damper_room_alarm_sensors	592.78	damper.room_alarm_sensors	base
+562	logic.cutwater_edit_clip_ok	492.77	cutwater.edit_clip_ok	base
+563	logic.cutwater_edit_clip_row_ok	492.78	cutwater.edit_clip_row_ok	base
+564	num.cutwater_frame_timecode	592.79	cutwater.frame_timecode	base

@@ -1,0 +1,23 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One clip of an edit list is valid (cutwater_rules.h CR1), in Eve. A clip
+# takes the frames in .. out - 1 of its source and lies on the timeline of
+# its track from place to place + (out - in). Eve checks each field against
+# its own range, so the clip comes as three margins in frames: span = out
+# - in (in before out: at least one frame), tail = the source's frames -
+# out (inside the source: 0 or more) and room = the next clip's place on
+# the same track - this clip's end (no overlap: 0 or more; for the last
+# clip of a track, the timeline's last frame 999999999 - its end). Every
+# frame is 0 .. 999999999, so a margin past that is no measurement: Eve
+# refuses it, while clip.kron reads any margin of 0 or more as fitting,
+# and the call is held.
+eve cutwater
+clip_span = 1 .. 999999999
+clip_room = 0 .. 999999999
+
+edit_clip {
+  span: clip_span
+  tail: clip_room
+  room: clip_room
+}

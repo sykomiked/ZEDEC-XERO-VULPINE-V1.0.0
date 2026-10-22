@@ -328,6 +328,14 @@ cupel	check gnomon.triangle_area2 ax=0,0,0,-1000000,5 ay=0,0,0,-1000000,5 bx=1,0
 cupel	check gnomon.triangle_area2 ax=0,1000001 ay=0,0 bx=1,0 by=0,0 cx=0,0 cy=1,1 = both
 cupel	check gnomon.side_len_sq ax=0,0,-1000000,7 ay=0,0,-1000000,7 bx=3,0,1000000,7 by=4,0,1000000,7 = 25,0,8000000000000,0
 cupel	check gnomon.side_len_sq ax=0,0 ay=0,-1000001 bx=3,0 by=4,0 = both
+cutwater	check edit_clip_ok span=1,0,999999999,5,5,5,-3 tail=0,0,0,-1,999999999,5,5 room=0,0,0,0,999999999,-1,5 = true,false,true,false,true,false,false
+cutwater	check edit_clip_ok span=5,5 tail=0,0 room=0,1000000000 = both
+cutwater	check edit_clip_ok span=5,1000000000 tail=0,0 room=0,0 = both
+cutwater	check frame_timecode frames=0,30,1799,108000,1234,100,999999999,999999999 fnum=30,30,30,30000,25,24000,1,999 fden=1,1,1,1001,1,1001,1,1 = 0,1000,59029,10000000,49009,4004,2777774639000,2780321000
+cutwater	check frame_timecode frames=1,-1 fnum=30,30 fden=1,1 = both
+cutwater	check frame_timecode frames=1,1 fnum=30,1000 fden=1,1 = both
+cutwater	check edit_clip_row_ok clip=0,99,100,1,1,1,-99 track=1,9,1,10,1,1,-9 source=1,9,1,1,10,1,-9 cutin=0,999999999,0,0,0,1000000000,-999999999 cutout=1,999999999,1,1,1,1,-999999999 place=0,999999999,0,0,0,0,-999999999 = true,true,false,false,false,false,true
+cutwater	check kinetoscope.frame_at_pos pos=1001,40,0 fnum=30000,25,30 fden=1001,1,1 = 30,1,0
 damper	check fire_alarm_quiet margin=0,1900,-1,5,5,1100 smoke=0,0,0,1,0,0 split=0,0,0,0,1,0 = true,true,false,false,false,true
 damper	check fire_alarm_quiet margin=5,1901 smoke=0,0 split=0,0 = both
 damper	check fire_alarm_quiet margin=5,5 smoke=0,-1 split=0,0 = both

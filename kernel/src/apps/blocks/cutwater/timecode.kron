@@ -1,0 +1,7 @@
+p:_(fnum+fden-1)%fden
+t:_frames%p
+h:_t%3600
+m:_(t-3600*h)%60
+s:t-(3600*h)+60*m
+f:frames-p*t
+(10000000*h)+(100000*m)+(1000*s)+f

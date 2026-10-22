@@ -1,0 +1,41 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A frame count as a timecode h:m:s:f (cutwater_rules.h CR2), in Trebago:
+! non-drop-frame at the nominal rate p = ceil(fnum / fden) frames a second
+! (30 for 30000/1001, 24 for 24000/1001, 25 for 25/1), as SMPTE ST 12-1
+! counts it, written h * 10000000 + m * 100000 + s * 1000 + f (1:02:03:04
+! is 10203004), hours not wrapped at a day. Trebago is exact and has no
+! floor, so each floor is counted, three decimal digits at a time, each
+! digit the count of k = 1 to 999 with k * d <= x, which min(1, max(0,
+! x - k * d + 1)) is for integers: p first, then the whole seconds t =
+! floor(frames / p), then the hours of t and the minutes of what is left.
+! ok is 0 for frames outside 0 .. 999999999, fnum or fden outside 1 ..
+! 999999 or a nominal rate past 999 (fnum > 999 * fden), and the answer is
+! divided by it: refused, where timecode.kron answers: held.
+trebago frame_timecode
+  in  frames(n), fnum(n), fden(n)
+  out tc(n)
+  var p(n), x(n), a(n), b(n), c(n), t(n), h(n), m(n), s(n), ok(n)
+  ok(i) = min(1, max(0, frames(i) + 1)) * min(1, max(0, 999999999 - frames(i) + 1)) &
+        * min(1, max(0, fnum(i))) * min(1, max(0, 999999 - fnum(i) + 1)) &
+        * min(1, max(0, fden(i))) * min(1, max(0, 999999 - fden(i) + 1)) &
+        * min(1, max(0, 999 * fden(i) - fnum(i) + 1))
+  p(i) = sum(k = 1:999, min(1, max(0, fnum(i) - k * fden(i) + fden(i))))
+  x(i) = frames(i)
+  a(i) = sum(k = 1:999, min(1, max(0, x(i) - k * 1000000 * p(i) + 1)))
+  x(i) = x(i) - a(i) * 1000000 * p(i)
+  b(i) = sum(k = 1:999, min(1, max(0, x(i) - k * 1000 * p(i) + 1)))
+  x(i) = x(i) - b(i) * 1000 * p(i)
+  c(i) = sum(k = 1:999, min(1, max(0, x(i) - k * p(i) + 1)))
+  t(i) = 1000000 * a(i) + 1000 * b(i) + c(i)
+  x(i) = t(i)
+  a(i) = sum(k = 1:999, min(1, max(0, x(i) - k * 3600000 + 1)))
+  x(i) = x(i) - a(i) * 3600000
+  b(i) = sum(k = 1:999, min(1, max(0, x(i) - k * 3600 + 1)))
+  h(i) = 1000 * a(i) + b(i)
+  x(i) = t(i) - 3600 * h(i)
+  m(i) = sum(k = 1:59, min(1, max(0, x(i) - k * 60 + 1)))
+  s(i) = x(i) - 60 * m(i)
+  tc(i) = (10000000 * h(i) + 100000 * m(i) + 1000 * s(i) + frames(i) - p(i) * t(i)) / ok(i)
+end

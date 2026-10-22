@@ -1,0 +1,89 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Cutwater, video editing: layer 56 of the matrix. Its sources are videos
+# in the Hoard (files.read: IVF files of VP8 or VP9, read by Kinetoscope's
+# model), their cut points checked with zxvd's own cut (stream.plan at a
+# target of one microsecond starts a segment at every keyframe, so the
+# segments that start on one are the places a clip may start), an edit
+# list of clips on up to eight tracks, and the list saved as text
+# (files.write) and opened again (cutwater_model.h CM1-CM6).
+#
+# zxvd has no method that renders, encodes or joins video, so a finished
+# video is not made here and none is invented: the edit list is the
+# product, and every clip starts on a keyframe so its frames can be taken
+# as they are once such a method exists.
+#
+# Advisory and owner-confirmed: saving the list changes the Hoard, so it
+# takes the owner's confirmed word; without it nothing is sent.
+#
+# Its layer leans on no other layer's code. Each entry is a general rule
+# of editing, registered in CONCEPTS.tsv with Cutwater as owner:
+#   edit_clip_ok      a clip of an edit list is valid (CR1): in before out,
+#                     inside its source, no overlap on its track, as three
+#                     margins in frames (span, tail, room). Eve holds each
+#                     margin to its own range, KRON reads any margin of 0
+#                     or more as fitting: a margin past 999999999 frames is
+#                     held. Eve checks fields one at a time, so the
+#                     relations across fields (out - in, the next clip's
+#                     place - this end) are taken as margins in the model.
+#   frame_timecode    a frame count at fnum / fden frames a second as
+#                     h:m:s:f (CR2), non-drop-frame at the nominal rate
+#                     ceil(fnum / fden) as SMPTE ST 12-1 counts it (30 for
+#                     30000/1001); drop-frame is not computed. Trebago
+#                     counts each floor exactly and refuses outside its
+#                     domain, KRON answers: held.
+#   edit_clip_row_ok  a clip's ^ZXCUTWATER record in MYRA (CR3).
+# Input names have no underscore: KRON reads _ as floor.
+#
+# Reuse, nearer the core: a playhead in ms becomes a frame of the list with
+# Kinetoscope's frame_at_pos (MATRIX_ORDER place 37, this one 76), never
+# written again (CR4); a source is read, indexed and planned by
+# Kinetoscope's model. halloo.hms shows whole seconds, where a timecode
+# needs the frame, so frame_timecode is new. solstice.events_overlap is
+# about seconds since 1970, not frames on a track, so it is not used.
+#
+# Kept in C, since no runnable language owns it: reading the sources and
+# the saved text, and the bitmap of cut points.
+#
+# Planned languages: LabVIEW (dataflow, signal) and Julia (numeric) both
+# fit the timecode, a signal's frames counted at a rate.
+zxapp 1
+id     cutwater
+name   Cutwater
+version 1.0.0
+slot   56
+layer  L1
+matrix 56
+icon   icons/l1/056-cutwater.svg
+budget 233
+needs  fs.read
+needs  fs.write
+model  apps/cutwater_model.c
+use    kinetoscope 1   # @num.kinetoscope_frame_at_pos
+
+# A clip is valid (CR1): Eve and KRON, witnessed.
+provides edit_clip_ok truth span tail room
+logic    eve edit_clip_ok apps/blocks/cutwater/clip.eve
+logic    kron edit_clip_ok apps/blocks/cutwater/clip.kron
+
+# Timecode (CR2): Trebago and KRON, witnessed.
+provides frame_timecode num frames fnum fden
+logic    trebago frame_timecode apps/blocks/cutwater/timecode.tb
+logic    kron frame_timecode apps/blocks/cutwater/timecode.kron
+pending  LabVIEW frame_timecode
+pending  Julia frame_timecode
+
+# A clip's record (CR3): MYRA.
+provides edit_clip_row_ok truth clip track source cutin cutout place
+logic    myra edit_clip_row_ok apps/blocks/cutwater/clip.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check edit_clip_ok span=1,0,999999999,5,5,5,-3 tail=0,0,0,-1,999999999,5,5 room=0,0,0,0,999999999,-1,5 = true,false,true,false,true,false,false
+check edit_clip_ok span=5,5 tail=0,0 room=0,1000000000 = both
+check edit_clip_ok span=5,1000000000 tail=0,0 room=0,0 = both
+check frame_timecode frames=0,30,1799,108000,1234,100,999999999,999999999 fnum=30,30,30,30000,25,24000,1,999 fden=1,1,1,1001,1,1001,1,1 = 0,1000,59029,10000000,49009,4004,2777774639000,2780321000
+check frame_timecode frames=1,-1 fnum=30,30 fden=1,1 = both
+check frame_timecode frames=1,1 fnum=30,1000 fden=1,1 = both
+check edit_clip_row_ok clip=0,99,100,1,1,1,-99 track=1,9,1,10,1,1,-9 source=1,9,1,1,10,1,-9 cutin=0,999999999,0,0,0,1000000000,-999999999 cutout=1,999999999,1,1,1,1,-999999999 place=0,999999999,0,0,0,0,-999999999 = true,true,false,false,false,false,true
+check kinetoscope.frame_at_pos pos=1001,40,0 fnum=30000,25,30 fden=1001,1,1 = 30,1,0

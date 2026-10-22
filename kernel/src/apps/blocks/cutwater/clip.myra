@@ -1,0 +1,11 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Cutwater files one clip of an edit list, in MYRA (cutwater_rules.h
+; CR3): under the clip's place in the list (at most 64 clips), its track
+; and its source (each 1 .. 8), the first frame it takes (cutin), the
+; frame after its last (cutout) and where it lies on its track's timeline
+; (place), each a frame count of 9 digits, each sign aside. Cutwater asks
+; whether the numbers fit before it keeps them; that the clip itself is
+; valid is edit_clip_ok.
+^ZXCUTWATER(clip:i2) = track:i1! ^ source:i1! ^ cutin:i9! ^ cutout:i9! ^ place:i9!

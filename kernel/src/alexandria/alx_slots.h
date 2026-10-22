@@ -567,7 +567,10 @@
 #define ALX_SLOT_NUM_DAMPER_HEAT_RISE_EXCESS     559u /* 592.77 damper.heat_rise_excess */
 #define ALX_SLOT_LOGIC_DAMPER_HEAT_SENSOR_OK     560u /* 492.76 damper.heat_sensor_ok */
 #define ALX_SLOT_NUM_DAMPER_ROOM_ALARM_SENSORS   561u /* 592.78 damper.room_alarm_sensors */
-#define ALX_SLOT__COUNT 561u
+#define ALX_SLOT_LOGIC_CUTWATER_EDIT_CLIP_OK     562u /* 492.77 cutwater.edit_clip_ok */
+#define ALX_SLOT_LOGIC_CUTWATER_EDIT_CLIP_ROW_OK 563u /* 492.78 cutwater.edit_clip_row_ok */
+#define ALX_SLOT_NUM_CUTWATER_FRAME_TIMECODE     564u /* 592.79 cutwater.frame_timecode */
+#define ALX_SLOT__COUNT 564u
 /* clang-format on */
 
 #endif
