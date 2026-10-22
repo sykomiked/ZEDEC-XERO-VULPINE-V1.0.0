@@ -250,7 +250,9 @@ jobs:
     # on PRs to main). In one job the 13 targets outgrew the 150-minute limit,
     # so the 12 groups go to three shards balanced by mutant count
     # (mutate.py --shard), and zxvd_rpc, about 3800 mutants on its own, runs
-    # in mutation-rpc below.
+    # in mutation-rpc below. --mem-mb caps each test at 2 GiB: a zxvd_seats
+    # mutant that grows its roster without bound otherwise ran the runner out
+    # of memory (four at once) and the job was lost with no log.
     strategy:
       fail-fast: false
       matrix:
@@ -260,7 +262,7 @@ jobs:
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v7
-      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_aipi,zxvd_cards,zxvd_ident,zxvd_econ,zxvd_instruments,zxvd_estate,zxvd_sandbox,zxvd_companion,zxvd_web4,zxvd_seats,zxvd_power,zxvd_fab,zxvd_pspace --ci --shard ${{ matrix.shard }}/3 --jobs 4 --out mutation-results
+      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_aipi,zxvd_cards,zxvd_ident,zxvd_econ,zxvd_instruments,zxvd_estate,zxvd_sandbox,zxvd_companion,zxvd_web4,zxvd_seats,zxvd_power,zxvd_fab,zxvd_pspace --ci --shard ${{ matrix.shard }}/3 --jobs 4 --mem-mb 2048 --out mutation-results
 
   mutation-rpc:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
@@ -276,7 +278,7 @@ jobs:
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v7
-      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc --ci --part ${{ matrix.part }}/4 --jobs 4 --out mutation-results
+      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc --ci --part ${{ matrix.part }}/4 --jobs 4 --mem-mb 2048 --out mutation-results
       - uses: actions/upload-artifact@v7
         with:
           name: zxvd-rpc-mutation-${{ matrix.part }}

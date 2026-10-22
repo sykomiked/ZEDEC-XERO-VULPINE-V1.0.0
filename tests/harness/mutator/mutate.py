@@ -275,8 +275,17 @@ def copy_tree(dst):
     return dst
 
 
+# --mem-mb: each test command's address-space limit in KiB (ulimit -v), or 0. A
+# mutant that grows memory without bound otherwise takes jobs x its growth
+# before the timeout ends it; on a CI runner that has run the machine out of
+# memory and lost the job.
+MEM_KB = 0
+
+
 def run_cmd(cmd, cwd, timeout, env):
     t0 = time.time()
+    if MEM_KB:
+        cmd = "ulimit -v %d; %s" % (MEM_KB, cmd)
     p = subprocess.Popen(cmd, shell=True, cwd=cwd, env=env, stdout=subprocess.DEVNULL,
                          stderr=subprocess.DEVNULL, start_new_session=True)
     try:
@@ -682,6 +691,8 @@ def main(argv):
                     help="exit status of the test command meaning 'did not build' (tiers.py: 3)")
     ap.add_argument("--timeout-factor", type=float, default=4.0)
     ap.add_argument("--max-mutants", type=int, default=0)
+    ap.add_argument("--mem-mb", type=int, default=0,
+                    help="limit each test command's address space to this many MiB (0: none)")
     ap.add_argument("--list", action="store_true", help="print the mutants and exit")
     ap.add_argument("--out", default=None, help="results directory")
     ap.add_argument("-v", "--verbose", action="store_true")
@@ -689,6 +700,8 @@ def main(argv):
     ap.add_argument("--check-config", action="store_true",
                     help="with --config: check the config parses and is consistent, then exit")
     a = ap.parse_args(argv)
+    global MEM_KB
+    MEM_KB = max(0, a.mem_mb) * 1024
     if a.selftest:
         return selftest()
     ops = a.ops.split(",")
