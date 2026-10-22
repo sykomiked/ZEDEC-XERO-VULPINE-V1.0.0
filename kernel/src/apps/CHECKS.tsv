@@ -218,6 +218,14 @@ platen	check sheets pages=1 sides=1 copies=10000 = both
 platen	check copies_ok copies=0,1,99,100 most=99,99,99,99 = false,true,true,false
 platen	check copies_ok copies=1000000000 most=1000000000 = both
 quillon	check size_ok bytes=0,1048576,1048577 = true,true,false
+ramble	check consent_covers scopegap=0,0,1,0,0,0,0,2 ceilingleft=0,999999999999999999,0,-1,0,0,5,0 secondsleft=1,86400,600,600,0,86401,-5,600 = true,true,false,false,false,false,false,false
+ramble	check consent_covers scopegap=0,0 ceilingleft=0,1000000000000000000 secondsleft=600,600 = both
+ramble	check consent_covers scopegap=0,0 ceilingleft=0,0 secondsleft=600,100000 = both
+ramble	check consent_covers scopegap=0,10 ceilingleft=0,0 secondsleft=600,600 = both
+ramble	check envelope_record_ok id=1,4294967295,9999999999,10000000000,1,1,1 kind=0,3,9,0,10,0,0 status=1,2,0,0,0,0,0 amount=0,999999999999999999,-5,0,0,1000000000000000000,0 stamp=0,253402300799,999999999999,0,0,0,1000000000000 = true,true,true,false,false,false,false
+ramble	check seedbank.cid_byte pos=0,1,58,7,0 code=98,97,55,56,98 len=59,59,59,59,58 = 1,1,1,0,0
+ramble	check seedbank.cid_byte pos=1,1 code=97,256 len=59,59 = both
+ramble	check reckoner.statement_close opening=10000,100 credits=0,0 debits=2500,2500 = 7500,-2400
 reckoner	check statement_close opening=0,100,-500,999999999999999999 credits=0,250,0,0 debits=0,50,100,999999999999999999 = 0,300,-600,0
 reckoner	check statement_close opening=0,0 credits=0,1000000000000000000 debits=0,0 = both
 reckoner	check band_tax income=0,50000,150000,10001,99999999999999,150000 lo=10000,10000,10000,0,0,200000 hi=100000,100000,100000,100000,99999999999999,300000 rate=2000,2000,2000,3333,10000,3000 = 0,8000,18000,3333,99999999999999,0

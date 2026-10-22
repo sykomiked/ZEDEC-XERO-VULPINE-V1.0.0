@@ -178,7 +178,9 @@
 #define ALX_SLOT_LOGIC_TIDETURN_DUAL_SIGNED      170u /* 490.83 tideturn.dual_signed */
 #define ALX_SLOT_LOGIC_TIDETURN_UPDATE_RECORD_OK 171u /* 490.84 tideturn.update_record_ok */
 #define ALX_SLOT_NUM_TIDETURN_VERSION_ORDER      172u /* 590.77 tideturn.version_order */
-#define ALX_SLOT__COUNT 172u
+#define ALX_SLOT_LOGIC_RAMBLE_CONSENT_COVERS     173u /* 490.85 ramble.consent_covers */
+#define ALX_SLOT_LOGIC_RAMBLE_ENVELOPE_RECORD_OK 174u /* 490.86 ramble.envelope_record_ok */
+#define ALX_SLOT__COUNT 174u
 /* clang-format on */
 
 #endif

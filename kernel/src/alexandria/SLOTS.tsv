@@ -207,3 +207,5 @@
 170	logic.tideturn_dual_signed	490.83	tideturn.dual_signed	base
 171	logic.tideturn_update_record_ok	490.84	tideturn.update_record_ok	base
 172	num.tideturn_version_order	590.77	tideturn.version_order	base
+173	logic.ramble_consent_covers	490.85	ramble.consent_covers	base
+174	logic.ramble_envelope_record_ok	490.86	ramble.envelope_record_ok	base

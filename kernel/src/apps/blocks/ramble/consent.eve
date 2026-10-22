@@ -1,0 +1,22 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether a consent the owner granted covers an action (ramble_rules.h RR1),
+# in Eve. Eve checks each field against its own range, so each part comes
+# as its margin: scopegap, the scopes the action needs (personal data,
+# money) that the grant does not hold, exactly 0; ceilingleft, the grant's
+# ceiling minus the action's amount in minor units, 0 to 18 digits; and
+# secondsleft, when the grant expires minus now, 1 to 86400 (zxvd's
+# web4.consent never grants longer than a day). consent.sutra says the
+# same in Sutra, which refuses a margin past its picture where Eve answers
+# no: held.
+eve ramble
+scope_gap = 0 .. 0
+ceiling_room = 0 .. 999999999999999999
+seconds_room = 1 .. 86400
+
+consent_rule {
+  scopegap: scope_gap
+  ceilingleft: ceiling_room
+  secondsleft: seconds_room
+}

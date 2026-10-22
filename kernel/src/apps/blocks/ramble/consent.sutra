@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether a consent covers an action (ramble_rules.h RR1), in Sutra: no
+# scope missing (scopegap 0), the amount within the ceiling (ceilingleft at
+# or above 0) and not expired, nor longer than zxvd ever grants
+# (secondsleft 1 to 86400). scopegap fits s9(1), ceilingleft s9(18) and
+# secondsleft s9(5): a margin past them is refused, never cut short.
+# consent.eve says the same in Eve.
+record ramble-consent
+  scopegap: s9(1)
+  ceilingleft: s9(18)
+  secondsleft: s9(5)
+procedure
+  answer scopegap = 0 and ceilingleft >= 0 and secondsleft >= 1 and secondsleft <= 86400

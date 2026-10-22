@@ -1,0 +1,10 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Ramble indexes one envelope of the owner's Web4 feed in MYRA
+; (ramble_rules.h RR2): its feed id (at most 4294967295, 10 digits), its
+; kind (0 request, 1 response, 2 stream, 3 consent), its status (0 signed,
+; 1 held, 2 denied), the money it moves in minor units (18 digits) and
+; when it was signed, in seconds since 1970 (12 digits, to the year 9999).
+; Ramble asks whether the numbers fit before it keeps them.
+^ZXRAMBLE(id:i10) = kind:i1! ^ status:i1! ^ amount:i18! ^ stamp:i12!
