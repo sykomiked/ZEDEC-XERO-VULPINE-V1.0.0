@@ -1,6 +1,34 @@
 /* test_zl_logo.inc — Logo front-end tests, included by test_zl.c. The
  * expect_out cases were checked against UCBLogo 6.2 when written. */
 
+/* readword / rw and readlist / rl: the next integer of the input (UCBLogo
+ * reads a line of its read stream), as a number or a list of one; none
+ * left traps INPUT where UCBLogo outputs the empty list or word. */
+static void test_logo_input(void)
+{
+    const int G = ZL_LANG_LOGO;
+    const int64_t in[] = {41, 5}, in2[] = {6, 7}, in3[] = {2, 10, 20}, in4[] = {10, 4, -1};
+    expect_in(G, "print readword + 1\n", in, 1, "42\n", "readword");
+    expect_in(G, "show readlist\n", in + 1, 1, "[5]\n", "readlist");
+    expect_in(G, "print rw * rw\n", in2, 2, "42\n", "rw, inputs in order");
+    expect_in(G, "show list rw rl\n", in2, 2, "[6 [7]]\n", "rw and rl");
+    expect_in(G, "print numberp readword\n", in, 1, "true\n", "readword gives a number");
+    expect_in(G, "repeat readword [print repcount * readword]\n", in3, 3, "10\n40\n",
+              "the count first, then the body");
+    expect_in(G, "to f\noutput readword - readword\nend\nprint f\nshow fput readword []\n", in4, 3,
+              "6\n[-1]\n", "readword in a procedure");
+    expect_twin(G, "PR RW\nshow rl\n", "print readword\nshow readlist\n");
+    expect_trap(G, "print readword\n", ZL_E_INPUT, 1, "readword with no input");
+    expect_trap(G, "show readlist\n", ZL_E_INPUT, 1, "readlist with no input");
+    int s = run_src(G, "print readword\nprint readword\n", in, 1, 0);
+    CHECK(s == ZL_E_INPUT && R.trap_line == 2 && strcmp(out, "41\n") == 0,
+          "readword past the last input: %d [%s]", s, out);
+    expect_refused(G, "print readchar\n", ZL_E_UNSUPPORTED, 1, "readchar");
+    expect_refused(G, "print readchars 2\n", ZL_E_UNSUPPORTED, 1, "readchars");
+    expect_refused(G, "print readrawline\n", ZL_E_UNSUPPORTED, 1, "readrawline");
+    expect_refused(G, "readword\n", ZL_E_SYNTAX, 1, "readword as an instruction");
+}
+
 static void test_logo(void)
 {
     const int G = ZL_LANG_LOGO;
@@ -442,4 +470,5 @@ static void test_logo(void)
         P.code[8].line = 9;
         CHECK(run_p(&P, 0, 0, 0) == ZL_E_DIVZERO && R.trap_line == 9, "its own line first");
     }
+    test_logo_input();
 }

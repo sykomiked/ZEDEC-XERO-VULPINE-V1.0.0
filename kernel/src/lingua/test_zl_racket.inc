@@ -288,10 +288,34 @@ static void test_racket_twins(void)
           "brackets and parentheses, empty and '() give the same IR");
 }
 
+/* (read): the next integer of the input (racket reads stdin); none left
+ * traps INPUT where racket reads eof. A bare (read) is printed. */
+static void test_racket_input(void)
+{
+    const int64_t in[] = {4, 1, 2}, in2[] = {-8, 5};
+    expect_in(RKT, RB "(+ (read) 1)\n", in, 1, "5\n", "read at the top level");
+    expect_in(RKT, RK "(displayln (list (read) (read)))\n", in + 1, 2, "(1 2)\n",
+              "arguments read in order");
+    expect_in(RKT, RB "(read)\n(define x (read))\n(printf \"~a~n\" (* x 3))\n", in2, 2, "-8\n15\n",
+              "a bare read prints its value");
+    expect_twin(RKT, RB "(displayln [read])\n", RB "(displayln (read))\n");
+    expect_trap(RKT, RB "(read)\n", ZL_E_INPUT, 2, "read with no input");
+    int s = run_src(RKT, RB "(read)\n(read)\n", in, 1, 0);
+    CHECK(s == ZL_E_INPUT && R.trap_line == 3 && strcmp(out, "4\n") == 0,
+          "read past the last input: %d [%s]", s, out);
+    static const lref_t rf[] = {
+        {RB "(read (current-input-port))", ZL_E_UNSUPPORTED, 2},
+        {RB "(displayln (read-line))", ZL_E_UNSUPPORTED, 2},
+        {RB "(displayln (read-char))", ZL_E_UNSUPPORTED, 2},
+    };
+    lisp_refusals(RKT, rf, sizeof rf / sizeof rf[0]);
+}
+
 static void test_racket(void)
 {
     test_racket_cases();
     test_racket_refusals();
     test_racket_traps();
     test_racket_twins();
+    test_racket_input();
 }

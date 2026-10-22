@@ -10,8 +10,9 @@
  * Run under ASan + UBSan.
  *
  * Usage: fuzz_zl [iterations] [seed] [golden-dir]
- * Every program in golden-dir (except .out files) joins the built-in seeds,
- * so a new front-end's goldens are fuzzed without editing this file. */
+ * Every program in golden-dir (except .out and .in files) joins the
+ * built-in seeds, so a new front-end's goldens are fuzzed without editing
+ * this file. */
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -321,7 +322,9 @@ static void add_golden(const char *dir)
     }
     for (struct dirent *e; npool < NPOOL && (e = readdir(dp)) != 0;) {
         size_t l = strlen(e->d_name);
-        if (e->d_name[0] == '.' || (l > 4 && !strcmp(e->d_name + l - 4, ".out"))) continue;
+        if (e->d_name[0] == '.' || (l > 4 && !strcmp(e->d_name + l - 4, ".out")) ||
+            (l > 3 && !strcmp(e->d_name + l - 3, ".in")))
+            continue;
         char path[1024];
         snprintf(path, sizeof path, "%s/%s", dir, e->d_name);
         FILE *f = fopen(path, "rb");

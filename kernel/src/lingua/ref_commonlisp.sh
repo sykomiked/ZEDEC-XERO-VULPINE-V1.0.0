@@ -6,11 +6,13 @@
 # requiring zxlang, sbcl and the .out file to agree byte for byte, then a
 # differential run of gen_lisp.c programs in its cl mode. sbcl reads a .cl
 # file as Lisp source; its stderr (style warnings) is ignored.
+# A golden's .in goes to the reference on stdin and its integers to
+# zxlang as inputs (ref_in and ref_args, from ref_check.sh).
 if need sbcl; then
     for f in $G/*.cl; do
         b=$(basename "$f" .cl)
-        sbcl --script "$f" > "$d/$b.cl.ref" 2>"$d/$b.cl.log" || { cat "$d/$b.cl.log"; echo "[FAIL] sbcl $f"; fail=1; continue; }
-        "$d/zxlang" run "$f" > "$d/$b.cl.zl" 2>&1
+        sbcl --script "$f" < "$(ref_in "$f")" > "$d/$b.cl.ref" 2>"$d/$b.cl.log" || { cat "$d/$b.cl.log"; echo "[FAIL] sbcl $f"; fail=1; continue; }
+        "$d/zxlang" run "$f" $(ref_args "$f") > "$d/$b.cl.zl" 2>&1
         if cmp -s "$d/$b.cl.ref" "$d/$b.cl.zl" && cmp -s "$d/$b.cl.ref" "$f.out"; then ran=$((ran + 1)); else
             echo "[FAIL] $f: zxlang, sbcl and $f.out differ"; diff "$d/$b.cl.ref" "$d/$b.cl.zl" | head -20; fail=1; fi
     done

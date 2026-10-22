@@ -22,6 +22,16 @@
  * memberp; word literals "abc and literal lists [1 [2 b] c] (built once,
  * before the first instruction runs); ; comments.
  *
+ * Input: readword / rw outputs the next integer of the input (the run's
+ * input list; UCBLogo reads it from its read stream, one integer per
+ * line), and readlist / rl outputs it as a list of one word. With none
+ * left the program stops with ZL_E_INPUT, where UCBLogo outputs the empty
+ * list (readword) or word (readlist). Input to these programs is integers
+ * only, written plainly (no '+' sign and no leading zeros, since a
+ * word keeps its spelling in UCBLogo), of magnitude below 10^15 for
+ * arithmetic on them to agree; readchar, readchars and readrawline are
+ * refused.
+ *
  * Minus signs follow UCBLogo: "a - b" and "a-b" subtract; "a -b" is two
  * inputs. Refused where UCBLogo's reading is surprising: a sign before a
  * procedure name ("-sum 1 2", which UCBLogo applies to the whole infix
@@ -81,9 +91,10 @@
  *
  * Kiteling (the twin): lower-case primitives, procedure and variable
  * names, full primitive names (print not pr, output not op, butfirst not
- * bf, sentence not se), :x for thing "x; one space between tokens, none
- * inside brackets; one instruction per line; a procedure is its title
- * line, its body lines indented by two spaces, and "end"; minimal
+ * bf, sentence not se, readword not rw, readlist not rl), :x for
+ * thing "x; one space between tokens, none inside brackets; one
+ * instruction per line; a procedure is its title line, its body lines
+ * indented by two spaces, and "end"; minimal
  * parentheses (a procedure call is parenthesized only where an infix
  * operator would otherwise extend its last input, or where it has other
  * than its usual number of inputs, or where it would take every input up
@@ -190,7 +201,9 @@ enum {
     P_NUMBERP,
     P_WORDP,
     P_MEMBERP,
-    P_REPCOUNT
+    P_REPCOUNT,
+    P_READWORD,
+    P_READLIST
 };
 #define VAR_ARGS 255
 enum { K_CMD = 1, K_OP };
@@ -252,6 +265,10 @@ static const lprim_t prims[] = {
     {"wordp", "wordp", P_WORDP, K_OP, 1, 1, 1},
     {"memberp", "memberp", P_MEMBERP, K_OP, 2, 2, 2},
     {"repcount", "repcount", P_REPCOUNT, K_OP, 0, 0, 0},
+    {"readword", "readword", P_READWORD, K_OP, 0, 0, 0},
+    {"rw", "readword", P_READWORD, K_OP, 0, 0, 0},
+    {"readlist", "readlist", P_READLIST, K_OP, 0, 0, 0},
+    {"rl", "readlist", P_READLIST, K_OP, 0, 0, 0},
 };
 #define NPRIMS (sizeof prims / sizeof prims[0])
 
@@ -322,8 +339,11 @@ static const struct {
     {"throw", "catch / throw are outside the subset"},
     {"forever", "forever is outside the subset"},
     {"name", "name is outside the subset (write make)"},
-    {"readword", "reading input is outside the subset"},
-    {"readlist", "reading input is outside the subset"},
+    {"readchar", "input is integers, one per line, read with readword or readlist"},
+    {"readchars", "input is integers, one per line, read with readword or readlist"},
+    {"readrawline", "input is integers, one per line, read with readword or readlist"},
+    {"rc", "input is integers, one per line, read with readword or readlist"},
+    {"rcs", "input is integers, one per line, read with readword or readlist"},
 };
 #define NREFUSED (sizeof refused / sizeof refused[0])
 
@@ -1701,7 +1721,7 @@ static int atomic(const lw_t *w, int32_t id)
     case N_PRIM:
         return n->op != P_FIRST && n->op != P_BF && n->op != P_LAST && n->op != P_BL &&
                n->op != P_FPUT && n->op != P_LPUT && n->op != P_LIST && n->op != P_SE &&
-               n->op != P_ITEM;
+               n->op != P_ITEM && n->op != P_READLIST;
     default:
         return 0;
     }
@@ -1964,6 +1984,14 @@ static int val(lw_t *w, int32_t id)
             if (w->node[a].next < 0) return helper(w, H_ASLIST);
             for (int32_t x = w->node[a].next; x >= 0; x = w->node[x].next)
                 if ((s = helper(w, H_SE))) return s;
+            break;
+        case P_READWORD: /* the next integer of the input; none left traps INPUT */
+            E(w, ZL_IN, 0, 0);
+            break;
+        case P_READLIST: /* the line's one integer, as a list of one word */
+            E(w, ZL_IN, 0, 0);
+            E(w, ZL_PUSH, ZL_V_NIL, 0);
+            E(w, ZL_CONS, 0, 0);
             break;
         default: /* P_REPCOUNT */
             E(w, ZL_LOAD, rc_slot(w), 0);

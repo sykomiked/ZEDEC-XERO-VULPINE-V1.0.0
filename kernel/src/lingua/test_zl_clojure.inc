@@ -378,10 +378,36 @@ static void test_clojure_twins(void)
           "commas are blanks, and 'nil is nil");
 }
 
+/* (read): the next integer of the input, a long (clojure reads *in*,
+ * stdin); none left traps INPUT where clojure throws. */
+static void test_clojure_input(void)
+{
+    const int64_t in[] = {4}, in2[] = {3, 1, 2, 3}, in3[] = {21};
+    expect_in(CLJL, "(println (+ (read) 1))\n", in, 1, "5\n", "read");
+    expect_in(CLJL,
+              "(loop [i (read) s 0]\n  (if (zero? i) (println s) (recur (dec i) (+ s (read)))))\n",
+              in2, 4, "6\n", "a count, then that many");
+    expect_in(CLJL, "(prn (list (read)))\n", in, 1, "(4)\n", "read into a list");
+    expect_in(CLJL, "(def n (read))\n(defn twice [x] (* 2 x))\n(println (twice n) (number? n))\n",
+              in3, 1, "42 true\n", "read into a def");
+    expect_twin(CLJL, "(println, (read))\n", "(println (read))\n");
+    expect_trap(CLJL, "(println (read))\n", ZL_E_INPUT, 1, "read with no input");
+    int s = run_src(CLJL, "(println (read))\n(println (read))\n", in, 1, 0);
+    CHECK(s == ZL_E_INPUT && R.trap_line == 2 && strcmp(out, "4\n") == 0,
+          "read past the last input: %d [%s]", s, out);
+    static const lref_t rf[] = {
+        {"(println (read *in*))", ZL_E_UNSUPPORTED, 1},
+        {"(println (read-line))", ZL_E_UNSUPPORTED, 1},
+        {"(println (read-string \"1\"))", ZL_E_UNSUPPORTED, 1},
+    };
+    lisp_refusals(CLJL, rf, sizeof rf / sizeof rf[0]);
+}
+
 static void test_clojure(void)
 {
     test_clojure_cases();
     test_clojure_refusals();
     test_clojure_traps();
     test_clojure_twins();
+    test_clojure_input();
 }

@@ -189,10 +189,34 @@ static void test_commonlisp_twins(void)
           "Common Lisp runs a LISP program");
 }
 
+/* (read): the next integer of the input (sbcl reads stdin); none left
+ * traps INPUT where sbcl reads end of file. */
+static void test_commonlisp_input(void)
+{
+    const int64_t in[] = {7, 1};
+    expect_in(CLL, "(print (read))\n", in, 1, "\n7 ", "read");
+    expect_in(CLL, "(case (read)\n  (1 (princ 'one))\n  (otherwise (princ 'other)))\n", in + 1, 1,
+              "ONE", "read as a case key");
+    expect_in(CLL, "(defun f () (read))\n(print (- (f) (f)))\n", in, 2, "\n6 ",
+              "arguments read in order");
+    expect_twin(CLL, "(PRINT (READ))\n", "(print (read))\n");
+    expect_trap(CLL, "(print (read))\n", ZL_E_INPUT, 1, "read with no input");
+    int s = run_src(CLL, "(print (read))\n(print (read))\n(print (read))\n", in, 2, 0);
+    CHECK(s == ZL_E_INPUT && R.trap_line == 3 && strcmp(out, "\n7 \n1 ") == 0,
+          "read past the last input: %d [%s]", s, out);
+    static const lref_t rf[] = {
+        {"(print (read t))", ZL_E_UNSUPPORTED, 1},
+        {"(print (read-line))", ZL_E_UNSUPPORTED, 1},
+        {"(print (read-from-string \"(1)\"))", ZL_E_UNSUPPORTED, 1},
+    };
+    lisp_refusals(CLL, rf, sizeof rf / sizeof rf[0]);
+}
+
 static void test_commonlisp(void)
 {
     test_commonlisp_cases();
     test_commonlisp_refusals();
     test_commonlisp_traps();
     test_commonlisp_twins();
+    test_commonlisp_input();
 }

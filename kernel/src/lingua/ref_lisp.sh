@@ -6,11 +6,13 @@
 # through guile, requiring zxlang, the reference and the .out file to agree
 # byte for byte, then a differential run of gen_lisp.c programs in both
 # dialects. Reference stderr (style warnings, guile's banner) is ignored.
+# A golden's .in goes to the reference on stdin and its integers to
+# zxlang as inputs (ref_in and ref_args, from ref_check.sh).
 if need sbcl; then
     for f in $G/*.lisp; do
         b=$(basename "$f" .lisp)
-        sbcl --script "$f" > "$d/$b.ref" 2>"$d/$b.sbcl.log" || { cat "$d/$b.sbcl.log"; echo "[FAIL] sbcl $f"; fail=1; continue; }
-        "$d/zxlang" run "$f" > "$d/$b.zl" 2>&1
+        sbcl --script "$f" < "$(ref_in "$f")" > "$d/$b.ref" 2>"$d/$b.sbcl.log" || { cat "$d/$b.sbcl.log"; echo "[FAIL] sbcl $f"; fail=1; continue; }
+        "$d/zxlang" run "$f" $(ref_args "$f") > "$d/$b.zl" 2>&1
         if cmp -s "$d/$b.ref" "$d/$b.zl" && cmp -s "$d/$b.ref" "$f.out"; then ran=$((ran + 1)); else
             echo "[FAIL] $f: zxlang, sbcl and $f.out differ"; diff "$d/$b.ref" "$d/$b.zl" | head -20; fail=1; fi
     done
@@ -18,8 +20,8 @@ fi
 if need guile; then
     for f in $G/*.scm; do
         b=$(basename "$f" .scm)
-        guile --no-auto-compile "$f" > "$d/$b.ref" 2>"$d/$b.guile.log" || { cat "$d/$b.guile.log"; echo "[FAIL] guile $f"; fail=1; continue; }
-        "$d/zxlang" run "$f" > "$d/$b.zl" 2>&1
+        guile --no-auto-compile "$f" < "$(ref_in "$f")" > "$d/$b.ref" 2>"$d/$b.guile.log" || { cat "$d/$b.guile.log"; echo "[FAIL] guile $f"; fail=1; continue; }
+        "$d/zxlang" run "$f" $(ref_args "$f") > "$d/$b.zl" 2>&1
         if cmp -s "$d/$b.ref" "$d/$b.zl" && cmp -s "$d/$b.ref" "$f.out"; then ran=$((ran + 1)); else
             echo "[FAIL] $f: zxlang, guile and $f.out differ"; diff "$d/$b.ref" "$d/$b.zl" | head -20; fail=1; fi
     done

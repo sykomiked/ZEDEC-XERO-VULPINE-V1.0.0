@@ -1123,6 +1123,56 @@ static void test_lisp_programs(void)
                "9", "ackermann");
 }
 
+/* (read): the next integer of the input, as sbcl and guile read one per
+ * line from stdin; none left traps INPUT (sbcl and guile read end of file). */
+static void test_lisp_input(void)
+{
+    const int64_t in[] = {6, 7}, in2[] = {3, -4}, in3[] = {2, 5, -1}, big[] = {ZL_V_REF};
+    const int64_t edge[] = {4611686018427387902, 1}, in4[] = {3, 10, 20, 30};
+    expect_in(LISP, "(print (+ (read) (read)))\n", in, 2, "\n13 ", "read twice");
+    expect_in(LISP, "(defun f () (read))\n(format t \"~a ~a~%\" (f) (- (f)))\n", in2, 2, "3 4\n",
+              "read in a function, arguments in order");
+    expect_in(LISP,
+              "(let ((n (read)))\n  (dotimes (i n)\n    (princ (* (read) 2))\n    (terpri)))\n",
+              in3, 3, "10\n-2\n", "a count, then that many");
+    expect_in(LISP, "(print (list (read) 'x (read)))\n", in, 2, "\n(6 X 7) ", "read into a list");
+    expect_in(LISP, "(print (numberp (read)))\n", in, 1, "\nT ", "read gives a number");
+    expect_in(LISP, "(defvar *n* (read))\n(setq *n* (+ *n* (read)))\n(print *n*)\n", edge, 2,
+              "\n4611686018427387903 ", "the largest integer");
+    expect_in(SCM, "(display (+ (read) 1))\n", in, 1, "7", "Scheme read");
+    expect_in(SCM, "(define x (read))\n(write (list x (* x x)))\n", in2 + 1, 1, "(-4 16)",
+              "Scheme read into a global");
+    expect_in(SCM,
+              "(let loop ((i (read)) (s 0))\n  (if (= i 0) (display s) (loop (- i 1) (+ s "
+              "(read)))))\n",
+              in4, 4, "60", "Scheme: a count, then that many");
+    expect_twin(LISP, "(print (read))\n", "(PRINT (READ))\n");
+    expect_twin(SCM, "(display (read))\n", "(display (read))\n");
+    /* input exhausted: a trap, never a value */
+    expect_trap(LISP, "(print (read))\n", ZL_E_INPUT, 1, "read with no input");
+    expect_trap(SCM, "(display 1)\n(display (read))\n", ZL_E_INPUT, 2, "Scheme read with no input");
+    int s = run_src(LISP, "(print (read))\n(print (read))\n", in, 1, 0);
+    CHECK(s == ZL_E_INPUT && R.trap_line == 2 && strcmp(out, "\n6 ") == 0,
+          "read past the last input traps after the output so far: %d [%s]", s, out);
+    s = run_src(SCM, "(display (read))\n", big, 1, 0);
+    CHECK(s == ZL_E_OVERFLOW, "an input past 62 bits traps OVERFLOW: %d", s);
+    /* only (read), of integers */
+    static const lref_t rf[] = {
+        {"(read *standard-input*)", ZL_E_UNSUPPORTED, 1},
+        {"(print (read-line))", ZL_E_UNSUPPORTED, 1},
+        {"(print (read-char))", ZL_E_UNSUPPORTED, 1},
+        {"(print (peek-char))", ZL_E_UNSUPPORTED, 1},
+        {"(print (read-from-string \"1\"))", ZL_E_UNSUPPORTED, 1},
+    };
+    lisp_refusals(LISP, rf, sizeof rf / sizeof rf[0]);
+    static const lref_t rs[] = {
+        {"(display (read (current-input-port)))", ZL_E_UNSUPPORTED, 1},
+        {"(display (read-line))", ZL_E_UNSUPPORTED, 1},
+        {"(display (read-char))", ZL_E_UNSUPPORTED, 1},
+    };
+    lisp_refusals(SCM, rs, sizeof rs / sizeof rs[0]);
+}
+
 static void test_lisp(void)
 {
     test_lisp_basics();
@@ -1139,6 +1189,7 @@ static void test_lisp(void)
     test_scheme_traps();
     test_lisp_ir();
     test_lisp_programs();
+    test_lisp_input();
 }
 
 #undef LISP
