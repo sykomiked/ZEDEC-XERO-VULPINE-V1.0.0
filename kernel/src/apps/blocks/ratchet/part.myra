@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Ratchet files one part of a machine's parts tree in MYRA
+; (ratchet_rules.h RR7): a sparse record under the machine and the part,
+; with the part it is fitted to (its parent, 0 for the machine itself), its
+; kind and the hours it has run. The model asks whether the numbers fit
+; before it keeps the part.
+^ZXRATCHET(machine:i4, part:i6) = parent:i6! ^ kind:i2! ^ hours:i9!

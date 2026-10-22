@@ -1,0 +1,4 @@
+a:1-1&abs sensor-\:sensor
+b:1-1&abs hour-\:hour
+c:fault*\:1+0*fault
++/a*b*c

@@ -1,0 +1,16 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A machine part's wear (ratchet_rules.h RR3), in Trebago: the exact sum
+! over its run log of hours run times load share, in load-hours (10000 is
+! one hour at full load). ok is 0, and the sum divided by it refused, when
+! any row's hours are outside 0 .. 99999 or its load outside 0 .. 10000
+! hundredths of a percent.
+trebago wear
+  in  hours(n), load(n)
+  out worn
+  var ok
+  ok = 1 - min(1, sum(j, min(1, max(0, 0 - hours(j))) + min(1, max(0, hours(j) - 99999)) &
+     + min(1, max(0, 0 - load(j))) + min(1, max(0, load(j) - 10000))))
+  worn = sum(i, hours(i) * load(i)) / ok
+end

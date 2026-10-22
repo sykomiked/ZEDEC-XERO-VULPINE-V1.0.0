@@ -1,0 +1,159 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Ratchet, maintenance and repair: L2, slot 152. It diagnoses hardware
+# faults from this machine's readings (sys.info through Tidewatch's
+# sampler, sys.disk, power.status) and from readings the person takes by
+# hand (a vibration meter, a thermometer on a part), schedules
+# maintenance and walks a person through a repair one step at a time. See
+# ratchet_model.h RM1-RM8 and ratchet_rules.h RR1-RR8.
+#
+# Advisory: Ratchet never actuates a machine and sends no command. Every
+# step that touches a machine begins with "Isolate the power" and moves on
+# only on the person's confirmation (person_confirmed); limits and the
+# maintenance schedule change only on the owner's word (owner_confirmed).
+# A part whose measures disagree (within limits on vibration, over them on
+# temperature) is BOTH (lpres_kjoin of what its measures say): an
+# inspection task is raised for it and it is never passed as sound.
+#
+# Composed, not written again (four uses of ZXAPP_USES 8; its own 10 logic
+# lines and its parts' 26 are 36 of ZXAPP_LOGIC_MAX 128; every part
+# carries version 1.0.0 and its provides lines): the load and memory
+# readings come from Tidewatch's sampler, the CPU share between two reads
+# is tidewatch.cpu_x100 and its scale tidewatch.peak; a maintenance task's
+# next run time is treadle.next_run, whether its run fits the owner's
+# budget treadle.budget_ok and its record treadle.task_ok; whether the
+# command that restores a device's power would be allowed is
+# homestead.device_cmd_ok (shown, never sent) and a device's energy total
+# homestead.device_energy; the self-check after a repair is
+# mockingbird.boot_passed and a device's record on the machine's map
+# mockingbird.emu_device_ok.
+#
+# The task's "matrix 152" is refused by zxapp.c (M1: a matrix layer is
+# 0..144); an L2 app sits on the layer of its part that is outermost in
+# MATRIX_ORDER.tsv: Homestead (place 93, layer 94), past Treadle (54),
+# Mockingbird (27) and Tidewatch (wave 0).
+#
+# Eve answers truths only and holds each field to its own range, so the
+# fault rule comes as a reading's two margins inside its limits, as
+# homestead.device_cmd_ok takes a setpoint; a fault is its FALSE. The
+# repair step is a number (BASIC, twin Hatchling, and KRON). Wellspring's
+# band says which side of a range a reading falls; the fault rule is the
+# truth Eve can hold, so it is written here. Lifeboat's repair_step walks
+# a failed start of zxvd's books, not a machine, so it does not fit.
+#
+# Later layers use the fault rule, the next repair step, wear and hours to
+# service (eight L3 tasks use Ratchet), so those four are general and
+# registered in CONCEPTS.tsv with Ratchet as owner. Kept in C: text (the
+# step's words, part names, notices), zxvd's answers and the four-valued
+# join. zxvd has no method for another machine's readings or for a
+# vibration sensor: those readings are typed in by the person.
+zxapp 1
+id     ratchet
+name   Ratchet
+version 1.0.0
+slot   152
+layer  L2
+matrix 94
+icon   icons/l2/152-ratchet.svg
+budget 233
+needs  sys.read
+needs  notify
+model  apps/ratchet_model.c
+use    tidewatch 1     # @num.tidewatch_cpu_x100 @num.tidewatch_peak
+use    treadle 1       # @num.treadle_next_run @logic.treadle_budget_ok @logic.treadle_task_ok
+use    homestead 1     # @logic.homestead_device_cmd_ok @num.homestead_device_energy
+use    mockingbird 1   # @logic.mockingbird_boot_passed @logic.mockingbird_emu_device_ok
+# what it exports, so apps built from it can use them too (C1)
+provides tidewatch.cpu_x100 num cpu ms
+provides tidewatch.peak num share
+provides treadle.next_run num start period now
+provides treadle.budget_ok truth cost left
+provides treadle.task_ok truth task kind start period cost approved
+provides homestead.device_cmd_ok truth above below owed ai
+provides homestead.device_energy num device want wh
+provides mockingbird.boot_passed truth rom loader kernel drivers apps
+provides mockingbird.emu_device_ok truth device kind base size irq
+
+# A reading inside its safe operating limits (RR1, critical): the two
+# margins above = reading - lo and below = hi - reading each 0..999999;
+# FALSE is a fault. Ada as Eve and APL as KRON, witnessed; a margin past
+# 999999 held (Eve refuses, KRON reads it as inside).
+provides machine_limits_ok truth above below
+logic    eve  machine_limits_ok apps/blocks/ratchet/limits.eve
+logic    kron machine_limits_ok apps/blocks/ratchet/limits.kron
+
+# The next repair step (RR2, critical): 0 none, 1 isolate the power, 2
+# repair or replace the part, 3 restore the power and run the self-check,
+# 4 record the repair and schedule the next service; the person sees one
+# step at a time. A flag that is not 0 or 1 is held (BASIC refuses, KRON
+# answers).
+provides machine_repair_step num fault isolated fixed tested
+# BASIC, twin Hatchling
+logic    hatchling machine_repair_step apps/blocks/ratchet/repair.bas
+logic    kron      machine_repair_step apps/blocks/ratchet/repair.kron
+
+# Wear (RR3): hours run times load share, summed, exact, in load-hours
+# (10000 one hour at full load). FORTRAN as Trebago.
+provides machine_wear num hours load
+logic    trebago machine_wear apps/blocks/ratchet/wear.tb
+
+# Hours to the next service (RR4) at the part's load, an exact fraction;
+# below 0 past due. FORTRAN as Trebago.
+provides service_hours_left num interval worn load
+logic    trebago service_hours_left apps/blocks/ratchet/service.tb
+
+# A repair job line's parts and labour cost in minor units (RR5, critical):
+# qty * price + minutes * rate. COBOL as Sutra and FORTRAN as Trebago,
+# witnessed; past Sutra's pictures held (Sutra refuses, Trebago answers).
+provides repair_line_cost num qty price minutes rate
+logic    sutra   repair_line_cost apps/blocks/ratchet/cost.sutra
+logic    trebago repair_line_cost apps/blocks/ratchet/cost.tb
+
+# The sensor grid (RR6), sensors by hours: each row's cell, the faults of
+# every row with its sensor and its hour. APL as KRON.
+provides sensor_hour_faults num sensor hour fault
+logic    kron sensor_hour_faults apps/blocks/ratchet/grid.kron
+
+# The machine parts tree (RR7): ^ZXRATCHET(machine, part) = parent ^ kind
+# ^ hours. MUMPS as MYRA.
+provides machine_part_ok truth machine part parent kind hours
+logic    myra machine_part_ok apps/blocks/ratchet/part.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check machine_limits_ok above=0,999999,5,-1,5,0 below=0,999999,-1,5,5,0 = true,true,false,false,true,true
+check machine_limits_ok above=5,1000000 below=5,5 = both
+check machine_repair_step fault=0 isolated=0 fixed=0 tested=0 = 0
+check machine_repair_step fault=1 isolated=0 fixed=0 tested=0 = 1
+check machine_repair_step fault=1 isolated=1 fixed=0 tested=0 = 2
+check machine_repair_step fault=1 isolated=1 fixed=1 tested=0 = 3
+check machine_repair_step fault=1 isolated=0 fixed=1 tested=1 = 4
+check machine_repair_step fault=2 isolated=0 fixed=0 tested=0 = both
+check machine_repair_step fault=1 isolated=-1 fixed=0 tested=0 = both
+check machine_wear hours=10,20,0 load=5000,2500,10000 = 100000
+check machine_wear hours=99999,1 load=10000,0 = 999990000
+check service_hours_left interval=1000,1000,1,999999,500 worn=4000000,10000000,0,0,6000000 load=5000,5000,10000,1,3 = 1200,0,1,9999990000,-1000000/3
+check repair_line_cost qty=2,0,9999,1,0 price=1250,0,999999999,0,0 minutes=90,0,99999,0,1 rate=75,0,9999999,0,9999999 = 9250,0,10998989890002,0,9999999
+check repair_line_cost qty=1,10000 price=1,1 minutes=0,0 rate=0,0 = both
+check sensor_hour_faults sensor=1,1,2,1,2 hour=10,10,10,11,10 fault=1,1,0,1,1 = 2,2,1,1,1
+check machine_part_ok machine=1,9999,10000,1,1,1 part=4,999999,1,1000000,1,1 parent=1,999999,0,0,1,1 kind=7,99,1,1,100,1 hours=1200,999999999,0,0,0,1000000000 = true,true,false,false,false,false
+# This machine's CPU share and its scale
+check tidewatch.cpu_x100 cpu=999,0,12345 ms=1000,5,100 = 9,0,1234
+check tidewatch.cpu_x100 cpu=1000000000000 ms=1 = both
+check tidewatch.peak share=-5,3,7 = 7
+check tidewatch.peak share=-5 = 0
+# A maintenance task's next run, its budget and its record
+check treadle.next_run start=480,480,0 period=60,60,1440 now=481,1439,1439 = 540,1920,1440
+check treadle.next_run start=480,480 period=60,60 now=481,1440 = both
+check treadle.budget_ok cost=0,10,10 left=0,-1,0 = true,false,true
+check treadle.budget_ok cost=10,1000000000 left=0,0 = both
+check treadle.task_ok task=1,1000 kind=0,0 start=480,0 period=60,1 cost=500,1 approved=0,0 = true,false
+# Restoring a device's power, shown never sent; a device's energy
+check homestead.device_cmd_ok above=1,0,1 below=0,1,0 owed=0,0,0 ai=0,0,1 = true,true,false
+check homestead.device_cmd_ok above=5,199999 below=5,5 owed=0,0 ai=0,0 = both
+check homestead.device_energy device=1,2,1,3,1 want=1 wh=100,7,250,9,0 = 350
+check homestead.device_energy device=1,1,1 want=1 wh=9223372036854775807,1,-1 = both
+# The self-check after a repair, and a device's record
+check mockingbird.boot_passed rom=0,1 loader=0,-1 kernel=0,-1 drivers=0,-1 apps=0,-1 = true,false
+check mockingbird.boot_passed rom=0,0 loader=0,0 kernel=0,-1 drivers=0,0 apps=0,0 = both
+check mockingbird.emu_device_ok device=99,100 kind=99,1 base=999999999999999,0 size=999999999999999,1 irq=999,1 = true,false

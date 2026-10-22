@@ -1,0 +1,5 @@
+f:0|1&fault
+p:0|1&isolated
+x:0|1&fixed
+t:0|1&tested
+f*(x*3+t)+(1-x)*1+p

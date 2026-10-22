@@ -1,0 +1,19 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Hours to a machine part's next service (ratchet_rules.h RR4), in
+! Trebago, one part per row: a service is due every `interval` full-load
+! hours (1 .. 999999), the part has worn `worn` load-hours since the last
+! (RR3, 0 .. 999999999999999) and runs at `load` (1 .. 10000 hundredths of
+! a percent), so at that load it has (interval * 10000 - worn) / load
+! hours left, an exact fraction; below 0 the service is past due. ok is
+! 0 outside the domain, and the division by it refuses the row.
+trebago service
+  in  interval(n), worn(n), load(n)
+  out left(n)
+  var ok(n)
+  ok(i) = min(1, max(0, interval(i))) * min(1, max(0, 999999 - interval(i) + 1)) &
+        * min(1, max(0, worn(i) + 1)) * min(1, max(0, 999999999999999 - worn(i) + 1)) &
+        * min(1, max(0, load(i))) * min(1, max(0, 10000 - load(i) + 1))
+  left(i) = (interval(i) * 10000 - worn(i)) / (load(i) * ok(i))
+end

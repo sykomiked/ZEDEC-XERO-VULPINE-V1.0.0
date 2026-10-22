@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A repair job line's cost in minor units, in Sutra (ratchet_rules.h RR5):
+# the parts (qty units at price each) plus the labour (minutes at rate a
+# minute), exact. qty fits 9(4), price 9(9), minutes 9(5) and rate 9(7);
+# a value past its picture, or a negative, is a size error, refused.
+# cost.tb answers each field to nine digits: past these pictures held.
+record repair-line
+  qty: 9(4)
+  price: 9(9)
+  minutes: 9(5)
+  rate: 9(7)
+  cost: 9(14)
+procedure
+  compute cost = qty * price + minutes * rate
+  answer cost

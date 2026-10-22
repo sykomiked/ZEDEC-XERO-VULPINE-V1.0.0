@@ -420,7 +420,14 @@
 #define ALX_SLOT_NUM_DYER_REL_LUMINANCE          412u /* 591.99 dyer.rel_luminance */
 #define ALX_SLOT_NUM_DYER_RGB_TO_HSL             413u /* 592.01 dyer.rgb_to_hsl */
 #define ALX_SLOT_LOGIC_DYER_SWATCH_OK            414u /* 492.06 dyer.swatch_ok */
-#define ALX_SLOT__COUNT 414u
+#define ALX_SLOT_LOGIC_RATCHET_MACHINE_LIMITS_OK 415u /* 492.07 ratchet.machine_limits_ok */
+#define ALX_SLOT_LOGIC_RATCHET_MACHINE_PART_OK   416u /* 492.08 ratchet.machine_part_ok */
+#define ALX_SLOT_NUM_RATCHET_MACHINE_REPAIR_STEP 417u /* 592.02 ratchet.machine_repair_step */
+#define ALX_SLOT_NUM_RATCHET_MACHINE_WEAR        418u /* 592.03 ratchet.machine_wear */
+#define ALX_SLOT_NUM_RATCHET_REPAIR_LINE_COST    419u /* 592.04 ratchet.repair_line_cost */
+#define ALX_SLOT_NUM_RATCHET_SENSOR_HOUR_FAULTS  420u /* 592.05 ratchet.sensor_hour_faults */
+#define ALX_SLOT_NUM_RATCHET_SERVICE_HOURS_LEFT  421u /* 592.06 ratchet.service_hours_left */
+#define ALX_SLOT__COUNT 421u
 /* clang-format on */
 
 #endif

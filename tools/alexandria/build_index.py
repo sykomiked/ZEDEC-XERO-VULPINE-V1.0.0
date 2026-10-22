@@ -78,6 +78,11 @@ def lang_numbers():
         m = re.match(r'ZL_LANG_X\(\w+, (\d+), .*"([a-z0-9_]+)"\)', ln)
         if m:
             nums[m.group(2)] = int(m.group(1))
+            # a logic line may name the language by its AI twin (zxapp.c accepts it): the
+            # twin is the same language, so it has the same number
+            t = re.match(r'ZL_LANG_X\(\w+, \d+, "[^"]*", "([A-Za-z0-9_]+)"', ln)
+            if t:
+                nums.setdefault(t.group(1).lower(), int(m.group(1)))
     if len(nums) < 8 or max(nums.values()) > 99:
         fail("could not read the Lingua language numbers")
     for k, rt in enumerate(OTHER):

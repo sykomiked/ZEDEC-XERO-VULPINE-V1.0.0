@@ -449,3 +449,10 @@
 412	num.dyer_rel_luminance	591.99	dyer.rel_luminance	base
 413	num.dyer_rgb_to_hsl	592.01	dyer.rgb_to_hsl	base
 414	logic.dyer_swatch_ok	492.06	dyer.swatch_ok	base
+415	logic.ratchet_machine_limits_ok	492.07	ratchet.machine_limits_ok	base
+416	logic.ratchet_machine_part_ok	492.08	ratchet.machine_part_ok	base
+417	num.ratchet_machine_repair_step	592.02	ratchet.machine_repair_step	base
+418	num.ratchet_machine_wear	592.03	ratchet.machine_wear	base
+419	num.ratchet_repair_line_cost	592.04	ratchet.repair_line_cost	base
+420	num.ratchet_sensor_hour_faults	592.05	ratchet.sensor_hour_faults	base
+421	num.ratchet_service_hours_left	592.06	ratchet.service_hours_left	base

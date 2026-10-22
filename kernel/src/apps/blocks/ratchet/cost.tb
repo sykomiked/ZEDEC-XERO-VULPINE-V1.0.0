@@ -1,0 +1,19 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A repair job line's cost in minor units (ratchet_rules.h RR5), in
+! Trebago, one line per row: qty * price for the parts plus minutes * rate
+! for the labour, the rate per minute, exact. ok is 0, and the cost
+! divided by it refused, for any field outside 0 .. 999999999; cost.sutra
+! holds qty to 9(4), minutes to 9(5) and the rate to 9(7), so past those
+! pictures the two disagree: held.
+trebago repaircost
+  in  qty(n), price(n), minutes(n), rate(n)
+  out cost(n)
+  var ok(n)
+  ok(i) = min(1, max(0, qty(i) + 1)) * min(1, max(0, 999999999 - qty(i) + 1)) &
+        * min(1, max(0, price(i) + 1)) * min(1, max(0, 999999999 - price(i) + 1)) &
+        * min(1, max(0, minutes(i) + 1)) * min(1, max(0, 999999999 - minutes(i) + 1)) &
+        * min(1, max(0, rate(i) + 1)) * min(1, max(0, 999999999 - rate(i) + 1))
+  cost(i) = (qty(i) * price(i) + minutes(i) * rate(i)) / ok(i)
+end

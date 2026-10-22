@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A machine part's reading inside its safe operating limits
+# (ratchet_rules.h RR1), in Eve. Eve checks each field against its own
+# range, so the reading comes as its two margins inside the measure's
+# limits lo..hi: above = reading - lo and below = hi - reading, each 0 to
+# 999999. A margin below 0 is a fault: the reading is outside its limits.
+# limits.kron reads any margin at or above 0 as inside: a margin past
+# 999999 is no measurement, held.
+eve ratchet
+safe_margin = 0 .. 999999
+
+reading_limits {
+  above: safe_margin
+  below: safe_margin
+}
