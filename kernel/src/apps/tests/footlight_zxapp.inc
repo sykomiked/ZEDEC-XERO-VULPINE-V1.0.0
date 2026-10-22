@@ -1,10 +1,11 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Footlight's languages against the C its model runs (footlight_rules.h).
- * Slots: @num.footlight_slide_fit_w, @num.footlight_slide_fit_h,
- * @num.footlight_letterbox_bar, @num.footlight_rehearsal_over,
+ * Slots: @num.footlight_letterbox_bar, @num.footlight_rehearsal_over,
  * @num.footlight_slide_start, @num.footlight_next_slide,
- * @logic.footlight_slide_record_ok, and, used as it is, @num.halloo_hms. */
+ * @logic.footlight_slide_record_ok, and, used as they are, @num.halloo_hms
+ * and Kinetoscope's @num.kinetoscope_video_fit_w and
+ * @num.kinetoscope_video_fit_h (a 16:9 slide's fit). */
 #include "footlight_rules.h"
 
 /* One Lingua call per row (zxapp_lingua.c L1): BASIC against the C. */
@@ -43,7 +44,7 @@ static bool fl_rehearsal_same(zxapp_t *app, const int64_t *secs, uint32_t n, int
     return ok;
 }
 
-APP_TEST(footlight, 19, 41)
+APP_TEST(footlight, 22, 41)
 {
     static int64_t a[WAVE_ROWS], b[WAVE_ROWS], c[WAVE_ROWS], d[WAVE_ROWS], e[WAVE_ROWS],
         g[WAVE_ROWS], want[WAVE_ROWS];
@@ -79,10 +80,13 @@ APP_TEST(footlight, 19, 41)
               footlight_bar(10, -1) == FOOTLIGHT_REFUSED,
           "Footlight: the C fit's own edges (FL1-FL3)");
 
-    /* slide_fit_w and slide_fit_h (FL1, FL2): windows swept, then the edges */
+    /* kinetoscope.video_fit_w and video_fit_h of a 16 by 9 picture (FL1,
+     * FL2): windows swept, then the edges */
     for (uint32_t i = 0; i < WAVE_ROWS; i++) {
         a[i] = i % 2 ? wrand(0, 4096) : wrand(0, SM);
         b[i] = i % 3 ? wrand(0, 4096) : wrand(0, SM);
+        c[i] = FOOTLIGHT_ASPECT_W;
+        d[i] = FOOTLIGHT_ASPECT_H;
     }
     a[0] = 0, b[0] = 0;       /* no window */
     a[1] = SM, b[1] = SM;     /* the largest */
@@ -94,22 +98,29 @@ APP_TEST(footlight, 19, 41)
     a[7] = SM, b[7] = 0;
     a[8] = 0, b[8] = SM;
     for (uint32_t i = 0; i < WAVE_ROWS; i++) want[i] = footlight_fit_w(a[i], b[i]);
-    zxapp_arg_t wa[2] = {{"winw", a, WAVE_ROWS}, {"winh", b, WAVE_ROWS}};
-    CHECK(want[6] == 1920 && wave_same(app, "slide_fit_w", wa, 2, want, WAVE_ROWS, false),
-          "Footlight: slide_fit_w, KRON = C++ = C");
+    zxapp_arg_t wa[4] = {{"vidw", c, WAVE_ROWS},
+                         {"vidh", d, WAVE_ROWS},
+                         {"winw", a, WAVE_ROWS},
+                         {"winh", b, WAVE_ROWS}};
+    CHECK(want[6] == 1920 &&
+              wave_same(app, "kinetoscope.video_fit_w", wa, 4, want, WAVE_ROWS, false),
+          "Footlight: a slide's width through kinetoscope.video_fit_w, KRON = C++ = C");
     for (uint32_t i = 0; i < WAVE_ROWS; i++) want[i] = footlight_fit_h(a[i], b[i]);
-    CHECK(want[4] == 1080 && wave_same(app, "slide_fit_h", wa, 2, want, WAVE_ROWS, false),
-          "Footlight: slide_fit_h, KRON = C++ = C");
+    CHECK(want[4] == 1080 &&
+              wave_same(app, "kinetoscope.video_fit_h", wa, 4, want, WAVE_ROWS, false),
+          "Footlight: a slide's height through kinetoscope.video_fit_h, KRON = C++ = C");
     {
+        static const int64_t vw[2] = {FOOTLIGHT_ASPECT_W, FOOTLIGHT_ASPECT_W},
+                             vh[2] = {FOOTLIGHT_ASPECT_H, FOOTLIGHT_ASPECT_H};
         static const int64_t ww[2] = {1920, SM + 1}, wh[2] = {1080, 1080};
-        zxapp_arg_t xa[2] = {{"winw", ww, 2}, {"winh", wh, 2}};
-        CHECK(wave_lp(app, "slide_fit_w", xa, 2) == ZXAPP_BOTH &&
-                  wave_lp(app, "slide_fit_h", xa, 2) == ZXAPP_BOTH,
+        zxapp_arg_t xa[4] = {{"vidw", vw, 2}, {"vidh", vh, 2}, {"winw", ww, 2}, {"winh", wh, 2}};
+        CHECK(wave_lp(app, "kinetoscope.video_fit_w", xa, 4) == ZXAPP_BOTH &&
+                  wave_lp(app, "kinetoscope.video_fit_h", xa, 4) == ZXAPP_BOTH,
               "Footlight: a window past 65535 wide: C++ refuses, KRON answers: BOTH");
         static const int64_t nw[2] = {1920, 1920}, nh[2] = {1080, -1};
-        zxapp_arg_t na[2] = {{"winw", nw, 2}, {"winh", nh, 2}};
-        CHECK(wave_lp(app, "slide_fit_w", na, 2) == ZXAPP_BOTH &&
-                  wave_lp(app, "slide_fit_h", na, 2) == ZXAPP_BOTH,
+        zxapp_arg_t na[4] = {{"vidw", vw, 2}, {"vidh", vh, 2}, {"winw", nw, 2}, {"winh", nh, 2}};
+        CHECK(wave_lp(app, "kinetoscope.video_fit_w", na, 4) == ZXAPP_BOTH &&
+                  wave_lp(app, "kinetoscope.video_fit_h", na, 4) == ZXAPP_BOTH,
               "Footlight: a negative height: C++ refuses, KRON answers: BOTH");
     }
 

@@ -24,17 +24,19 @@
 # Built on what is nearer the core. Its layer leans on Witness: the
 # segments of a plan that start on a keyframe (the places a viewer can
 # start) are counted with witness.kind_count, never written again. A
-# position or a length shown as h:mm:ss is halloo.hms. Footlight owns a
-# 16:9 slide's fit and letterbox_bar, but it is built after this layer
-# (MATRIX_ORDER place 64, this one 37), so it cannot be used here: the
-# fit of a picture of any aspect is new (video_fit_w, video_fit_h), and
-# the bars beside it, floor((side - fit) / 2), are taken in the model's C.
+# position or a length shown as h:mm:ss is halloo.hms. Footlight owns
+# letterbox_bar, but it is built after this layer (MATRIX_ORDER place 64,
+# this one 37), so it cannot be used here: the fit of a picture of any
+# aspect is new (video_fit_w, video_fit_h), and the bars beside it,
+# floor((side - fit) / 2), are taken in the model's C. Footlight's 16:9
+# slide is fitted with this layer's video_fit_w and video_fit_h.
 # Fireglow's play_speed_ok (half to three times) is a listener's speed,
 # also built later; a hall's rate keeps zxvd's own range, so hall_rate_ok
 # is new.
 #
-# One later layer leans on this one, so each entry is a general rule
-# registered in CONCEPTS.tsv with Kinetoscope as owner:
+# Later layers lean on this one (Footlight's slide fit among them), so
+# each entry is a general rule registered in CONCEPTS.tsv with
+# Kinetoscope as owner:
 #   video_fit_w      the width of a picture of vidw by vidh fitted whole
 #                    in a window of winw by winh, aspect kept (KR1). KRON
 #                    and C++ (as WebAssembly) witness it: the C++ refuses

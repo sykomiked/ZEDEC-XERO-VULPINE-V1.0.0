@@ -38,6 +38,8 @@
  *       hall.load of a track's media CID (the owner publishes it; zxvd's
  *       fab.put copies at most a 2 MiB block, so Warble does not make one),
  *       hall.play, hall.pause and hall.status, each answer kept in hall.
+ *       A rate asked for or answered is one the hall keeps
+ *       (kinetoscope.hall_rate_ok, WR6), else refused, never sent.
  *       zxvd's pspace switch is the owner's; its refusals are shown as is.
  *   WM8 Advisory and owner-confirmed: hall.load, hall.play and hall.pause
  *       change what every listener hears, so each is sent only on the
@@ -62,8 +64,8 @@
 #define WARBLE_MEDIA_MAX  64u /* hall.load's media */
 #define WARBLE_CAP_START  85  /* WM6: the cap until the owner sets one */
 #define WARBLE_VOL_START  50
-#define WARBLE_RATE_UNIT  65536 /* hall rate_q16: normal speed */
-#define WARBLE_RATE_MAX   262144
+#define WARBLE_RATE_UNIT  65536                /* hall rate_q16: normal speed */
+#define WARBLE_RATE_MAX   KINETOSCOPE_RATE_MAX /* WR6: four times */
 #define WARBLE_NOTICE_MAX 255u
 
 enum { WARBLE_HALL_NONE = 0, WARBLE_HALL_STOP, WARBLE_HALL_PAUSE, WARBLE_HALL_PLAY };

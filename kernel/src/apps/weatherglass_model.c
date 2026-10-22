@@ -4,6 +4,7 @@
  * weatherglass_model.h). Advisory only: official warnings take precedence. */
 #include <string.h>
 
+#include "warren_rules.h"
 #include "weatherglass_model.h"
 
 const char WEATHERGLASS_ATTRIBUTION[] =
@@ -108,9 +109,10 @@ bool weatherglass_place_ok(int64_t lat, int64_t lon)
     return lat >= -90000000 && lat <= 90000000 && lon >= -180000000 && lon <= 180000000;
 }
 
+/* warren.approval_ok, Warren's own C (warren_rules.h WR3), never written again */
 bool weatherglass_approval_ok(int64_t owner, int64_t approved)
 {
-    return owner == 1 && approved == 1;
+    return warren_approval_ok(owner, approved);
 }
 
 int64_t weatherglass_day(int64_t seconds)

@@ -13,14 +13,10 @@
 # every viewer sees the same slide. Who may steer the hall is zxvd's
 # (an owner hall: the creator only).
 #
-# An anchor of the matrix: its layer leans on no other layer's code yet.
-# Every entry is a general rule a later layer takes with "use footlight 1"
-# (a video, a photo shown full screen, a page shown whole), each a concept
-# with Footlight as its owner (CONCEPTS.tsv):
-#   slide_fit_w     the width of a 16:9 slide fitted whole in a window
-#                   (FL1). KRON and C++ (as WebAssembly) witness it: the
-#                   C++ refuses a side outside 0..65535, KRON answers: held.
-#   slide_fit_h     its height (FL2), the same pair and the same refusal.
+# Its layer leans on Kinetoscope's fit (below). Every entry is a general
+# rule a later layer takes with "use footlight 1" (a cue sheet, a page
+# shown whole, any show stepped in order), each a concept with Footlight
+# as its owner (CONCEPTS.tsv):
 #   letterbox_bar   the bar before a fitted side, floor((span - fit) / 2)
 #                   (FL3). KRON and C++: the C++ refuses a fit past its
 #                   span, KRON answers a negative bar: held.
@@ -35,15 +31,23 @@
 #
 # Reuse, nearer the core: a length shown as h:mm:ss (the talk, the
 # rehearsal, the time over) is halloo.hms, never written again (FL8).
-# broadsheet.fit_zoom gives a zoom for a whole page, not the letterbox of a
-# 16:9 slide, and Broadsheet is built after this layer, so it is not used;
-# flint.cells counts whole cells, where a fit keeps the aspect.
+# The slide's fit is Kinetoscope's (MATRIX_ORDER place 37, this one 64):
+# a 16:9 slide is a picture of 16 by 9, so its width and height in a
+# window are kinetoscope.video_fit_w and kinetoscope.video_fit_h with
+# vidw 16 and vidh 9 (FL1, FL2), the same rule, domain (a window side
+# 0..65535) and refusal (KRON and C++ as WebAssembly, held past it), never
+# written again. letterbox_bar stays Footlight's: Kinetoscope takes its
+# bars in its model's C, and Footlight is built after it, so it cannot use
+# them. broadsheet.fit_zoom gives a zoom for a whole page, not the
+# letterbox of a 16:9 slide, and Broadsheet is built after this layer, so
+# it is not used; flint.cells counts whole cells, where a fit keeps the
+# aspect.
 #
-# Planned: PostScript (exact page description and drawing) stands for
-# slide_fit_w, a slide laid out in its window. TeX (typesetting) and Icon
-# (goal-directed string scanning) have no entry of their kind here: the
-# deck's lines are read in C (footlight_model.c), since no runnable
-# language owns text, and nothing is typeset; there is no pending line.
+# Planned: TeX (typesetting) and Icon (goal-directed string scanning) have
+# no entry of their kind here: the deck's lines are read in C
+# (footlight_model.c), since no runnable language owns text, and nothing
+# is typeset; there is no pending line. PostScript, which stood for the
+# slide laid out in its window, goes with that fit to Kinetoscope's rule.
 zxapp 1
 id     footlight
 name   Footlight
@@ -58,16 +62,8 @@ needs  fs.write
 needs  print
 needs  peers
 model  apps/footlight_model.c
-use    halloo 1   # @num.halloo_hms
-
-provides slide_fit_w num winw winh
-logic    kron slide_fit_w apps/blocks/footlight/slide_fit_w.kron
-logic    wasm slide_fit_w apps/blocks/footlight/slide_fit_w.wasm
-pending  PostScript slide_fit_w
-
-provides slide_fit_h num winw winh
-logic    kron slide_fit_h apps/blocks/footlight/slide_fit_h.kron
-logic    wasm slide_fit_h apps/blocks/footlight/slide_fit_h.wasm
+use    halloo 1        # @num.halloo_hms
+use    kinetoscope 1   # @num.kinetoscope_video_fit_w @num.kinetoscope_video_fit_h
 
 provides letterbox_bar num span fit
 logic    kron letterbox_bar apps/blocks/footlight/letterbox_bar.kron
@@ -87,10 +83,10 @@ provides slide_record_ok truth deck slide secs layout bytes stamp
 logic    myra slide_record_ok apps/blocks/footlight/slide.myra
 
 # Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
-check slide_fit_w winw=1920,1366,1920,1080,0,65535,800 winh=1080,768,1200,1920,0,65535,600 = 1920,1365,1920,1080,0,65535,800
-check slide_fit_w winw=1920,70000 winh=1080,1080 = both
-check slide_fit_h winw=1920,1366,1920,1080,0,65535,800 winh=1080,768,1200,1920,0,65535,600 = 1080,768,1080,607,0,36863,450
-check slide_fit_h winw=1920,1920 winh=1080,-1 = both
+check kinetoscope.video_fit_w vidw=16,16,16,16,16,16,16 vidh=9,9,9,9,9,9,9 winw=1920,1366,1920,1080,0,65535,800 winh=1080,768,1200,1920,0,65535,600 = 1920,1365,1920,1080,0,65535,800
+check kinetoscope.video_fit_w vidw=16,16 vidh=9,9 winw=1920,70000 winh=1080,1080 = both
+check kinetoscope.video_fit_h vidw=16,16,16,16,16,16,16 vidh=9,9,9,9,9,9,9 winw=1920,1366,1920,1080,0,65535,800 winh=1080,768,1200,1920,0,65535,600 = 1080,768,1080,607,0,36863,450
+check kinetoscope.video_fit_h vidw=16,16 vidh=9,9 winw=1920,1920 winh=1080,-1 = both
 check letterbox_bar span=1920,1366,1200,1920,0,65535,1081 fit=1920,1365,1080,607,0,0,0 = 0,0,60,656,0,32767,540
 check letterbox_bar span=1200,1080 fit=1080,1200 = both
 check rehearsal_over secs=60,90,120 talk=300 = -30

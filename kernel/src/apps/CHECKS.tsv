@@ -327,10 +327,10 @@ folio	check page_setup_ok width=12240,2879,12240,12240,12240,12240,31680 height=
 folio	check outline_ok doc=1,999999999,1000000000,1,1,-999999999 entry=0,9999,1,10000,1,1 level=1,9,1,1,10,3 page=1,999999,1,1,1,-1 line=1,999999999,1,1,1,1 = true,true,false,false,false,true
 folio	check flint.cells pixels=9360,9360 cell=120,120 = 78,78
 folio	check coffer.holdings balance=299900,4500,0 = 304400
-footlight	check slide_fit_w winw=1920,1366,1920,1080,0,65535,800 winh=1080,768,1200,1920,0,65535,600 = 1920,1365,1920,1080,0,65535,800
-footlight	check slide_fit_w winw=1920,70000 winh=1080,1080 = both
-footlight	check slide_fit_h winw=1920,1366,1920,1080,0,65535,800 winh=1080,768,1200,1920,0,65535,600 = 1080,768,1080,607,0,36863,450
-footlight	check slide_fit_h winw=1920,1920 winh=1080,-1 = both
+footlight	check kinetoscope.video_fit_w vidw=16,16,16,16,16,16,16 vidh=9,9,9,9,9,9,9 winw=1920,1366,1920,1080,0,65535,800 winh=1080,768,1200,1920,0,65535,600 = 1920,1365,1920,1080,0,65535,800
+footlight	check kinetoscope.video_fit_w vidw=16,16 vidh=9,9 winw=1920,70000 winh=1080,1080 = both
+footlight	check kinetoscope.video_fit_h vidw=16,16,16,16,16,16,16 vidh=9,9,9,9,9,9,9 winw=1920,1366,1920,1080,0,65535,800 winh=1080,768,1200,1920,0,65535,600 = 1080,768,1080,607,0,36863,450
+footlight	check kinetoscope.video_fit_h vidw=16,16 vidh=9,9 winw=1920,1920 winh=1080,-1 = both
 footlight	check letterbox_bar span=1920,1366,1200,1920,0,65535,1081 fit=1920,1365,1080,607,0,0,0 = 0,0,60,656,0,32767,540
 footlight	check letterbox_bar span=1200,1080 fit=1080,1200 = both
 footlight	check rehearsal_over secs=60,90,120 talk=300 = -30
@@ -1166,6 +1166,7 @@ warble	check track_record_ok track=1,1 ms=1000,90000000 mtime=1760000000,1760000
 warble	check track_record_ok track=1,1 ms=1000,1000 mtime=1760000000,-1 = both
 warble	check track_record_ok track=1,512 ms=1000,1000 mtime=1760000000,1760000000 = both
 warble	check halloo.hms ms=420503,86401515,8640000000 = 700,240001,24000000
+warble	check kinetoscope.hall_rate_ok rate=0,1,65536,262144,262145,-1 = false,true,true,true,false,false
 warding	check key_active issued=1,1,0,1,1,1 revoked=0,0,0,1,0,2 left=1,3650,5,5,0,5 = true,true,false,false,false,false
 warding	check key_active issued=1,2 revoked=0,0 left=5,5 = both
 warding	check key_active issued=1,1 revoked=0,-1 left=5,5 = both

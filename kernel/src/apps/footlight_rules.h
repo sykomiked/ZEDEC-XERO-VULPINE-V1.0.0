@@ -2,16 +2,19 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* footlight_rules.h — Footlight's rules in C, the reference its KRON, C++,
  * Trebago, BASIC and MYRA blocks are checked against (blocks/footlight),
- * with the rule it uses from nearer the core. Pure integer functions, no
+ * with the rules it uses from nearer the core. Pure integer functions, no
  * state: the model (footlight_model.c) and the language test
  * (tests/footlight_zxapp.inc) both include this, so the languages are
  * tested against the very C the model runs.
  *
  *   FL1 SLIDE FIT WIDTH. The width of a 16:9 slide fitted whole inside a
- *       window of winw by winh pixels: min(winw, floor(16 * winh / 9)).
- *       winw and winh 0..FOOTLIGHT_SIDE_MAX, else refused.
- *   FL2 SLIDE FIT HEIGHT. Its height: min(winh, floor(9 * winw / 16)),
- *       the same domain. A window wider than 16:9 fills its height and is
+ *       window of winw by winh pixels is kinetoscope.video_fit_w
+ *       (kinetoscope_rules.h KR1) of a 16 by 9 picture: min(winw,
+ *       floor(16 * winh / 9)), never written again. winw and winh
+ *       0..FOOTLIGHT_SIDE_MAX, else refused.
+ *   FL2 SLIDE FIT HEIGHT. Its height is kinetoscope.video_fit_h (KR2) of
+ *       the same picture: min(winh, floor(9 * winw / 16)), the same
+ *       domain. A window wider than 16:9 fills its height and is
  *       pillarboxed; a taller one fills its width and is letterboxed.
  *   FL3 LETTERBOX BAR. The bar before a fitted side (left of the width,
  *       above the height): floor((span - fit) / 2), the odd pixel after
@@ -41,9 +44,10 @@
 #include <stdint.h>
 
 #include "halloo_rules.h"
+#include "kinetoscope_rules.h"
 
-#define FOOTLIGHT_REFUSED  (-1)
-#define FOOTLIGHT_SIDE_MAX 65535 /* a window side in pixels */
+#define FOOTLIGHT_REFUSED  KINETOSCOPE_REFUSED
+#define FOOTLIGHT_SIDE_MAX KINETOSCOPE_SIDE_MAX /* a window side in pixels, 65535 */
 #define FOOTLIGHT_ASPECT_W 16
 #define FOOTLIGHT_ASPECT_H 9
 #define FOOTLIGHT_DECK_MAX 999   /* slides in one rehearsal or run */
@@ -58,20 +62,17 @@ static inline bool footlight_side(int64_t v)
     return v >= 0 && v <= FOOTLIGHT_SIDE_MAX;
 }
 
-/* FL1 */
+/* FL1: kinetoscope.video_fit_w of a 16:9 picture (FOOTLIGHT_REFUSED and
+ * FOOTLIGHT_SIDE_MAX are Kinetoscope's) */
 static inline int64_t footlight_fit_w(int64_t winw, int64_t winh)
 {
-    if (!footlight_side(winw) || !footlight_side(winh)) return FOOTLIGHT_REFUSED;
-    int64_t w = FOOTLIGHT_ASPECT_W * winh / FOOTLIGHT_ASPECT_H;
-    return winw < w ? winw : w;
+    return kinetoscope_fit_w(FOOTLIGHT_ASPECT_W, FOOTLIGHT_ASPECT_H, winw, winh);
 }
 
-/* FL2 */
+/* FL2: kinetoscope.video_fit_h of the same picture */
 static inline int64_t footlight_fit_h(int64_t winw, int64_t winh)
 {
-    if (!footlight_side(winw) || !footlight_side(winh)) return FOOTLIGHT_REFUSED;
-    int64_t h = FOOTLIGHT_ASPECT_H * winw / FOOTLIGHT_ASPECT_W;
-    return winh < h ? winh : h;
+    return kinetoscope_fit_h(FOOTLIGHT_ASPECT_W, FOOTLIGHT_ASPECT_H, winw, winh);
 }
 
 /* FL3 */

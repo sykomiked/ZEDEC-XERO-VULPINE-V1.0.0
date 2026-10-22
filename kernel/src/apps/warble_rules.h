@@ -2,7 +2,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* warble_rules.h — Warble's rules in C, the reference its Rust, KRON,
  * Trebago, Eve and MYRA blocks are checked against (blocks/warble), with
- * the rule it uses from nearer the core. Pure integer functions, no state:
+ * the rules it uses from nearer the core. Pure integer functions, no state:
  * the model (warble_model.c) and the language test
  * (tests/warble_zxapp.inc) both include this, so the languages are tested
  * against the very C the model runs.
@@ -33,7 +33,11 @@
  *       mtime (seconds since 1970) 0..99999999999. MYRA's digits (i4, i8,
  *       i11, sign aside) hold more; Eve's ranges are these.
  *   WR5 LENGTH SHOWN: a playlist's length as h:mm:ss is halloo.hms
- *       (halloo_rules.h HR4), never written again. */
+ *       (halloo_rules.h HR4), never written again.
+ *   WR6 HALL RATE: a watch hall's playing rate (q16, 65536 the normal
+ *       speed) is one zxvd's hall keeps, 1..262144, by
+ *       kinetoscope.hall_rate_ok (kinetoscope_rules.h KR4), never written
+ *       again. */
 #ifndef WARBLE_RULES_H
 #define WARBLE_RULES_H
 
@@ -41,6 +45,7 @@
 #include <stdint.h>
 
 #include "halloo_rules.h"
+#include "kinetoscope_rules.h"
 
 #define WARBLE_REFUSED      (-1)
 #define WARBLE_SEED_MAX     INT64_C(999999999) /* WR1: 9(9) */
@@ -104,6 +109,12 @@ static inline bool warble_track_record_ok(int64_t track, int64_t ms, int64_t mti
 static inline int64_t warble_length_hms(int64_t ms)
 {
     return halloo_hms(ms);
+}
+
+/* WR6 */
+static inline bool warble_hall_rate_ok(int64_t rate_q16)
+{
+    return kinetoscope_hall_rate_ok(rate_q16);
 }
 
 #endif

@@ -20,7 +20,10 @@
 # volume cap, and a volume past it is refused, never turned down silently.
 #
 # Built on what is nearer the core. A playlist's length as h:mm:ss is
-# halloo.hms, never written again. Crown's draw_at (seeded_draw_order) is
+# halloo.hms, never written again. A watch hall's rate, asked for or
+# answered, is one zxvd's hall keeps (q16, 1..262144): that is
+# kinetoscope.hall_rate_ok (Kinetoscope is MATRIX_ORDER place 37, this
+# one 72), the same hall and range, never written again (WR6). Crown's draw_at (seeded_draw_order) is
 # not a shuffle: (seed + step * 1000003) mod members is one stride for
 # every seed, so a seed only moves where the same order starts, and a
 # listener would hear one order every time. Warble's shuffle_at changes
@@ -59,7 +62,8 @@ needs  fs.read
 needs  search
 needs  peers
 model  apps/warble_model.c
-use    halloo 1   # @num.halloo_hms
+use    halloo 1        # @num.halloo_hms
+use    kinetoscope 1   # @logic.kinetoscope_hall_rate_ok
 
 # The shuffle (WR1): the track at place step of the shuffle of count
 # tracks from seed, every track once. Rust (as WebAssembly) and KRON.
@@ -105,3 +109,5 @@ check track_record_ok track=1,1 ms=1000,1000 mtime=1760000000,-1 = both
 check track_record_ok track=1,512 ms=1000,1000 mtime=1760000000,1760000000 = both
 # A playlist's length shown, through Halloo's h:mm:ss
 check halloo.hms ms=420503,86401515,8640000000 = 700,240001,24000000
+# A watch hall's rate, through Kinetoscope's hall range
+check kinetoscope.hall_rate_ok rate=0,1,65536,262144,262145,-1 = false,true,true,true,false,false

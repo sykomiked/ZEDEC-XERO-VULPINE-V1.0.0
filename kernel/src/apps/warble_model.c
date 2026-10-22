@@ -450,8 +450,7 @@ static int keep_hall(warble_t *w)
                   : !strcmp(state, "pause") ? WARBLE_HALL_PAUSE
                   : !strcmp(state, "stop")  ? WARBLE_HALL_STOP
                                             : WARBLE_HALL_NONE;
-        if (h.state == WARBLE_HALL_NONE || h.pos_ms < 0 || h.rate_q16 < 1 ||
-            h.rate_q16 > WARBLE_RATE_MAX)
+        if (h.state == WARBLE_HALL_NONE || h.pos_ms < 0 || !warble_hall_rate_ok(h.rate_q16))
             return ZXM_E_PROTOCOL;
     }
     if (zxm_get(l, l->result, "viewers") >= 0 && zxm_get_i64(l, l->result, "viewers", &h.viewers))
@@ -468,7 +467,8 @@ static int keep_hall(warble_t *w)
 static int hall_gate(warble_t *w, int64_t pos_ms, int64_t rate_q16, bool changes,
                      bool owner_confirmed)
 {
-    if (pos_ms < -1 || rate_q16 < 0 || rate_q16 > WARBLE_RATE_MAX) return ZXM_E_ARG;
+    /* rate_q16 0 is the normal speed (WM7), sent as no rate; any other is WR6's */
+    if (pos_ms < -1 || (rate_q16 != 0 && !warble_hall_rate_ok(rate_q16))) return ZXM_E_ARG;
     if (!w->hall_cid[0]) return ZXM_E_STATE;
     if (changes && !owner_confirmed) {
         say(w, "Only the owner's confirmed word changes what the hall plays", "");

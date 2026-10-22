@@ -335,8 +335,8 @@
 #define ALX_SLOT_NUM_FOOTLIGHT_LETTERBOX_BAR     327u /* 591.57 footlight.letterbox_bar */
 #define ALX_SLOT_NUM_FOOTLIGHT_NEXT_SLIDE        328u /* 591.58 footlight.next_slide */
 #define ALX_SLOT_NUM_FOOTLIGHT_REHEARSAL_OVER    329u /* 591.59 footlight.rehearsal_over */
-#define ALX_SLOT_NUM_FOOTLIGHT_SLIDE_FIT_H       330u /* 591.60 footlight.slide_fit_h */
-#define ALX_SLOT_NUM_FOOTLIGHT_SLIDE_FIT_W       331u /* 591.61 footlight.slide_fit_w */
+#define ALX_SLOT_NUM_FOOTLIGHT_SLIDE_FIT_H       330u /* 591.60 footlight.slide_fit_h, retired */
+#define ALX_SLOT_NUM_FOOTLIGHT_SLIDE_FIT_W       331u /* 591.61 footlight.slide_fit_w, retired */
 #define ALX_SLOT_LOGIC_FOOTLIGHT_SLIDE_RECORD_OK 332u /* 491.62 footlight.slide_record_ok */
 #define ALX_SLOT_NUM_FOOTLIGHT_SLIDE_START       333u /* 591.62 footlight.slide_start */
 #define ALX_SLOT_NUM_NEAP_ACCOUNT_MONTH_TOTAL    334u /* 591.63 neap.account_month_total */

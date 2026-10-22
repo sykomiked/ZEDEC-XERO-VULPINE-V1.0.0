@@ -3,10 +3,11 @@
 /* Warble's languages against the C its model runs (warble_rules.h).
  * Slots: @num.warble_shuffle_at, @num.warble_playlist_ms,
  * @logic.warble_volume_cap_ok, @logic.warble_track_record_ok and, used as
- * it is, Halloo's @num.halloo_hms. */
+ * they are, Halloo's @num.halloo_hms and Kinetoscope's
+ * @logic.kinetoscope_hall_rate_ok. */
 #include "warble_rules.h"
 
-APP_TEST(warble, 17, 50)
+APP_TEST(warble, 24, 50)
 {
     static int64_t a[WAVE_ROWS], b[WAVE_ROWS], c[WAVE_ROWS], want[WAVE_ROWS];
 
@@ -185,4 +186,20 @@ APP_TEST(warble, 17, 50)
     zxapp_arg_t ha = {"ms", a, WAVE_ROWS};
     CHECK(wave_same(app, "halloo.hms", &ha, 1, want, WAVE_ROWS, false),
           "Warble: the playlist's length through halloo.hms, KRON = Sutra = C");
+
+    /* kinetoscope.hall_rate_ok (WR6): the hall's rates, swept across and
+     * past each end, Eve = C */
+    for (uint32_t i = 0; i < WAVE_ROWS; i++) {
+        a[i] = wrand(-10, KINETOSCOPE_RATE_MAX + 10);
+        want[i] = T_(warble_hall_rate_ok(a[i]));
+    }
+    a[0] = 0, a[1] = 1, a[2] = KINETOSCOPE_RATE_UNIT, a[3] = KINETOSCOPE_RATE_MAX,
+    a[4] = KINETOSCOPE_RATE_MAX + 1;
+    for (uint32_t i = 0; i < 5; i++) want[i] = T_(warble_hall_rate_ok(a[i]));
+    CHECK(want[0] == ZXAPP_FALSE && want[1] == ZXAPP_TRUE && want[2] == ZXAPP_TRUE &&
+              want[3] == ZXAPP_TRUE && want[4] == ZXAPP_FALSE,
+          "Warble: a hall's rate, 1..262144, its own edges (WR6)");
+    zxapp_arg_t ra = {"rate", a, WAVE_ROWS};
+    CHECK(wave_same(app, "kinetoscope.hall_rate_ok", &ra, 1, want, WAVE_ROWS, true),
+          "Warble: a hall's rate through kinetoscope.hall_rate_ok, Eve = C");
 }

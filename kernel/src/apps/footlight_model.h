@@ -22,8 +22,9 @@
  *       record (deck, place, seconds, layout, bytes of text, stamp) fits
  *       ^ZXFOOTLIGHT (FL7) or it is not filed.
  *   FM3 THE FIT. A window of winw by winh pixels shows the slide at
- *       slide_fit_w by slide_fit_h (FL1, FL2), the bars before it
- *       letterbox_bar of each side (FL3).
+ *       kinetoscope.video_fit_w by kinetoscope.video_fit_h of a 16 by 9
+ *       picture (FL1, FL2), the bars before it letterbox_bar of each
+ *       side (FL3).
  *   FM4 REHEARSAL. A slide not rehearsed has 0 seconds. The rehearsal's
  *       total against the talk (FL4) needs every slide rehearsed and a
  *       talk length set; it is shown as h:mm:ss by halloo.hms (FL8),
