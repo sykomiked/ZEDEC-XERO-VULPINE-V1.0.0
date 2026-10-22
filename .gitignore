@@ -61,6 +61,7 @@ __pycache__/
 boot_*.log
 uefi_boot_*.log
 hw_drivers_*.log
+golden_login_*.log
 
 # Build outputs and binaries (never tracked)
 a.out

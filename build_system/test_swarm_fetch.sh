@@ -42,7 +42,7 @@
 #   8. a reboot with the gateway back: the fetch resumes where the drive's
 #      record says, re-reads and hashes what is there, finishes and seals
 #
-# Every boot reaches [BOOT_OK] and [AI_OK]. Publishes nothing: the bucket and
+# Every boot reaches [BOOT_OK] and [AI_SELFCHECK_OK]. Publishes nothing: the bucket and
 # the gateway exist only on this machine. Runs in Dockerfile.baremetal.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -117,7 +117,7 @@ gateway(){ # extra args for zxv_test_gateway.py
   done
   echo "::error::the local gateway did not start"; cat "$T/gateway.log"; exit 1
 }
-boot(){ bash build_system/uefi_boot_check.sh "$ARCH" "$IMG" "$SECS" "[AI_OK]" "$@"; }
+boot(){ bash build_system/uefi_boot_check.sh "$ARCH" "$IMG" "$SECS" "[AI_SELFCHECK_OK]" "$@"; }
 never(){ for m in "$@"; do
   if grep -aqF -- "$m" "uefi_boot_${ARCH}.log"; then echo "::error::printed $m"; exit 1; fi
 done; }

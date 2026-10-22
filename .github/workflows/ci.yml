@@ -217,7 +217,7 @@ jobs:
         # marker. Same check on all five targets: build_system/ci_boot_check.sh.
         # arm64 and x86_64 also fail on a self-check that printed [FAIL] or [??] and
         # booted on (ZXV_BOOT_DENY_FAIL; docs/BEHAVIOUR_COVERAGE.md).
-        run: ZXV_BOOT_DENY_FAIL=1 build_system/ci_boot_check.sh arm64 build_system/Makefile.arm64 30 "[AI_OK]"
+        run: ZXV_BOOT_DENY_FAIL=1 build_system/ci_boot_check.sh arm64 build_system/Makefile.arm64 30 "[AI_SELFCHECK_OK]" "[AI_NO_MODEL]"
       # The same kernel, used: two boots on one blank disk, commands typed
       # into the EL0 shell over serial. Proves the ROADMAP G7 items protected
       # userspace, P-TERM, files that survive a reboot, and signed-only run
@@ -238,7 +238,7 @@ jobs:
         if: ${{ !cancelled() }}
         # [SCHED_OK]: ring-3 processes preempted by the LAPIC timer, and a
         # user fault ending only its own process (x86_userspace.c).
-        run: ZXV_BOOT_DENY_FAIL=1 build_system/ci_boot_check.sh x86_64 build_system/Makefile.x86_64 30 "[AI_OK]" "[SCHED_OK]"
+        run: ZXV_BOOT_DENY_FAIL=1 build_system/ci_boot_check.sh x86_64 build_system/Makefile.x86_64 30 "[AI_SELFCHECK_OK]" "[AI_NO_MODEL]" "[SCHED_OK]"
       - name: Upload x86_64 artifacts
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
@@ -350,7 +350,9 @@ jobs:
     # Bare-metal UEFI discs, built in the same pinned Docker toolchain used on a
     # Mac (build_system/Dockerfile.baremetal), then booted from the disc by the
     # real firmware (OVMF / QEMU_EFI). Fails closed: the step passes only if the
-    # serial log reaches [BOOT_OK] and [AI_OK] with no fault marker. Slow tier:
+    # serial log reaches [BOOT_OK] and [AI_SELFCHECK_OK] with no fault marker
+    # (a plain disc carries no model, so it prints [AI_NO_MODEL], never
+    # [AI_OK]; test_golden_disc.sh below boots one that does). Slow tier:
     # the toolchain image is built from scratch each run.
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
@@ -361,7 +363,7 @@ jobs:
       matrix:
         include:
           - arch: arm64
-            screen: "[AI_OK]"
+            screen: "[AI_SELFCHECK_OK]"
           # x86_64 must also bring up the on-screen console a real PC needs.
           - arch: x86_64
             screen: "UEFI GOP text console"
@@ -372,7 +374,7 @@ jobs:
       - name: Build ${{ matrix.arch }} kernel and UEFI disc
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/baremetal_images.sh ${{ matrix.arch }}
       - name: Boot ${{ matrix.arch }} disc under UEFI firmware
-        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/uefi_boot_check.sh ${{ matrix.arch }} "" 90 "[AI_OK]" "${{ matrix.screen }}"
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/uefi_boot_check.sh ${{ matrix.arch }} "" 90 "[AI_NO_MODEL]" "${{ matrix.screen }}"
       # Standard class drivers (kernel/src/hwdrv) on one of every emulated
       # device they cover: NVMe, SATA, xHCI keyboard + storage, Intel NICs,
       # HD Audio. Each must bind and pass its boot self-test.
@@ -387,10 +389,15 @@ jobs:
       - name: ACPI power management on emulated hardware
         if: ${{ matrix.arch == 'x86_64' }}
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/acpi_check.sh "" 150
-      # Golden disc model check with a 3 MiB test file as the model: verified
-      # when intact, caught when one byte changes (docs/BAREMETAL.md).
+      # Golden disc model check with the tiny generated model: verified, read
+      # into memory and answered when intact, caught when one byte changes
+      # (docs/BAREMETAL.md).
       - name: Golden disc model check (${{ matrix.arch }})
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/test_golden_disc.sh ${{ matrix.arch }} 60
+      # Then the console: log in with a passport seed, ask the model, log out
+      # (x86_64 also types it on the PS/2 keyboard).
+      - name: Golden disc login and ask (${{ matrix.arch }})
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/golden_login_check.sh ${{ matrix.arch }} 300
       # The release bucket and tools/zxv-get, offline: a small bucket served
       # from a local gateway, downloaded, and every kind of lie refused.
       - name: Release bucket and download check

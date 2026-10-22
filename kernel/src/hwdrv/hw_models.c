@@ -646,6 +646,7 @@ static int start(hw_models_t *s, const hw_plat_t *p, hw_model_cur_t *c, int i)
     c->cluster = m->first;
     c->hops = 0;
     c->done = 0;
+    c->dst = 0;
     sha256_init(&c->ctx);
     return 1;
 }
@@ -671,7 +672,14 @@ static int run(hw_models_t *s, const hw_plat_t *p, hw_model_cur_t *c, uint32_t b
         }
         uint64_t left = m->bytes - c->done;
         uint32_t take = left < bpc ? (uint32_t) left : bpc;
-        sha256_update(&c->ctx, buf, take);
+        if (c->dst) {
+            /* copy first, then hash the copy: the bytes checked are the
+             * bytes kept */
+            for (uint32_t k = 0; k < take; k++) c->dst[c->done + k] = buf[k];
+            sha256_update(&c->ctx, c->dst + c->done, take);
+        } else {
+            sha256_update(&c->ctx, buf, take);
+        }
         c->done += take;
         if (c->done < m->bytes) c->cluster = next_cluster(v, c->cluster);
     }
@@ -733,6 +741,23 @@ hw_verdict_t hw_models_require(hw_models_t *s, const hw_plat_t *p, const char *n
     hw_model_cur_t c;
     if (start(s, p, &c, i))
         while (!run(s, p, &c, 0xFFFFFFFFu));
+    return m->verdict;
+}
+
+hw_verdict_t hw_models_load(hw_models_t *s, const hw_plat_t *p, uint32_t i, uint8_t *dst,
+                            uint64_t cap)
+{
+    if (i >= s->n) return HW_F;
+    hw_model_t *m = &s->m[i];
+    if (m->verdict == HW_F) return HW_F;
+    if (!dst || cap < m->bytes) return HW_N;
+    if (s->bg.idx == (int) i) s->bg.idx = -1; /* settled here instead */
+    if (m->verdict == HW_T) s->ok--;          /* finish counts it again */
+    hw_model_cur_t c;
+    if (start(s, p, &c, (int) i)) {
+        c.dst = dst;
+        while (!run(s, p, &c, 0xFFFFFFFFu));
+    }
     return m->verdict;
 }
 

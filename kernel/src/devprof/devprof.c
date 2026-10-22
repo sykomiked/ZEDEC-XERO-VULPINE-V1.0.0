@@ -30,9 +30,10 @@ static const dp_component_t g_comp[DPC__COUNT] = {
     {DPC_BOARD_ZYNQMP, "zynqmp-board", "Zynq UltraScale+ arbiter (GIC-400, Cadence UART)",
      DP_ST_BUILT,
      "board_profile.h BOARD_ZYNQMP + Cadence UART in uart_pl011.c; boots to "
-     "[AI_OK] in QEMU xlnx-zcu102 (build_system/boards_boot_check.sh), not yet on silicon"},
+     "[AI_SELFCHECK_OK] in QEMU xlnx-zcu102 (build_system/boards_boot_check.sh), not yet on "
+     "silicon"},
     {DPC_BOARD_VERSAL, "versal-board", "Versal arbiter (GICv3, PL011)", DP_ST_BUILT,
-     "board_profile.h BOARD_VERSAL; boots to [AI_OK] in QEMU xlnx-versal-virt "
+     "board_profile.h BOARD_VERSAL; boots to [AI_SELFCHECK_OK] in QEMU xlnx-versal-virt "
      "(build_system/boards_boot_check.sh), not yet on silicon"},
     {DPC_BOARD_MPFS, "mpfs-board", "PolarFire SoC arbiter (MMUART, PLIC, CLINT)", DP_ST_BUILT,
      "kernel/arch/riscv/riscv_board.h RV_BOARD_MPFS; boots to [BOOT_OK] on a U54 hart in QEMU "
