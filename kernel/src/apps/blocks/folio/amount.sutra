@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One line of an invoice or report table at a fixed scale (folio_rules.h
+# FR3), in Sutra: a quantity in thousandths of a unit at a unit price in
+# minor units, rounded half up to a whole minor unit. qty and price fit
+# 9(9), so a larger or a negative one is a size error, refused.
+record table-line
+  qty: 9(9)
+  price: 9(9)
+  amount: 9(15)
+procedure
+  compute amount = (qty * price + 500) / 1000
+  answer amount

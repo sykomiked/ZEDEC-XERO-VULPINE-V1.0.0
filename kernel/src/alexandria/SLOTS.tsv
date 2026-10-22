@@ -189,3 +189,8 @@
 152	logic.seedbank_block_put_ok	490.74	seedbank.block_put_ok	base
 153	num.seedbank_cid_byte	590.68	seedbank.cid_byte	base
 154	logic.seedbank_pin_record_ok	490.75	seedbank.pin_record_ok	base
+155	logic.folio_outline_ok	490.76	folio.outline_ok	base
+156	num.folio_page_count	590.69	folio.page_count	base
+157	num.folio_page_lines	590.70	folio.page_lines	base
+158	logic.folio_page_setup_ok	490.77	folio.page_setup_ok	base
+159	num.folio_scaled_amount	590.71	folio.scaled_amount	base

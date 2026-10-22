@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Folio files one entry of a document's outline in MYRA (folio_rules.h
+; FR7): under the document's number and the entry's place in the outline,
+; the heading's level (1 a chapter, 2 a section, 3 a subsection), the page
+; it starts on and its line in the laid-out document. Folio asks whether
+; the numbers fit before it keeps them.
+^ZXFOLIO(doc:i9, entry:i4) = level:i1! ^ page:i6! ^ line:i9!

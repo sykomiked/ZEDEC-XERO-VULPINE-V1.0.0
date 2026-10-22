@@ -91,6 +91,16 @@ flint	check scroll_ok lines=23,24,10000,10001,500,500 bytes=65536,4096,1048576,6
 flint	check history_ok seq=999999999,1000000000,1,1,1 stamp=999999999999,1,1000000000000,1,1 status=999,0,0,1000,127 bytes=9999,1,1,1,10000 = true,false,false,false,false
 flint	check used_share.used_x100 total=1,1,3 left=0,1,2 = 10000,0,3333
 flint	check used_share.used_x100 total=100 left=101 = both
+folio	check page_lines height=15840,15840,16838,31680,2880,15840 top=1440,1440,1440,0,1440,0 bottom=1440,1440,1440,0,1440,15840 leading=240,280,240,1,240,240 = 54,46,58,31680,0,0
+folio	check page_lines height=15840,15840 top=1440,9000 bottom=1440,9000 leading=240,240 = both
+folio	check page_count lines=0,1,54,55,108,999999999 perpage=54,54,54,54,54,9999 = 0,1,1,2,2,100011
+folio	check page_count lines=-5,10 perpage=3,3 = both
+folio	check scaled_amount qty=0,1000,1500,333,1,1,999999999 price=0,2500,1999,3,499,500,999999999 = 0,2500,2999,1,0,1,999999998000000
+folio	check scaled_amount qty=1000,1000000000 price=1,1 = both
+folio	check page_setup_ok width=12240,2879,12240,12240,12240,12240,31680 height=15840,15840,31681,15840,15840,15840,2880 left=1440,1440,1440,4321,1440,1440,0 right=1440,1440,1440,1440,1440,1440,4320 top=1440,1440,1440,1440,1440,1440,0 bottom=1440,1440,1440,1440,-1,1440,4320 leading=240,240,240,240,240,159,1440 = true,false,false,false,false,false,true
+folio	check outline_ok doc=1,999999999,1000000000,1,1,-999999999 entry=0,9999,1,10000,1,1 level=1,9,1,1,10,3 page=1,999999,1,1,1,-1 line=1,999999999,1,1,1,1 = true,true,false,false,false,true
+folio	check flint.cells pixels=9360,9360 cell=120,120 = 78,78
+folio	check coffer.holdings balance=299900,4500,0 = 304400
 gatehouse	check use_ok asked=1,1,0,1,0,1 granted=1,0,1,1,0,1 revoked=0,0,0,1,0,1 = true,false,false,false,false,false
 gatehouse	check use_ok asked=1,2 granted=1,1 revoked=0,0 = both
 gatehouse	check use_ok asked=1,1 granted=1,1 revoked=0,-1 = both

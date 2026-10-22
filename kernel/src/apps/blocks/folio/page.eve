@@ -1,0 +1,22 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a Folio page may be (folio_rules.h FR6), in twips (1440 to the
+# inch): a sheet 2 to 22 inches each way, each margin up to 3 inches, and
+# a leading (the distance from one line to the next) of 8 to 72 points.
+# Eve checks that each value fits its own range; whether the margins leave
+# room for a line is page_lines, computed from several values together.
+eve folio
+sheet_side = 2880 .. 31680
+margin_width = 0 .. 4320
+line_leading = 160 .. 1440
+
+page_setup {
+  width: sheet_side
+  height: sheet_side
+  left: margin_width
+  right: margin_width
+  top: margin_width
+  bottom: margin_width
+  leading: line_leading
+}

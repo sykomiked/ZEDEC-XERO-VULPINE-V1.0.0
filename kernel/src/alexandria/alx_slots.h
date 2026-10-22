@@ -160,7 +160,12 @@
 #define ALX_SLOT_LOGIC_SEEDBANK_BLOCK_PUT_OK     152u /* 490.74 seedbank.block_put_ok */
 #define ALX_SLOT_NUM_SEEDBANK_CID_BYTE           153u /* 590.68 seedbank.cid_byte */
 #define ALX_SLOT_LOGIC_SEEDBANK_PIN_RECORD_OK    154u /* 490.75 seedbank.pin_record_ok */
-#define ALX_SLOT__COUNT 154u
+#define ALX_SLOT_LOGIC_FOLIO_OUTLINE_OK          155u /* 490.76 folio.outline_ok */
+#define ALX_SLOT_NUM_FOLIO_PAGE_COUNT            156u /* 590.69 folio.page_count */
+#define ALX_SLOT_NUM_FOLIO_PAGE_LINES            157u /* 590.70 folio.page_lines */
+#define ALX_SLOT_LOGIC_FOLIO_PAGE_SETUP_OK       158u /* 490.77 folio.page_setup_ok */
+#define ALX_SLOT_NUM_FOLIO_SCALED_AMOUNT         159u /* 590.71 folio.scaled_amount */
+#define ALX_SLOT__COUNT 159u
 /* clang-format on */
 
 #endif

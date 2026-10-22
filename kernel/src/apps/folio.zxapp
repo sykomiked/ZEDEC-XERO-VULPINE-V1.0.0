@@ -1,0 +1,92 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Folio, documents with layout: layer 39 of the matrix. Letters, reports
+# and books are plain text files in the Hoard (files.read, files.write):
+# a line starting "# ", "## " or "### " is a heading of level 1 to 3, a
+# line holding only a form feed starts a new page, and an amount table
+# (an invoice's or a report's) is set from its items. Folio lays the
+# text out on a page in twips (1440 to the inch), in 10-point Courier,
+# writes it as a PDF and prints it (print.status, print.submit,
+# print.job). zxvd does not convert documents (print.submit takes the
+# formats the printer takes), so the PDF is Folio's own. Money is shown
+# and summed, never paid: an invoice is a document, advice only.
+#
+# Line breaking stays in C (folio_model.c): it is text work, and no
+# runnable language owns text (TRAC, which does, has no runtime yet).
+#
+# 75 later layers lean on this one, so every entry is a general rule
+# registered in CONCEPTS.tsv with Folio as its owner:
+#   page_lines     lines of one leading between the top and bottom
+#                  margins (FR1). KRON and C++ (as WebAssembly) witness
+#                  it: the C++ refuses margins past the page, KRON
+#                  answers a negative count: held.
+#   page_count     pages for a count of lines, rounded up (FR2). KRON and
+#                  C++: the C++ refuses a negative count, KRON answers.
+#   scaled_amount  one line of an amount table at a fixed scale (FR3): a
+#                  quantity in thousandths at a unit price, rounded half
+#                  up to a minor unit. Sutra and C++: Sutra refuses past
+#                  9(9), the C++ answers to 64 bits: held.
+#   page_setup_ok  the page's size, margins and leading, each against its
+#                  own range (FR6), so Eve alone.
+#   outline_ok     an outline entry's record in MYRA (^ZXFOLIO, FR7).
+#
+# Reuse, nearer the core: a table's sum is coffer.holdings (the exact sum
+# of minor units, refused past 64 bits, FR4): Sutra and C++ answer once a
+# row and cannot sum a column, so the sum is Trebago's, with the model's C
+# as its second witness. The columns across a line are flint.cells (FR5):
+# the text width over a character's 120 twips, a character grid. flint.cells
+# is not used for page_lines: its cell is at most 256, where a leading runs
+# to 1440 twips, and it takes no margins. vintner.sale_value counts whole
+# units only and never rounds, where a table line is at a fixed scale of
+# thousandths, so scaled_amount is a new rule.
+#
+# Planned: TeX (typesetting) stands for page_lines, the fit of lines on a
+# page. TRAC (macro text processing) owns only the line breaking, which
+# has no entry, so it is not pending.
+zxapp 1
+id     folio
+name   Folio
+version 1.0.0
+slot   39
+layer  L1
+matrix 39
+icon   icons/l1/039-folio.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  print
+model  apps/folio_model.c
+use    flint 1    # @num.flint_cells
+use    coffer 1   # @num.coffer_holdings
+
+provides page_lines num height top bottom leading
+logic    kron page_lines apps/blocks/folio/page_lines.kron
+logic    wasm page_lines apps/blocks/folio/page_lines.wasm
+pending  TeX page_lines
+
+provides page_count num lines perpage
+logic    kron page_count apps/blocks/folio/page_count.kron
+logic    wasm page_count apps/blocks/folio/page_count.wasm
+
+provides scaled_amount num qty price
+logic    sutra scaled_amount apps/blocks/folio/amount.sutra
+logic    wasm  scaled_amount apps/blocks/folio/amount.wasm
+
+provides page_setup_ok truth width height left right top bottom leading
+logic    eve page_setup_ok apps/blocks/folio/page.eve
+
+provides outline_ok truth doc entry level page line
+logic    myra outline_ok apps/blocks/folio/outline.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check page_lines height=15840,15840,16838,31680,2880,15840 top=1440,1440,1440,0,1440,0 bottom=1440,1440,1440,0,1440,15840 leading=240,280,240,1,240,240 = 54,46,58,31680,0,0
+check page_lines height=15840,15840 top=1440,9000 bottom=1440,9000 leading=240,240 = both
+check page_count lines=0,1,54,55,108,999999999 perpage=54,54,54,54,54,9999 = 0,1,1,2,2,100011
+check page_count lines=-5,10 perpage=3,3 = both
+check scaled_amount qty=0,1000,1500,333,1,1,999999999 price=0,2500,1999,3,499,500,999999999 = 0,2500,2999,1,0,1,999999998000000
+check scaled_amount qty=1000,1000000000 price=1,1 = both
+check page_setup_ok width=12240,2879,12240,12240,12240,12240,31680 height=15840,15840,31681,15840,15840,15840,2880 left=1440,1440,1440,4321,1440,1440,0 right=1440,1440,1440,1440,1440,1440,4320 top=1440,1440,1440,1440,1440,1440,0 bottom=1440,1440,1440,1440,-1,1440,4320 leading=240,240,240,240,240,159,1440 = true,false,false,false,false,false,true
+check outline_ok doc=1,999999999,1000000000,1,1,-999999999 entry=0,9999,1,10000,1,1 level=1,9,1,1,10,3 page=1,999999,1,1,1,-1 line=1,999999999,1,1,1,1 = true,true,false,false,false,true
+check flint.cells pixels=9360,9360 cell=120,120 = 78,78
+check coffer.holdings balance=299900,4500,0 = 304400
