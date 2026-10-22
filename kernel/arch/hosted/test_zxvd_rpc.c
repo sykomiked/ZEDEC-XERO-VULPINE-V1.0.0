@@ -864,6 +864,12 @@ static void test_spaces_methods(void)
               "\"members\":[],\"governance\":\"horizontal\",\"quorum_pct\":60,\"self\":\"me\","
               "\"proposals\":[],\"next_proposal\":0,\"cid\":\"\"}"),
           "horizontal space: %s", OUT.p);
+    EXPECT(REQ("10", "spaces.create",
+               ",\"params\":{\"kind\":\"office\",\"name\":\"\",\"quorum_pct\":1}"),
+           FERR("10", "not a valid name or path in the Hoard"));
+    EXPECT(REQ("10", "spaces.create",
+               ",\"params\":{\"kind\":\"office\",\"name\":\"\",\"quorum_pct\":100}"),
+           FERR("10", "not a valid name or path in the Hoard"));
     EXPECT(REQ("10", "spaces.set_members", ",\"params\":{\"space\":\"votes\",\"members\":[]}"),
            SERR("10", "this space decides its members by vote"));
     /* alone, the owner's own yes is the whole quorum */
@@ -942,6 +948,10 @@ static void test_spaces_methods(void)
                ",\"params\":{\"space\":\"votes\",\"proposal\":4294967296,"
                "\"vote\":\"yes\"}"),
            ERR("10", "-32602", "\\\"proposal\\\" must be a proposal id"));
+    EXPECT(REQ("10", "spaces.vote",
+               ",\"params\":{\"space\":\"votes\",\"proposal\":4294967295,"
+               "\"vote\":\"yes\"}"),
+           SERR("10", "no open proposal with that id"));
     EXPECT(REQ("10", "spaces.vote", ",\"params\":{\"proposal\":1,\"vote\":\"yes\"}"),
            ERR("10", "-32602", "missing string parameter \\\"space\\\""));
     EXPECT(REQ("10", "spaces.propose",
@@ -1768,6 +1778,26 @@ static void reopen(void)
     CHECK(zxvd_rpc_books_open() == 0, "the books reopen from the file");
 }
 
+/* open the books; on a refusal, why is the reason zxvd gave on stderr */
+static char WHY[600];
+static int books_open_why(void)
+{
+    fflush(stderr);
+    int saved = dup(2);
+    FILE *f = tmpfile();
+    if (saved < 0 || !f) return zxvd_rpc_books_open();
+    dup2(fileno(f), 2);
+    int rc = zxvd_rpc_books_open();
+    fflush(stderr);
+    dup2(saved, 2);
+    close(saved);
+    rewind(f);
+    size_t n = fread(WHY, 1, sizeof WHY - 1, f);
+    WHY[n] = 0;
+    fclose(f);
+    return rc;
+}
+
 static void test_books_file(void)
 {
     char tmpl[] = "/tmp/zxvdbooks.XXXXXX", req[400], want[400];
@@ -1882,25 +1912,32 @@ static void test_books_file(void)
     *amt = '8';
     spit(BOOKS, copy, n);
     zxvd_rpc_books_close();
-    CHECK(zxvd_rpc_books_open() == -1, "F4: an edited amount breaks the chain");
+    CHECK(books_open_why() == -1 && strstr(WHY, "record 6: the hash chain is broken"),
+          "F4: an edited amount breaks the chain: %s", WHY);
     CHECK(file_size(BOOKS) == n, "F4: the damaged file is left as it was");
     memcpy(copy, b, (size_t) n + 1);
     copy[3] = copy[3] == 'a' ? 'b' : 'a';
     spit(BOOKS, copy, n);
-    CHECK(zxvd_rpc_books_open() == -1, "F4: an edited hash breaks the chain");
+    CHECK(books_open_why() == -1 && strstr(WHY, "record 1: the hash chain is broken"),
+          "F4: an edited hash breaks the chain: %s", WHY);
     memcpy(copy, b, (size_t) n + 1);
     copy[64] = 'x';
     spit(BOOKS, copy, n);
-    CHECK(zxvd_rpc_books_open() == -1, "F4: a malformed record is refused");
+    CHECK(books_open_why() == -1 && strstr(WHY, "record 1: malformed record"),
+          "F4: a malformed record is refused: %s", WHY);
     memcpy(copy, b, (size_t) n + 1);
     copy[10] = 'G';
     spit(BOOKS, copy, n);
-    CHECK(zxvd_rpc_books_open() == -1, "F4: a non-hex hash is refused");
+    CHECK(books_open_why() == -1 && strstr(WHY, "record 1: malformed record"),
+          "F4: a non-hex hash is refused: %s", WHY);
     char *nl = strchr(copy, '\n');
     spit(BOOKS, nl + 1, n - (long) (nl + 1 - copy));
-    CHECK(zxvd_rpc_books_open() == -1, "F4: a file without its header is refused");
+    CHECK(books_open_why() == -1 && strstr(WHY, "record 1: the hash chain is broken"),
+          "F4: a file without its header is refused: %s", WHY);
     spit(BOOKS, b, n);
     static const char *const BAD[] = {
+        "",
+        "x",
         "{\"op\":\"nope\"}",
         "[1]",
         "{\"code\":\"USD\"}",
@@ -1908,6 +1945,7 @@ static void test_books_file(void)
         "{\"op\":\"ccy\",\"code\":5}",
         "{\"op\":\"unit\",\"code\":\"GBP\",\"minor\":2}",
         "{\"op\":\"unit\",\"code\":\"QQQ\",\"minor\":256}",
+        "{\"op\":\"unit\",\"code\":\"QQQ\",\"minor\":255}",
         "{\"op\":\"acct\",\"name\":\"x\",\"ccy\":\"USD\",\"kind\":0,\"id\":9}",
         "{\"op\":\"acct\",\"name\":\"x\",\"ccy\":\"USD\",\"kind\":2,\"id\":4}",
         "{\"op\":\"acct\",\"name\":\"x\",\"ccy\":\"XXX\",\"kind\":0,\"id\":4}",
@@ -1924,11 +1962,42 @@ static void test_books_file(void)
         "{\"op\":\"post\",\"from\":1,\"to\":0,\"amount\":\"1\",\"ccy\":\"USD\","
         "\"ref\":\"e2e \\u00e9 1\",\"id\":\"5\"}",
         "{\"op\":\"books\",\"v\":1}",
+        "{\"op\":\"post\",\"from\":4294967295,\"to\":1,\"amount\":\"1\",\"ccy\":\"USD\","
+        "\"ref\":\"r\",\"id\":\"5\"}",
+        "{\"op\":\"post\",\"from\":1,\"to\":4294967295,\"amount\":\"1\",\"ccy\":\"USD\","
+        "\"ref\":\"r\",\"id\":\"5\"}",
+    };
+    /* the reason each is refused with */
+    static const char *const BADWHY[] = {
+        "malformed record",
+        "not a JSON object",
+        "unknown op",
+        "not a JSON object",
+        "no op",
+        "currency refused",
+        "bad ccy record",
+        "unit refused",
+        "bad unit record",
+        "unit refused",
+        "account number differs",
+        "bad account record",
+        "account refused",
+        "posting refused",
+        "bad posting record",
+        "bad posting record",
+        "bad posting record",
+        "bad posting record",
+        "posting refused",
+        "unknown op",
+        "posting refused",
+        "posting refused",
     };
     for (size_t i = 0; i < sizeof BAD / sizeof BAD[0]; i++) {
         spit(BOOKS, b, n);
         append_chained(BOOKS, BAD[i]);
-        CHECK(zxvd_rpc_books_open() == -1, "F4: refused: %s", BAD[i]);
+        CHECK(books_open_why() == -1 && i < sizeof BADWHY / sizeof BADWHY[0] &&
+                  strstr(WHY, BADWHY[i]),
+              "F4: refused: %s: %s", BAD[i], WHY);
     }
     /* the same kinds of record, well formed, replay */
     static const char *const GOOD[] = {
@@ -1945,6 +2014,41 @@ static void test_books_file(void)
     EXPECT(REQ("9", "ledger.balance", ",\"params\":{\"account\":5}"),
            OK("9", "{\"debit_minor\":\"7\",\"credit_minor\":\"0\",\"equity_minor\":\"7\"}"));
     CHECK(has(REQ("1", "books.file", ""), "\"records\":\"17\""), "books.file: 17 records: %s",
+          OUT.p);
+    /* a books file past the 64 KiB first read buffer (it grows twice) replays whole */
+    zxvd_rpc_books_close();
+    {
+        long m;
+        char *cur = slurp(BOOKS, &m), hx[65], rec[160];
+        last_hash(cur, m, hx);
+        uint8_t h[32];
+        for (int i = 0; i < 32; i++) {
+            unsigned v;
+            sscanf(hx + 2 * i, "%2x", &v);
+            h[i] = (uint8_t) v;
+        }
+        free(cur);
+        FILE *f = fopen(BOOKS, "ab");
+        for (int r = 0; r < 1500; r++) {
+            snprintf(rec, sizeof rec,
+                     "{\"op\":\"post\",\"from\":4,\"to\":5,\"amount\":\"1\",\"ccy\":\"EUR\","
+                     "\"ref\":\"b%d\",\"id\":\"%d\"}",
+                     r, 7 + r);
+            sha256_ctx_t c;
+            sha256_init(&c);
+            sha256_update(&c, h, 32);
+            sha256_update(&c, (const uint8_t *) rec, strlen(rec));
+            sha256_final(&c, h);
+            for (int i = 0; i < 32; i++) fprintf(f, "%02x", h[i]);
+            fprintf(f, " %s\n", rec);
+        }
+        fclose(f);
+    }
+    CHECK(stat(BOOKS, &st) == 0 && st.st_size > 3 * 65536, "the books file is past 192 KiB");
+    CHECK(zxvd_rpc_books_open() == 0, "a large books file replays");
+    EXPECT(REQ("9", "ledger.balance", ",\"params\":{\"account\":5}"),
+           OK("9", "{\"debit_minor\":\"1507\",\"credit_minor\":\"0\",\"equity_minor\":\"1507\"}"));
+    CHECK(has(REQ("1", "books.file", ""), "\"records\":\"1517\""), "books.file: 1517 records: %s",
           OUT.p);
     free(copy);
     free(b);
@@ -2390,7 +2494,8 @@ static void test_jurisdiction(void)
     for (unsigned i = 0; i < sizeof bad / sizeof *bad; i++) {
         spit(path, orig, keep);
         append_chained(path, bad[i]);
-        CHECK(zxvd_rpc_books_open() == -1, "bad jurisdiction record %u stops the start", i);
+        CHECK(books_open_why() == -1 && strstr(WHY, ": bad jurisdiction record."),
+              "bad jurisdiction record %u stops the start: %s", i, WHY);
         zxvd_rpc_books_close();
     }
     spit(path, orig, keep);
@@ -3347,6 +3452,10 @@ static void test_phone_methods(void)
            ERR("2", "-32602", "\\\"on\\\" must be true or false"));
     EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":65536}"),
            ERR("2", "-32602", "\\\"port\\\" must be 0..65535"));
+    CHECK(!has(REQ("2", "phone.link",
+                   ",\"params\":{\"on\":true,\"port\":65535,\"bind\":\"8.8.8.8\"}"),
+               "must be 0..65535"),
+          "port 65535 passes the range check: %s", OUT.p);
     EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":-1}"),
            ERR("2", "-32602", "\\\"port\\\" is out of range"));
     EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":1}"),
@@ -3869,6 +3978,24 @@ static void test_groups(void)
     for (uint32_t i = 0; i < ZXVD_EXT_MAX_GROUPS; i++)
         CHECK(zxvd_rpc_add_group(&gs[i]) == 0, "group %u fits", (unsigned) i);
     CHECK(zxvd_rpc_add_group(&gs[ZXVD_EXT_MAX_GROUPS]) == -1, "one more is refused");
+    /* removing one from the middle keeps the rest; its feature stays known */
+    zxvd_rpc_remove_group(&gs[5]);
+    CHECK(has(REQ("1", "m5.x", ""), "method not found") &&
+              !has(REQ("1", "m6.x", ""), "method not found") &&
+              !has(REQ("1", "m31.x", ""), "method not found") &&
+              !has(REQ("1", "m0.x", ""), "method not found"),
+          "the others still answer: %s", OUT.p);
+    CHECK(zxvd_rpc_add_group(&gs[ZXVD_EXT_MAX_GROUPS]) == -1, "a 33rd feature is refused");
+    CHECK(zxvd_rpc_add_group(&gs[5]) == 0, "a known feature's group comes back");
+    zxvd_rpc_groups_reset();
+    /* a method a table added already has its name */
+    static const zxvd_method_t XT[] = {{"gx.ext", x_echo}};
+    static const zxvd_group_method_t G_DUP_EXT[] = {{"gx.ext", g_status, false}};
+    const zxvd_group_t dup_ext = {"gx", false, "", G_DUP_EXT, 1, NULL};
+    zxvd_rpc_add_methods(XT, 1);
+    CHECK(zxvd_rpc_add_group(&dup_ext) == -1, "a table's method name is refused");
+    zxvd_rpc_remove_methods(XT);
+    CHECK(zxvd_rpc_add_group(&dup_ext) == 0, "and is free once the table goes");
     zxvd_rpc_groups_reset();
 }
 
@@ -3946,7 +4073,8 @@ static void test_feature_save(void)
     for (unsigned i = 0; i < sizeof bad / sizeof *bad; i++) {
         spit(path, orig, keep);
         append_chained(path, bad[i]);
-        CHECK(zxvd_rpc_books_open() == -1, "bad feature record %u stops the start", i);
+        CHECK(books_open_why() == -1 && strstr(WHY, ": bad feature record."),
+              "bad feature record %u stops the start: %s", i, WHY);
         zxvd_rpc_books_close();
     }
     spit(path, orig, keep);
@@ -4814,6 +4942,8 @@ static void test_print(void)
     CHECK(has(REQ("1", "print.job", ",\"params\":{\"uri\":\"ftp://h/p\",\"job_id\":2147483647}"),
               "-32022"),
           "the biggest id reaches the device check");
+    CHECK(has(REQ("1", "print.job", ",\"params\":{\"uri\":\"ftp://h/p\",\"job_id\":1}"), "-32022"),
+          "id 1 reaches the device check");
     EXPECT(REQ("1", "print.submit",
                ",\"params\":{\"uri\":\"ipp://h/p\",\"path\":\"a.pdf\",\"copies\":1000}"),
            ERR("1", "-32602", "\\\"copies\\\" must be 1 to 999"));
@@ -5553,6 +5683,31 @@ static void test_backup(void)
              "\"max\":101}}",
              BK_DEST);
     CHECK(strstr(rpc(req), "\"code\":-32602"), "max 101");
+    /* the edges of each range are inside it */
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.list\",\"params\":{\"dest\":\"%s\","
+             "\"max\":1}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"result\":{\"space\":\"home\",\"total\":") &&
+              count(OUT.p, "{\"snapshot\":") == 1,
+          "max 1, one snapshot: %s", OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.versions\",\"params\":{\"dest\":"
+             "\"%s\",\"path\":\"o.txt\"}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"result\":{\"space\":\"home\",\"versions\":[]}"),
+          "no versions in this space: %s", OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.verify\",\"params\":{\"dest\":"
+             "\"%s\",\"snapshot\":100000}}",
+             BK_DEST);
+    CHECK(!strstr(rpc(req), "-32602") && strstr(OUT.p, "\"error\""),
+          "snapshot 100000 passes the range check: %s", OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.prune\",\"params\":{\"dest\":"
+             "\"%s\",\"keep\":100000}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"result\":{\"space\":\"home\","), "keep 100000: %s", OUT.p);
     snprintf(req, sizeof req,
              "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.list\",\"params\":{\"dest\":\"%s\","
              "\"max\":100}}",
@@ -5853,6 +6008,10 @@ static void test_journal(void)
     CHECK(strstr(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.verify\"}"),
                  "\"result\":{\"on\":true,\"ok\":true,\"segments\":"),
           "journal.verify: %s", OUT.p);
+    CHECK(has(REQ("1", "journal.query", ",\"params\":{\"max\":1}"),
+              "\"result\":{\"on\":true,\"entries\":[{") &&
+              count(OUT.p, "{\"seq\":") == 1,
+          "max 1: %s", OUT.p);
     EXPECT(REQ("1", "journal.query", ",\"params\":{\"max\":0}"),
            ERR("1", "-32602", "\\\"max\\\" must be 1 to 500"));
     EXPECT(REQ("1", "journal.query", ",\"params\":{\"max\":501}"),
@@ -6248,6 +6407,26 @@ static void test_screen(void)
            ERR("1", "-32602", "\\\"minutes\\\" must be 1 to 1440"));
     EXPECT(REQ("1", "screen.grant", ",\"params\":{\"app\":\"nolimit\",\"minutes\":5}"),
            ERR("1", "-32019", "no limit for that app"));
+    /* the edges of each range are inside it */
+    CHECK(has(REQ("1", "screen.status", ",\"params\":{\"days\":31}"), "\"result\":{\"locked\":"),
+          "31 days: %s", OUT.p);
+    EXPECT(REQ("1", "screen.set_limit", ",\"params\":{\"app\":\"quillon\",\"minutes\":1440}"),
+           OK("1", "{\"app\":\"quillon\",\"set\":true}"));
+    EXPECT(REQ("1", "screen.set_limit", ",\"params\":{\"app\":\"edge\",\"from\":1439,\"to\":0}"),
+           OK("1", "{\"app\":\"edge\",\"set\":true}"));
+    CHECK(has(REQ("1", "screen.grant", ",\"params\":{\"app\":\"quillon\",\"minutes\":1}"),
+              "\"result\":{\"app\":\"quillon\",\"left\":"),
+          "grant 1: %s", OUT.p);
+    CHECK(has(REQ("1", "screen.grant", ",\"params\":{\"app\":\"quillon\",\"minutes\":1440}"),
+              "\"result\":{\"app\":\"quillon\",\"left\":"),
+          "grant 1440: %s", OUT.p);
+    EXPECT(
+        REQ("1", "screen.lock", ",\"params\":{\"passphrase\":\"a\"}"),
+        ERR("1", "-32602", "\\\"passphrase\\\" must be at least 4 bytes, or \\\"\\\" to unlock"));
+    EXPECT(REQ("1", "screen.lock", ",\"params\":{\"passphrase\":\"abcd\"}"),
+           OK("1", "{\"locked\":true}"));
+    EXPECT(REQ("1", "screen.lock", ",\"params\":{\"passphrase\":\"\",\"old\":\"abcd\"}"),
+           OK("1", "{\"locked\":false}"));
     zsc_close();
     zsc_set_clock(NULL);
     CHECK(zsc_today() > 20260000, "the real clock");
@@ -6492,6 +6671,19 @@ static void test_place(void)
                "lon within 180 degrees"));
     EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":0,\"lon\":0,\"accuracy_m\":0}"),
            ERR("1", "-32602", "\\\"accuracy_m\\\" must be 1 to 1000000"));
+    EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":0,\"lon\":0,\"accuracy_m\":1000001}"),
+           ERR("1", "-32602", "\\\"accuracy_m\\\" must be 1 to 1000000"));
+    EXPECT(REQ("1", "place.set_here",
+               ",\"params\":{\"lat\":90000000,\"lon\":180000000,\"accuracy_m\":1000000,"
+               "\"source\":\"x\"}"),
+           OK("1", "{\"known\":true,\"lat\":90000000,\"lon\":180000000,\"accuracy_m\":1000000,"
+                   "\"source\":\"x\",\"time\":1791799801,\"stale\":false}"));
+    EXPECT(REQ("1", "place.set_here",
+               ",\"params\":{\"lat\":-90000000,\"lon\":-180000000,\"accuracy_m\":1}"),
+           OK("1", "{\"known\":true,\"lat\":-90000000,\"lon\":-180000000,\"accuracy_m\":1,"
+                   "\"source\":\"owner\",\"time\":1791799801,\"stale\":false}"));
+    rpc(REQ("1", "place.set_here",
+            ",\"params\":{\"lat\":-1,\"lon\":-2,\"accuracy_m\":9,\"source\":\"corelocation\"}"));
     EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":0,\"lon\":0,\"source\":\"a b\"}"),
            ERR("1", "-32602", "a bad name, app or coordinate"));
     EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":0}"),
