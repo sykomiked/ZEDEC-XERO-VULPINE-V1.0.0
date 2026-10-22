@@ -559,24 +559,91 @@ static int parse_intent(zxapp_t *a, uint32_t line, const char *const w[4], const
 
 /* R3: the one table of capability names. */
 static const char *const CAPS[] = {
-    "net",                         /* the network (beyond peers) */
-    "peers",                       /* other ZXV nodes */
-    "location",                    /* where the device is (Waymark's place.*) */
-    "fs.read",                     /* the Hoard's files, read */
-    "fs.write",                    /* the Hoard's files, write */
-    "ledger.read",                 /* the owner's books, read */
-    "ledger.post",                 /* the owner's books, post */
-    "camera",      "mic", "print", /* printers on the local network (print.*) */
-    "scan",                        /* scanners on the local network (scan.*) */
-    "backup",                      /* backups and versions (backup.*) */
-    "journal",                     /* zxvd's event history (journal.*, log.tail) */
-    "screen.time",                 /* screen time and its limits (screen.*) */
-    "sys.read",                    /* the machine's facts (sys.*) */
-    "search",                      /* the Hoard's index (search.*) */
-    "swarm",                       /* the local swarm (swarm.*) */
-    "ai.ask",                      /* the swarm's answers (swarm.ask) */
-    "notify",                      /* notices to the person */
+    "net",                           /* the network (beyond peers) */
+    "peers",                         /* other ZXV nodes */
+    "location",                      /* where the device is (Waymark's place.*) */
+    "fs.read",                       /* the Hoard's files, read */
+    "fs.write",                      /* the Hoard's files, write */
+    "ledger.read",                   /* the owner's books, read */
+    "ledger.post",                   /* the owner's books, post */
+    "camera",        "mic", "print", /* printers on the local network (print.*) */
+    "scan",                          /* scanners on the local network (scan.*) */
+    "backup",                        /* backups and versions (backup.*) */
+    "journal",                       /* zxvd's event history (journal.*, log.tail) */
+    "screen.time",                   /* screen time and its limits (screen.*) */
+    "sys.read",                      /* the machine's facts (sys.*) */
+    "search",                        /* the Hoard's index (search.*) */
+    "swarm",                         /* the local swarm (swarm.*) */
+    "ai.ask",                        /* the swarm's answers (swarm.ask) */
+    "notify",                        /* notices to the person (notify.send) */
+    "shell",                         /* programs run for the app (shell.*) */
+    "journal.write",                 /* signed audit entries (journal.append) */
+    "caps",                          /* other apps' capability answers (caps.*) */
+    "schedule",                      /* timers the app registers (schedule.*) */
+    "proc",                          /* the machine's processes, read (proc.list) */
+    "proc.control",                  /* stop and restart them (proc.signal, .restart) */
 };
+
+/* R3b: exact method names first, then a group ("files.") */
+static const struct {
+    const char *method, *cap;
+} METHOD_CAP[] = {
+    {"files.read", "fs.read"},
+    {"files.list", "fs.read"},
+    {"files.stat", "fs.read"},
+    {"files.root", "fs.read"},
+    {"files.", "fs.write"},
+    {"ledger.post", "ledger.post"},
+    {"ledger.open_account", "ledger.post"},
+    {"currency.enable", "ledger.post"},
+    {"ledger.", "ledger.read"},
+    {"books.file", "ledger.read"},
+    {"swarm.earnings", "ledger.read"},
+    {"mesh.books", "ledger.read"},
+    {"swarm.ask", "ai.ask"},
+    {"swarm.", "swarm"},
+    {"model.info", "swarm"},
+    {"place.", "location"},
+    {"print.", "print"},
+    {"scan.", "scan"},
+    {"backup.", "backup"},
+    {"journal.append", "journal.write"},
+    {"journal.", "journal"},
+    {"log.tail", "journal"},
+    {"screen.", "screen.time"},
+    {"sys.", "sys.read"},
+    {"search.", "search"},
+    {"notify.", "notify"},
+    {"shell.", "shell"},
+    {"caps.", "caps"},
+    {"schedule.", "schedule"},
+    {"proc.signal", "proc.control"},
+    {"proc.restart", "proc.control"},
+    {"proc.", "proc"},
+    {"dns.", "net"},
+    {"net.", "net"},
+    {"peer.", "peers"},
+};
+
+const char *zxapp_method_cap(const char *method)
+{
+    if (!method) return NULL;
+    for (uint32_t i = 0; i < sizeof METHOD_CAP / sizeof METHOD_CAP[0]; i++)
+        if (seq(METHOD_CAP[i].method, method)) return METHOD_CAP[i].cap;
+    for (uint32_t i = 0; i < sizeof METHOD_CAP / sizeof METHOD_CAP[0]; i++) {
+        const char *m = METHOD_CAP[i].method; /* a group: "files." */
+        uint32_t k = 0;
+        while (m[k] && m[k] == method[k]) k++;
+        if (!m[k] && k && m[k - 1] == '.') return METHOD_CAP[i].cap;
+    }
+    return NULL;
+}
+
+bool zxapp_gate(void *app, const char *method)
+{
+    const char *cap = zxapp_method_cap(method);
+    return !cap || (app && zxapp_needs((const zxapp_t *) app, cap, NULL));
+}
 
 const char *const *zxapp_caps(uint32_t *n)
 {

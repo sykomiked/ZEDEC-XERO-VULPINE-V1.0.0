@@ -19,6 +19,13 @@
 | Recent events for the Wake console: refusals and changes, never parameters | `zxvd_log.c` | `log.tail` |
 | The same events kept on disk across restarts, hash-chained so a change shows (`--journal DIR`) | `zxv_journal.c` | `journal.query`, `journal.verify` |
 | Location, saved places and per-app location permission for the Waymark app (`--places FILE`) | `zxv_place.c` | `place.*` |
+| Signed audit entries with who approved them, for Witness ([APP_SERVICES.md](APP_SERVICES.md)) | `zxv_journal.c` | `journal.append` |
+| An app's notice to the person, on the notification bus ([APP_SERVICES.md](APP_SERVICES.md)) | `zx_notify` | `notify.send` |
+| Programs and zxsh lines for the Flint terminal, run beside the loop (`--zxsh PATH`; [APP_SERVICES.md](APP_SERVICES.md)) | `zxvd_shell.c` | `shell.*` |
+| The owner's answers on which app may use which capability, for Gatehouse (`--caps FILE`; [APP_SERVICES.md](APP_SERVICES.md)) | `zxv_caps.c` | `caps.*` |
+| Name lookups beside the loop, and DIDs read with no network, for Signpost ([APP_SERVICES.md](APP_SERVICES.md)) | `zxvd_dns.c` | `dns.*`, `did.*` |
+| Timers apps register, for Treadle (`--schedule FILE`; [APP_SERVICES.md](APP_SERVICES.md)) | `zxv_sched.c` | `schedule.*` |
+| The machine's processes, for Warren (`--proc-control`; [APP_SERVICES.md](APP_SERVICES.md)) | `zxvd_proc.c` | `proc.*` |
 | Screen time for the Shepherd app: minutes per app per day and a guardian's limits (`--screen FILE`) | `zxv_screen.c` | `screen.*` |
 | Search for the Scent app: an index per space of file names and the words in UTF-8 files, kept up to date incrementally, read only | `zxv_search.c` | `search.query`, `search.refresh` |
 | Printing and scanning for the Platen app: IPP Everywhere and eSCL to devices on the local network only | `zxv_print_host.c`, `kernel/src/print` | `print.*`, `scan.*` |
@@ -329,7 +336,12 @@ see "File fabrication" below),
 refused or failed (the message says why), -32022 a printer or scanner
 refused or out of reach (`print.*`, `scan.*`), -32018 a backup refused
 (`backup.*`), -32019 a screen-time refusal (`screen.*`), -32021 a place
-refused (`place.*`), -32030 a people method (`social.*`, `call.*`,
+refused (`place.*`), -32023 a shell job refused (`shell.*`), -32024
+`journal.append` refused (no journal, no audit key, or the disk), -32025 a
+capability answer refused (`caps.*`; see [APP_SERVICES.md](APP_SERVICES.md)),
+-32026 a name lookup or DID refused (`dns.*`, `did.*`), -32027 a schedule
+refused (`schedule.*`), -32028 a process refused (`proc.*`),
+-32030 a people method (`social.*`, `call.*`,
 `xlate.*`, `devmesh.*`, `ui.*`) refused, -32031 `xlate.translate` with no
 local model that can generate (nothing is invented); each message says why. -32000 a
 libzxv status, with
@@ -404,7 +416,9 @@ What a phone may call: everything read-only, plus `swarm.ask` and
 `aipi.publish`, `aipi.execute`, `phone.*`, the people methods (`social.*`,
 `call.*`, `xlate.*`, `devmesh.*`, `ui.*`), and the system utilities and
 apps' methods (`sys.*`, `log.tail`, `journal.*`, `screen.*`, `place.*`,
-`search.*`, `print.*`, `scan.*`, `backup.*`) are never served to a phone. Refusals are -32015, and a phone must send an `id`.
+`search.*`, `print.*`, `scan.*`, `backup.*`, `notify.send`, `shell.*`,
+`caps.*`, `dns.*`, `did.*`, `schedule.*`, `proc.*`) are never served to a
+phone. Refusals are -32015, and a phone must send an `id`.
 
 ## Swarm credit in your books
 
@@ -461,7 +475,13 @@ without it.
 app keep `screen.zxst` beside the books file; without it, or with
 `--screen -`, screen time lives in memory and is gone when zxvd stops.
 `--places FILE` does the same for Waymark's saved places and location
-answers (`places.zxpl`); the location itself is never written.
+answers (`places.zxpl`); the location itself is never written. `--caps FILE`
+keeps Gatehouse's capability answers (`caps.zxcp`), and `--zxsh PATH` turns
+on `shell.*` with that zxsh (with `--desktop`, a `zxsh` beside zxvd).
+`--schedule FILE` keeps Treadle's schedules and their firings
+(`schedule.zxsd`), and `--proc-control` lets `proc.signal` and
+`proc.restart` act (on with `--desktop`); see
+[APP_SERVICES.md](APP_SERVICES.md).
 
 - Every change (a currency, a private unit, an account, a posting) is one
   line in an append-only file, mode 0600. Each line is a SHA-256 hash and a

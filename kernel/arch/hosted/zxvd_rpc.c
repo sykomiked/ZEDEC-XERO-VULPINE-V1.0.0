@@ -46,6 +46,11 @@
 #include "zxv_journal.h"      /* journal.*: Wake's history across restarts */
 #include "zxv_screen.h"       /* screen.*: Shepherd's screen time */
 #include "zxv_place.h"        /* place.*: Waymark's location and places */
+#include "zxv_caps.h"         /* caps.*: Gatehouse's answers for each app */
+#include "zxvd_shell.h"       /* shell.*: programs for the terminal (Flint) */
+#include "zxvd_dns.h"         /* dns.*, did.*: names and addresses (Signpost) */
+#include "zxv_sched.h"        /* schedule.*: timers apps register (Treadle) */
+#include "zxvd_proc.h"        /* proc.*: the machine's processes (Warren) */
 #include "juris.h"            /* J5: the jurisdiction host (kernel/src/juris) */
 #include "../../src/chiglet/chg_vocab.h" /* swarm.organ: the organ names */
 
@@ -125,6 +130,31 @@ void zxvd_buf_json_str(zxvd_buf_t *b, const char *s)
 static const zxvd_host_ops_t *OPS;
 static zxv_ctx *CTX;
 static zxv_cap *CAP; /* LEDGER_READ | LEDGER_POST, never more (zxvd_rpc.h M2) */
+static zxv_cap *SIGN_CAP; /* CRYPTO_SIGN only: the journal's audit key (M6) */
+
+/* M6: the journal's audit entries are signed through libzxv's Ed25519 */
+static bool jr_keygen(void *ctx, uint8_t pub[32], uint8_t seed[32])
+{
+    (void) ctx;
+    return SIGN_CAP && zxv_ed25519_keygen(SIGN_CAP, pub, seed) == ZXV_OK;
+}
+static bool jr_pub(void *ctx, const uint8_t seed[32], uint8_t pub[32])
+{
+    (void) ctx;
+    return SIGN_CAP && zxv_ed25519_public(SIGN_CAP, seed, pub) == ZXV_OK;
+}
+static bool jr_sign(void *ctx, const uint8_t seed[32], const uint8_t msg[32], uint8_t sig[64])
+{
+    (void) ctx;
+    return SIGN_CAP && zxv_ed25519_sign(SIGN_CAP, seed, msg, 32, sig) == ZXV_OK;
+}
+static bool jr_verify(void *ctx, const uint8_t pub[32], const uint8_t msg[32],
+                      const uint8_t sig[64])
+{
+    (void) ctx;
+    return SIGN_CAP && zxv_ed25519_verify(SIGN_CAP, pub, msg, 32, sig) == ZXV_OK;
+}
+static const zjr_signer_t JR_SIGNER = {jr_keygen, jr_pub, jr_sign, jr_verify, NULL};
 
 void zxvd_rpc_set_ops(const zxvd_host_ops_t *ops)
 {
@@ -154,12 +184,19 @@ int zxvd_rpc_books_open(void)
         return -1;
     }
     mesh_open();
+    if (zxv_cap_create(CTX, 2, NULL, ZXV_CAP_CRYPTO_SIGN, &SIGN_CAP) == ZXV_OK)
+        zjr_set_signer(&JR_SIGNER); /* else journal.append answers that it cannot sign */
     return 0;
 }
 
 static void books_close(void)
 {
     bf_close();
+    if (SIGN_CAP) {
+        zjr_set_signer(NULL);
+        zxv_cap_destroy(SIGN_CAP);
+        SIGN_CAP = NULL;
+    }
     if (CAP) zxv_cap_destroy(CAP);
     if (CTX) zxv_ctx_destroy(CTX);
     CAP = NULL;
@@ -2113,6 +2150,21 @@ static bool p_level(call_t *c, uint8_t *min)
     return true;
 }
 
+/* J8, J9: an entry's own hash, the one before it, and an audit entry's
+ * actor and signature */
+static void entry_links(zxvd_buf_t *b, const zjr_entry_t *e)
+{
+    LIT(b, ",\"hash\":");
+    zxvd_buf_hex(b, e->hash, 32);
+    LIT(b, ",\"prev\":");
+    zxvd_buf_hex(b, e->prev, 32);
+    if (!e->actor[0]) return;
+    LIT(b, ",\"actor\":");
+    zxvd_buf_json_str(b, e->actor);
+    LIT(b, ",\"sig\":");
+    zxvd_buf_hex(b, e->sig, 64);
+}
+
 static void m_journal_query(call_t *c)
 {
     static zjr_entry_t e[JOURNAL_MAX];
@@ -2142,6 +2194,7 @@ static void m_journal_query(call_t *c)
         zxvd_buf_json_str(c->res, e[i].source);
         LIT(c->res, ",\"text\":");
         zxvd_buf_json_str(c->res, e[i].text);
+        entry_links(c->res, &e[i]);
         LIT(c->res, "}");
     }
     zxvd_buf_printf(c->res, "],\"more\":%s}", more ? "true" : "false");
@@ -2158,7 +2211,337 @@ static void m_journal_verify(call_t *c)
                     (unsigned long long) v.entries, (unsigned long long) v.first_seq,
                     (unsigned long long) v.last_seq, (unsigned long long) v.broken_at);
     zxvd_buf_json_str(c->res, v.why);
+    uint8_t pub[32];
+    zxvd_buf_printf(c->res,
+                    ",\"audit\":%llu,\"sigs_checked\":%s,\"key\":", (unsigned long long) v.audit,
+                    v.sigs_checked ? "true" : "false");
+    if (v.sigs_checked && zjr_audit_key(pub) == 0)
+        zxvd_buf_hex(c->res, pub, 32);
+    else
+        LIT(c->res, "null");
     LIT(c->res, "}");
+}
+
+/* M6: a signed audit entry (zxv_journal.h J9) */
+static void m_journal_append(call_t *c)
+{
+    char actor[ZJR_ACTOR_MAX + 1], text[ZJR_AUDIT_MAX + 1];
+    uint8_t level;
+    if (!p_str(c, "actor", actor, sizeof actor, true) ||
+        !p_str(c, "text", text, sizeof text, true) || !p_level(c, &level))
+        return;
+    zjr_entry_t e;
+    uint8_t pub[32];
+    int r = zjr_append(actor, text, level, &e);
+    if (r == ZJR_E_ARG)
+        return fail(c, E_PARAMS,
+                    "\"actor\" is 1 to %u of letters, digits and . _ - @ : +; \"text\" is 1 to %u "
+                    "printable bytes",
+                    ZJR_ACTOR_MAX, ZJR_AUDIT_MAX);
+    if (r == ZJR_E_OFF) return fail(c, ZXVD_E_JOURNAL, "zxvd keeps no journal");
+    if (r == ZJR_E_SIGNER || zjr_audit_key(pub) != 0)
+        return fail(c, ZXVD_E_JOURNAL, "the journal's audit key could not be made or read");
+    if (r != 0) return fail(c, ZXVD_E_JOURNAL, "the disk refused the entry; the journal stopped");
+    zxvd_buf_printf(
+        c->res, "{\"seq\":%llu,\"time_ms\":%llu,\"level\":\"%s\",\"source\":\"audit\",\"text\":",
+        (unsigned long long) e.seq, (unsigned long long) e.ms,
+        zxvd_log_level_name((zxvd_log_level_t) e.level));
+    zxvd_buf_json_str(c->res, e.text);
+    entry_links(c->res, &e);
+    LIT(c->res, ",\"key\":");
+    zxvd_buf_hex(c->res, pub, 32);
+    LIT(c->res, "}");
+}
+
+/* ----- notify.send: an app's notice to the person (zxvd_rpc.h N1-N3) ----- */
+
+static uint32_t (*NOTIFY)(const zxvd_notice_t *n);
+
+void zxvd_rpc_set_notify(uint32_t (*post)(const zxvd_notice_t *n))
+{
+    NOTIFY = post;
+}
+
+static void m_notify_send(call_t *c)
+{
+    char app[24] = "", title[64], body[192], action[48], lv[8], key[65];
+    if (!NOTIFY) return fail(c, E_METHOD, "not available");
+    if (!p_str(c, "app", app, sizeof app, true) || !p_str(c, "title", title, sizeof title, true) ||
+        !p_str(c, "body", body, sizeof body, false) ||
+        !p_str(c, "action", action, sizeof action, false) ||
+        !p_str(c, "level", lv, sizeof lv, false) || !p_str(c, "key", key, sizeof key, false))
+        return;
+    if (!app[0] || !title[0]) return fail(c, E_PARAMS, "\"app\" and \"title\" must not be empty");
+    static const char *const LV[] = {"low", "normal", "high", "urgent"};
+    int pri = lv[0] ? -1 : 1;
+    for (int i = 0; i < 4 && pri < 0; i++)
+        if (!strcmp(lv, LV[i])) pri = i;
+    if (pri < 0) return fail(c, E_PARAMS, "\"level\" must be low, normal, high or urgent");
+    uint64_t k = 0; /* N2: FNV-1a of the key; 0 never coalesces */
+    if (key[0]) {
+        k = 0xcbf29ce484222325ull;
+        for (const char *q = key; *q; q++) k = (k ^ (uint8_t) *q) * 0x100000001b3ull;
+        if (!k) k = 1;
+    }
+    zxvd_notice_t n = {app, title, body, action, (uint8_t) pri, k};
+    uint32_t seq = NOTIFY(&n);
+    zxvd_buf_printf(c->res, "{\"seq\":%u,\"stored\":%s}", seq, seq ? "true" : "false");
+}
+
+/* ----- caps.*: Gatehouse (zxv_caps.h K1-K4) ----- */
+
+static bool caps_done(call_t *c, int r)
+{
+    if (r == ZCP_OK) return true;
+    fail(c, r == ZCP_E_ARG ? E_PARAMS : ZXVD_E_CAPS, "%s", zcp_strerror(r));
+    return false;
+}
+
+static bool p_app_cap(call_t *c, char app[ZCP_APP_MAX + 1], char cap[ZCP_CAP_MAX + 1])
+{
+    return p_str(c, "app", app, ZCP_APP_MAX + 1, true) &&
+           p_str(c, "cap", cap, ZCP_CAP_MAX + 1, true);
+}
+
+static void m_caps_list(call_t *c)
+{
+    static zcp_grant_t g[ZCP_GRANTS + 64];
+    char app[ZCP_APP_MAX + 1];
+    if (!p_str(c, "app", app, sizeof app, false)) return;
+    uint32_t n = zcp_list(app, g, ZCP_GRANTS + 64), k = n < ZCP_GRANTS + 64 ? n : ZCP_GRANTS + 64;
+    LIT(c->res, "{\"sensitive\":[\"camera\",\"mic\",\"location\",\"shell\",\"ledger.post\","
+                "\"journal.write\",\"caps\",\"proc.control\"],\"grants\":[");
+    for (uint32_t i = 0; i < k; i++) {
+        if (i) LIT(c->res, ",");
+        LIT(c->res, "{\"app\":");
+        zxvd_buf_json_str(c->res, g[i].app);
+        zxvd_buf_printf(c->res, ",\"cap\":\"%s\",\"mode\":\"%s\",\"pending\":%s,\"asked\":%lld}",
+                        g[i].cap, zcp_mode_name((zcp_mode_t) g[i].mode),
+                        g[i].pending ? "true" : "false", (long long) g[i].asked);
+    }
+    zxvd_buf_printf(c->res, "],\"more\":%s}", n > k ? "true" : "false");
+}
+
+static void m_caps_check(call_t *c)
+{
+    char app[ZCP_APP_MAX + 1], cap[ZCP_CAP_MAX + 1];
+    if (!p_app_cap(c, app, cap)) return;
+    int r = zcp_check(app, cap);
+    if (r != ZCP_OK && r != ZCP_E_PENDING && r != ZCP_E_DENIED && !caps_done(c, r)) return;
+    LIT(c->res, "{\"app\":");
+    zxvd_buf_json_str(c->res, app);
+    zxvd_buf_printf(c->res, ",\"cap\":\"%s\",\"allowed\":%s,\"state\":\"%s\"}", cap,
+                    r == ZCP_OK ? "true" : "false",
+                    r == ZCP_OK          ? "allowed"
+                    : r == ZCP_E_PENDING ? "pending"
+                                         : "denied");
+}
+
+static void caps_answer(call_t *c, const char *app, const char *cap, zcp_mode_t m)
+{
+    if (!caps_done(c, zcp_set(app, cap, m))) return;
+    LIT(c->res, "{\"app\":");
+    zxvd_buf_json_str(c->res, app);
+    zxvd_buf_printf(c->res, ",\"cap\":\"%s\",\"mode\":\"%s\"}", cap, zcp_mode_name(m));
+}
+
+static void m_caps_grant(call_t *c)
+{
+    char app[ZCP_APP_MAX + 1], cap[ZCP_CAP_MAX + 1], mode[8] = "";
+    if (!p_app_cap(c, app, cap) || !p_str(c, "mode", mode, sizeof mode, false)) return;
+    int m = mode[0] ? zcp_mode_parse(mode) : ZCP_ALWAYS;
+    if (m != ZCP_ALWAYS && m != ZCP_ONCE)
+        return fail(c, E_PARAMS, "\"mode\" must be always or once");
+    caps_answer(c, app, cap, (zcp_mode_t) m);
+}
+
+static void m_caps_revoke(call_t *c)
+{
+    char app[ZCP_APP_MAX + 1], cap[ZCP_CAP_MAX + 1];
+    bool forget = false;
+    if (!p_app_cap(c, app, cap) || !p_bool(c, "forget", false, &forget)) return;
+    caps_answer(c, app, cap, forget ? ZCP_DEFAULT : ZCP_NEVER);
+}
+
+/* ----- schedule.*: Treadle (zxv_sched.h T1-T5) ----- */
+
+static bool sched_done(call_t *c, int r)
+{
+    if (r == ZSD_OK) return true;
+    fail(c, r == ZSD_E_ARG ? E_PARAMS : ZXVD_E_SCHED, "%s", zsd_strerror(r));
+    return false;
+}
+
+/* T1: a firing with "notify" posts the schedule's notice in its app's name */
+static void sched_fired(void *ctx, const zsd_fired_t *f, const zsd_entry_t *e)
+{
+    (void) ctx;
+    if (!e->notify || !NOTIFY) return;
+    char key[32];
+    snprintf(key, sizeof key, "schedule:%u", f->id);
+    uint64_t k = 0xcbf29ce484222325ull; /* as notify.send's key */
+    for (const char *q = key; *q; q++) k = (k ^ (uint8_t) *q) * 0x100000001b3ull;
+    zxvd_notice_t n = {e->app, e->name, e->note, "", 1, k ? k : 1};
+    NOTIFY(&n);
+}
+
+static const char *const DAY[] = {"sun", "mon", "tue", "wed", "thu", "fri", "sat"};
+
+static void sched_json(zxvd_buf_t *b, const zsd_entry_t *e)
+{
+    zxvd_buf_printf(b, "{\"id\":%u,\"app\":", e->id);
+    zxvd_buf_json_str(b, e->app);
+    LIT(b, ",\"name\":");
+    zxvd_buf_json_str(b, e->name);
+    zxvd_buf_printf(b, ",\"kind\":\"%s\"", zsd_kind_name((zsd_kind_t) e->kind));
+    if (e->kind == ZSD_AT) zxvd_buf_printf(b, ",\"at_ms\":%lld", (long long) e->at_ms);
+    if (e->kind == ZSD_EVERY)
+        zxvd_buf_printf(b, ",\"every_s\":%u,\"start_ms\":%lld", e->every_s, (long long) e->at_ms);
+    if (e->kind == ZSD_DAILY) {
+        zxvd_buf_printf(b, ",\"daily\":\"%02u:%02u\",\"days\":[", e->minute / 60u, e->minute % 60u);
+        for (int d = 0, k = 0; d < 7; d++)
+            if (e->days & (1u << d)) zxvd_buf_printf(b, "%s\"%s\"", k++ ? "," : "", DAY[d]);
+        LIT(b, "]");
+    }
+    zxvd_buf_printf(b, ",\"notify\":%s,\"note\":", e->notify ? "true" : "false");
+    zxvd_buf_json_str(b, e->note);
+    zxvd_buf_printf(b, ",\"next_ms\":%lld,\"last_ms\":", (long long) e->next_ms);
+    if (e->last_ms)
+        zxvd_buf_printf(b, "%lld", (long long) e->last_ms);
+    else
+        LIT(b, "null");
+    zxvd_buf_printf(b, ",\"fired\":%u}", e->fired);
+}
+
+/* "days": an array of sun..sat; absent = every day */
+static bool p_days(call_t *c, uint8_t *mask)
+{
+    zxvd_json_t a;
+    *mask = 0x7f;
+    if (!zxvd_param_json(c, "days", &a)) return true;
+    const w4_jtok_t *t = a.tok;
+    if (t[a.at].type != W4_J_ARR || t[a.at].size < 1 || t[a.at].size > 7) {
+        fail(c, E_PARAMS, "\"days\" must be 1 to 7 of sun, mon, tue, wed, thu, fri, sat");
+        return false;
+    }
+    *mask = 0;
+    for (uint32_t i = 0; i < t[a.at].size; i++) {
+        char d[4];
+        int32_t k = w4_json_at(t, a.n, a.at, i);
+        int32_t got = k >= 0 && t[k].type == W4_J_STR ? w4_json_str(a.js, &t[k], d, sizeof d) : -1;
+        int bit = -1;
+        for (int j = 0; got == 3 && j < 7 && bit < 0; j++)
+            if (!strcmp(d, DAY[j])) bit = j;
+        if (bit < 0 || (*mask & (1u << bit))) {
+            fail(c, E_PARAMS, "\"days\" must be 1 to 7 of sun, mon, tue, wed, thu, fri, sat");
+            return false;
+        }
+        *mask |= (uint8_t) (1u << bit);
+    }
+    return true;
+}
+
+static void m_schedule_add(call_t *c)
+{
+    zsd_entry_t e;
+    char daily[8] = "";
+    int64_t at = -1, start = 0;
+    uint32_t every = 0;
+    bool notify = false;
+    memset(&e, 0, sizeof e);
+    if (!p_str(c, "app", e.app, sizeof e.app, true) ||
+        !p_str(c, "name", e.name, sizeof e.name, true) ||
+        !p_str(c, "note", e.note, sizeof e.note, false) || !p_bool(c, "notify", false, &notify) ||
+        !zxvd_param_amount(c, "at_ms", &at, false) ||
+        !zxvd_param_u32(c, "every_s", &every, false) ||
+        !zxvd_param_amount(c, "start_ms", &start, false) ||
+        !p_str(c, "daily", daily, sizeof daily, false) || !p_days(c, &e.days))
+        return;
+    zxvd_json_t j;
+    bool has_at = zxvd_param_json(c, "at_ms", &j), has_every = zxvd_param_json(c, "every_s", &j),
+         has_daily = daily[0] != 0;
+    if (has_at + has_every + has_daily != 1)
+        return fail(c, E_PARAMS, "give one of \"at_ms\", \"every_s\" or \"daily\"");
+    if (zxvd_param_json(c, "start_ms", &j) && !has_every)
+        return fail(c, E_PARAMS, "\"start_ms\" goes with \"every_s\"");
+    if (zxvd_param_json(c, "days", &j) && !has_daily)
+        return fail(c, E_PARAMS, "\"days\" goes with \"daily\"");
+    e.notify = notify;
+    if (has_at) {
+        e.kind = ZSD_AT;
+        e.at_ms = at;
+    } else if (has_every) {
+        e.kind = ZSD_EVERY;
+        e.every_s = every;
+        e.at_ms = start;
+        if (start < 0) return fail(c, E_PARAMS, "\"start_ms\" must not be negative");
+    } else {
+        int m = zsd_minute_parse(daily);
+        if (m < 0) return fail(c, E_PARAMS, "\"daily\" is HH:MM, 00:00 to 23:59");
+        e.kind = ZSD_DAILY;
+        e.minute = (uint16_t) m;
+    }
+    uint32_t id;
+    if (!sched_done(c, zsd_add(&e, &id))) return;
+    sched_json(c->res, &e);
+}
+
+static void m_schedule_list(call_t *c)
+{
+    static zsd_entry_t e[ZSD_ENTRIES];
+    char app[ZSD_APP_MAX + 1];
+    if (!p_str(c, "app", app, sizeof app, false)) return;
+    zsd_tick();
+    uint32_t n = zsd_list(app, e, ZSD_ENTRIES);
+    LIT(c->res, "{\"schedules\":[");
+    for (uint32_t i = 0; i < n; i++) {
+        if (i) LIT(c->res, ",");
+        sched_json(c->res, &e[i]);
+    }
+    LIT(c->res, "]}");
+}
+
+static void m_schedule_cancel(call_t *c)
+{
+    uint32_t id = 0;
+    if (!zxvd_param_u32(c, "id", &id, true)) return;
+    if (!sched_done(c, zsd_cancel(id))) return;
+    zxvd_buf_printf(c->res, "{\"id\":%u,\"cancelled\":true}", id);
+}
+
+static void m_schedule_fired(call_t *c)
+{
+    static zsd_fired_t f[ZSD_FIRED];
+    char app[ZSD_APP_MAX + 1];
+    int64_t after = 0;
+    if (!p_str(c, "app", app, sizeof app, false) || !zxvd_param_amount(c, "after", &after, false))
+        return;
+    if (after < 0) return fail(c, E_PARAMS, "\"after\" must not be negative");
+    zsd_tick();
+    uint64_t next = 0;
+    uint32_t n = zsd_fired(app, (uint64_t) after, f, ZSD_FIRED, &next);
+    LIT(c->res, "{\"fired\":[");
+    for (uint32_t i = 0; i < n; i++) {
+        zxvd_buf_printf(c->res, "%s{\"seq\":%llu,\"id\":%u,\"app\":", i ? "," : "",
+                        (unsigned long long) f[i].seq, f[i].id);
+        zxvd_buf_json_str(c->res, f[i].app);
+        LIT(c->res, ",\"name\":");
+        zxvd_buf_json_str(c->res, f[i].name);
+        zxvd_buf_printf(c->res,
+                        ",\"due_ms\":%lld,\"fired_ms\":%lld,\"late\":%s,\"missed\":%u,"
+                        "\"ended\":%s}",
+                        (long long) f[i].due_ms, (long long) f[i].fired_ms,
+                        f[i].late ? "true" : "false", f[i].missed, f[i].ended ? "true" : "false");
+    }
+    zxvd_buf_printf(c->res, "],\"next\":%llu}", (unsigned long long) next);
+}
+
+void zxvd_rpc_tick(void)
+{
+    zxvd_dns_service();
+    zxvd_proc_service();
+    zsd_set_hook(sched_fired, NULL);
+    zsd_tick(); /* zxv_sched.h T3 */
 }
 
 static void stats_json(zxvd_buf_t *b, const zsr_stats_t *st)
@@ -3368,6 +3751,29 @@ static const method_t METHODS[] = {
     {"log.tail", m_log_tail, PH_NO},
     {"journal.query", m_journal_query, PH_NO},
     {"journal.verify", m_journal_verify, PH_NO},
+    {"journal.append", m_journal_append, PH_NO},
+    {"notify.send", m_notify_send, PH_NO},
+    {"shell.run", zxvd_shell_run, PH_NO},
+    {"shell.read", zxvd_shell_read, PH_NO},
+    {"shell.write", zxvd_shell_write, PH_NO},
+    {"shell.kill", zxvd_shell_kill, PH_NO},
+    {"shell.jobs", zxvd_shell_jobs, PH_NO},
+    {"caps.list", m_caps_list, PH_NO},
+    {"caps.check", m_caps_check, PH_NO},
+    {"caps.grant", m_caps_grant, PH_NO},
+    {"caps.revoke", m_caps_revoke, PH_NO},
+    {"dns.resolve", zxvd_dns_resolve, PH_NO},
+    {"dns.reverse", zxvd_dns_reverse, PH_NO},
+    {"dns.flush", zxvd_dns_flush, PH_NO},
+    {"did.parse", zxvd_did_parse, PH_NO},
+    {"did.match", zxvd_did_match, PH_NO},
+    {"schedule.add", m_schedule_add, PH_NO},
+    {"schedule.list", m_schedule_list, PH_NO},
+    {"schedule.cancel", m_schedule_cancel, PH_NO},
+    {"schedule.fired", m_schedule_fired, PH_NO},
+    {"proc.list", zxvd_proc_list, PH_NO},
+    {"proc.signal", zxvd_proc_signal, PH_NO},
+    {"proc.restart", zxvd_proc_restart, PH_NO},
     {"screen.tick", m_screen_tick, PH_NO},
     {"screen.check", m_screen_check, PH_NO},
     {"screen.status", m_screen_status, PH_NO},
@@ -4050,7 +4456,7 @@ int zxvd_rpc_fds(void *set)
             FD_SET(CL[i].fd, s);
             if (CL[i].fd > mx) mx = CL[i].fd;
         }
-    return mx;
+    return zxvd_shell_fds(s, mx); /* the jobs' output (zxvd_shell.h H1) */
 }
 
 static void drop(client_t *c)
@@ -4104,6 +4510,8 @@ void zxvd_rpc_service(void *set, uint64_t now_ms)
 {
     fd_set *s = set;
     if (LS < 0) return;
+    zxvd_shell_service(s);
+    zxvd_rpc_tick();
     for (int i = 0; i < ZXVD_RPC_MAX_CLIENTS; i++) {
         client_t *c = &CL[i];
         if (c->fd < 0) continue;
@@ -4135,6 +4543,9 @@ void zxvd_rpc_service(void *set, uint64_t now_ms)
 
 void zxvd_rpc_close(void)
 {
+    zxvd_shell_close();
+    zxvd_dns_close();
+    zxvd_proc_close();
     for (int i = 0; i < ZXVD_RPC_MAX_CLIENTS; i++)
         if (CL[i].fd >= 0) drop(&CL[i]);
     if (LS >= 0) {

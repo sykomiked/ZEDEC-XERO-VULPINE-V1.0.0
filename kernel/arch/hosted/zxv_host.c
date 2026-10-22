@@ -149,6 +149,11 @@ _Static_assert(ZXV_TIAMAT_SLOTS <= ZXV_SLOTS, "every Tiamat slot is a model slot
 #    include "zxv_screen.h"     /* zxvd: screen time for Shepherd */
 #    include "zxv_place.h"      /* zxvd: location and places for Waymark */
 #    include "zxvd_fab.h"       /* fab.*: file fabrication from public blocks */
+#    include "zxv_caps.h"       /* zxvd: which apps may use which capabilities */
+#    include "zxvd_shell.h"     /* zxvd: shell.* jobs for the terminal */
+#    include "zxv_sched.h"      /* zxvd: the apps' schedules */
+#    include "zxvd_dns.h"       /* zxvd: name lookups */
+#    include "zxvd_proc.h"      /* zxvd: process control */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
 #    endif
@@ -2530,6 +2535,14 @@ static void rpc_shutdown(void)
     S.quit = true;
 }
 
+/* notify.send (zxvd_rpc.h N1-N3): an app's notice on the bus */
+static uint32_t rpc_notify(const zxvd_notice_t *n)
+{
+    zxn_spec_t sp = {ZXN_APP, (zxn_pri_t) n->pri, n->app, n->title,
+                     n->body, n->action,          n->key, (uint64_t) time(NULL) * 1000u};
+    return zxn_post(&S.bus, &sp);
+}
+
 static const zxvd_host_ops_t RPC_OPS = {rpc_state,  rpc_ask,        rpc_model,
                                         rpc_notes,  rpc_notes_read, net_command,
                                         rpc_update, rpc_shutdown,   ZXV_VERSION};
@@ -2893,6 +2906,13 @@ int main(int argc, char **argv)
     char screen_buf[520];
     const char *places_path = NULL; /* zxv_place.h; "-" keeps them in memory */
     char places_buf[520];
+    const char *caps_path = NULL; /* zxv_caps.h; "-" keeps them in memory */
+    char caps_buf[520];
+    const char *zxsh_path = NULL; /* zxvd_shell.h H7: shell.* stays off without it */
+    char zxsh_buf[1024];
+    const char *sched_path = NULL; /* zxv_sched.h; "-" keeps them in memory */
+    char sched_buf[520];
+    bool proc_control = false;      /* zxvd_proc.h P5 */
     const char *earn_ccy = "SWC";   /* zxvd_rpc.h E1, E6 */
     const char *enable_list = NULL; /* zxvd_ext.h X3: every feature starts off */
     uint64_t earn_rate = 1;
@@ -2986,6 +3006,14 @@ int main(int argc, char **argv)
             screen_path = argv[++i];
         else if (!strcmp(argv[i], "--places") && i + 1 < argc)
             places_path = argv[++i];
+        else if (!strcmp(argv[i], "--caps") && i + 1 < argc)
+            caps_path = argv[++i];
+        else if (!strcmp(argv[i], "--zxsh") && i + 1 < argc)
+            zxsh_path = argv[++i];
+        else if (!strcmp(argv[i], "--schedule") && i + 1 < argc)
+            sched_path = argv[++i];
+        else if (!strcmp(argv[i], "--proc-control"))
+            proc_control = true;
         else if (!strcmp(argv[i], "--earnings-ccy") && i + 1 < argc)
             earn_ccy = argv[++i];
         else if (!strcmp(argv[i], "--earnings-rate") && i + 1 < argc)
@@ -3032,6 +3060,16 @@ int main(int argc, char **argv)
                    "  --places FILE       keep saved places and location permissions in\n"
                    "                      FILE (default with --desktop: \"places.zxpl\"\n"
                    "                      beside the books; \"-\" keeps them in memory)\n"
+                   "  --caps FILE         keep the owner's answers on which apps may use\n"
+                   "                      which capabilities in FILE (default with\n"
+                   "                      --desktop: \"caps.zxcp\" beside the books)\n"
+                   "  --zxsh PATH         run shell.* jobs with this zxsh (default with\n"
+                   "                      --desktop: a zxsh beside zxvd; none: shell.* off)\n"
+                   "  --schedule FILE     keep the apps' schedules in FILE (default with\n"
+                   "                      --desktop: \"schedule.zxsd\" beside the books;\n"
+                   "                      \"-\" keeps them in memory)\n"
+                   "  --proc-control      let proc.signal and proc.restart act (on with\n"
+                   "                      --desktop)\n"
                    "  --earnings-ccy CODE private unit for the swarm's own-device credit\n"
                    "                      (default SWC; never VFV or an ISO 4217 currency)\n"
                    "  --earnings-rate N   its minor units per swarm credit (default 1)\n"
@@ -3138,7 +3176,7 @@ int main(int argc, char **argv)
         zxn_host_set_mode(ZXN_HOST_AUTO);
     zxn_subscribe(&S.bus, zxn_host_deliver, NULL,
                   ZXN_KIND_BIT(ZXN_UPDATE) | ZXN_KIND_BIT(ZXN_AI_TASK_FAILED) |
-                      ZXN_KIND_BIT(ZXN_PEER_REQUEST),
+                      ZXN_KIND_BIT(ZXN_PEER_REQUEST) | ZXN_KIND_BIT(ZXN_APP),
                   ZXN_PRI_NORMAL);
     if (zxv_update_init(gateway, &S.bus, ZXU_VERSION(0, 1, 0)) != 0) {
         fprintf(stderr, "zxv-host: --update-gateway must be https://, or http:// to 127.0.0.1\n");
@@ -3294,6 +3332,44 @@ int main(int argc, char **argv)
         else if (zpl_was_reset())
             fprintf(stderr, "zxvd: %s was damaged; moved aside, places start empty\n", places_path);
     }
+    if (desktop && !caps_path && pal_beside_books(caps_buf, sizeof caps_buf, "caps.zxcp") == 0)
+        caps_path = caps_buf;
+    if (caps_path && strcmp(caps_path, "-")) {
+        if (zcp_open(caps_path) != 0)
+            fprintf(stderr, "zxvd: cannot write capability answers to %s; keeping them in memory\n",
+                    caps_path);
+        else if (zcp_was_reset())
+            fprintf(stderr, "zxvd: %s was damaged; moved aside, capability answers start empty\n",
+                    caps_path);
+    }
+#    if !defined(_WIN32)
+    if (desktop && !zxsh_path && strchr(argv[0], '/')) { /* the zxsh shipped beside zxvd */
+        size_t dn = (size_t) (strrchr(argv[0], '/') - argv[0]);
+        if (dn + 6 < sizeof zxsh_buf) {
+            memcpy(zxsh_buf, argv[0], dn);
+            memcpy(zxsh_buf + dn, "/zxsh", 6);
+            if (access(zxsh_buf, X_OK) == 0) zxsh_path = zxsh_buf;
+        }
+    }
+#    endif
+    if (zxsh_path && zxvd_shell_enable(zxsh_path) != 0) {
+        fprintf(stderr, "zxvd: --zxsh path too long\n");
+        return 2;
+    }
+    if (desktop && !sched_path &&
+        pal_beside_books(sched_buf, sizeof sched_buf, "schedule.zxsd") == 0)
+        sched_path = sched_buf;
+    if (sched_path && strcmp(sched_path, "-")) {
+        if (zsd_open(sched_path) != 0)
+            fprintf(stderr, "zxvd: cannot write schedules to %s; keeping them in memory\n",
+                    sched_path);
+        else if (zsd_was_reset())
+            fprintf(stderr, "zxvd: %s was damaged; moved aside, schedules start empty\n",
+                    sched_path);
+    }
+    zxvd_dns_enable(true);
+    zxvd_proc_enable(proc_control || desktop);
+    zxvd_rpc_set_notify(rpc_notify);
     if (books_path && !strcmp(books_path, "-")) books_path = NULL;
     if (zxvd_rpc_books_file(books_path) != 0) {
         fprintf(stderr, "zxvd: --books path too long\n");

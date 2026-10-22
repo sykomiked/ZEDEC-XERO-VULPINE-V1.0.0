@@ -142,9 +142,13 @@ for d in $(sh "$HERE/app_sources.sh" groupincs); do set -- "$@" "-I$K/$d"; done
 for f in $(sh "$HERE/app_sources.sh" groups); do set -- "$@" "$K/$f"; done
 set -- "$@" "$HERE/zxvd_rpc.c" "$HERE/zxv_files.c" "$HERE/zxv_spaces.c" "$HERE/zxvd_phone.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
 # the utilities, Scent, Platen (with its IPP and eSCL codecs), Keepsake, Wake,
-# Shepherd and Waymark behind zxvd_rpc.c
+# Shepherd, Waymark, Gatehouse's capability answers, the terminal's jobs,
+# Signpost's names, Treadle's schedules and Warren's processes
+# behind zxvd_rpc.c
 set -- "$@" "-I$K/src/print" "$HERE/zxv_sysinfo.c" "$HERE/zxvd_log.c" "$HERE/zxv_search.c" "$HERE/zxv_print_host.c" \
-    "$HERE/zxv_keepsake.c" "$HERE/zxv_journal.c" "$HERE/zxv_screen.c" "$HERE/zxv_place.c" "$K/src/print/ipp.c" "$K/src/print/escl.c"
+    "$HERE/zxv_keepsake.c" "$HERE/zxv_journal.c" "$HERE/zxv_screen.c" "$HERE/zxv_place.c" "$HERE/zxv_caps.c" \
+    "$HERE/zxvd_shell.c" "$HERE/zxvd_dns.c" "$HERE/zxv_sched.c" "$HERE/zxvd_proc.c" \
+    "$K/src/print/ipp.c" "$K/src/print/escl.c"
 # the module methods (app_sources.sh modules): each source not already on
 # the line (srcs and the method groups link several of them) is added once
 for f in $(sh "$HERE/app_sources.sh" modules); do

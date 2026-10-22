@@ -24,14 +24,15 @@
 #include <stdint.h>
 #include <string.h>
 
-#define GATEHOUSE_CAPS    19u /* zxapp.c R3 */
+#define GATEHOUSE_CAPS    25u /* zxapp.c R3 */
 #define GATEHOUSE_REFUSED (-1)
 
 /* GR1: zxapp.c CAPS, the same names in the same order */
 static const char *const GATEHOUSE_CAP_NAME[GATEHOUSE_CAPS] = {
-    "net",      "peers",  "location", "fs.read", "fs.write", "ledger.read", "ledger.post",
-    "camera",   "mic",    "print",    "scan",    "backup",   "journal",     "screen.time",
-    "sys.read", "search", "swarm",    "ai.ask",  "notify"};
+    "net",      "peers",    "location", "fs.read",     "fs.write", "ledger.read", "ledger.post",
+    "camera",   "mic",      "print",    "scan",        "backup",   "journal",     "screen.time",
+    "sys.read", "search",   "swarm",    "ai.ask",      "notify",   "shell",       "journal.write",
+    "caps",     "schedule", "proc",     "proc.control"};
 
 /* GR1: a capability's index, or -1 when zxapp.c has no such name */
 static inline int32_t gatehouse_cap_index(const char *name)

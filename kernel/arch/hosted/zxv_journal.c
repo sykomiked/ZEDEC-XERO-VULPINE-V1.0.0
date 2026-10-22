@@ -3,8 +3,10 @@
 /* zxv_journal.c — the journal (see zxv_journal.h J1-J7). */
 #if !defined(_WIN32)
 #    define _DEFAULT_SOURCE
+#    include <fcntl.h>
 #    include <sys/stat.h>
 #    include <sys/types.h>
+#    include <unistd.h>
 #    define SEP "/"
 #else
 #    include <windows.h>
@@ -28,6 +30,14 @@ static uint64_t CUR_BYTES, TOTAL_BYTES;
 static uint64_t SEQ; /* the last seq written */
 static uint8_t HASH[32];
 static uint32_t SEG_LIMIT = ZJR_SEGMENT, TOTAL_LIMIT = ZJR_TOTAL;
+
+/* J9-J10: the signer, the audit key once read, and what verify counts */
+static zjr_signer_t SIGNER;
+static bool HAVE_SIGNER, KEY_OK;
+static uint8_t SEED[32], PUB[32];
+static bool CHECK_SIGS;  /* read_seg checks audit signatures (zjr_verify) */
+static uint64_t AUDIT_N; /* audit lines read_seg passed */
+static char BAD_WHY[64]; /* why read_seg's last SEG_BROKEN was broken, when not the hash */
 
 /* ===================== files ===================== */
 
@@ -118,6 +128,132 @@ static void line_hash(const uint8_t prev[32], const zjr_entry_t *e, uint8_t out[
     sha256_final(&c, out);
 }
 
+/* ===================== audit entries (J9, J10) ===================== */
+
+void zjr_set_signer(const zjr_signer_t *s)
+{
+    HAVE_SIGNER = s && s->keygen && s->pub && s->sign && s->verify;
+    if (HAVE_SIGNER)
+        SIGNER = *s;
+    else
+        memset(&SIGNER, 0, sizeof SIGNER);
+    KEY_OK = false;
+    memset(SEED, 0, sizeof SEED);
+}
+
+static bool actor_ok(const char *a, size_t n)
+{
+    if (n < 1 || n > ZJR_ACTOR_MAX) return false;
+    for (size_t i = 0; i < n; i++) {
+        char c = a[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+              c == '.' || c == '_' || c == '-' || c == '@' || c == ':' || c == '+'))
+            return false;
+    }
+    return true;
+}
+
+/* printable: no control characters (bytes of UTF-8 above 0x7f pass) */
+static bool what_ok(const char *t, size_t n)
+{
+    if (n < 1 || n > ZJR_AUDIT_MAX) return false;
+    for (size_t i = 0; i < n; i++)
+        if ((unsigned char) t[i] < ' ' || t[i] == 0x7f) return false;
+    return true;
+}
+
+/* the 32 bytes an audit entry's signature covers (J9) */
+static void audit_digest(const uint8_t prev[32], const zjr_entry_t *e, uint8_t out[32])
+{
+    zjr_entry_t d;
+    memset(&d, 0, sizeof d);
+    d.seq = e->seq;
+    d.ms = e->ms;
+    d.level = e->level;
+    memcpy(d.source, "audit", 6);
+    size_t a = strnlen(e->actor, ZJR_ACTOR_MAX), t = strnlen(e->text, ZJR_AUDIT_MAX);
+    memcpy(d.text, e->actor, a); /* both checked: a + 1 + t fits */
+    d.text[a] = ' ';
+    memcpy(d.text + a + 1, e->text, t);
+    d.text[a + 1 + t] = 0;
+    line_hash(prev, &d, out);
+}
+
+/* Read the key file into SEED/PUB; make it first when `make`. */
+static bool load_key(bool make)
+{
+    if (KEY_OK) return true;
+    if (!HAVE_SIGNER || !DIR_[0]) return false;
+    char p[ZJR_DIR_MAX + 32], line[128];
+    snprintf(p, sizeof p, "%s" SEP "audit.key", DIR_);
+    FILE *f = fopen(p, "rb");
+    if (f) {
+        bool ok = fgets(line, sizeof line, f) && !strncmp(line, "zxv-audit-key 1 ", 16) &&
+                  unhex(line + 16, SEED) && !strcmp(line + 80, "\n");
+        fclose(f);
+        memset(line, 0, sizeof line);
+        KEY_OK = ok && SIGNER.pub(SIGNER.ctx, SEED, PUB);
+        if (!KEY_OK) memset(SEED, 0, sizeof SEED);
+        return KEY_OK;
+    }
+    if (!make || !SIGNER.keygen(SIGNER.ctx, PUB, SEED)) return false;
+    char hex[65];
+    hexify(SEED, hex);
+#if defined(_WIN32)
+    f = fopen(p, "wb"); /* not there: the read above failed */
+#else
+    int fd = open(p, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, S_IRUSR | S_IWUSR);
+    f = fd < 0 ? NULL : fdopen(fd, "wb");
+    if (fd >= 0 && !f) close(fd);
+#endif
+    bool ok = f && fprintf(f, "zxv-audit-key 1 %s\n", hex) == 81;
+    if (f) ok = fclose(f) == 0 && ok;
+    memset(hex, 0, sizeof hex);
+    if (!ok) {
+        remove(p);
+        memset(SEED, 0, sizeof SEED);
+        return false;
+    }
+    KEY_OK = true;
+    return true;
+}
+
+int zjr_audit_key(uint8_t pub[32])
+{
+    if (!CUR) return ZJR_E_OFF;
+    if (!load_key(true)) return ZJR_E_SIGNER;
+    memcpy(pub, PUB, 32);
+    return 0;
+}
+
+/* An audit line read back: "<actor> <sig> <what>" into its fields, and
+ * (zjr_verify) its signature checked. */
+static bool audit_read(zjr_entry_t *e)
+{
+    const char *t = e->text, *s1 = strchr(t, ' ');
+    const char *s2 = s1 ? strchr(s1 + 1, ' ') : NULL;
+    uint8_t sig[64];
+    if (!s1 || !s2 || !actor_ok(t, (size_t) (s1 - t)) || s2 - s1 - 1 != 128 ||
+        !unhex(s1 + 1, sig) || !unhex(s1 + 65, sig + 32) || !what_ok(s2 + 1, strlen(s2 + 1))) {
+        snprintf(BAD_WHY, sizeof BAD_WHY, "is an audit entry that does not read");
+        return false;
+    }
+    memcpy(e->actor, t, (size_t) (s1 - t));
+    e->actor[s1 - t] = 0;
+    memcpy(e->sig, sig, 64);
+    memmove(e->text, s2 + 1, strlen(s2 + 1) + 1);
+    AUDIT_N++;
+    if (CHECK_SIGS && KEY_OK) {
+        uint8_t d[32];
+        audit_digest(e->prev, e, d);
+        if (!SIGNER.verify(SIGNER.ctx, PUB, d, e->sig)) {
+            snprintf(BAD_WHY, sizeof BAD_WHY, "has a signature the audit key did not make");
+            return false;
+        }
+    }
+    return true;
+}
+
 /* ===================== reading a segment ===================== */
 
 typedef struct {
@@ -177,14 +313,18 @@ static int read_seg(uint64_t n, head_t *h, each_fn fn, void *ctx, uint64_t *seq,
         src = q;
         sp = ok ? strchr(q, ' ') : NULL;
         ok = ok && sp && sp > src && (size_t) (sp - src) < sizeof e.source && unhex(sp + 1, got) &&
-             sp[65] == ' ' && strlen(sp + 66) <= ZXVD_LOG_TEXT && e.seq == *seq + 1;
+             sp[65] == ' ' && strlen(sp + 66) <= ZJR_TEXT_MAX && e.seq == *seq + 1;
+        BAD_WHY[0] = 0;
         if (ok) {
             memcpy(e.source, src, (size_t) (sp - src));
             memcpy(e.text, sp + 66, strlen(sp + 66) + 1);
             e.level = (uint8_t) lv;
             line_hash(hash, &e, want);
             ok = !memcmp(want, got, 32);
+            memcpy(e.prev, hash, 32); /* J8 */
+            memcpy(e.hash, got, 32);
         }
+        if (ok && !strcmp(e.source, "audit")) ok = audit_read(&e);
         if (!ok) {
             *bad = *seq + 1;
             rc = SEG_BROKEN;
@@ -253,6 +393,32 @@ static bool next_segment(void)
     return true;
 }
 
+/* Write e (seq, ms, level, source and text set) as the next line; its prev
+ * and hash are filled in. false when the disk refused (the journal stops). */
+static bool put_line(zjr_entry_t *e)
+{
+    uint8_t h[32];
+    char hex[65];
+    line_hash(HASH, e, h);
+    hexify(h, hex);
+    int n = fprintf(CUR, "%llu %llu %s %s %s %s\n", (unsigned long long) e->seq,
+                    (unsigned long long) e->ms, LEVEL[e->level], e->source, hex, e->text);
+    if (n <= 0 || fflush(CUR) != 0) { /* the disk refused: stop rather than chain past a gap */
+        fclose(CUR);
+        CUR = NULL;
+        zxvd_log_set_sink(NULL);
+        return false;
+    }
+    memcpy(e->prev, HASH, 32);
+    memcpy(e->hash, h, 32);
+    SEQ = e->seq;
+    memcpy(HASH, h, 32);
+    CUR_BYTES += (uint64_t) n;
+    TOTAL_BYTES += (uint64_t) n;
+    if (CUR_BYTES >= SEG_LIMIT && !next_segment()) zxvd_log_set_sink(NULL);
+    return true;
+}
+
 static void sink(const zxvd_log_entry_t *le)
 {
     if (!CUR) return;
@@ -264,24 +430,42 @@ static void sink(const zxvd_log_entry_t *le)
     for (size_t i = 0; le->source[i] && i < sizeof e.source - 1; i++)
         e.source[i] = le->source[i] == ' ' ? '_' : le->source[i];
     if (!e.source[0]) e.source[0] = '-';
+    if (!strcmp(e.source, "audit")) e.source[5] = '_'; /* J9: only zjr_append writes "audit" */
     memcpy(e.text, le->text, strlen(le->text) + 1);
-    uint8_t h[32];
-    char hex[65];
-    line_hash(HASH, &e, h);
-    hexify(h, hex);
-    int n = fprintf(CUR, "%llu %llu %s %s %s %s\n", (unsigned long long) e.seq,
-                    (unsigned long long) e.ms, LEVEL[e.level], e.source, hex, e.text);
-    if (n <= 0 || fflush(CUR) != 0) { /* the disk refused: stop rather than chain past a gap */
-        fclose(CUR);
-        CUR = NULL;
-        zxvd_log_set_sink(NULL);
-        return;
-    }
-    SEQ = e.seq;
-    memcpy(HASH, h, 32);
-    CUR_BYTES += (uint64_t) n;
-    TOTAL_BYTES += (uint64_t) n;
-    if (CUR_BYTES >= SEG_LIMIT && !next_segment()) zxvd_log_set_sink(NULL);
+    put_line(&e);
+}
+
+int zjr_append(const char *actor, const char *text, uint8_t level, zjr_entry_t *out)
+{
+    if (!CUR) return ZJR_E_OFF;
+    if (!actor || !text || !actor_ok(actor, strlen(actor)) || !what_ok(text, strlen(text)) ||
+        level > ZXVD_LOG_ERROR)
+        return ZJR_E_ARG;
+    if (!load_key(true)) return ZJR_E_SIGNER;
+    zjr_entry_t e;
+    memset(&e, 0, sizeof e);
+    e.seq = SEQ + 1;
+    e.ms = zxvd_now_ms();
+    e.level = level;
+    memcpy(e.source, "audit", 6);
+    memcpy(e.actor, actor, strlen(actor) + 1);
+    memcpy(e.text, text, strlen(text) + 1);
+    uint8_t d[32];
+    audit_digest(HASH, &e, d);
+    if (!SIGNER.sign(SIGNER.ctx, SEED, d, e.sig)) return ZJR_E_SIGNER;
+    zjr_entry_t w = e; /* the line: "<actor> <sig> <what>" */
+    size_t a = strlen(actor), t = strlen(text);
+    memcpy(w.text, actor, a);
+    w.text[a] = ' ';
+    hexify(e.sig, w.text + a + 1);
+    hexify(e.sig + 32, w.text + a + 65);
+    w.text[a + 129] = ' ';
+    memcpy(w.text + a + 130, text, t + 1);
+    if (!put_line(&w)) return ZJR_E_IO;
+    memcpy(e.prev, w.prev, 32);
+    memcpy(e.hash, w.hash, 32);
+    if (out) *out = e;
+    return 0;
 }
 
 /* ===================== open, close ===================== */
@@ -300,6 +484,9 @@ void zjr_close(void)
     DIR_[0] = 0;
     CUR_N = FIRST_N = CUR_BYTES = TOTAL_BYTES = SEQ = 0;
     memset(HASH, 0, sizeof HASH);
+    volatile uint8_t *v = SEED; /* the key stays on disk only */
+    for (size_t i = 0; i < sizeof SEED; i++) v[i] = 0;
+    KEY_OK = false;
 }
 
 bool zjr_on(void)
@@ -429,10 +616,22 @@ int zjr_query(const zjr_query_t *q, zjr_entry_t *out, uint32_t cap, uint32_t *n,
     return 0;
 }
 
+static int verify_chain(zjr_verify_t *v);
+
 int zjr_verify(zjr_verify_t *v)
 {
     memset(v, 0, sizeof *v);
     if (!CUR) return -1;
+    int rc = verify_chain(v);
+    CHECK_SIGS = false;
+    return rc;
+}
+
+static int verify_chain(zjr_verify_t *v)
+{
+    CHECK_SIGS = load_key(false); /* J10: an existing key; never make one here */
+    v->sigs_checked = CHECK_SIGS;
+    AUDIT_N = 0;
     uint64_t seq = 0;
     uint8_t hash[32];
     for (uint64_t k = FIRST_N; k <= CUR_N; k++) {
@@ -455,10 +654,11 @@ int zjr_verify(zjr_verify_t *v)
         if (k == FIRST_N) v->first_seq = h.next_seq;
         v->segments++;
         v->entries += end - (h.next_seq - 1);
+        v->audit = AUDIT_N;
         if (rc == SEG_BROKEN) {
             v->broken_at = bad;
-            snprintf(v->why, sizeof v->why, "line %llu was changed or is missing",
-                     (unsigned long long) bad);
+            snprintf(v->why, sizeof v->why, "line %llu %s", (unsigned long long) bad,
+                     BAD_WHY[0] ? BAD_WHY : "was changed or is missing");
             return 0;
         }
         seq = end;

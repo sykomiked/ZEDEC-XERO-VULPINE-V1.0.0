@@ -363,6 +363,7 @@ void zxvd_rpc_service(void *set, uint64_t now_ms)
 {
     fd_set *s = set;
     if (LS == INVALID_SOCKET) return;
+    zxvd_rpc_tick();
     for (int i = 0; i < ZXVD_RPC_MAX_CLIENTS; i++) {
         client_t *c = &CL[i];
         if (c->fd == INVALID_SOCKET) continue;

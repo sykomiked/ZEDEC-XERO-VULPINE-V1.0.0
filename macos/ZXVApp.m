@@ -415,6 +415,16 @@ static uint32_t clip_get(void *ctx, char *out, uint32_t cap)
         [args addObjectsFromArray:@[
             @"--places", [self.supportDir stringByAppendingPathComponent:@"places.zxpl"]
         ]];
+        /* Gatehouse's answers on which app may use what (zxv_caps.h) */
+        [args addObjectsFromArray:@[
+            @"--caps", [self.supportDir stringByAppendingPathComponent:@"caps.zxcp"]
+        ]];
+        /* shell.* for the Flint terminal, when zxsh ships beside the engine
+         * (zxvd_shell.h H7; docs/APP_SERVICES.md) */
+        NSString *zxsh =
+            [exe.URLByDeletingLastPathComponent URLByAppendingPathComponent:@"zxsh"].path;
+        if ([NSFileManager.defaultManager isExecutableFileAtPath:zxsh])
+            [args addObjectsFromArray:@[ @"--zxsh", zxsh ]];
     }
     NSString *model = [self currentModel];
     if (model) {
