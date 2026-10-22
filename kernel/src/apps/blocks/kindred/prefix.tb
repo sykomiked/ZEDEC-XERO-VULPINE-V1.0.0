@@ -1,0 +1,22 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Does a contact's name begin with a typed prefix, in Trebago
+! (kindred_rules.h KR3)? A name code packs a name's first 9 letters two
+! decimal digits each, left-aligned (00 past the end); a prefix of len
+! letters (0..9) is packed the same way. The name begins with the prefix
+! when prefix <= name < prefix + 100 ** (9 - len): 1, else 0 (the power
+! picked from the ten there are, since an exponent is a constant). len
+! outside 0..9 or a code outside 0..999999999999999999 is refused (ok 0:
+! a division by zero). One contact per row; prefix.kron says the same.
+trebago name_prefix_hit
+  in  name(n), prefix(n), len(n)
+  out hit(n)
+  var s(n), ok(n)
+  ok(i) = min(1, max(0, len(i) + 1)) * min(1, max(0, 9 - len(i) + 1)) &
+        * min(1, max(0, name(i) + 1)) * min(1, max(0, 999999999999999999 - name(i) + 1)) &
+        * min(1, max(0, prefix(i) + 1)) * min(1, max(0, 999999999999999999 - prefix(i) + 1))
+  s(i) = sum(k = 0:9, (1 - min(1, abs(len(i) - k))) * 100 ** (9 - k))
+  hit(i) = min(1, max(0, name(i) - prefix(i) + 1)) * min(1, max(0, prefix(i) + s(i) - name(i))) &
+         / ok(i)
+end

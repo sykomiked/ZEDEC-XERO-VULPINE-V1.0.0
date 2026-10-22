@@ -1,0 +1,5 @@
+c:0|1&card
+n:0|1&name
+a:(c*\:c)*1-1&abs card-\:card
+b:(n*\:n)*1-1&abs name-\:name
+(+/a|b)-c|n

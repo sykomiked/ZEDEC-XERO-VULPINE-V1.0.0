@@ -1,0 +1,86 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Kindred, the contacts: layer 44 of the matrix. Contacts are records kept
+# in the Hoard, read and written with zxvd's files.read and files.write
+# (kindred_model.c); a contact's agent card is kept only when zxvd's
+# web4.card_verify says it verifies, its node only when it is among the
+# peers net.peers lists (each NodeID verified by a signed message), and
+# the owner's own chat identity comes from chat.me. A verified card and a
+# likely duplicate are shown to the owner, never acted on alone: nothing
+# is merged or removed but by the owner.
+#
+# Eighty layers lean on this one (MATRIX_ORDER.tsv), so its ideas are
+# shared concepts with Kindred as owner (CONCEPTS.tsv). It leans on no
+# other layer's code: no block or earlier app holds a contact's limits, a
+# name code, a prefix match or a duplicate count, so it uses none.
+#
+#   contact_fields_ok  a contact's field limits (KR1) in Eve, with KRON
+#                      beside it: name 1..128 bytes, phone 0..15 digits,
+#                      mail 0..254 bytes, note 0..1024 bytes, each on its
+#                      own.
+#   name_prefix_hit    whether a name begins with what was typed (KR3), as
+#                      a number 1 or 0 over the name codes (KR2): KRON and
+#                      Trebago. Trebago refuses a len outside 0..9 or a
+#                      code past 18 digits, KRON answers: held.
+#   contact_dupes      each contact's likely duplicates (KR4): others with
+#                      the same card code or the same name code. KRON, as
+#                      the task asks, and Trebago for the exact count;
+#                      Trebago refuses a code outside its digits, KRON
+#                      counts it: held.
+#   contact_record_ok  a contact's record, ^ZXKINDRED, in MYRA (KR5).
+#   name_index_ok      the name index the prefix search walks,
+#                      ^ZXKINDREDNAME, in MYRA (KR6).
+#
+# Planned languages: SNOBOL owns text patterns and stands for the
+# name-prefix search (name_prefix_hit). Kotlin owns objects and stands for
+# the contact record (contact_record_ok). TeX owns typesetting; Kindred
+# typesets nothing, so TeX has no entry here and is not pending.
+zxapp 1
+id     kindred
+name   Kindred
+version 1.0.0
+slot   44
+layer  L1
+matrix 44
+icon   icons/l1/044-kindred.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  peers
+model  apps/kindred_model.c
+
+# A contact's field limits (KR1), Eve and KRON.
+provides contact_fields_ok truth namelen phone mail note
+logic    eve  contact_fields_ok apps/blocks/kindred/fields.eve
+logic    kron contact_fields_ok apps/blocks/kindred/fields.kron
+
+# The name-prefix search (KR3), KRON and Trebago (FORTRAN).
+provides name_prefix_hit num name prefix len
+logic    kron    name_prefix_hit apps/blocks/kindred/prefix.kron
+logic    trebago name_prefix_hit apps/blocks/kindred/prefix.tb
+pending  SNOBOL name_prefix_hit
+
+# Likely duplicates (KR4), KRON and Trebago.
+provides contact_dupes num card name
+logic    kron    contact_dupes apps/blocks/kindred/dupes.kron
+logic    trebago contact_dupes apps/blocks/kindred/dupes.tb
+
+# A contact's record (KR5) and the name index (KR6), in MYRA.
+provides contact_record_ok truth contact card node name verified stamp
+logic    myra contact_record_ok apps/blocks/kindred/contact.myra
+pending  Kotlin contact_record_ok
+provides name_index_ok truth name contact stamp
+logic    myra name_index_ok apps/blocks/kindred/names.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check contact_fields_ok namelen=1,128,0,129,10,10,10,10,10,10 phone=0,15,5,5,16,-1,5,5,5,5 mail=0,254,0,0,0,0,255,0,0,20 note=0,1024,0,0,0,0,0,1025,-1,300 = true,true,false,false,false,false,false,false,false,true
+# agree: contact_fields_ok Eve and KRON hold the same four ranges, each on its own, with nothing relating them, so no integer input can split them
+check name_prefix_hit name=102030000000000000,102030000000000000,102030000000000000,5,202030000000000000,999999999999999999 prefix=100000000000000000,102000000000000000,102030000000000000,0,100000000000000000,0 len=1,2,9,0,1,0 = 1,1,1,1,0,1
+check name_prefix_hit name=102030000000000000,102030000000000000 prefix=103000000000000000,102030000000000000 len=1,8 = 0,1
+check name_prefix_hit name=1,1 prefix=1,1 len=1,10 = both
+check contact_dupes card=5,7,5,0,0,0 name=11,12,13,13,0,0 = 1,0,2,1,0,0
+check contact_dupes card=0,0,999999999999999,999999999999999 name=0,0,999999999999999999,1 = 0,0,1,1
+check contact_dupes card=5,-3 name=1,1 = both
+check contact_record_ok contact=1,999999,1000000,1,1,1 card=0,999999999999999,0,1000000000000000,1,1 node=0,999999999999999,0,0,1,1 name=102030000000000000,999999999999999999,1,1,1000000000000000000,1 verified=1,9,0,0,0,10 stamp=1792627200000,9999999999999,1,1,1,1 = true,true,false,false,false,false
+check name_index_ok name=102030000000000000,999999999999999999,1000000000000000000,1,1 contact=1,999999,1,1000000,1 stamp=1792627200000,9999999999999,1,1,10000000000000 = true,true,false,false,false

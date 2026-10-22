@@ -282,3 +282,8 @@
 245	logic.bowline_overdue	491.23	bowline.overdue	base
 246	logic.bowline_task_record_ok	491.24	bowline.task_record_ok	base
 247	num.bowline_unskipped_day	591.14	bowline.unskipped_day	base
+248	num.kindred_contact_dupes	591.15	kindred.contact_dupes	base
+249	logic.kindred_contact_fields_ok	491.25	kindred.contact_fields_ok	base
+250	logic.kindred_contact_record_ok	491.26	kindred.contact_record_ok	base
+251	logic.kindred_name_index_ok	491.27	kindred.name_index_ok	base
+252	num.kindred_name_prefix_hit	591.16	kindred.name_prefix_hit	base

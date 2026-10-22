@@ -1,0 +1,21 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Likely duplicates among the contacts, in Trebago (kindred_rules.h KR4):
+! for each contact, how many other contacts share its card code (both 1 or
+! more and equal) or its name code (both 1 or more and equal). A code of 0
+! is none and matches nothing. A card code outside 0..999999999999999 or a
+! name code outside 0..999999999999999999 is refused (ok 0: a division by
+! zero), never counted. Exact; dupes.kron says the same.
+trebago contact_dupes
+  in  card(n), name(n)
+  out dupes(n)
+  var cp(n), np(n), d(n), ok
+  cp(i) = min(1, max(0, card(i)))
+  np(i) = min(1, max(0, name(i)))
+  ok = 1 - min(1, sum(i, min(1, max(0, 0 - card(i))) + min(1, max(0, card(i) - 999999999999999)) &
+       + min(1, max(0, 0 - name(i))) + min(1, max(0, name(i) - 999999999999999999))))
+  d(i) = sum(j, max(cp(i) * cp(j) * (1 - min(1, abs(card(i) - card(j)))), &
+         np(i) * np(j) * (1 - min(1, abs(name(i) - name(j)))))) - max(cp(i), np(i))
+  dupes(i) = d(i) / ok
+end

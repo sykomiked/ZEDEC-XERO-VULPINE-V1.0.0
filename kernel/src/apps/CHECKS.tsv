@@ -253,6 +253,15 @@ keystone	check energy_budget_ok window=1,86400000,0,86400001,1000,1000,1000,1000
 keystone	check energy_budget_ok window=1000,1000 spend=5,10 whole=9,9 = both
 keystone	check crown.allot units=1000 weight=1,1,1 total=3 extra=1,0,0 = 334,333,333
 keystone	check crown.allot units=1000 weight=1,1,1 total=4 extra=1,0,0 = both
+kindred	check contact_fields_ok namelen=1,128,0,129,10,10,10,10,10,10 phone=0,15,5,5,16,-1,5,5,5,5 mail=0,254,0,0,0,0,255,0,0,20 note=0,1024,0,0,0,0,0,1025,-1,300 = true,true,false,false,false,false,false,false,false,true
+kindred	check name_prefix_hit name=102030000000000000,102030000000000000,102030000000000000,5,202030000000000000,999999999999999999 prefix=100000000000000000,102000000000000000,102030000000000000,0,100000000000000000,0 len=1,2,9,0,1,0 = 1,1,1,1,0,1
+kindred	check name_prefix_hit name=102030000000000000,102030000000000000 prefix=103000000000000000,102030000000000000 len=1,8 = 0,1
+kindred	check name_prefix_hit name=1,1 prefix=1,1 len=1,10 = both
+kindred	check contact_dupes card=5,7,5,0,0,0 name=11,12,13,13,0,0 = 1,0,2,1,0,0
+kindred	check contact_dupes card=0,0,999999999999999,999999999999999 name=0,0,999999999999999999,1 = 0,0,1,1
+kindred	check contact_dupes card=5,-3 name=1,1 = both
+kindred	check contact_record_ok contact=1,999999,1000000,1,1,1 card=0,999999999999999,0,1000000000000000,1,1 node=0,999999999999999,0,0,1,1 name=102030000000000000,999999999999999999,1,1,1000000000000000000,1 verified=1,9,0,0,0,10 stamp=1792627200000,9999999999999,1,1,1,1 = true,true,false,false,false,false
+kindred	check name_index_ok name=102030000000000000,999999999999999999,1000000000000000000,1,1 contact=1,999999,1,1000000,1 stamp=1792627200000,9999999999999,1,1,10000000000000 = true,true,false,false,false
 kitling	check stage generation=0,1,2,4,5,12,13,33,34,4294967295 = 0,1,2,2,3,3,4,4,5,5
 kitling	check stage generation=0,4294967296 = both
 kitling	check stage generation=0,-1 = both

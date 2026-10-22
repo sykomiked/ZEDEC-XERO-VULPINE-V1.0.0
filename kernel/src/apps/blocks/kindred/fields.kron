@@ -1,0 +1,1 @@
+(namelen>0)&(namelen<129)&(phone>-1)&(phone<16)&(mail>-1)&(mail<255)&(note>-1)&note<1025

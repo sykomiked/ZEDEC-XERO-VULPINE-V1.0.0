@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Kindred files one contact in MYRA (kindred_rules.h KR5): its number,
+; its card code (0 none, else the verified agent_id's first 12 hex digits
+; plus 1), its node code (the same of its NodeID from net.peers), its name
+; code (the first 9 letters, two digits each), whether its card verified
+; (0 or 1) and when it was last changed (ms since 1970).
+^ZXKINDRED(contact:i6) = card:i15! ^ node:i15! ^ name:i18! ^ verified:i1! ^ stamp:i13!

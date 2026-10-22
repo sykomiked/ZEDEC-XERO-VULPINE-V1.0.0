@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A contact's field limits (kindred_rules.h KR1), in Eve: the name 1 to
+# 128 bytes of UTF-8, the phone number 0 to 15 digits (E.164's most), the
+# mail address 0 to 254 bytes (RFC 5321's path limit) and the note 0 to
+# 1024 bytes. Each length is held to its own range; fields.kron says the
+# same, and nothing relates the four.
+eve kindred
+name_bytes = 1 .. 128
+phone_digits = 0 .. 15
+mail_bytes = 0 .. 254
+note_bytes = 0 .. 1024
+
+contact_fields {
+  namelen: name_bytes
+  phone: phone_digits
+  mail: mail_bytes
+  note: note_bytes
+}

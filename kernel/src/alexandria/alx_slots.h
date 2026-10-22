@@ -253,7 +253,12 @@
 #define ALX_SLOT_LOGIC_BOWLINE_OVERDUE           245u /* 491.23 bowline.overdue */
 #define ALX_SLOT_LOGIC_BOWLINE_TASK_RECORD_OK    246u /* 491.24 bowline.task_record_ok */
 #define ALX_SLOT_NUM_BOWLINE_UNSKIPPED_DAY       247u /* 591.14 bowline.unskipped_day */
-#define ALX_SLOT__COUNT 247u
+#define ALX_SLOT_NUM_KINDRED_CONTACT_DUPES       248u /* 591.15 kindred.contact_dupes */
+#define ALX_SLOT_LOGIC_KINDRED_CONTACT_FIELDS_OK 249u /* 491.25 kindred.contact_fields_ok */
+#define ALX_SLOT_LOGIC_KINDRED_CONTACT_RECORD_OK 250u /* 491.26 kindred.contact_record_ok */
+#define ALX_SLOT_LOGIC_KINDRED_NAME_INDEX_OK     251u /* 491.27 kindred.name_index_ok */
+#define ALX_SLOT_NUM_KINDRED_NAME_PREFIX_HIT     252u /* 591.16 kindred.name_prefix_hit */
+#define ALX_SLOT__COUNT 252u
 /* clang-format on */
 
 #endif

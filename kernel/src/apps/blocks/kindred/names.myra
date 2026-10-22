@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; Kindred's name index in MYRA (kindred_rules.h KR6): the contacts by name
+; code, then number, with when the entry was made (ms since 1970). A
+; name-prefix search walks it in order ($ORDER) from the prefix's code up
+; to the prefix's code plus 100 ** (9 - len), the range name_prefix_hit
+; tests one name against.
+^ZXKINDREDNAME(name:i18, contact:i6) = stamp:i13!
