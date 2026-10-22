@@ -360,10 +360,9 @@ jobs:
       - name: Golden disc model check (${{ matrix.arch }})
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/test_golden_disc.sh ${{ matrix.arch }} 60
       # Then the console: log in with a passport seed, ask the model, log out
-      # (arm64: x86_64 has no console input yet).
-      - name: Golden disc login and ask (arm64)
-        if: matrix.arch == 'arm64'
-        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/golden_login_check.sh 300
+      # (x86_64 also types it on the PS/2 keyboard).
+      - name: Golden disc login and ask (${{ matrix.arch }})
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/golden_login_check.sh ${{ matrix.arch }} 300
       - name: Upload ${{ matrix.arch }} disc
         uses: actions/upload-artifact@v7
         with:

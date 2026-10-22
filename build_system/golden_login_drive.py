@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-# golden_login_drive.py — drive a golden disc's arm64 console over QEMU's
-# serial line for golden_login_check.sh. One scenario per boot:
+# golden_login_drive.py — drive a golden disc's console over QEMU's serial
+# line (and, for keyboard, its PS/2 keyboard) for golden_login_check.sh. The
+# arch is ZXV_ARCH (arm64, the default, or x86_64). One scenario per boot:
 #
 #   full     the whole session (login, ask, logout, create, confirm), then
 #            hostile input, repeated logins and repeated asks
@@ -9,17 +10,27 @@
 #   lowmem   RAM just above the kernel's floor: the boot reaches the shell,
 #            login works, and the AI either answers or the boot says why not
 #   toosmall less RAM than the kernel itself: the loader says so and stops
+#   keyboard x86_64: login, ask, whoami and logout typed on the PS/2 keyboard
+#            through QEMU's QMP send-key (ZXV_QMP names the socket); the seed
+#            is echoed as '*' and never reaches the log
 #
 #   golden_login_drive.py SCENARIO SECS LOG SEED DID DIGEST QUESTION -- qemu ...
 #
 # Exit 0 with one "[golden-login]" line on success, else 1 with the reason and
 # the end of the serial log. The log is written to LOG either way.
+import json
 import os
+import socket
 import subprocess
 import sys
 import time
 
 FAULTS = (b"[FAULT]", b"[EL0 FAULT]", b"PANIC", b"CPU exception vector=")
+ARCH = os.environ.get("ZXV_ARCH", "arm64")
+# the line the console prints once it reads input
+CONSOLE = {"arm64": "P-TERM/EL0", "x86_64": "[CONSOLE]"}[ARCH]
+# what the loader prints when the kernel cannot have its memory
+TOO_SMALL = {"arm64": "[BOOT_FAIL] this kernel needs RAM", "x86_64": "[BOOT_REFUSED]"}[ARCH]
 
 
 class Console:
@@ -58,7 +69,7 @@ class Console:
     def fail(self, why):
         self.save()
         sys.stdout.buffer.write(bytes(self.buf[-4000:]))
-        print(f"\n::error::arm64 golden login: {why}")
+        print(f"\n::error::{ARCH} golden login: {why}")
         sys.exit(1)
 
     def save(self):
@@ -72,7 +83,7 @@ class Console:
         for m in markers:
             if self.wait_for(m, 0) < 0:
                 self.fail(f"the boot never printed {m}")
-        self.pos = self.wait_for("P-TERM/EL0", 0)
+        self.pos = self.wait_for(CONSOLE, 0)
 
     def type(self, line):
         """Type one line at the next prompt; returns where its output starts."""
@@ -122,7 +133,7 @@ def typo(seed, at):
 
 
 def full(c, seed, did, digest, question):
-    c.boot(("[AI_OK] zxv-boot-test.gguf answered", "[BOOT_OK]", "P-TERM/EL0"))
+    c.boot(("[AI_OK] zxv-boot-test.gguf answered", "[BOOT_OK]", CONSOLE))
     answer = f"(100 prompt + 16 tokens, digest {digest})"
     t3 = typo(seed, 3)
     c.say("ask hello", "[AI_REFUSED] log in first")
@@ -197,7 +208,7 @@ def full(c, seed, did, digest, question):
 
 
 def nomodel(c, seed, did, digest, question):
-    c.boot(("[AI_NO_MODEL]", "[BOOT_OK]", "P-TERM/EL0"))
+    c.boot(("[AI_NO_MODEL]", "[BOOT_OK]", CONSOLE))
     if b"[AI_OK]" in c.buf:
         c.fail("a disc with no model printed [AI_OK]")
     c.say("ask hello", "[AI_REFUSED] log in first")
@@ -214,7 +225,7 @@ def lowmem(c, seed, did, digest, question):
     # Just above the kernel's own floor: the model may or may not fit. Either
     # it answers and ask works, or the boot says why the AI is off and ask
     # never answers. The OS and the login work either way.
-    c.boot(("[BOOT_OK]", "P-TERM/EL0"))
+    c.boot(("[BOOT_OK]", CONSOLE))
     answered = b"[AI_OK]" in c.buf
     if not answered and b"[AI_NO_MODEL]" not in c.buf and b"[AI_FAULT]" not in c.buf:
         c.fail("the AI is off and the boot did not say why")
@@ -232,26 +243,116 @@ def lowmem(c, seed, did, digest, question):
 def toosmall(c, seed, did, digest, question):
     # Less RAM than the kernel's own image, BSS and stack: the loader must
     # say so and stop, never hand off into memory that is not there.
-    if c.wait_for("[BOOT_FAIL] this kernel needs RAM", 0) < 0:
+    if c.wait_for(TOO_SMALL, 0) < 0:
         c.fail("too little RAM for the kernel, and the loader did not say so")
     end = time.monotonic() + 5
     while time.monotonic() < end and c.pump():
         pass
-    for m in (b"handing off to ZXV kernel", b"[BOOT_OK]", b"[AI_HANDOFF]"):
+    # x86_64's loader stages the model ([AI_HANDOFF]) before its window
+    # verdict; the kernel itself must never start.
+    went_on = {"arm64": (b"handing off to ZXV kernel", b"[BOOT_OK]", b"[AI_HANDOFF]"),
+               "x86_64": (b"Long mode entered", b"[BOOT_OK]")}[ARCH]
+    for m in went_on:
         if m in c.buf:
             c.fail(f"too little RAM, and the loader still went on ({m.decode()})")
     c.save()
     return "too little RAM for the kernel: the loader says so and stops"
 
 
+# QMP send-key names for what a seed, a command and a question type
+KEYS = {" ": "spc", "-": "minus", ".": "dot", ",": "comma", "?": ("shift", "slash"),
+        "\r": "ret", "\b": "backspace"}
+
+
+def qcode(ch):
+    if ch in KEYS:
+        k = KEYS[ch]
+        return list(k) if isinstance(k, tuple) else [k]
+    if ch.isdigit() or ch.islower():
+        return [ch]
+    if ch.isupper():
+        return ["shift", ch.lower()]
+    raise ValueError("no key for %r" % ch)
+
+
+class Keyboard:
+    def __init__(self, path, deadline):
+        while True:
+            try:
+                self.s = socket.socket(socket.AF_UNIX)
+                self.s.connect(path)
+                break
+            except OSError:
+                if time.monotonic() > deadline:
+                    raise
+                time.sleep(0.1)
+        self.f = self.s.makefile("rw")
+        self.f.readline()  # the greeting
+        self.cmd({"execute": "qmp_capabilities"})
+
+    def cmd(self, m):
+        self.f.write(json.dumps(m) + "\n")
+        self.f.flush()
+        while True:
+            r = json.loads(self.f.readline())
+            if "return" in r or "error" in r:
+                return r
+
+    def type(self, text):
+        for ch in text:
+            keys = [{"type": "qcode", "data": k} for k in qcode(ch)]
+            r = self.cmd({"execute": "send-key", "arguments": {"keys": keys, "hold-time": 20}})
+            if "error" in r:
+                raise RuntimeError("send-key %r: %s" % (ch, r["error"]))
+            time.sleep(0.03)
+
+
+def keyboard(c, seed, did, digest, question):
+    c.boot(("[AI_OK] zxv-boot-test.gguf answered", "[BOOT_OK]", "[DRIVER ONLINE] PS/2 keyboard",
+            CONSOLE))
+    kb = Keyboard(os.environ["ZXV_QMP"], c.deadline)
+
+    def key_say(line, expect, forbid=()):
+        if c.wait_for("\n> ", c.pos) < 0:
+            c.fail("the console never came back to its prompt")
+        start = len(c.buf)
+        kb.type(line + "\r")
+        end = c.wait_for(expect, start)
+        if end < 0:
+            c.fail(f"typed {line[:24]!r}... on the keyboard and never saw {expect!r}")
+        for f in forbid:
+            if f.encode() in c.buf[start:end]:
+                c.fail(f"typed {line[:24]!r}... on the keyboard and it printed {f!r}")
+        c.pos = end
+
+    q = "what is a fox?"
+    key_say("ask hello", "[AI_REFUSED] log in first")
+    key_say("login " + typo(seed, 5), "[LOGIN_FAIL]", forbid=("[LOGIN_OK]",))
+    # a mistake erased with backspace still logs in
+    key_say("login X\b" + seed, f"[LOGIN_OK] {did}")
+    key_say("whoami", f"[WHOAMI] {did}")
+    key_say("ask " + q, "[AI_ANSWER]")
+    # the question is echoed as typed: shift and every key map as on the keyboard
+    if ("ask " + q).encode() not in c.buf:
+        c.fail(f"the keyboard did not type {q!r} as pressed")
+    key_say("Logout".lower(), f"[LOGOUT] {did}")
+    key_say("ASK x", "unknown command", forbid=("[AI_",))
+    if b"*" * 20 not in c.buf:
+        c.fail("the seed typed on the keyboard was not echoed as '*'")
+    c.clean([seed, seed.replace("-", ""), typo(seed, 5)])
+    return "typed on the PS/2 keyboard: refused before login, a typo refused, a backspace " \
+           "erased, logged in, whoami, asked and answered, logged out; seed echoed as '*'"
+
+
 def main():
     scenario, secs, log, seed, did, digest, question = sys.argv[1:8]
     cmd = sys.argv[9:]
-    run = {"full": full, "nomodel": nomodel, "lowmem": lowmem, "toosmall": toosmall}[scenario]
+    run = {"full": full, "nomodel": nomodel, "lowmem": lowmem, "toosmall": toosmall,
+           "keyboard": keyboard}[scenario]
     c = Console(cmd, int(secs), log)
     what = run(c, seed, did, digest, question)
     c.save()
-    print(f"[golden-login] arm64 {scenario}: {what}")
+    print(f"[golden-login] {ARCH} {scenario}: {what}")
 
 
 if __name__ == "__main__":

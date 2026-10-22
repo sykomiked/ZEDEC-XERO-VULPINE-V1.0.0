@@ -93,8 +93,12 @@ must be caught and the kernel must say `[AI_NO_MODEL]`. CI runs it in the
 
 ### Log in and ask (arm64 console)
 
-After boot the EL0 shell (`P-TERM/EL0`, prompt `> `) takes a passport login
-and questions for the boot model:
+After boot the console takes a passport login and questions for the boot
+model: on arm64 the EL0 shell (`P-TERM/EL0`, prompt `> `), on x86_64 the
+kernel's console (`[CONSOLE]`, prompt `> `, `kernel/arch/x86_64/x86_console.c`),
+which reads the PS/2 keyboard (the i8042 a PC, QEMU, KVM and a VPS's VNC
+console have; polled, US layout) and COM1 together and echoes to the screen
+and the serial line:
 
 ```
 > login <seed text>        [LOGIN_OK] did:zxv:...      (or [LOGIN_FAIL] <why>)
@@ -106,8 +110,8 @@ and questions for the boot model:
 ```
 
 A first-time person makes a passport from nothing, with no server: `create`
-takes 32 bytes from the CPU's random source (RNDR; a CPU without one refuses
-rather than make a weak seed), shows the seed text once, and nobody is logged
+takes 32 bytes from the CPU's random source (RNDR on arm64, RDRAND on
+x86_64; a CPU without one refuses rather than make a weak seed), shows the seed text once, and nobody is logged
 in until `confirm` types back that same seed.
 
 `login` rebuilds the whole identity from the seed text at the matrix level
@@ -125,14 +129,21 @@ typo refused by the checksum, logged in as the DID the host's
 `test_pp_console` builds from the same seed, the boot question answered with
 the digest `test_swarm_bootmodel` pins, logged out and refused again, then a new passport created, a
 wrong confirmation refused and the right one logged in, with no typed seed
-in the log (QEMU `-cpu max`, for RNDR). CI runs it in the `uefi-disc` job. x86_64 has no
+in the log (QEMU `-cpu max`, for RNDR and RDRAND). CI runs it in the
+`uefi-disc` job on both arches: `golden_login_check.sh [arm64|x86_64]`.
 
 The same check then stresses it: hostile login lines (empty, overlong,
 punctuation, chat-template markup, a seed one character short or long), every
 fourth seed position mistyped, five logins and ten asks in a row (the same
 digest every time), the plain disc with no model (login works, `ask` says
-there is no model), 256 MB of RAM (the boot reaches the shell and says why
-the AI is off) and 128 MB.
+there is no model), RAM just above the floor (the boot reaches the shell and
+says why the AI is off, or answers) and just below it. On x86_64 it also types
+the session on the PS/2 keyboard through QEMU's QMP `send-key`: refused
+before login, a typo refused, a mistake erased with backspace, logged in,
+asked and answered, the question echoed exactly as typed (so Shift and every
+key map right), a shifted `ASK` not taken for `ask`, the seed echoed as `*`.
+`make -C kernel test-x86-console` checks the line editor and the scancode map
+on the host.
 
 **RAM floor.** The arm64 kernel's image, BSS and stack run from 0x40000000 to
 `__kernel_end` (about 235 MB). The loader checks the firmware's memory map
@@ -140,8 +151,10 @@ covers that window before anything else; when it does not it prints
 `[BOOT_FAIL] this kernel needs RAM from 0x40000000 to ...` and stops, where it
 used to hand off and hang without a word. It then reserves the window, so the
 boot model and its scratch are placed above it. The x86_64 loader already
-refuses a window it cannot own (`[BOOT_REFUSED]`) and returns to the firmware.
-console input yet, so its disc answers at boot but takes no login.
+refuses a window it cannot own (`[BOOT_REFUSED]`) and returns to the firmware;
+under OVMF its floor is about 160 MB (the kernel's 91 MB window must be clear
+of the firmware's own memory, with the model and its scratch above it), and
+128 MB is refused.
 
 Measured 2026-10-12: 1,632,632,832 bytes raw (1.63 GB) on both arches,
 1,569,507,209 bytes gzipped (x86_64). The models are 1,608,720,768 bytes of

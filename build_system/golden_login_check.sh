@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# golden_login_check.sh — the golden disc's whole path on arm64, under stress:
-# boot, the boot model answers, log in (or create a passport) at the console,
-# ask the model, log out.
+# golden_login_check.sh — the golden disc's whole path, under stress: boot,
+# the boot model answers, log in (or create a passport) at the console, ask
+# the model, log out.
 #
-#   bash build_system/baremetal_images.sh arm64
-#   bash build_system/golden_login_check.sh [seconds per boot]
+#   bash build_system/baremetal_images.sh <arm64|x86_64>
+#   bash build_system/golden_login_check.sh [arm64|x86_64] [seconds per boot]
 #
 # Builds the same small golden disc as test_golden_disc.sh (the tiny real
 # qwen2 GGUF from mk_boot_test_model.py) and boots it under UEFI four times,
@@ -23,16 +23,25 @@
 #             shell and says why the AI is off if it is
 #   toosmall  128 MB, below the kernel's image + BSS: the loader says so
 #             ([BOOT_FAIL]) and stops instead of handing off
+#   keyboard  x86_64 only: the session typed on the PS/2 keyboard (QEMU's
+#             QMP send-key), not on the serial line
+#
+# On x86_64 under OVMF the floor is about 160 MB (the kernel's 91 MB window
+# must be clear of the firmware's own memory, with the model and its scratch
+# above it), so lowmem is 160 MB and toosmall 128 MB, where the loader
+# refuses ([BOOT_REFUSED]) and returns to the firmware.
 #
 # No typed seed may reach the serial log (the shell echoes seeds as '*'; the
 # new seed is shown once, by create), and no boot may print a fault marker.
-# create needs the CPU's RNDR, so QEMU runs -cpu max. Runs in
-# build_system/Dockerfile.baremetal.
+# create needs the CPU's RNDR (arm64) or RDRAND (x86_64), so QEMU runs
+# -cpu max. Runs in build_system/Dockerfile.baremetal.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 ARCH=arm64
+case "${1:-}" in arm64|x86_64) ARCH=$1; shift ;; esac
 SECS="${1:-300}"
+export ZXV_ARCH=$ARCH
 T="dist/discs/.golden-login-$ARCH"
 NAME="zxv-$ARCH-golden-login"
 IMG="dist/discs/$NAME.img"
@@ -57,13 +66,19 @@ GOLDEN_MODELS="$T/models" GOLDEN_CONTENTS="$T/contents" GOLDEN_NAME="$NAME" \
   ZXV_MODEL_CACHE="$T/cache" GOLDEN_OFFLINE=1 bash build_system/mk_golden_disc.sh "$ARCH"
 
 FW=
-for f in "${AAVMF:-}" /usr/share/qemu-efi-aarch64/QEMU_EFI.fd /usr/share/AAVMF/AAVMF_CODE.fd; do
-  [ -n "$f" ] && [ -f "$f" ] && { FW=$f; break; }
-done
-[ -n "$FW" ] || { echo "::error::no arm64 UEFI firmware (install qemu-efi-aarch64)"; exit 1; }
-
-QEMU=(qemu-system-aarch64 -M virt,gic-version=3 -cpu max -bios "$FW"
-      -net none -display none -serial stdio -monitor none)
+if [ "$ARCH" = arm64 ]; then
+  for f in "${AAVMF:-}" /usr/share/qemu-efi-aarch64/QEMU_EFI.fd /usr/share/AAVMF/AAVMF_CODE.fd; do
+    [ -n "$f" ] && [ -f "$f" ] && { FW=$f; break; }
+  done
+  QEMU=(qemu-system-aarch64 -M virt,gic-version=3 -cpu max -bios "$FW")
+else
+  for f in "${OVMF:-}" /usr/share/ovmf/OVMF.fd /usr/share/OVMF/OVMF.fd; do
+    [ -n "$f" ] && [ -f "$f" ] && { FW=$f; break; }
+  done
+  QEMU=(qemu-system-x86_64 -machine q35 -cpu max -bios "$FW")
+fi
+[ -n "$FW" ] || { echo "::error::no $ARCH UEFI firmware (install qemu-efi-aarch64 / ovmf)"; exit 1; }
+QEMU+=(-net none -display none -serial stdio -monitor none)
 disc(){ echo -drive "if=none,id=disc,format=raw,snapshot=on,file=$1" \
              -device virtio-blk-pci,drive=disc,bootindex=0; }
 drive(){ # scenario image memory
@@ -74,8 +89,17 @@ drive(){ # scenario image memory
 drive full "$IMG" 512M
 # The plain disc (baremetal_images.sh) carries no model.
 drive nomodel "dist/discs/zxv-$ARCH-uefi.img" 512M
-# Just above the kernel's own floor (about 235 MB on arm64), then below it.
-drive lowmem "$IMG" 256M
-drive toosmall "$IMG" 128M
+# Just above the floor (about 240 MB on arm64, 160 MB on x86_64), then below.
+if [ "$ARCH" = arm64 ]; then
+  drive lowmem "$IMG" 256M
+  drive toosmall "$IMG" 128M
+else
+  drive lowmem "$IMG" 160M
+  drive toosmall "$IMG" 128M
+  # The PS/2 keyboard, typed through QMP.
+  export ZXV_QMP="$PWD/$T/qmp.sock"
+  QEMU+=(-qmp "unix:$ZXV_QMP,server=on,wait=off")
+  drive keyboard "$IMG" 512M
+fi
 
 rm -rf "$T" "$IMG" "dist/discs/$NAME.sizes"

@@ -39,6 +39,7 @@
 #include "../zxv_aimodel.h"        /* the loader's boot model record */
 #include "hwplat_x86.h"       /* standard class drivers (kernel/src/hwdrv) */
 #include "hwdrv/hw_storage.h" /* GPT + FAT32 on those disks */
+#include "x86_console.h"      /* PS/2 + COM1 console: login, create, ask */
 
 /* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
  * kernel/src/modbind/zxv_decl_gate.c holds the whole sequence; this main calls
@@ -454,12 +455,11 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
 
     boot_evidence_final();
 
-    uint64_t cycle = 0;
-    while (1) {
-        if (++cycle >= 10000000) {
-            cycle = 0;
-            boot_msg("[BOOT_OK] heartbeat: cycle=10M");
-        }
-        hlt();
+    /* The console: typed lines from the PS/2 keyboard and COM1, polled
+     * (the 8259s are masked and no IRQ is taken, so hlt would never wake). */
+    x86_console_init(uart_puts);
+    for (;;) {
+        x86_console_poll();
+        __asm__ __volatile__("pause");
     }
 }
