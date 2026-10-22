@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Fireglow files where an episode or book is heard to, in MYRA: its
+; show's place and its own place, the position and length in ms (length 0
+; not known yet) and the ms listened in all. The digits hold more than
+; episode.eve's ranges allow, so a record past them is held.
+^ZXFIREGLOW(show:i2, episode:i3) = pos:i9! ^ length:i9! ^ heard:i10!

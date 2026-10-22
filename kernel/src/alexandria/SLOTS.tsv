@@ -384,3 +384,7 @@
 347	num.pavise_perm_app_total	591.70	pavise.perm_app_total	base
 348	logic.pavise_policy_rule_ok	491.69	pavise.policy_rule_ok	base
 349	logic.pavise_trust_node_ok	491.70	pavise.trust_node_ok	base
+350	num.fireglow_chapter_at_pos	591.71	fireglow.chapter_at_pos	base
+351	logic.fireglow_episode_row_ok	491.71	fireglow.episode_row_ok	base
+352	logic.fireglow_play_speed_ok	491.72	fireglow.play_speed_ok	base
+353	num.fireglow_speed_left_ms	591.72	fireglow.speed_left_ms	base

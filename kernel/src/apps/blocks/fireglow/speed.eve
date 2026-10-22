@@ -1,0 +1,12 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a playing speed may be (fireglow_rules.h FR4), in Eve: a q16
+# multiple of the normal speed (65536), from half (32768) to three times
+# (196608). A speed outside is refused, never brought inside silently.
+eve fireglow
+speed_q16 = 32768 .. 196608
+
+playing_speed {
+  rate: speed_q16
+}

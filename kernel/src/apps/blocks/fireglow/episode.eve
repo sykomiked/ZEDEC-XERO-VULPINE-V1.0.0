@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What an episode's saved place may say (fireglow_rules.h FR5), in Eve:
+# its show's place (0 to 31, FIREGLOW_SHOWS), its own place (0 to 127,
+# FIREGLOW_EPISODES), the position and length in ms (0 to 359999999, under
+# 100 hours; length 0 is not known yet) and the ms listened in all (0 to
+# 9999999999).
+eve fireglow
+show_place = 0 .. 31
+episode_place = 0 .. 127
+episode_ms = 0 .. 359999999
+heard_ms = 0 .. 9999999999
+
+episode_entry {
+  show: show_place
+  episode: episode_place
+  pos: episode_ms
+  length: episode_ms
+  heard: heard_ms
+}

@@ -231,6 +231,24 @@ ferry	check banker.share size=600,400 total=1000 = 6000,4000
 ferry	check banker.share size=5,11 total=10 = both
 ferry	check used_share.used_x100 total=1000,1000,1000,3 left=1000,400,0,2 = 0,6000,10000,3333
 ferry	check used_share.used_x100 total=1000,1000 left=0,1001 = both
+fireglow	check speed_left_ms length=0,60000,60000,60000,359999999,3600000 pos=0,0,30000,60000,0,0 rate=65536,65536,131072,32768,32768,196608 = 0,60000,15000,0,719999998,1200000
+fireglow	check speed_left_ms length=1000,1000 pos=0,0 rate=65536,98304 = 1000,2000/3
+fireglow	check speed_left_ms length=1000,1000 pos=0,1001 rate=65536,65536 = both
+fireglow	check speed_left_ms length=1000,360000000 pos=0,0 rate=65536,65536 = both
+fireglow	check speed_left_ms length=1000,1000 pos=0,0 rate=65536,32767 = both
+fireglow	check speed_left_ms length=1000,1000 pos=0,-1 rate=65536,65536 = both
+fireglow	check chapter_at_pos starts=0,60000,120000 pos=90000 = 2
+fireglow	check chapter_at_pos starts=0,60000,120000 pos=0 = 1
+fireglow	check chapter_at_pos starts=1000,60000,120000 pos=999 = 0
+fireglow	check chapter_at_pos starts=0,60000,120000 pos=120000 = 3
+fireglow	check play_speed_ok rate=32768,65536,196608,32767,196609,0,-65536 = true,true,true,false,false,false,false
+fireglow	check episode_row_ok show=0,31,0,0,0 episode=0,127,0,0,0 pos=0,359999999,0,0,0 length=0,359999999,0,0,0 heard=0,9999999999,0,0,10000000000 = true,true,true,true,false
+fireglow	check episode_row_ok show=0,40 episode=0,0 pos=0,0 length=0,0 heard=0,0 = both
+fireglow	check episode_row_ok show=0,0 episode=0,500 pos=0,0 length=0,0 heard=0,0 = both
+fireglow	check episode_row_ok show=0,0 episode=0,0 pos=0,400000000 length=0,0 heard=0,0 = both
+fireglow	check banker.share size=0,30,90,120 total=120 = 0,2500,7500,10000
+fireglow	check banker.share size=30,121 total=120 = both
+fireglow	check halloo.hms ms=0,1200000,719999998 = 0,2000,1995959
 flint	check cells pixels=0,7,8,1919,65535,65535 cell=8,8,8,8,1,256 = 0,0,1,239,65535,255
 flint	check cells pixels=800,65536 cell=8,8 = both
 flint	check cells pixels=800,800 cell=8,257 = both

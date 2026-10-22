@@ -1,0 +1,103 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Fireglow, podcasts and audiobooks: layer 52 of the matrix. Shows are the
+# Hoard's Podcasts folders and books its Audiobooks folders (files.list),
+# each audio file in one an episode; where each is heard to is saved in
+# the show's fireglow.tsv (files.read, files.write), and an episode's
+# chapters are read from its <name>.chapters (files.read) (fireglow_model.h
+# FM1-FM6).
+#
+# zxvd has no method that fetches a feed (an RSS or Atom address over the
+# network), downloads an episode, decodes or plays audio, or tells an
+# audio file's length. None is invented: the owner puts episodes in the
+# Hoard, the view plays them and reports where it is and how long the
+# episode is, and Fireglow keeps, checks and saves it. The net need is for
+# the feed fetching zxvd does not have yet.
+#
+# No money moves in this app, and nothing it does reaches the network.
+#
+# Built on what is nearer the core. The listening share per show (minutes
+# listened x10000 / the minutes in all) is the Banker's share
+# (share_of_whole), in KRON and C++ (WebAssembly) witnessed, exactly the
+# pair the task asks for: used, never written again. A time left as
+# h:mm:ss is halloo.hms.
+#
+# Later layers lean on this one (any player of long audio or video shows
+# the time left at a speed, a chapter at a position, a playing speed in
+# limits, and keeps where it was heard to), so its four entries are
+# general rules registered in CONCEPTS.tsv with Fireglow as owner.
+# speed_left_ms is exact in Trebago, witnessed by KRON; Trebago has no
+# floor, so the time is an exact rational (the model shows its floor),
+# and Trebago refuses a length, position or speed outside its ranges where
+# KRON divides as it is: held. chapter_at_pos is KRON alone, as the task
+# puts it: a count over the chapter starts. play_speed_ok is Eve alone, as
+# the task puts it: one range on one field, which a second language could
+# only agree with. episode_row_ok is MYRA's record, witnessed by Eve,
+# whose ranges are narrower than MYRA's digits: held.
+#
+# Kept in C, since no runnable language owns it: a file name read as an
+# episode (its extension), the saved positions and chapter lists read and
+# written as text, and reading zxvd's answers.
+#
+# Planned languages: Raku owns grammars and text. The text Fireglow parses
+# (fireglow.tsv, .chapters) is read in C, not by an entry, so no entry is
+# of Raku's kind and there is no pending line.
+zxapp 1
+id     fireglow
+name   Fireglow
+version 1.0.0
+slot   52
+layer  L1
+matrix 52
+icon   icons/l1/052-fireglow.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  net
+model  apps/fireglow_model.c
+use    banker 1   # @num.banker_share
+use    halloo 1   # @num.halloo_hms
+
+# The time left at a speed (FR1): (length - pos) * 65536 / rate ms, exact.
+# Trebago, witnessed by KRON.
+provides speed_left_ms num length pos rate
+logic    trebago speed_left_ms apps/blocks/fireglow/left.tb
+logic    kron    speed_left_ms apps/blocks/fireglow/left.kron
+
+# The chapter playing at a position (FR3), in KRON.
+provides chapter_at_pos num starts pos
+logic    kron chapter_at_pos apps/blocks/fireglow/chapter.kron
+
+# A playing speed inside its limits (FR4), in Eve.
+provides play_speed_ok truth rate
+logic    eve play_speed_ok apps/blocks/fireglow/speed.eve
+
+# Where an episode is heard to (FR5), a ^ZXFIREGLOW record in MYRA,
+# witnessed by Eve.
+provides episode_row_ok truth show episode pos length heard
+logic    myra episode_row_ok apps/blocks/fireglow/episode.myra
+logic    eve  episode_row_ok apps/blocks/fireglow/episode.eve
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check speed_left_ms length=0,60000,60000,60000,359999999,3600000 pos=0,0,30000,60000,0,0 rate=65536,65536,131072,32768,32768,196608 = 0,60000,15000,0,719999998,1200000
+check speed_left_ms length=1000,1000 pos=0,0 rate=65536,98304 = 1000,2000/3
+check speed_left_ms length=1000,1000 pos=0,1001 rate=65536,65536 = both
+check speed_left_ms length=1000,360000000 pos=0,0 rate=65536,65536 = both
+check speed_left_ms length=1000,1000 pos=0,0 rate=65536,32767 = both
+check speed_left_ms length=1000,1000 pos=0,-1 rate=65536,65536 = both
+check chapter_at_pos starts=0,60000,120000 pos=90000 = 2
+check chapter_at_pos starts=0,60000,120000 pos=0 = 1
+check chapter_at_pos starts=1000,60000,120000 pos=999 = 0
+check chapter_at_pos starts=0,60000,120000 pos=120000 = 3
+check play_speed_ok rate=32768,65536,196608,32767,196609,0,-65536 = true,true,true,false,false,false,false
+check episode_row_ok show=0,31,0,0,0 episode=0,127,0,0,0 pos=0,359999999,0,0,0 length=0,359999999,0,0,0 heard=0,9999999999,0,0,10000000000 = true,true,true,true,false
+check episode_row_ok show=0,40 episode=0,0 pos=0,0 length=0,0 heard=0,0 = both
+check episode_row_ok show=0,0 episode=0,500 pos=0,0 length=0,0 heard=0,0 = both
+check episode_row_ok show=0,0 episode=0,0 pos=0,400000000 length=0,0 heard=0,0 = both
+# The listening share per show, through the Banker's share: minutes per
+# show of the minutes in all
+check banker.share size=0,30,90,120 total=120 = 0,2500,7500,10000
+check banker.share size=30,121 total=120 = both
+# A time left shown, through Halloo's h:mm:ss
+check halloo.hms ms=0,1200000,719999998 = 0,2000,1995959

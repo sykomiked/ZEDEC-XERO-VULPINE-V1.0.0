@@ -355,7 +355,11 @@
 #define ALX_SLOT_NUM_PAVISE_PERM_APP_TOTAL       347u /* 591.70 pavise.perm_app_total */
 #define ALX_SLOT_LOGIC_PAVISE_POLICY_RULE_OK     348u /* 491.69 pavise.policy_rule_ok */
 #define ALX_SLOT_LOGIC_PAVISE_TRUST_NODE_OK      349u /* 491.70 pavise.trust_node_ok */
-#define ALX_SLOT__COUNT 349u
+#define ALX_SLOT_NUM_FIREGLOW_CHAPTER_AT_POS     350u /* 591.71 fireglow.chapter_at_pos */
+#define ALX_SLOT_LOGIC_FIREGLOW_EPISODE_ROW_OK   351u /* 491.71 fireglow.episode_row_ok */
+#define ALX_SLOT_LOGIC_FIREGLOW_PLAY_SPEED_OK    352u /* 491.72 fireglow.play_speed_ok */
+#define ALX_SLOT_NUM_FIREGLOW_SPEED_LEFT_MS      353u /* 591.72 fireglow.speed_left_ms */
+#define ALX_SLOT__COUNT 353u
 /* clang-format on */
 
 #endif
