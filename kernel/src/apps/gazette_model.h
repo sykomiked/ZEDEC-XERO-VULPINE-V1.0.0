@@ -13,7 +13,9 @@
  *       social.feed's authors), a Web4 companion (web4.feed's "from"), a
  *       space (its CID) or an IRC channel (irc.record's target). People
  *       are followed through zxvd only (chat.me, chat.follow: the newest
- *       FOLLOW record decides); a companion, a space or a channel is
+ *       FOLLOW record decides), and chat.follow is sent only on the
+ *       owner's word: without it ZXM_E_STATE, nothing sent, the list as
+ *       it was. A companion, a space or a channel is
  *       followed in Gazette (gazette_keep). Any source may be muted. A
  *       source first seen in a feed is not followed.
  *   GM2 ITEMS. Every item fits its ^ZXGAZETTE record (GR3) before a page
@@ -104,8 +106,9 @@ void gazette_init(gazette_t *g, zxm_link_t *link);
 
 /* GM1: chat.me: who the owner is and the people followed. */
 int gazette_me(gazette_t *g);
-/* GM1: chat.follow: follow (true) or stop following a person (a NodeID). */
-int gazette_follow(gazette_t *g, const char *node_id, bool follow);
+/* GM1: chat.follow: follow (true) or stop following a person (a NodeID),
+ * only when the owner confirmed it. */
+int gazette_follow(gazette_t *g, const char *node_id, bool follow, bool owner_confirmed);
 /* GM1: add a space (its CID) or an IRC channel as a followed source; the
  * source's index in *at. */
 int gazette_add_space(gazette_t *g, const char *cid, uint32_t *at);

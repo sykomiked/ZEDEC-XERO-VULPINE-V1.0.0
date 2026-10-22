@@ -82,16 +82,21 @@ APPS_TEST(keystone)
           "keystone: a model answer without its name changes nothing");
     MODEL = "{}";
 
-    /* KM2: simple mode set and echoed; an answer that does not echo it is refused */
-    CHECK(keystone_set_simple(&K, false) == ZXM_OK && !ks_simple && K.simple_known &&
+    /* KM2: without the owner's word nothing is sent; with it simple mode is set and
+     * echoed; an answer that does not echo it is refused */
+    int ks_before = sent;
+    CHECK(keystone_set_simple(&K, false, false) == ZXM_E_STATE && sent == ks_before && ks_simple &&
+              K.simple_mode,
+          "keystone: simple mode not changed without the owner's word, nothing sent");
+    CHECK(keystone_set_simple(&K, false, true) == ZXM_OK && !ks_simple && K.simple_known &&
               !K.simple_mode && strstr(K.notice, "off"),
           "keystone: simple mode off: %s", LINK.err);
     ks_echo_wrong = true;
-    CHECK(keystone_set_simple(&K, true) == ZXM_E_PROTOCOL && !K.simple_mode,
+    CHECK(keystone_set_simple(&K, true, true) == ZXM_E_PROTOCOL && !K.simple_mode,
           "keystone: an answer that is not what was asked is refused");
     ks_echo_wrong = false;
     zxvd_rpc_set_people_ops(NULL);
-    CHECK(keystone_set_simple(&K, true) == ZXM_E_REMOTE && LINK.err_code == -32601 &&
+    CHECK(keystone_set_simple(&K, true, true) == ZXM_E_REMOTE && LINK.err_code == -32601 &&
               !K.simple_mode,
           "keystone: ui.set not served: nothing changes");
 

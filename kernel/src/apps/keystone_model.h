@@ -13,8 +13,10 @@
  *       mode unknown; any other refusal, or an answer out of bounds,
  *       changes nothing (ZXM_E_PROTOCOL for a bad answer).
  *   KM2 SIMPLE MODE. keystone_set_simple sends ui.set and keeps the answer
- *       only when it echoes what was asked. It changes only what the
- *       interfaces show (ui.set H8), so it needs no confirmation.
+ *       only when it echoes what was asked. zxvd asks no confirmation for
+ *       it (ui.set H8: it changes only what the interfaces show), but it is
+ *       saved, so the model sends it only on the owner's word (the toggle
+ *       the owner moved); without it ZXM_E_STATE and nothing is sent.
  *   KM3 BUDGET SHARES. keystone_propose splits the device's energy budget
  *       (whole millijoules over window ms) across up to KEYSTONE_APPS apps
  *       by the owner's weights with Crown's largest-remainder split
@@ -81,7 +83,7 @@ void keystone_init(keystone_t *k, zxm_link_t *link);
 /* KM1 */
 int keystone_refresh(keystone_t *k);
 /* KM2 */
-int keystone_set_simple(keystone_t *k, bool on);
+int keystone_set_simple(keystone_t *k, bool on, bool owner_confirmed);
 /* KM3: n apps (1..KEYSTONE_APPS), each a name of 1..KEYSTONE_APP_NAME
  * printable bytes, no spaces, and a weight. */
 int keystone_propose(keystone_t *k, int64_t window, int64_t whole, const char *const *apps,

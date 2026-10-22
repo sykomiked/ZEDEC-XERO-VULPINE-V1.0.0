@@ -113,13 +113,17 @@ APPS_TEST(gazette)
               !strcmp(GZ.src[0].key, GZ_BO),
           "gazette: chat.me: the owner follows Bo (%s)", FAKE.err);
     CANNED = GZ_OK "{\"node_id\":\"" GZ_CY "\",\"following\":true}}";
-    CHECK(gazette_follow(&GZ, GZ_CY, true) == ZXM_OK && GZ.nsrc == 2 && GZ.src[1].followed &&
+    last_req[0] = 0;
+    CHECK(gazette_follow(&GZ, GZ_CY, true, false) == ZXM_E_STATE && !last_req[0] && GZ.nsrc == 1 &&
+              gazette_find(&GZ, GAZETTE_SRC_NODE, GZ_CY) < 0,
+          "gazette: no follow without the owner's word: nothing sent, the list as it was");
+    CHECK(gazette_follow(&GZ, GZ_CY, true, true) == ZXM_OK && GZ.nsrc == 2 && GZ.src[1].followed &&
               strstr(last_req, "\"follow\":true") != NULL &&
-              gazette_follow(&GZ, GZ_ME, true) == ZXM_E_ARG &&
-              gazette_follow(&GZ, "ab", true) == ZXM_E_ARG,
+              gazette_follow(&GZ, GZ_ME, true, true) == ZXM_E_ARG &&
+              gazette_follow(&GZ, "ab", true, true) == ZXM_E_ARG,
           "gazette: follow Cy; never oneself or a short id (%s)", FAKE.err);
     CANNED = GZ_OK "{\"node_id\":\"" GZ_CY "\",\"following\":true}}";
-    CHECK(gazette_follow(&GZ, GZ_CY, false) == ZXM_E_PROTOCOL && GZ.src[1].followed,
+    CHECK(gazette_follow(&GZ, GZ_CY, false, true) == ZXM_E_PROTOCOL && GZ.src[1].followed,
           "gazette: zxvd's answer disagrees with the ask: refused, kept followed");
 
     /* ---- GM2, GM3: chat.feed in zxvd's order; the owner's own and reactions left out ---- */

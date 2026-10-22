@@ -151,7 +151,7 @@ int gazette_me(gazette_t *g)
     return ZXM_OK;
 }
 
-int gazette_follow(gazette_t *g, const char *node_id, bool follow)
+int gazette_follow(gazette_t *g, const char *node_id, bool follow, bool owner_confirmed)
 {
     char id[GAZETTE_HEX_ID + 1];
     bool now = !follow;
@@ -159,6 +159,7 @@ int gazette_follow(gazette_t *g, const char *node_id, bool follow)
         return ZXM_E_ARG;
     int32_t was = gazette_find(g, GAZETTE_SRC_NODE, node_id);
     if (follow && was < 0 && g->nsrc >= GAZETTE_SOURCES) return ZXM_E_TOOBIG;
+    if (!owner_confirmed) return ZXM_E_STATE; /* a FOLLOW record is the owner's to write */
     zxm_begin(g->link, "chat.follow");
     zxm_p_str(g->link, "node_id", node_id);
     zxm_p_bool(g->link, "follow", follow);

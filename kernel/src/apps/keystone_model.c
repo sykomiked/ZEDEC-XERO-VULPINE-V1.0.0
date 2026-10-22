@@ -85,9 +85,10 @@ int keystone_refresh(keystone_t *k)
     return ZXM_OK;
 }
 
-int keystone_set_simple(keystone_t *k, bool on)
+int keystone_set_simple(keystone_t *k, bool on, bool owner_confirmed)
 {
     if (!k || !k->link) return ZXM_E_ARG;
+    if (!owner_confirmed) return ZXM_E_STATE; /* a setting changes only on the owner's word */
     zxm_link_t *l = k->link;
     zxm_begin(l, "ui.set");
     zxm_p_bool(l, "simple_mode", on);
