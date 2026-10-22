@@ -576,8 +576,9 @@ int commons_space_events(commons_t *c, uint32_t room)
         int32_t e = zxm_at(c->link, arr, i);
         commons_event_t *x = &ev[i];
         memset(x, 0, sizeof *x);
-        if (get_count(c->link, e, "index", &x->index) != ZXM_OK || x->index < r->next ||
-            x->index >= next || (i && x->index <= ev[i - 1u].index) ||
+        /* zxvd: since is exclusive, next is the newest index returned */
+        if (get_count(c->link, e, "index", &x->index) != ZXM_OK || x->index <= r->next ||
+            x->index > next || (i && x->index <= ev[i - 1u].index) ||
             zxm_get_str(c->link, e, "kind", kind, sizeof kind) != ZXM_OK ||
             get_count(c->link, e, "lamport", &x->lamport) != ZXM_OK ||
             get_count(c->link, e, "created_ms", &x->created_ms) != ZXM_OK ||

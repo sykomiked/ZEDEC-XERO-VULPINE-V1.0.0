@@ -247,13 +247,13 @@ APPS_TEST(commons)
           "commons: posted in the Garden; not while joining, no replies (%s)", FAKE.err);
 
     CANNED = CM_OK "{\"events\":["
-                   "{\"index\":0,\"kind\":\"post\",\"lamport\":1,\"created_ms\":1700000000000,"
+                   "{\"index\":1,\"kind\":\"post\",\"lamport\":1,\"created_ms\":1700000000000,"
                    "\"author\":\"" CM_BO "\",\"text\":\"one\"},"
-                   "{\"index\":1,\"kind\":\"post\",\"lamport\":2,\"created_ms\":1700000000001,"
+                   "{\"index\":2,\"kind\":\"post\",\"lamport\":2,\"created_ms\":1700000000001,"
                    "\"author\":\"" CM_ME "\",\"text\":\"mine\"},"
-                   "{\"index\":2,\"kind\":\"hall\",\"lamport\":3,\"created_ms\":1700000000002,"
+                   "{\"index\":3,\"kind\":\"hall\",\"lamport\":3,\"created_ms\":1700000000002,"
                    "\"author\":\"" CM_BO "\",\"state\":\"play\",\"pos_ms\":0,\"rate_q16\":65536},"
-                   "{\"index\":3,\"kind\":\"post\",\"lamport\":4,\"created_ms\":1700000000003,"
+                   "{\"index\":4,\"kind\":\"post\",\"lamport\":4,\"created_ms\":1700000000003,"
                    "\"author\":\"" CM_CY "\",\"text\":\"two\"}],\"next\":4}}";
     CHECK(commons_space_events(&CO, 1) == ZXM_OK && CO.nevents == 4 &&
               CO.events[1].code == COMMONS_EV_MINE && CO.events[2].code == COMMONS_EV_HALL &&
@@ -269,6 +269,14 @@ APPS_TEST(commons)
     CHECK(commons_space_events(&CO, 1) == ZXM_E_PROTOCOL && commons_unread(&CO, 1) == 2 &&
               CO.room[1].next == 4,
           "commons: an event before the one asked from is refused");
+    CANNED = CM_OK "{\"events\":[{\"index\":4,\"kind\":\"post\",\"lamport\":1,\"created_ms\":1,"
+                   "\"author\":\"" CM_BO "\",\"text\":\"again\"}],\"next\":4}}";
+    CHECK(commons_space_events(&CO, 1) == ZXM_E_PROTOCOL && CO.room[1].next == 4,
+          "commons: the event asked from is not sent again (since is exclusive)");
+    CANNED = CM_OK "{\"events\":[{\"index\":6,\"kind\":\"post\",\"lamport\":1,\"created_ms\":1,"
+                   "\"author\":\"" CM_BO "\",\"text\":\"past\"}],\"next\":5}}";
+    CHECK(commons_space_events(&CO, 1) == ZXM_E_PROTOCOL && CO.room[1].next == 4,
+          "commons: an event past next is refused");
     CHECK(commons_notice(&CO) == ZXM_OK &&
               !strcmp(CO.notice, "1 new in this node; 2 new in Garden."),
           "commons: the notice: %s", CO.notice);
