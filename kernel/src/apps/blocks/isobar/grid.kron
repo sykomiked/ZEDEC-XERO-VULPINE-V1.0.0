@@ -1,0 +1,5 @@
+a:1-1&abs station-\:station
+b:1-1&abs hour-\:hour
+c:reading*\:1+0*reading
+d:a*b
+|/(d*c)+(1-d)*0-999999999999999999

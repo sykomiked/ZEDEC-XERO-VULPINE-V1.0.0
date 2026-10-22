@@ -1,0 +1,30 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A short outlook from the 3-hour pressure tendency (isobar_rules.h IR2),
+! in Trebago, one station per row: tendency and pressure in tenths of a
+! hPa. For integers min(1, max(0, a - b + 1)) is 1 exactly when a >= b:
+! storm is a fall of 6.0 hPa or more, wet one of 1.6 to 5.9, fast a rise
+! of 6.0 or more, up one of 1.6 to 5.9, and still the rest, read against
+! the pressure now (low below 1000.0 hPa, high at or above 1020.0).
+! Answers: 1 storm, 2 rain, 3 unsettled, 4 no change, 5 fair,
+! 6 improving, 7 clearing and windy. A tendency outside -500 .. 500 or a
+! pressure outside 8700 .. 10850 makes ok 0 and the answer a division by
+! zero, refused, where outlook.kron answers: held. Advisory only:
+! official warnings always take precedence.
+trebago pressure_outlook
+  in  tendency(n), pressure(n)
+  out code(n)
+  var ok(n), storm(n), wet(n), fast(n), up(n), still(n), low(n), high(n)
+  ok(i) = min(1, max(0, tendency(i) + 501)) * min(1, max(0, 501 - tendency(i))) &
+        * min(1, max(0, pressure(i) - 8699)) * min(1, max(0, 10851 - pressure(i)))
+  storm(i) = min(1, max(0, 0 - tendency(i) - 59))
+  wet(i) = min(1, max(0, 0 - tendency(i) - 15)) - storm(i)
+  fast(i) = min(1, max(0, tendency(i) - 59))
+  up(i) = min(1, max(0, tendency(i) - 15)) - fast(i)
+  still(i) = 1 - storm(i) - wet(i) - fast(i) - up(i)
+  low(i) = min(1, max(0, 10000 - pressure(i)))
+  high(i) = min(1, max(0, pressure(i) - 10199))
+  code(i) = (storm(i) + 2 * wet(i) + 6 * up(i) + 7 * fast(i) &
+          + still(i) * (3 * low(i) + 4 * (1 - low(i) - high(i)) + 5 * high(i))) / ok(i)
+end

@@ -1,0 +1,9 @@
+dn:0-tendency
+storm:0|1&dn-59
+wet:(0|1&dn-15)-storm
+fast:0|1&tendency-59
+up:(0|1&tendency-15)-fast
+still:1-storm+wet+up+fast
+low:0|1&10000-pressure
+high:0|1&pressure-10199
+storm+(2*wet)+(6*up)+(7*fast)+still*(3*low)+(4*1-low+high)+5*high

@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Isobar files one node of its site tree in MYRA (isobar_rules.h
+; IR5): a tree kept as a sparse record under the parent's number (0 for
+; a network, the root) and the node's own, with its kind (1 a network,
+; 2 a site that holds stations) and its elevation in metres. The model
+; asks whether the numbers fit before it keeps the node.
+^ZXISOSITE(parent:i4, site:i4) = kind:i1! ^ elev:i5!

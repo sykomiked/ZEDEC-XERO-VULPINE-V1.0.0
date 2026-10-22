@@ -397,3 +397,8 @@
 360	logic.chainman_corner_node_ok	491.75	chainman.corner_node_ok	base
 361	logic.chainman_title_record_ok	491.76	chainman.title_record_ok	base
 362	logic.chainman_traverse_closes	491.77	chainman.traverse_closes	base
+363	num.isobar_pressure_outlook	591.77	isobar.pressure_outlook	base
+364	logic.isobar_reading_accept_ok	491.78	isobar.reading_accept_ok	base
+365	num.isobar_station_hour_high	591.78	isobar.station_hour_high	base
+366	logic.isobar_wx_obs_record_ok	491.79	isobar.wx_obs_record_ok	base
+367	logic.isobar_wx_site_node_ok	491.80	isobar.wx_site_node_ok	base

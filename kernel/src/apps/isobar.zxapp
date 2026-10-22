@@ -1,0 +1,147 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Isobar, a local weather station network: L2, slot 239. Sites and
+# stations are the owner's places (place.here, place.list), each station
+# may name the mesh device that hosts it (devmesh.devices) and the peer
+# network says who is reachable (net.peers); the network, its sensors and
+# every observation are one text file in the Hoard (files.read,
+# files.write). See isobar_model.h IM1-IM10 and isobar_rules.h IR1-IR5.
+#
+# zxvd has no sensor method, and none is invented: a reading is handed to
+# the model (isobar_take) by whatever reads the sensor. zxvd has no
+# notification method either, so the model only composes each notice's
+# text (needs notify for when it has one), and no clock method, so the
+# caller gives the time.
+#
+# ADVISORY ONLY. The outlook is this network's own reading of its
+# barometers, never an official forecast or warning: official warnings
+# always take precedence. A station's heater is a Homestead device and
+# changes only in Homestead, with the owner's approval.
+#
+# Composed, not written again (five uses of ZXAPP_USES 8; its own 7 logic
+# lines and its parts' 43 are 50 of ZXAPP_LOGIC_MAX 128): the conversions
+# shown beside a reading are weatherglass.temp_f_tenths, rain_in_x100 and
+# wind_kmh_x10, its warnings weatherglass.warn_flags and a station's week
+# weatherglass.week_temps; a station's heater record is
+# homestead.home_device_ok; an hour range's rain is furrow.range_total
+# (the column sum); the station nodes active and revoked are
+# trellis.peers_in_state; and where a refused reading fell against the
+# sensor's range (below, inside, above) is wellspring.band, the owner of
+# reading_in_range (wellspring is nearer the core in MATRIX_ORDER.tsv
+# than homestead, so the use points inward). The model's C calls the same
+# rules (weatherglass_model.h, homestead_rules.h, furrow_rules.h,
+# trellis_rules.h, wellspring_model.h).
+#
+# The task's "matrix 239" is refused by zxapp.c (M1: a matrix layer is
+# 0..144); an L2 app sits on the outermost L1 layer it is composed from in
+# MATRIX_ORDER.tsv, Homestead's 94.
+#
+# Later layers lean on station readings (Wardian, Celesta, Insolation,
+# Tephra, Arcology, Sightline, Capstan, Shanty, Spinnaker), so every new
+# entry is a general rule registered in CONCEPTS.tsv with Isobar as owner.
+#
+# Two stations of one site that disagree about the same air (one at or
+# below the frost-risk line, one above it) are a microclimate: the two
+# sources are joined with lpres_kjoin, the knowledge join lpres.h names
+# for sources about one subject, then lpres_conjoin across the subjects
+# that must hold (both readings fresh), which keeps BOTH; both readings
+# are kept, never averaged (IM9). The task names lpres_conjoin and
+# lpres_disjoin for the join, but alone they cannot make BOTH of a TRUE
+# and a FALSE (the chain's min and max), so the sources take the
+# knowledge join and conjoin joins the subjects, as lpres.h says.
+#
+# Sutra is left out: Isobar keeps no money and no counted business
+# record; observations are MYRA records.
+zxapp 1
+id     isobar
+name   Isobar
+version 1.0.0
+slot   239
+layer  L2
+matrix 94
+icon   icons/l2/239-isobar.svg
+budget 233
+needs  location
+needs  peers
+needs  net
+needs  fs.read
+needs  fs.write
+needs  notify
+model  apps/isobar_model.c
+use    weatherglass 1   # @num.weatherglass_temp_f_tenths @num.weatherglass_rain_in_x100 @num.weatherglass_wind_kmh_x10 @num.weatherglass_warn_flags @num.weatherglass_week_temps
+use    homestead 1      # @logic.homestead_home_device_ok
+use    furrow 1         # @num.furrow_range_total
+use    trellis 1        # @num.trellis_peers_in_state
+use    wellspring 1     # @num.wellspring_band
+# what it exports, so apps built from it can use them too (C1)
+provides weatherglass.temp_f_tenths num celsius
+provides weatherglass.rain_in_x100 num rain
+provides weatherglass.wind_kmh_x10 num wind
+provides weatherglass.warn_flags num temp wind
+provides weatherglass.week_temps num temp
+provides homestead.home_device_ok truth device kind lo hi setpoint
+provides furrow.range_total num pos lo hi cell
+provides trellis.peers_in_state num state want
+provides wellspring.band num reading lo hi
+
+# Accept this reading (IR1, critical): inside the sensor's range and no
+# further than its step limit from the last. Ada as Eve (each margin to
+# its range) and APL as KRON, witnessed; a margin past 999999 is held
+# (Eve refuses, KRON reads it as inside). IEC 61131-3 Structured Text
+# owns control logic and Elixir faults: rejecting a faulty sensor's
+# reading is both, so both wait on this entry until they have a runtime.
+provides reading_accept_ok truth above below rise fall
+logic    eve  reading_accept_ok apps/blocks/isobar/accept.eve
+logic    kron reading_accept_ok apps/blocks/isobar/accept.kron
+pending  IEC_61131-3_Structured_Text reading_accept_ok
+pending  Elixir reading_accept_ok
+
+# A short outlook from the 3-hour pressure tendency by rule table (IR2,
+# critical): FORTRAN as Trebago and APL as KRON, witnessed; a tendency or
+# a pressure outside its domain is held (Trebago refuses, KRON answers).
+provides pressure_outlook num tendency pressure
+logic    trebago pressure_outlook apps/blocks/isobar/outlook.tb
+logic    kron    pressure_outlook apps/blocks/isobar/outlook.kron
+
+# The station grid, stations by hours (IR3): APL as KRON. Clojure owns
+# immutable data transforms, which a grid made from the observations is.
+provides station_hour_high num station hour reading
+logic    kron station_hour_high apps/blocks/isobar/grid.kron
+pending  Clojure station_hour_high
+
+# The observation records and the site tree (IR4, IR5): MUMPS as MYRA.
+provides wx_obs_record_ok truth station stamp kind reading state
+logic    myra wx_obs_record_ok apps/blocks/isobar/obs.myra
+provides wx_site_node_ok truth parent site kind elev
+logic    myra wx_site_node_ok apps/blocks/isobar/site.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check reading_accept_ok above=0,999999,-1,5,5,5 below=0,999999,5,-1,5,5 rise=0,999999,5,5,-1,5 fall=0,999999,5,5,5,-1 = true,true,false,false,false,false
+check reading_accept_ok above=5,1000000 below=5,5 rise=5,5 fall=5,5 = both
+check reading_accept_ok above=5,5 below=5,5 rise=5,5 fall=5,1000000 = both
+check pressure_outlook tendency=-60,-59,-16,-15,15,16,59,60,0,0,0,0,-500,500 pressure=10132,10132,10132,10132,10132,10132,10132,10132,9999,10000,10199,10200,8700,10850 = 1,2,2,4,4,6,6,7,3,4,4,5,1,7
+check pressure_outlook tendency=0,501 pressure=10132,10132 = both
+check pressure_outlook tendency=0,0 pressure=10132,8699 = both
+check station_hour_high station=1,1,2,1,2,1 hour=5,5,5,6,5,5 reading=21,74,-30,10,-31,50 = 74,74,-30,10,-30,74
+check wx_obs_record_ok station=1,9999,10000,1,1,1,-9999 stamp=1792627200,99999999999,1,100000000000,1,1,1 kind=1,9,1,1,10,1,5 reading=10132,9999999,0,0,0,10000000,-9999999 state=0,9,0,0,0,0,1 = true,true,false,false,false,false,true
+check wx_site_node_ok parent=0,9999,10000,1,1,-1 site=1,9999,1,1,1,1 kind=1,9,1,10,2,2 elev=0,99999,0,0,100000,-430 = true,true,false,false,false,true
+# The conversions, the warnings and the week shown beside a reading
+check weatherglass.temp_f_tenths celsius=-1000,-400,0,1,1000 = -1480,-400,320,1609/5,2120
+check weatherglass.temp_f_tenths celsius=0,1001 = both
+check weatherglass.rain_in_x100 rain=0,127,254,1,99999 = 0,50,100,50/127,4999950/127
+check weatherglass.rain_in_x100 rain=0,-1 = both
+check weatherglass.wind_kmh_x10 wind=0,1,5,172,2000 = 0,18/5,18,3096/5,7200
+check weatherglass.wind_kmh_x10 wind=0,2001 = both
+check weatherglass.warn_flags temp=0,1,349,350,-1000,1000,200,0 wind=0,0,171,0,0,0,172,2000 = 1,0,0,2,1,2,4,5
+check weatherglass.warn_flags temp=0,1001 wind=0,0 = both
+check weatherglass.week_temps temp=-50,10,25,120,-3,60,77 = -50,120,34
+# A station's heater, a range of hours' rain, the nodes in one state and where a reading fell
+check homestead.home_device_ok device=1,9999,10000,7,7,7 kind=1,6,1,10,4,4 lo=0,-99999,0,0,0,0 hi=100,99999,1,1,1,1 setpoint=50,0,1,1,1,100000 = true,true,false,false,true,false
+check homestead.home_device_ok device=7,7 kind=4,7 lo=0,0 hi=1,1 setpoint=1,1 = both
+check furrow.range_total pos=1,2,3,4,5 lo=2,2,2,2,2 hi=4,4,4,4,4 cell=10,20,30,40,50 = 90
+check furrow.range_total pos=1,1,1 lo=1,1,1 hi=1,1,1 cell=9223372036854775807,1,-1 = both
+check trellis.peers_in_state state=1,1,2,3,1 want=1,1,1,1,1 = 3
+check trellis.peers_in_state state=1,4 want=1,1 = both
+check wellspring.band reading=39,40,100,101 lo=40,40,40,40 hi=100,100,100,100 = -1,0,0,1
+check wellspring.band reading=50,50 lo=40,101 hi=100,100 = both

@@ -368,7 +368,12 @@
 #define ALX_SLOT_LOGIC_CHAINMAN_CORNER_NODE_OK   360u /* 491.75 chainman.corner_node_ok */
 #define ALX_SLOT_LOGIC_CHAINMAN_TITLE_RECORD_OK  361u /* 491.76 chainman.title_record_ok */
 #define ALX_SLOT_LOGIC_CHAINMAN_TRAVERSE_CLOSES  362u /* 491.77 chainman.traverse_closes */
-#define ALX_SLOT__COUNT 362u
+#define ALX_SLOT_NUM_ISOBAR_PRESSURE_OUTLOOK     363u /* 591.77 isobar.pressure_outlook */
+#define ALX_SLOT_LOGIC_ISOBAR_READING_ACCEPT_OK  364u /* 491.78 isobar.reading_accept_ok */
+#define ALX_SLOT_NUM_ISOBAR_STATION_HOUR_HIGH    365u /* 591.78 isobar.station_hour_high */
+#define ALX_SLOT_LOGIC_ISOBAR_WX_OBS_RECORD_OK   366u /* 491.79 isobar.wx_obs_record_ok */
+#define ALX_SLOT_LOGIC_ISOBAR_WX_SITE_NODE_OK    367u /* 491.80 isobar.wx_site_node_ok */
+#define ALX_SLOT__COUNT 367u
 /* clang-format on */
 
 #endif

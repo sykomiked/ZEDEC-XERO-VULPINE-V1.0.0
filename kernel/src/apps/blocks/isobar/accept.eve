@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Accept this reading (isobar_rules.h IR1), in Eve: inside the sensor's
+# range and no further than its step limit from the last accepted
+# reading. Eve checks each field against its own range, so the reading
+# comes as four margins: above = reading - lo, below = hi - reading,
+# rise = step - (reading - last), fall = step - (last - reading), each
+# 0 .. 999999 (a sensor's range is at most 999999 wide and its step at
+# most 499999). accept.kron reads any margin at or above 0 as inside: a
+# margin past 999999 is held.
+eve isobar
+reading_gap = 0 .. 999999
+
+station_reading {
+  above: reading_gap
+  below: reading_gap
+  rise: reading_gap
+  fall: reading_gap
+}

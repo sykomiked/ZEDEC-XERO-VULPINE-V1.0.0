@@ -1,0 +1,11 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Isobar files one observation in MYRA (isobar_rules.h IR4): under
+; its station, when it was read (seconds since 1970) and its kind (1 air
+; temperature in tenths of a degree Celsius, 2 pressure in tenths of a
+; hPa, 3 humidity in tenths of a percent, 4 wind in tenths of a metre a
+; second, 5 rain in tenths of a millimetre), the reading and its state
+; (0 accepted, 1 refused and kept for the owner to see). The model asks
+; whether the numbers fit before it keeps the observation.
+^ZXISOBAR(station:i4, stamp:i11, kind:i1) = reading:i7! ^ state:i1!
