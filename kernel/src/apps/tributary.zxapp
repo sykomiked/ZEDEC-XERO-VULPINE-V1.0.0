@@ -1,0 +1,169 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tributary, many-model answers: L2, slot 225. It asks several models the
+# same question and joins their answers by witnessed agreement: the model
+# in the slot (model.info) asked through the swarm (swarm.ask), what the
+# answer cost read from the swarm (swarm.state's companion last_answer);
+# a scored Playground template run on scratch state (play.run); another
+# node's model (peer.ask, priced, every ask the owner's act); the energy
+# each answer took (power.status). See tributary_model.h TM1-TM8 and
+# tributary_rules.h TB1-TB8.
+#
+# Advisory: every answer is a suggestion held until the owner accepts one
+# (M3), and accepting changes nothing in zxvd. Every peer.ask spends the
+# owner's money, so it is owner-confirmed and checked against the owner's
+# caps first; setting the caps is owner-confirmed too. A split answer is
+# BOTH: both answers are shown with the models that gave them, none picked
+# at random.
+#
+# Composed, not written again (four uses of ZXAPP_USES 8; its own 8 logic
+# lines and its parts' 21 are 29 of ZXAPP_LOGIC_MAX 128; every part carries
+# version 1.0.0 and its provides lines): a source's score total, the
+# fastest and slowest answer, the limits on one ask and the energy per
+# answer are retort.model_score_total (100 points for each answer that
+# agrees with the lead), retort.latency_fastest_ms and
+# retort.latency_slowest_ms, retort.run_limits_ok and
+# retort.energy_per_answer_uj; each source's share of the question's
+# tokens is swarm_shares.cycle_share, the shared block's own entry; the
+# share of
+# the sources that agree with the lead answer and whether it meets the
+# bar (a majority past the quorum, the default taken) are
+# assay.pass_share_x100 and assay.meets_bar; whether a
+# chosen answer follows from the verdict is twelvefold.lp_entail_kept.
+# Agreeing answers are witness.kind_count (count_by_kind, which Twelvefold
+# composes) taken with each answer's own code as want: agreeing_answers
+# counts every row at once, which kind_count (one want a call) cannot, and
+# its C (tributary_rules.h TB1) is witness_kind_count itself.
+#
+# The task names Murmuration for the budget shares; Murmuration writes none
+# of its own (it re-exports the swarm_shares block, the owner of
+# swarm_cycle_share in CONCEPTS.tsv) and has no Alexandria slot, so a
+# "use murmuration 1" line can name no entry of Murmuration and app_gate
+# refuses it. The owner is used instead, nearer the core: swarm_shares.
+#
+# zxapp.c takes matrix 0..144 only (M1) and MATRIX.tsv homes no L2 app, so
+# Tributary sits on the layer of its part that is outermost in
+# MATRIX_ORDER.tsv: Retort (place 40, layer 70), past Twelvefold (28) and
+# Assay (15); swarm_shares is a shared block (matrix 0).
+#
+# Eve answers truths only and holds each field to its own range, so "may
+# ask another model" comes as three margins (cap less spent less the next
+# ask), as Assay's bar does; KRON witnesses it. The verdict (all agree
+# TRUE, split BOTH, too few or none NEITHER) is C: the agree counts joined
+# by lpres_kjoin and the quorum by lpres_conjoin, the kernel's own tables.
+#
+# Defaults taken: the query ledger keeps tiers 0..23 of swarm_denom.h, the
+# PLAIN to RACING grades (faces 1..75025), since a query costs far less
+# than a racing face per piece; a code is 1..999999999, an answer's
+# normalised text numbered by first appearance in its question (TM4).
+#
+# Later layers use agreeing answers and "may ask another model" (Conclave,
+# Chronometer, Consort, Macrame, Quadrant, Topsail, Distaff), so every
+# entry is general and registered in CONCEPTS.tsv with Tributary as owner.
+#
+# Planned (no runtime yet): Mojo owns numeric kernels for models, and the
+# confidence score is Tributary's numeric work over models: pending.
+# Haskell owns pure functions and types that rule out bugs, and "may ask
+# another model" is the rule a type should guard: pending. ML owns typed
+# functional transforms, and the answer matrix is Tributary's transform
+# of answers into models by codes: pending.
+zxapp 1
+id     tributary
+name   Tributary
+version 1.0.0
+slot   225
+layer  L2
+matrix 70
+icon   icons/l2/225-tributary.svg
+budget 233
+needs  ai.ask
+needs  swarm
+needs  peers
+needs  sys.read
+model  apps/tributary_model.c
+use    retort 1        # @num.retort_model_score_total @num.retort_latency_fastest_ms @num.retort_latency_slowest_ms @logic.retort_run_limits_ok @num.retort_energy_per_answer_uj
+use    swarm_shares 1  # @swarm.cycle_share
+use    assay 1         # @num.assay_pass_share_x100 @logic.assay_meets_bar
+use    twelvefold 1    # @logic.twelvefold_lp_entail_kept
+# what it exports, so apps built from it can use them too (C1)
+provides retort.model_score_total num model want score
+provides retort.latency_fastest_ms num fastest ms
+provides retort.latency_slowest_ms num slowest ms
+provides retort.run_limits_ok truth prompt fuel seconds
+provides retort.energy_per_answer_uj num uj answers
+provides swarm_shares.cycle_share num t
+provides assay.pass_share_x100 num passes runs
+provides assay.meets_bar truth passroom refusalroom runroom
+provides twelvefold.lp_entail_kept truth premise conclusion
+
+# Agreeing answers (TB1, critical): for each answer, how many answers share
+# its normalised code. APL as KRON and FORTRAN as Trebago, witnessed; a
+# code outside 1..999999999 held (Trebago refuses, KRON counts it).
+provides agreeing_answers num code
+logic    kron    agreeing_answers apps/blocks/tributary/agree.kron
+logic    trebago agreeing_answers apps/blocks/tributary/agree.tb
+
+# May ask another model (TB3, critical): tokens, energy and price inside
+# the owner's caps, as margins. Ada as Eve and APL as KRON, witnessed; a
+# margin past its range held (Eve refuses, KRON reads it as room).
+provides ask_within_caps truth tokenroom energyroom priceroom
+logic    eve  ask_within_caps apps/blocks/tributary/caps.eve
+logic    kron ask_within_caps apps/blocks/tributary/caps.kron
+pending  Haskell ask_within_caps
+
+# An answer's confidence (TB4): 100 * agreeing models / models asked,
+# exact. FORTRAN as Trebago.
+provides answer_conf_x100 num agree asked
+logic    trebago answer_conf_x100 apps/blocks/tributary/confidence.tb
+pending  Mojo answer_conf_x100
+
+# The answer matrix, models by codes (TB5): the distinct models that gave
+# each answer's code. APL as KRON.
+provides answer_models num model code
+logic    kron answer_models apps/blocks/tributary/matrix.kron
+pending  ML answer_models
+
+# The query ledger (TB6): a query's tokens entered at one denomination,
+# refused on overflow. COBOL as Sutra.
+provides query_ledger num before tier pieces
+logic    sutra query_ledger apps/blocks/tributary/ledger.sutra
+
+# The source tree (TB7): ^ZXTRIB(question, model) = code ^ stamp. MUMPS as
+# MYRA.
+provides answer_src_ok truth question model code stamp
+logic    myra answer_src_ok apps/blocks/tributary/source.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check agreeing_answers code=42,42,41 = 2,2,1
+check agreeing_answers code=1,999999999,7,7,7 = 1,1,3,3,3
+check agreeing_answers code=42,0 = both
+check agreeing_answers code=42,1000000000 = both
+check ask_within_caps tokenroom=0,999999999,-1,0,0,5 energyroom=0,999999999999999999,0,-1,0,5 priceroom=0,999999999999999999,0,0,-1,5 = true,true,false,false,false,true
+check ask_within_caps tokenroom=0,1000000000 energyroom=0,0 priceroom=0,0 = both
+check ask_within_caps tokenroom=0,0 energyroom=0,0 priceroom=0,1000000000000000000 = both
+check answer_conf_x100 agree=2,1,3,0,999999999 asked=3,3,3,1,999999999 = 200/3,100/3,100,0,100
+check answer_models model=1,2,3,1 code=42,42,41,42 = 2,2,1,2
+check answer_models model=5,5 code=7,8 = 1,1
+check query_ledger before=0,10,0,999999999999999998,0 tier=0,4,23,0,9 pieces=7,2,1,1,0 = 7,26,75025,999999999999999999,0
+check answer_src_ok question=1,999999999,1000000000,1,1 model=0,99,0,100,0 code=42,999999999,1,1,1000000000 stamp=1700000000000,999999999999999,0,0,0 = true,true,false,false,false
+# The parts, as Tributary calls them: a source's points, its fastest and
+# slowest answer, one ask's limits, the energy per answer
+check retort.model_score_total model=0,1,0 want=0 score=100,40,60 = 160
+check retort.model_score_total model=1,2 want=1 score=50,101 = both
+check retort.latency_fastest_ms fastest=3600000,500 ms=120,700 = 120,500
+check retort.latency_fastest_ms fastest=10,10 ms=5,3600001 = both
+check retort.latency_slowest_ms slowest=0,500 ms=120,700 = 120,700
+check retort.latency_slowest_ms slowest=10,10 ms=5,3600001 = both
+check retort.run_limits_ok prompt=1,4095,0,4096 fuel=1,1,1,1 seconds=1,3600,1,1 = true,true,false,false
+check retort.energy_per_answer_uj uj=9000,10 answers=3,3 = 3000,10/3
+# Each source's share of the question's tokens, per mille
+check swarm_shares.cycle_share t=1,1,2 = 250,250,500
+# The share of sources agreeing with the lead answer, and the owner's bar
+check assay.pass_share_x100 passes=2,3 runs=3,3 = 6666,10000
+check assay.pass_share_x100 passes=1,4 runs=3,3 = both
+check assay.meets_bar passroom=0,-1 refusalroom=0,0 runroom=0,0 = true,false
+check assay.meets_bar passroom=0,10001 refusalroom=0,0 runroom=0,0 = both
+# A chosen answer follows from the verdict: BOTH keeps a BOTH answer
+check twelvefold.lp_entail_kept premise=3,3,1 conclusion=3,2,1 = true,false,true
+check twelvefold.lp_entail_kept premise=1,4 conclusion=1,1 = both

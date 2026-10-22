@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# May ask another model (tributary_rules.h TB3), in Eve. Eve checks each
+# field against its own range, so each cap comes as its margin, the
+# owner's cap less what the question has spent and what the next ask may
+# spend: tokens 0 to 999999999, energy in microjoules and price in VFV
+# minor units (before the assurance fee) each 0 to 18 digits. A margin
+# below 0 is over a cap; one past its range is no measurement. caps.kron
+# reads any margin at or above 0 as room: a margin past its range is held.
+eve tributary
+token_room = 0 .. 999999999
+energy_room = 0 .. 999999999999999999
+price_room = 0 .. 999999999999999999
+
+ask_caps {
+  tokenroom: token_room
+  energyroom: energy_room
+  priceroom: price_room
+}

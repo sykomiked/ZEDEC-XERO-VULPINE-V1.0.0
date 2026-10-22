@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! An answer's confidence (tributary_rules.h TB4), in Trebago: the models
+! that agree with it over the models asked, as an exact percent, 100 *
+! agree / asked, a reduced rational, never rounded (2 of 3 is 200/3).
+! agree is 0..asked and asked 1..999999999: ok is 1 inside and 0 outside,
+! and the answer is divided by it, so anything else is a division by zero,
+! refused.
+trebago answer_confidence
+  in  agree(n), asked(n)
+  out pct(n)
+  var ok(n)
+  ok(i) = min(1, max(0, agree(i) + 1)) * min(1, max(0, asked(i) - agree(i) + 1)) &
+        * min(1, max(0, asked(i))) * min(1, max(0, 1000000000 - asked(i)))
+  pct(i) = 100 * agree(i) / asked(i) / ok(i)
+end

@@ -1,0 +1,18 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Agreeing answers (tributary_rules.h TB1), in Trebago: for each answer,
+! how many answers share its normalised code, itself included. Two codes
+! are equal when both 1 + code(j) - code(i) and 1 + code(i) - code(j) are
+! at least 1. Each code is 1..999999999 (0 is no answer): bad counts the
+! codes outside, and every count is divided by 1 - min(1, bad), so any one
+! of them is a division by zero, refused, never counted. agree.kron counts
+! every code as it is: held.
+trebago agree_count
+  in  code(n)
+  out agree(n)
+  var bad(n)
+  bad(i) = min(1, max(0, 1 - code(i))) + min(1, max(0, code(i) - 999999999))
+  agree(i) = sum(j, max(0, min(1, 1 + code(j) - code(i))) * max(0, min(1, 1 + code(i) - code(j)))) &
+           / (1 - min(1, sum(j, bad(j))))
+end

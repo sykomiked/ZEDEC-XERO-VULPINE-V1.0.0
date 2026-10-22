@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Tributary files one source of an answer in MYRA (tributary_rules.h
+; TB7): a tree under the question's number and the model's place among
+; the sources asked, holding the answer's normalised code and the time it
+; came, ms since 1970. The model asks whether the numbers fit before it
+; keeps the answer.
+^ZXTRIB(question:i9, model:i2) = code:i9! ^ stamp:i15!

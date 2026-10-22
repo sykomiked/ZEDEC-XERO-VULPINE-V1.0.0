@@ -1083,6 +1083,33 @@ trellis	check peers_in_state state=1,4 want=1,1 = both
 trellis	check peers_in_state state=1,1 want=0,0 = both
 trellis	check peer_record_ok peer=0,9,10,0,0,-3 state=1,2,1,10,1,1 role=1,3,1,1,1,1 admin=0,1,0,0,0,0 held=1,0,1,1,1,1 since=1,999999999999999999,1,1,1000000000000000000,-5 = true,true,false,false,false,true
 trellis	check gatehouse.use_ok asked=1,1,1,0 granted=1,0,1,1 revoked=0,0,1,0 = true,false,false,false
+tributary	check agreeing_answers code=42,42,41 = 2,2,1
+tributary	check agreeing_answers code=1,999999999,7,7,7 = 1,1,3,3,3
+tributary	check agreeing_answers code=42,0 = both
+tributary	check agreeing_answers code=42,1000000000 = both
+tributary	check ask_within_caps tokenroom=0,999999999,-1,0,0,5 energyroom=0,999999999999999999,0,-1,0,5 priceroom=0,999999999999999999,0,0,-1,5 = true,true,false,false,false,true
+tributary	check ask_within_caps tokenroom=0,1000000000 energyroom=0,0 priceroom=0,0 = both
+tributary	check ask_within_caps tokenroom=0,0 energyroom=0,0 priceroom=0,1000000000000000000 = both
+tributary	check answer_conf_x100 agree=2,1,3,0,999999999 asked=3,3,3,1,999999999 = 200/3,100/3,100,0,100
+tributary	check answer_models model=1,2,3,1 code=42,42,41,42 = 2,2,1,2
+tributary	check answer_models model=5,5 code=7,8 = 1,1
+tributary	check query_ledger before=0,10,0,999999999999999998,0 tier=0,4,23,0,9 pieces=7,2,1,1,0 = 7,26,75025,999999999999999999,0
+tributary	check answer_src_ok question=1,999999999,1000000000,1,1 model=0,99,0,100,0 code=42,999999999,1,1,1000000000 stamp=1700000000000,999999999999999,0,0,0 = true,true,false,false,false
+tributary	check retort.model_score_total model=0,1,0 want=0 score=100,40,60 = 160
+tributary	check retort.model_score_total model=1,2 want=1 score=50,101 = both
+tributary	check retort.latency_fastest_ms fastest=3600000,500 ms=120,700 = 120,500
+tributary	check retort.latency_fastest_ms fastest=10,10 ms=5,3600001 = both
+tributary	check retort.latency_slowest_ms slowest=0,500 ms=120,700 = 120,700
+tributary	check retort.latency_slowest_ms slowest=10,10 ms=5,3600001 = both
+tributary	check retort.run_limits_ok prompt=1,4095,0,4096 fuel=1,1,1,1 seconds=1,3600,1,1 = true,true,false,false
+tributary	check retort.energy_per_answer_uj uj=9000,10 answers=3,3 = 3000,10/3
+tributary	check swarm_shares.cycle_share t=1,1,2 = 250,250,500
+tributary	check assay.pass_share_x100 passes=2,3 runs=3,3 = 6666,10000
+tributary	check assay.pass_share_x100 passes=1,4 runs=3,3 = both
+tributary	check assay.meets_bar passroom=0,-1 refusalroom=0,0 runroom=0,0 = true,false
+tributary	check assay.meets_bar passroom=0,10001 refusalroom=0,0 runroom=0,0 = both
+tributary	check twelvefold.lp_entail_kept premise=3,3,1 conclusion=3,2,1 = true,false,true
+tributary	check twelvefold.lp_entail_kept premise=1,4 conclusion=1,1 = both
 twelvefold	check lp_entail_kept premise=0,0,1,1,1,1,2,3,3,3 conclusion=0,2,0,1,2,3,0,0,2,3 = true,true,false,true,false,true,true,false,false,true
 twelvefold	check lp_entail_kept premise=1,4 conclusion=1,1 = both
 twelvefold	check lp_entail_kept premise=1,-1 conclusion=1,0 = both

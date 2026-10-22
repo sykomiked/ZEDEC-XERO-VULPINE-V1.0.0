@@ -1,0 +1,94 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The query ledger (tributary_rules.h TB6), in Sutra: a query's token cost
+# entered at one denomination of swarm_denom.h, after = before + pieces *
+# face, where tier k holds tokens of face F(k+2) (D1: 1, 2, 3, 5, 8, ...).
+# The ledger keeps tiers 0 to 23, PLAIN to RACING octane: a tier past 23
+# is no face and is refused (a negative face does not fit 9(5)). before,
+# pieces and after each fit 9(18), so a negative count, or a total of 19
+# digits, is a size error: refused, never wrapped.
+record query-ledger
+  before: 9(18)
+  tier: 9(2)
+  pieces: 9(18)
+  face: 9(5)
+  after: 9(18)
+procedure
+  if tier > 23
+    compute face = 0 - 1
+  end-if
+  if tier = 0
+    compute face = 1
+  end-if
+  if tier = 1
+    compute face = 2
+  end-if
+  if tier = 2
+    compute face = 3
+  end-if
+  if tier = 3
+    compute face = 5
+  end-if
+  if tier = 4
+    compute face = 8
+  end-if
+  if tier = 5
+    compute face = 13
+  end-if
+  if tier = 6
+    compute face = 21
+  end-if
+  if tier = 7
+    compute face = 34
+  end-if
+  if tier = 8
+    compute face = 55
+  end-if
+  if tier = 9
+    compute face = 89
+  end-if
+  if tier = 10
+    compute face = 144
+  end-if
+  if tier = 11
+    compute face = 233
+  end-if
+  if tier = 12
+    compute face = 377
+  end-if
+  if tier = 13
+    compute face = 610
+  end-if
+  if tier = 14
+    compute face = 987
+  end-if
+  if tier = 15
+    compute face = 1597
+  end-if
+  if tier = 16
+    compute face = 2584
+  end-if
+  if tier = 17
+    compute face = 4181
+  end-if
+  if tier = 18
+    compute face = 6765
+  end-if
+  if tier = 19
+    compute face = 10946
+  end-if
+  if tier = 20
+    compute face = 17711
+  end-if
+  if tier = 21
+    compute face = 28657
+  end-if
+  if tier = 22
+    compute face = 46368
+  end-if
+  if tier = 23
+    compute face = 75025
+  end-if
+  compute after = before + pieces * face
+  answer after

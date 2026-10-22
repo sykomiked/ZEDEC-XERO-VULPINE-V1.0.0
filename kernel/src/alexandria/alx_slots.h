@@ -433,7 +433,13 @@
 #define ALX_SLOT_NUM_WARDING_KEY_ENTROPY_BITS    425u /* 592.08 warding.key_entropy_bits */
 #define ALX_SLOT_LOGIC_WARDING_KEY_EXPIRY_OK     426u /* 492.11 warding.key_expiry_ok */
 #define ALX_SLOT_LOGIC_WARDING_KEY_SERIAL_OK     427u /* 492.12 warding.key_serial_ok */
-#define ALX_SLOT__COUNT 427u
+#define ALX_SLOT_NUM_TRIBUTARY_AGREEING_ANSWERS  428u /* 592.09 tributary.agreeing_answers */
+#define ALX_SLOT_NUM_TRIBUTARY_ANSWER_CONF_X100  429u /* 592.10 tributary.answer_conf_x100 */
+#define ALX_SLOT_NUM_TRIBUTARY_ANSWER_MODELS     430u /* 592.11 tributary.answer_models */
+#define ALX_SLOT_LOGIC_TRIBUTARY_ANSWER_SRC_OK   431u /* 492.13 tributary.answer_src_ok */
+#define ALX_SLOT_LOGIC_TRIBUTARY_ASK_WITHIN_CAPS 432u /* 492.14 tributary.ask_within_caps */
+#define ALX_SLOT_NUM_TRIBUTARY_QUERY_LEDGER      433u /* 592.12 tributary.query_ledger */
+#define ALX_SLOT__COUNT 433u
 /* clang-format on */
 
 #endif

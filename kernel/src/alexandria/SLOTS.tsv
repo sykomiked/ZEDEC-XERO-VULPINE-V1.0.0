@@ -462,3 +462,9 @@
 425	num.warding_key_entropy_bits	592.08	warding.key_entropy_bits	base
 426	logic.warding_key_expiry_ok	492.11	warding.key_expiry_ok	base
 427	logic.warding_key_serial_ok	492.12	warding.key_serial_ok	base
+428	num.tributary_agreeing_answers	592.09	tributary.agreeing_answers	base
+429	num.tributary_answer_conf_x100	592.10	tributary.answer_conf_x100	base
+430	num.tributary_answer_models	592.11	tributary.answer_models	base
+431	logic.tributary_answer_src_ok	492.13	tributary.answer_src_ok	base
+432	logic.tributary_ask_within_caps	492.14	tributary.ask_within_caps	base
+433	num.tributary_query_ledger	592.12	tributary.query_ledger	base
