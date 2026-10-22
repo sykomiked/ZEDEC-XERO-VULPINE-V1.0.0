@@ -4,7 +4,7 @@
 #
 # test_zxapp.sh — build libzxv, the apl-kron, ada-eve, cobol-sutra, fortran-trebago and mumps-myra
 # pillars and the Z-Wasm kit (incrementally) and run test_zxapp.c: app manifests, the shared blocks
-# (the pce_* ones on the decision engines of kernel/src/pce), and KRON, Eve,
+# (the pce_* ones on the decision engines of kernel/src/pce, number_classics on Lingua), and KRON, Eve,
 # Sutra, Trebago, MYRA, WebAssembly and legacy (every Lingua language) app logic. Exits 3 when only the build failed.
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"

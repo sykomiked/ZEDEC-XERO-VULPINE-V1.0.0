@@ -2104,6 +2104,35 @@ static void test_wave0(void)
               "pce_fin.npv_sign: the rate decides the sign, BOTH: %s", PLAN.err);
         zxapp_unload(&PLAN, &H);
     }
+    /* number_classics, the legacy-language block (FORTRAN 77, BASIC, Forth and the shipped
+     * IR), registers the same way, on Lingua (zxapp_lingua.h), so an app may use it */
+    static zxapp_t CLASSICS, CALC;
+    static char cbuf[8192];
+    CHECK(zxapp_lingua_register(&H, 0) == ZXAPP_OK, "Lingua (kernel/src/lingua) registers");
+    len = read_src(0, "apps/blocks/number_classics.zxblock", cbuf, sizeof cbuf);
+    CHECK(len > 0 && zxapp_parse(&CLASSICS, cbuf, (uint32_t) len) == ZXAPP_OK &&
+              zxapp_registry_add(&WREG, &CLASSICS) == ZXAPP_OK,
+          "the number_classics block registers: %s", CLASSICS.err);
+    {
+        /* and answers in all four once an app uses it */
+        static const char M[] = "zxapp 1\nid reducer\nname Reducer\nuse number_classics 1\n";
+        /* one pair per call: a Lingua entry reads its arguments in order (zxapp_lingua.c) */
+        static const int64_t ga[1] = {-1071}, gb[1] = {462};
+        zxapp_arg_t gargs[2] = {{"a", ga, 1}, {"b", gb, 1}};
+        zxapp_num_t o[4];
+        uint32_t n = 0;
+        int32_t lp = -1;
+        static zxapp_registry_t CR;
+        CR = WREG;
+        CHECK(zxapp_parse(&CALC, M, (uint32_t) strlen(M)) == ZXAPP_OK &&
+                  zxapp_compose(&CALC, &CR) == ZXAPP_OK && zxapp_load(&CALC, &H) == 4,
+              "number_classics: an app that uses it loads its 4 implementations: %s", CALC.err);
+        CHECK(zxapp_call_witnessed(&CALC, &H, "number_classics.gcd", gargs, 2, o, 4, &n, &lp) ==
+                      ZXAPP_OK &&
+                  lp == ZXAPP_TRUE && n == 1 && o[0].num == 21 && o[0].den == 1,
+              "number_classics.gcd: gcd(-1071, 462) is 21 in all four (TRUE): %s", CALC.err);
+        zxapp_unload(&CALC, &H);
+    }
     for (int i = 0; i < NAPPS; i++) {
         int got = wave_app(&APP[i], buf[i], sizeof buf[i], apps[i].path);
         CHECK(got == apps[i].loaded, "%s: %d of %d entries load: %s", apps[i].path, got,
