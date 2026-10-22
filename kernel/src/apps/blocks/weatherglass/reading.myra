@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Weatherglass caches one reading in MYRA (weatherglass_model.h WG4),
+; so the last forecast shows offline: when it is for (seconds since 1970),
+; the air temperature in tenths of a degree Celsius, the wind in tenths of
+; a metre a second and the rain of the hour in tenths of a millimetre.
+; Weatherglass asks whether the numbers fit before it keeps them.
+^ZXWEATHER(stamp:i11) = temp:i4! ^ wind:i4! ^ rain:i5!

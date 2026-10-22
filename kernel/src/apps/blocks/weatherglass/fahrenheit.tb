@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A temperature in tenths of a degree Celsius as tenths of a degree
+! Fahrenheit (weatherglass_model.h WG1), in Trebago: celsius * 9 / 5 + 320,
+! an exact reduced rational, never rounded (1 is 1609/5, 321.8 tenths).
+! The domain is -1000 .. 1000 tenths (-100 to 100 degrees, past every air
+! temperature measured): ok is 1 inside it and 0 outside, and the answer
+! is divided by it, so anything else is a division by zero, refused, where
+! fahrenheit.kron answers: held.
+trebago fahrenheit
+  in  celsius(n)
+  out f(n)
+  var ok(n)
+  ok(i) = min(1, max(0, celsius(i) + 1001)) * min(1, max(0, 1001 - celsius(i)))
+  f(i) = (celsius(i) * 9 / 5 + 320) / ok(i)
+end

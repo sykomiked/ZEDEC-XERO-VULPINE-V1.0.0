@@ -1,0 +1,18 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Rain in tenths of a millimetre as hundredths of an inch
+! (weatherglass_model.h WG1), in Trebago: an inch is 25.4 mm, 254 tenths,
+! so rain * 100 / 254 = rain * 50 / 127, an exact reduced rational, never
+! rounded (127 tenths is exactly 50, half an inch). The domain is
+! 0 .. 99999 tenths (9999.9 mm, past any rain measured in a day): ok is 1
+! inside it and 0 outside, and the answer is divided by it, so a negative
+! or larger amount is a division by zero, refused, where rain.kron
+! answers: held.
+trebago rain
+  in  rain(n)
+  out inch(n)
+  var ok(n)
+  ok(i) = min(1, max(0, rain(i) + 1)) * min(1, max(0, 100000 - rain(i)))
+  inch(i) = rain(i) * 50 / 127 / ok(i)
+end

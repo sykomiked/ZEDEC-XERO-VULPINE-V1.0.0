@@ -1,0 +1,20 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Which advisory warnings a reading raises (weatherglass_model.h WG2), in
+! Trebago, one reading per row, as flags to add: 1 frost (temp at or below
+! 0, tenths of a degree Celsius), 2 heat (temp at or above 350, 35.0
+! degrees), 4 wind (at or above 172 tenths of a metre a second, 17.2 m/s,
+! a gale). For integers min(1, max(0, a - b + 1)) is 1 exactly when
+! a >= b. Advisory only: official warnings always take precedence. A temp
+! outside -1000 .. 1000 or a wind outside 0 .. 2000 makes ok 0 and the
+! flags a division by zero, refused, where warnings.kron answers: held.
+trebago warnings
+  in  temp(n), wind(n)
+  out flags(n)
+  var ok(n)
+  ok(i) = min(1, max(0, temp(i) + 1001)) * min(1, max(0, 1001 - temp(i))) &
+        * min(1, max(0, wind(i) + 1)) * min(1, max(0, 2001 - wind(i)))
+  flags(i) = (min(1, max(0, 1 - temp(i))) + 2 * min(1, max(0, temp(i) - 349)) &
+           + 4 * min(1, max(0, wind(i) - 171))) / ok(i)
+end

@@ -187,7 +187,14 @@
 #define ALX_SLOT_NUM_TALLY_RATIO_MUL             179u /* 590.82 tally.ratio_mul */
 #define ALX_SLOT_NUM_TALLY_RATIO_SUB             180u /* 590.83 tally.ratio_sub */
 #define ALX_SLOT_NUM_TALLY_UNIT_CONVERT          181u /* 590.84 tally.unit_convert */
-#define ALX_SLOT__COUNT 181u
+#define ALX_SLOT_LOGIC_WEATHERGLASS_FORECAST_OK  182u /* 490.87 weatherglass.forecast_ok */
+#define ALX_SLOT_NUM_WEATHERGLASS_RAIN_IN_X100   183u /* 590.85 weatherglass.rain_in_x100 */
+#define ALX_SLOT_NUM_WEATHERGLASS_TEMP_F_TENTHS  184u /* 590.86 weatherglass.temp_f_tenths */
+#define ALX_SLOT_NUM_WEATHERGLASS_WARN_FLAGS     185u /* 590.87 weatherglass.warn_flags */
+#define ALX_SLOT_LOGIC_WEATHERGLASS_WEATHER_CALM 186u /* 490.88 weatherglass.weather_calm */
+#define ALX_SLOT_NUM_WEATHERGLASS_WEEK_TEMPS     187u /* 590.88 weatherglass.week_temps */
+#define ALX_SLOT_NUM_WEATHERGLASS_WIND_KMH_X10   188u /* 590.89 weatherglass.wind_kmh_x10 */
+#define ALX_SLOT__COUNT 188u
 /* clang-format on */
 
 #endif

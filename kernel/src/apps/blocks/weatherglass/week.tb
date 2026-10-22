@@ -1,0 +1,29 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A week's temperatures (weatherglass_model.h WG3), in Trebago: from every
+! reading of the seven days, in tenths of a degree Celsius, three answers,
+! the lowest, the highest and the mean floored toward minus infinity.
+! Trebago has no min over a vector and no floor, so each is counted over
+! the thresholds t = k - 1000, k = 1 .. 2000: the lowest is -1000 plus the
+! count of t that every reading reaches, the highest -1000 plus the count
+! of t that some reading reaches, and with x = sum + 1000 * n (never
+! negative) the floor of x / n is the count of k with k * n <= x, so the
+! mean is that count less 1000. For integers min(1, max(0, a - b + 1)) is
+! 1 exactly when a >= b. A reading outside -1000 .. 1000 makes ok 0 and
+! every answer a division by zero, refused. The three are picked by row:
+! (i - 2)(i - 3)/2, -(i - 1)(i - 3) and (i - 1)(i - 2)/2 are 1 at rows 1,
+! 2 and 3 and 0 at the other two.
+trebago week
+  in  temp(n)
+  out span(3)
+  var lo, hi, mean, x, ok
+  ok = min(1, max(0, n)) * (1 - min(1, sum(j, min(1, max(0, -1000 - temp(j))) &
+     + min(1, max(0, temp(j) - 1000)))))
+  lo = sum(k = 1:2000, 1 - min(1, sum(j, min(1, max(0, k - 1000 - temp(j))))))
+  hi = sum(k = 1:2000, min(1, sum(j, min(1, max(0, temp(j) - k + 1001)))))
+  x = sum(j, temp(j)) + 1000 * n
+  mean = sum(k = 1:2000, min(1, max(0, x - k * n + 1)))
+  span(i) = ((i - 2) * (i - 3) / 2 * (lo - 1000) - (i - 1) * (i - 3) * (hi - 1000) &
+          + (i - 1) * (i - 2) / 2 * (mean - 1000)) / ok
+end

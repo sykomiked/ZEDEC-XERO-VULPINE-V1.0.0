@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A wind speed in tenths of a metre a second as tenths of a kilometre an
+! hour (weatherglass_model.h WG1), in Trebago: 1 m/s is 3.6 km/h, so
+! wind * 36 / 10 = wind * 18 / 5, an exact reduced rational, never rounded
+! (1 is 18/5, 3.6 tenths). The domain is 0 .. 2000 tenths (200 m/s, past
+! any gust measured): ok is 1 inside it and 0 outside, and the answer is
+! divided by it, so a negative or faster wind is a division by zero,
+! refused, where wind.kron answers: held.
+trebago wind
+  in  wind(n)
+  out kmh(n)
+  var ok(n)
+  ok(i) = min(1, max(0, wind(i) + 1)) * min(1, max(0, 2001 - wind(i)))
+  kmh(i) = wind(i) * 18 / 5 / ok(i)
+end

@@ -423,6 +423,27 @@ watchfire	check sos_contact_ok seq=1,9,99,100,1,1,1 peer=7,4294967295,9999999999
 watchfire	check warren.approval_ok owner=1,1,0 approved=1,0,1 = true,false,false
 waymark	check place_ok lat=90000000,-90000000,90000001,0 lon=180000000,-180000000,0,-180000001 = true,true,false,false
 waymark	check place_ok lat=0,0 lon=0 = both
+weatherglass	check temp_f_tenths celsius=-1000,-400,0,1,1000 = -1480,-400,320,1609/5,2120
+weatherglass	check temp_f_tenths celsius=0,1001 = both
+weatherglass	check temp_f_tenths celsius=0,-1001 = both
+weatherglass	check rain_in_x100 rain=0,127,254,1,99999 = 0,50,100,50/127,4999950/127
+weatherglass	check rain_in_x100 rain=0,-1 = both
+weatherglass	check rain_in_x100 rain=0,100000 = both
+weatherglass	check wind_kmh_x10 wind=0,1,5,172,2000 = 0,18/5,18,3096/5,7200
+weatherglass	check wind_kmh_x10 wind=0,-1 = both
+weatherglass	check wind_kmh_x10 wind=0,2001 = both
+weatherglass	check warn_flags temp=0,1,349,350,-1000,1000,200,0 wind=0,0,171,0,0,0,172,2000 = 1,0,0,2,1,2,4,5
+weatherglass	check warn_flags temp=0,0 wind=0,-1 = both
+weatherglass	check warn_flags temp=0,1001 wind=0,0 = both
+weatherglass	check weather_calm temp=0,1,349,350,200,200 wind=0,0,171,0,172,0 = false,true,true,false,false,true
+weatherglass	check weather_calm temp=200,200 wind=0,-1 = both
+weatherglass	check week_temps temp=-50,10,25,120,-3,60,77 = -50,120,34
+weatherglass	check week_temps temp=-1,-2 = -2,-1,-2
+weatherglass	check week_temps temp=-1000,1000 = -1000,1000,0
+weatherglass	check forecast_ok stamp=1792627200,99999999999,100000000000,0,0 temp=-35,9999,0,10000,0 wind=41,9999,0,0,0 rain=2,99999,0,0,100000 = true,true,false,false,false
+weatherglass	check waymark.place_ok lat=59913900,90000001 lon=10752200,0 = true,false
+weatherglass	check warren.approval_ok owner=1,1,0 approved=1,0,1 = true,false,false
+weatherglass	check almanac.days seconds=1792627200,1792713599,1792713600 = 20748,20748,20749
 wellspring	check band reading=39,40,100,101 lo=40,40,40,40 hi=100,100,100,100 = -1,0,0,1
 wellspring	check band reading=50,50 lo=40,101 hi=100,100 = both
 wellspring	check safe_ok bpm=39,40,100,101 sleep=420,540,480,480 water=1500,4000,2000,2000 = false,true,true,false

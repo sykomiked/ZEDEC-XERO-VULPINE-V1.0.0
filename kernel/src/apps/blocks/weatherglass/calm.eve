@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A reading that raises no advisory warning (weatherglass_model.h WG2):
+# above frost and below heat (temp 1 .. 349 tenths of a degree Celsius,
+# above 0.0 and below 35.0 degrees) and below a gale (wind 0 .. 171
+# tenths of a metre a second, below 17.2 m/s). Eve holds each value to its
+# own range; the flags themselves are warn_flags. Advisory only:
+# official warnings always take precedence.
+eve weatherglass
+calm_temp = 1 .. 349
+calm_wind = 0 .. 171
+
+calm_reading {
+  temp: calm_temp
+  wind: calm_wind
+}

@@ -1,0 +1,141 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Weatherglass, local conditions and forecast for where the machine is:
+# layer 88 of the matrix. Where it is comes from zxvd's place.ask (the
+# owner's answer for this app, P2); the point is checked with
+# waymark.place_ok before anything is asked of a weather service. The
+# outside data is the core pack weatherglass-core.tar (docs/DATAPACKS.md,
+# tools/apps/datapacks/SOURCES.tsv): MET Norway Locationforecast (CC BY
+# 4.0) and US NWS alerts (public domain), live endpoints read over TLS,
+# and only after the owner approves (warren.approval_ok, the owner's own
+# session and their approval, both exactly 1). zxvd has no method that
+# fetches over HTTPS, and none is invented: the model composes the two
+# addresses, a bridge that the owner approved fetches them, and the model
+# reads the answers it is handed (weatherglass_model.h). The attribution
+# is shown as SOURCES.tsv gives it (ATTRIBUTION.txt). The last forecast is
+# cached in the Hoard (files.read, files.write) so it shows offline;
+# alerts are never cached, since an alert shown after it ended misleads.
+#
+# ADVISORY ONLY. Frost, heat and wind warnings are this app's own reading
+# of a forecast, never an official warning, and official warnings always
+# take precedence. zxvd has no notification method, so the notice is
+# composed as text for the view (needs notify for when it has one).
+#
+# Every entry is a general rule (weatherglass_model.h WG1-WG4), the unit
+# conversions and the warning flags registered in CONCEPTS.tsv with
+# Weatherglass as owner:
+#   temp_f_tenths  tenths of a degree C as tenths of a degree F, exact
+#   rain_in_x100   tenths of a mm as hundredths of an inch, exact
+#   wind_kmh_x10   tenths of a m/s as tenths of a km/h, exact
+#                  Each Trebago and KRON: both answer the exact rational;
+#                  Trebago refuses outside the domain, KRON answers: held.
+#   warn_flags     1 frost + 2 heat + 4 gale, as a number (WG2): Trebago
+#                  and KRON, Trebago refusing a reading outside its
+#                  domain, KRON answering: held.
+#   weather_calm   no warning at all, as a truth (WG2): Eve holds the
+#                  temperature and the wind each to its calm range, KRON
+#                  compares; a negative wind fits KRON's "below a gale"
+#                  but not Eve's 0 .. 171: held.
+#   week_temps     the week's lowest, highest and floored mean (WG3),
+#                  Trebago alone, as the task names it.
+#   forecast_ok    a cached reading's record, ^ZXWEATHER, in MYRA (WG4).
+# The slot shorthand holds 31 bytes (num.weatherglass_ leaves 14 for a
+# name, logic.weatherglass_ 12), so the names are short.
+#
+# The task pairs Eve with Trebago for the warnings. A witnessed call
+# compares answers exactly and an entry answers one kind (zxapp.c run_one
+# B3): Eve answers truths only (zxapp_eve.c EV2) and Trebago numbers only
+# (zxapp_trebago.c TB2), and Eve holds each field to its own range, so it
+# cannot say "frost or heat or wind". The rule is two entries of one
+# meaning, as Gatehouse and Talisman split theirs: Eve and KRON witness the
+# truth that no warning is raised (weather_calm), Trebago and KRON the
+# flags (warn_flags), and weather_calm is TRUE exactly when warn_flags is 0
+# inside the domain (tests/weatherglass_zxapp.inc).
+#
+# Defaults taken (weatherglass_model.h): frost at or below 0.0 C, heat at
+# or above 35.0 C, a gale at or above 17.2 m/s (Beaufort 8). Besides the
+# task's location, net and notify, the cache needs fs.read and fs.write.
+#
+# Reuse, nearer the core: waymark.place_ok checks the location before it
+# goes into an address; warren.approval_ok is the owner's word before the
+# network is read; almanac.days groups readings by day (days since 1970,
+# floor(seconds / 86400)). Nothing earlier converts units or reads weather:
+# vintner.probe_tenths turns a probe's sixteenths into tenths, not one
+# scale into another, and wellspring.band (built after this layer) may not
+# be used.
+#
+# Logo (twin Kiteling) is not used: Lingua's Logo refuses readword and
+# readlist (zl_logo.c), so a Logo program cannot read an entry's arguments
+# (zxapp_lingua.c L1), and Weatherglass draws no geometry.
+#
+# Planned: Kotlin (objects, concise typed apps) stands for the reading as
+# a typed record, forecast_ok.
+zxapp 1
+id     weatherglass
+name   Weatherglass
+version 1.0.0
+slot   88
+layer  L1
+matrix 88
+icon   icons/l1/088-weatherglass.svg
+budget 233
+needs  location
+needs  net
+needs  notify
+needs  fs.read
+needs  fs.write
+model  apps/weatherglass_model.c
+use    waymark 1   # @logic.waymark_place_ok
+use    warren 1    # @logic.warren_approval_ok
+use    almanac 1   # @time.almanac_days
+
+provides temp_f_tenths num celsius
+logic    trebago temp_f_tenths apps/blocks/weatherglass/fahrenheit.tb
+logic    kron    temp_f_tenths apps/blocks/weatherglass/fahrenheit.kron
+
+provides rain_in_x100 num rain
+logic    trebago rain_in_x100 apps/blocks/weatherglass/rain.tb
+logic    kron    rain_in_x100 apps/blocks/weatherglass/rain.kron
+
+provides wind_kmh_x10 num wind
+logic    trebago wind_kmh_x10 apps/blocks/weatherglass/wind.tb
+logic    kron    wind_kmh_x10 apps/blocks/weatherglass/wind.kron
+
+provides warn_flags num temp wind
+logic    trebago warn_flags apps/blocks/weatherglass/warnings.tb
+logic    kron    warn_flags apps/blocks/weatherglass/warnings.kron
+
+provides weather_calm truth temp wind
+logic    eve  weather_calm apps/blocks/weatherglass/calm.eve
+logic    kron weather_calm apps/blocks/weatherglass/calm.kron
+
+provides week_temps num temp
+logic    trebago week_temps apps/blocks/weatherglass/week.tb
+
+provides forecast_ok truth stamp temp wind rain
+logic    myra forecast_ok apps/blocks/weatherglass/reading.myra
+pending  Kotlin forecast_ok
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check temp_f_tenths celsius=-1000,-400,0,1,1000 = -1480,-400,320,1609/5,2120
+check temp_f_tenths celsius=0,1001 = both
+check temp_f_tenths celsius=0,-1001 = both
+check rain_in_x100 rain=0,127,254,1,99999 = 0,50,100,50/127,4999950/127
+check rain_in_x100 rain=0,-1 = both
+check rain_in_x100 rain=0,100000 = both
+check wind_kmh_x10 wind=0,1,5,172,2000 = 0,18/5,18,3096/5,7200
+check wind_kmh_x10 wind=0,-1 = both
+check wind_kmh_x10 wind=0,2001 = both
+check warn_flags temp=0,1,349,350,-1000,1000,200,0 wind=0,0,171,0,0,0,172,2000 = 1,0,0,2,1,2,4,5
+check warn_flags temp=0,0 wind=0,-1 = both
+check warn_flags temp=0,1001 wind=0,0 = both
+check weather_calm temp=0,1,349,350,200,200 wind=0,0,171,0,172,0 = false,true,true,false,false,true
+check weather_calm temp=200,200 wind=0,-1 = both
+check week_temps temp=-50,10,25,120,-3,60,77 = -50,120,34
+check week_temps temp=-1,-2 = -2,-1,-2
+check week_temps temp=-1000,1000 = -1000,1000,0
+check forecast_ok stamp=1792627200,99999999999,100000000000,0,0 temp=-35,9999,0,10000,0 wind=41,9999,0,0,0 rain=2,99999,0,0,100000 = true,true,false,false,false
+check waymark.place_ok lat=59913900,90000001 lon=10752200,0 = true,false
+check warren.approval_ok owner=1,1,0 approved=1,0,1 = true,false,false
+check almanac.days seconds=1792627200,1792713599,1792713600 = 20748,20748,20749
