@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Cartulary files a version in its record hierarchy, in MYRA
+; (cartulary_rules.h CR7): class, record, version, then the day it was
+; filed (days since 1970) and the record's hold flag. The model asks
+; whether the numbers fit before it writes the index line.
+^ZXCART(cls:i4, record:i9, version:i4) = filed:i6! ^ hold:i1!

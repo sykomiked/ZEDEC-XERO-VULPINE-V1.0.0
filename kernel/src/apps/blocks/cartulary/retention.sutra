@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Days until a version may go (cartulary_rules.h CR2), in Sutra: a
+# retention schedule row is a fixed business record of whole years and
+# months, its length in days the floor of 36525 * (12 * years + months) /
+# 1200 (a mean month of 30.4375 days, so 100 years is 36525 days), and
+# what is left is the day it was filed plus that length less today. Days
+# are counted since 1970 and fit 9(6), years 9(3) and months 9(2): a
+# negative value, or one with more digits, is a size error, refused.
+record schedule-row
+  filed: 9(6)
+  years: 9(3)
+  months: 9(2)
+  today: 9(6)
+  span: 9(6)
+  remain: s9(7)
+procedure
+  compute span = (years * 12 + months) * 36525 / 1200
+  compute remain = filed + span - today
+  answer remain

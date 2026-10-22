@@ -1,0 +1,37 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Storage growth (cartulary_rules.h CR5), in Trebago: bytes(1..n) is what
+! a record class held at the end of each of n months, oldest first. The
+! mean monthly growth is the mean of the n - 1 month-to-month changes,
+! (bytes(n) - bytes(1)) / (n - 1), and the projection after `ahead` more
+! months is bytes(n) + ahead * that mean, never below 0, floored to whole
+! bytes. That is floor(p / (n - 1)) for the integer
+! p = max(0, bytes(n) * (n - 1) + ahead * (bytes(n) - bytes(1))), and
+! Trebago has no floor, so it is counted a group of digits at a time:
+! each group is the count of k with p >= k * step * (n - 1), which
+! min(1, max(0, p - k * step * (n - 1) + 1)) is for integers, and p
+! loses what it counted. The first group (step 10^12) runs to 1201, the
+! most a projection inside the limits reaches, the others to 999.
+! ok is 0, and the answer divided by it refused, for one month (no
+! growth), more than 1200 months (100 years), a month outside
+! 0 .. 999999999999 bytes or ahead outside 0 .. 1200 months.
+trebago growth
+  in  bytes(n), ahead
+  out projected
+  var p, q1, q2, q3, q4, q5, ok
+  ok = min(1, max(0, n - 1)) * min(1, max(0, 1200 - n + 1)) * min(1, max(0, ahead + 1)) &
+     * min(1, max(0, 1200 - ahead + 1)) &
+     * (1 - min(1, sum(j, min(1, max(0, 0 - bytes(j))) + min(1, max(0, bytes(j) - 999999999999)))))
+  p = max(0, bytes(n) * (n - 1) + ahead * (bytes(n) - bytes(1)))
+  q1 = sum(k = 1:1201, min(1, max(0, p - k * 1000000000000 * (n - 1) + 1)))
+  p = p - q1 * 1000000000000 * (n - 1)
+  q2 = sum(k = 1:999, min(1, max(0, p - k * 1000000000 * (n - 1) + 1)))
+  p = p - q2 * 1000000000 * (n - 1)
+  q3 = sum(k = 1:999, min(1, max(0, p - k * 1000000 * (n - 1) + 1)))
+  p = p - q3 * 1000000 * (n - 1)
+  q4 = sum(k = 1:999, min(1, max(0, p - k * 1000 * (n - 1) + 1)))
+  p = p - q4 * 1000 * (n - 1)
+  q5 = sum(k = 1:999, min(1, max(0, p - k * (n - 1) + 1)))
+  projected = (q1 * 1000000000000 + q2 * 1000000000 + q3 * 1000000 + q4 * 1000 + q5) / ok
+end

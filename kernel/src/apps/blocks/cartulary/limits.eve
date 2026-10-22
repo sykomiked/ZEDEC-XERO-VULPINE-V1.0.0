@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a retention schedule may say (cartulary_rules.h CR4), in Eve: a
+# version is kept 1 day at least and 36525 days (100 years) at most, and
+# a record's hold is a flag, 0 or 1. A hold always wins: while it is 1 no
+# version of the record may go, whatever its schedule (prune.eve).
+eve cartulary
+keep_days = 1 .. 36525
+hold_flag = 0 .. 1
+
+retention_limits {
+  days: keep_days
+  hold: hold_flag
+}

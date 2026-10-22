@@ -343,3 +343,9 @@
 306	num.heirloom_estate_share_gap	591.46	heirloom.estate_share_gap	base
 307	logic.heirloom_heir_release_due	491.52	heirloom.heir_release_due	base
 308	num.heirloom_heir_release_due_n	591.47	heirloom.heir_release_due_n	base
+309	num.cartulary_bytes_projected	591.48	cartulary.bytes_projected	base
+310	num.cartulary_class_year_cell	591.49	cartulary.class_year_cell	base
+311	logic.cartulary_record_node_ok	491.53	cartulary.record_node_ok	base
+312	num.cartulary_retention_left	591.50	cartulary.retention_left	base
+313	logic.cartulary_retention_ok	491.54	cartulary.retention_ok	base
+314	logic.cartulary_version_may_go	491.55	cartulary.version_may_go	base

@@ -314,7 +314,13 @@
 #define ALX_SLOT_NUM_HEIRLOOM_ESTATE_SHARE_GAP   306u /* 591.46 heirloom.estate_share_gap */
 #define ALX_SLOT_LOGIC_HEIRLOOM_HEIR_RELEASE_DUE 307u /* 491.52 heirloom.heir_release_due */
 #define ALX_SLOT_NUM_HEIRLOOM_HEIR_RELEASE_DUE_N 308u /* 591.47 heirloom.heir_release_due_n */
-#define ALX_SLOT__COUNT 308u
+#define ALX_SLOT_NUM_CARTULARY_BYTES_PROJECTED   309u /* 591.48 cartulary.bytes_projected */
+#define ALX_SLOT_NUM_CARTULARY_CLASS_YEAR_CELL   310u /* 591.49 cartulary.class_year_cell */
+#define ALX_SLOT_LOGIC_CARTULARY_RECORD_NODE_OK  311u /* 491.53 cartulary.record_node_ok */
+#define ALX_SLOT_NUM_CARTULARY_RETENTION_LEFT    312u /* 591.50 cartulary.retention_left */
+#define ALX_SLOT_LOGIC_CARTULARY_RETENTION_OK    313u /* 491.54 cartulary.retention_ok */
+#define ALX_SLOT_LOGIC_CARTULARY_VERSION_MAY_GO  314u /* 491.55 cartulary.version_may_go */
+#define ALX_SLOT__COUNT 314u
 /* clang-format on */
 
 #endif

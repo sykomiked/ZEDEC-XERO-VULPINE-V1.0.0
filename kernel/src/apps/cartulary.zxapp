@@ -1,0 +1,133 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Cartulary, long-term records: L2, slot 145. A record is a Hoard file the
+# owner files under a class (files.stat); its versions are the contents
+# Keepsake's backups hold (backup.versions, backup.list), its index and
+# its holds are Cartulary's own Hoard files (files.read, files.write;
+# zxvd has no retention-hold flag), it is found with search.query, and a
+# filing is proven years later against zxvd's journal (journal.query,
+# journal.verify). See cartulary_model.h CM1-CM8 and cartulary_rules.h.
+# Advisory and owner-confirmed: Cartulary says which versions may go and
+# what a Keepsake prune would take; it removes nothing itself.
+#
+# Composed, not written again (four uses of ZXAPP_USES 8; its own 9 logic
+# lines and its parts' 14 are 23 of ZXAPP_LOGIC_MAX 128): a class's
+# bytes are banker.total and each index line is checked as a Hoard entry
+# by banker.entry_ok; a search hit's rank is scent.score; what a prune
+# would take is keepsake.removed and that it never takes all is
+# keepsake.keep_ok; each version's journal entry is witness.audit_ok and
+# a record's history is linked by witness.chain_ok. Lockbox's days_left
+# does not fit a schedule: it counts seconds and never goes below 0, where
+# a schedule counts days from a filing and a negative count says how long
+# a version is past due. witness.kind_count counts one kind; the index
+# grid counts two keys for every row.
+#
+# Later layers use the retention days and the prune truth (and the
+# limits and the growth projection), so they are general and registered
+# in CONCEPTS.tsv with Cartulary as owner.
+#
+# The task's "matrix 145" is refused by zxapp.c (M1: a matrix layer is
+# 0..144); an L2 app sits on the outermost layer it is composed from,
+# Witness's 18. Eve answers truths only, field by field, so the prune
+# truth (Eve and KRON) takes keepsake.keep_ok's answer as a flag.
+# Kept in C: text (index lines, paths, a SHA-256 cut to a content id) and
+# zxvd's answers. ALGOL 60 runs now, so it is a third witness of the
+# retention days (a formula), not a pending line.
+zxapp 1
+id     cartulary
+name   Cartulary
+version 1.0.0
+slot   145
+layer  L2
+matrix 18
+icon   icons/l2/145-cartulary.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  search
+needs  backup
+needs  journal
+model  apps/cartulary_model.c
+use    banker 1     # @num.banker_total @logic.banker_entry_ok
+use    scent 1      # @num.scent_score
+use    keepsake 1   # @num.keepsake_removed @logic.keepsake_keep_ok
+use    witness 1    # @logic.witness_audit_ok @logic.witness_chain_ok
+# what it exports, so apps built from it can use them too (C1)
+provides banker.total num size
+provides banker.entry_ok truth folder seq size mtime
+provides scent.score num name folder count
+provides keepsake.removed num snapshots keep
+provides keepsake.keep_ok truth keep
+provides witness.chain_ok truth seq prev last
+provides witness.audit_ok truth seq prev kind stamp
+
+# Days until a version may go (CR2): filed + floor(36525 * (12 * years
+# + months) / 1200) - today, days since 1970; below 0 is past due. COBOL
+# as Sutra (the schedule row a fixed business record) and APL as KRON,
+# witnessed; past Sutra's pictures held (Sutra and ALGOL refuse).
+provides retention_left num filed years months today
+logic    sutra   retention_left apps/blocks/cartulary/retention.sutra
+logic    kron    retention_left apps/blocks/cartulary/retention.kron
+# ALGOL 60, twin Rootwyrm
+logic    algol60 retention_left apps/blocks/cartulary/retention.alg
+
+# May this version go (CR3): its schedule over (left <= 0) AND no hold
+# AND keepsake.keep_ok (keepok 1). Ada as Eve, APL as KRON; a left
+# below Sutra's s9(7) is held (Eve refuses it, KRON answers).
+provides version_may_go truth left hold keepok
+logic    eve  version_may_go apps/blocks/cartulary/prune.eve
+logic    kron version_may_go apps/blocks/cartulary/prune.kron
+pending  Prolog version_may_go
+
+# Retention limits (CR4): 1..36525 days, a hold flag 0 or 1. Ada as Eve.
+provides retention_ok truth days hold
+logic    eve retention_ok apps/blocks/cartulary/limits.eve
+pending  Haskell retention_ok
+
+# Storage growth (CR5): projected bytes after `ahead` months from the
+# mean monthly growth, floored, exact. FORTRAN as Trebago.
+provides bytes_projected num bytes ahead
+logic    trebago bytes_projected apps/blocks/cartulary/growth.tb
+
+# The index grid (CR6): each row's records of its class in its year.
+provides class_year_cell num cls year
+logic    kron class_year_cell apps/blocks/cartulary/grid.kron
+
+# The record hierarchy (CR7): ^ZXCART(cls, record, version) = filed ^ hold.
+provides record_node_ok truth cls record version filed hold
+logic    myra record_node_ok apps/blocks/cartulary/record.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check retention_left filed=20000 years=7 months=0 today=20000 = 2556
+check retention_left filed=0 years=0 months=0 today=0 = 0
+check retention_left filed=0 years=0 months=6 today=999999 = -999817
+check retention_left filed=999999 years=999 months=99 today=0 = 1367897
+check retention_left filed=20000 years=100 months=0 today=60000 = -3475
+check retention_left filed=1000000 years=1 months=0 today=0 = both
+check retention_left filed=-1 years=1 months=0 today=0 = both
+check version_may_go left=0,-1,1,-9999999,-5,-5,-5 hold=0,0,0,0,1,0,2 keepok=1,1,1,1,1,0,1 = true,true,false,true,false,false,false
+check version_may_go left=-10000000,-1 hold=0,0 keepok=1,1 = both
+check retention_ok days=1,36525,0,36526,30,30 hold=0,1,0,0,2,-1 = true,true,false,false,false,false
+check bytes_projected bytes=100,200,400 ahead=3 = 850
+check bytes_projected bytes=1000,999,1001 ahead=1 = 1001
+check bytes_projected bytes=500,100 ahead=2 = 0
+check bytes_projected bytes=0,999999999999 ahead=1200 = 1200999999998799
+check class_year_cell cls=1,1,2,1,2 year=2024,2024,2024,2025,2024 = 2,2,2,1,2
+check class_year_cell cls=3,3 year=2020,2021 = 1,1
+check record_node_ok cls=1,9999,10000,1,1 record=7,999999999,1,1000000000,1 version=3,9999,1,1,1 filed=20000,999999,1,1,1000000 hold=0,1,0,0,0 = true,true,false,false,false
+# A class's bytes, and an index line as a Hoard entry
+check banker.total size=4096,12000,0 = 16096
+check banker.entry_ok folder=3,3 seq=1,2 size=999999999999999999,12 mtime=1760000000,0 = true,true
+check banker.entry_ok folder=3 seq=1 size=12 mtime=1000000000000 = false
+# A hit with the word in its name, one in a folder, one in the text
+check scent.score name=1,0,0 folder=0,1,0 count=5,200,7 = 1211
+# agree: scent.score KRON and Trebago take the same inputs and refuse the same overflow (past int64)
+# What a prune keeping 5 would take of 5, 6 and 0 snapshots; never all
+check keepsake.removed snapshots=5,6,0 keep=5,5,3 = 0,1,0
+check keepsake.removed snapshots=1000000000 keep=1 = both
+check keepsake.keep_ok keep=0,1,4294967295 = false,true,true
+# A record's history of journal entries, and one entry's fit
+check witness.chain_ok seq=1,5,5 prev=0,1,4 last=0,1,5 = true,true,false
+check witness.chain_ok seq=2,-1 prev=1,1 last=1,1 = both
+check witness.audit_ok seq=1,1000000000000000000 prev=0,0 kind=1,1 stamp=1700000000000,0 = true,false
