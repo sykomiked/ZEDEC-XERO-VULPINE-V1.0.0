@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Tideturn files one record of its update trail in MYRA
+; (tideturn_rules.h TR3): its number, the version it is about (major,
+; minor and patch, 0..999 each), whether its signatures verified (1) or
+; not (0), its outcome (tideturn_model.h TIDETURN_CHECKED ..
+; TIDETURN_DECLINED) and when, in ms since 1970 by zxvd's clock.
+^ZXTIDE(seq:i9) = major:i3! ^ minor:i3! ^ patch:i3! ^ signed:i1! ^ outcome:i1! ^ stamp:i15!

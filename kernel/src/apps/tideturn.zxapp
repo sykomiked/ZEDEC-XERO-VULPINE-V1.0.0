@@ -1,0 +1,75 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tideturn, software updates: layer 6 of the matrix. It reads the version
+# that runs (zxvd.version), asks zxvd for one signed update check
+# (update.check, which verifies the bucket's signed name record and its
+# ML-DSA-65 manifest signature itself), judges an offered release by its
+# version and its two signatures, takes the owner's word on it, and keeps
+# an audit trail of every check, offer and word, stamped by zxvd's clock
+# (sys.info) and linked record to record (tideturn_model.h TM1-TM5).
+#
+# Advisory and owner-confirmed: nothing is installed by Tideturn, ever. An
+# offer that is dual-signed, newer and applicable waits for the owner's
+# word; zxvd has no method that installs an update, so an approval is
+# recorded and the owner is told where to install it. None is invented.
+# zxvd's update.check answers a status text only: the offered release's
+# version, min-version and each signature's own verify result reach the
+# model from the view's listing, since zxvd has no method that gives them.
+#
+# 3 later layers lean on this one, so each entry is a general rule
+# registered in CONCEPTS.tsv with Tideturn as owner: the order of two
+# versions, whether two signatures both verified, and an update's record.
+# Witness's chain_ok links each record of the trail to the one before it,
+# used as it is. Seedbank and Coffer, which the task names, are built
+# before this layer but hold nothing Tideturn needs: an update reaches the
+# node through zxvd's own checker, not through Seedbank's blockstore pins,
+# and an update moves no money.
+#
+#   version_order    the order of two versions (TR1): 1 newer, 0 the same,
+#                    -1 older. Sutra holds each part to 9(3), zxvd's
+#                    manifest's 0..999, and refuses past it; KRON answers:
+#                    held.
+#   dual_signed      both signatures verified (TR2): the two verify results
+#                    exactly 1. Eve says the one record that fits; KRON
+#                    reads a result above 0 as verified: a result that is
+#                    no result (2) is held.
+#   update_record_ok an update's record, ^ZXTIDE, in MYRA (TR3).
+#
+# Planned languages: the task names none; nothing is pending.
+zxapp 1
+id     tideturn
+name   Tideturn
+version 1.0.0
+slot   6
+layer  L1
+matrix 6
+icon   icons/l1/006-tideturn.svg
+budget 233
+needs  net
+needs  sys.read
+model  apps/tideturn_model.c
+use    witness 1   # @logic.witness_chain_ok
+
+# The order of two versions (TR1), Sutra and KRON.
+provides version_order num amajor aminor apatch bmajor bminor bpatch
+logic    sutra version_order apps/blocks/tideturn/order.sutra
+logic    kron  version_order apps/blocks/tideturn/order.kron
+
+# Both signatures verified (TR2), Eve and KRON.
+provides dual_signed truth firstsig secondsig
+logic    eve  dual_signed apps/blocks/tideturn/dual.eve
+logic    kron dual_signed apps/blocks/tideturn/dual.kron
+
+# An update makes a ^ZXTIDE record (TR3), in MYRA.
+provides update_record_ok truth seq major minor patch signed outcome stamp
+logic    myra update_record_ok apps/blocks/tideturn/record.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check version_order amajor=1,1,1,0,999,0 aminor=2,2,3,999,999,0 apatch=3,4,0,999,999,0 bmajor=1,1,1,1,0,0 bminor=2,2,2,0,0,0 bpatch=3,3,999,0,0,1 = 0,1,1,-1,1,-1
+check version_order amajor=1,1000 aminor=0,0 apatch=0,0 bmajor=1,1 bminor=0,0 bpatch=0,0 = both
+check version_order amajor=1,1 aminor=0,0 apatch=0,-1 bmajor=1,1 bminor=0,0 bpatch=0,0 = both
+check dual_signed firstsig=1,1,0,0,-1 secondsig=1,0,1,0,1 = true,false,false,false,false
+check dual_signed firstsig=1,2 secondsig=1,1 = both
+check update_record_ok seq=1,999999999,1000000000,5,5,5 major=1,999,1,1000,1,1 minor=2,999,0,0,0,0 patch=3,999,0,0,0,0 signed=1,9,0,0,10,0 outcome=1,7,1,1,1,1 stamp=1700000000000,999999999999999,0,0,0,1000000000000000 = true,true,false,false,false,false
+check witness.chain_ok seq=1,2,2 prev=0,1,0 last=0,1,1 = true,true,false

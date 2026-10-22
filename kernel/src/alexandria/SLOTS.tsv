@@ -204,3 +204,6 @@
 167	logic.sundial_clock_limits_ok	490.82	sundial.clock_limits_ok	base
 168	num.sundial_zone_minute	590.75	sundial.zone_minute	base
 169	num.sundial_zone_offset	590.76	sundial.zone_offset	base
+170	logic.tideturn_dual_signed	490.83	tideturn.dual_signed	base
+171	logic.tideturn_update_record_ok	490.84	tideturn.update_record_ok	base
+172	num.tideturn_version_order	590.77	tideturn.version_order	base

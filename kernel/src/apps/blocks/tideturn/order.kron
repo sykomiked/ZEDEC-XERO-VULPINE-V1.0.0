@@ -1,0 +1,3 @@
+ka:(1000000*amajor)+(1000*aminor)+apatch
+kb:(1000000*bmajor)+(1000*bminor)+bpatch
+(0|1&ka-kb)-0|1&kb-ka

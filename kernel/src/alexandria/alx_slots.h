@@ -175,7 +175,10 @@
 #define ALX_SLOT_LOGIC_SUNDIAL_CLOCK_LIMITS_OK   167u /* 490.82 sundial.clock_limits_ok */
 #define ALX_SLOT_NUM_SUNDIAL_ZONE_MINUTE         168u /* 590.75 sundial.zone_minute */
 #define ALX_SLOT_NUM_SUNDIAL_ZONE_OFFSET         169u /* 590.76 sundial.zone_offset */
-#define ALX_SLOT__COUNT 169u
+#define ALX_SLOT_LOGIC_TIDETURN_DUAL_SIGNED      170u /* 490.83 tideturn.dual_signed */
+#define ALX_SLOT_LOGIC_TIDETURN_UPDATE_RECORD_OK 171u /* 490.84 tideturn.update_record_ok */
+#define ALX_SLOT_NUM_TIDETURN_VERSION_ORDER      172u /* 590.77 tideturn.version_order */
+#define ALX_SLOT__COUNT 172u
 /* clang-format on */
 
 #endif

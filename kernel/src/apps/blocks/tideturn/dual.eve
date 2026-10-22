@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Dual-signed (tideturn_rules.h TR2), in Eve: the only record that fits is
+# both signatures checked and verified, each verify result exactly 1. A
+# failed check (0), or a value that is no verify result at all, does not
+# fit: not dual-signed, never installable.
+eve tideturn
+sig_verified = 1 .. 1
+
+dual_signature {
+  firstsig: sig_verified
+  secondsig: sig_verified
+}

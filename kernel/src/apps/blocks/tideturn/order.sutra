@@ -1,0 +1,29 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The order of two versions major.minor.patch (tideturn_rules.h TR1), in
+# Sutra: 1 when a is newer than b, 0 the same, -1 older. Each part fits
+# 9(3), zxvd's update manifest's 0..999, so a part past 999 or a negative
+# one is no version: refused. With every part inside 0..999 the parts
+# weighed by a million, a thousand and one keep their order exactly.
+record version-order
+  amajor: 9(3)
+  aminor: 9(3)
+  apatch: 9(3)
+  bmajor: 9(3)
+  bminor: 9(3)
+  bpatch: 9(3)
+  ka: 9(9)
+  kb: 9(9)
+  order: s9
+procedure
+  compute ka = amajor * 1000000 + aminor * 1000 + apatch
+  compute kb = bmajor * 1000000 + bminor * 1000 + bpatch
+  compute order = 0
+  if ka > kb
+    compute order = 1
+  end-if
+  if ka < kb
+    compute order = 0 - 1
+  end-if
+  answer order
