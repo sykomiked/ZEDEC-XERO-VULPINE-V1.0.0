@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# May a private tunnel open between two devices of the owner's mesh
+# (cove_rules.h CR1), in Eve: the only record that fits is this device
+# active on the signed roster (selfactive exactly 1) and not revoked
+# (selfrevoked exactly 0), and the far device the same (peeractive
+# exactly 1, peerrevoked exactly 0). Eve checks each flag against its own
+# range alone; a flag that is no flag (2, -1) does not fit, where
+# open.kron reads past it: held.
+eve cove
+is_active = 1 .. 1
+not_revoked = 0 .. 0
+
+tunnel_open {
+  selfactive: is_active
+  selfrevoked: not_revoked
+  peeractive: is_active
+  peerrevoked: not_revoked
+}

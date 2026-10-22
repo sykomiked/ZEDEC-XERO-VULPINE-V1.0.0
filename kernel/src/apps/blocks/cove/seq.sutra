@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The nonce discipline of one tunnel channel (cove_rules.h CR2), in Sutra:
+# a frame's seq must rise past the channel's last seq, and the answer is
+# how far, seq - last (1 for the very next frame). A seq at or below last
+# is a reuse: skip = gap - 1 is then below 0 and does not fit 9(18), so
+# the row is refused. last and seq fit 9(18); a negative one, or a seq of
+# nineteen digits (the channel's nonce space spent), is a size error:
+# refused. seq.rs says the same in Rust (as WebAssembly), which answers to
+# 64 bits: past the pictures the two disagree and the frame is held.
+record tunnel-seq
+  last: 9(18)
+  seq: 9(18)
+  gap: 9(18)
+  skip: 9(18)
+procedure
+  compute gap = seq - last
+  compute skip = gap - 1
+  answer gap

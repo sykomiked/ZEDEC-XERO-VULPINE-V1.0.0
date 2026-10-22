@@ -304,7 +304,11 @@
 #define ALX_SLOT_NUM_WARBLE_SHUFFLE_AT           296u /* 591.42 warble.shuffle_at */
 #define ALX_SLOT_LOGIC_WARBLE_TRACK_RECORD_OK    297u /* 491.46 warble.track_record_ok */
 #define ALX_SLOT_LOGIC_WARBLE_VOLUME_CAP_OK      298u /* 491.47 warble.volume_cap_ok */
-#define ALX_SLOT__COUNT 298u
+#define ALX_SLOT_LOGIC_COVE_TUNNEL_FRAME_OK      299u /* 491.48 cove.tunnel_frame_ok */
+#define ALX_SLOT_LOGIC_COVE_TUNNEL_OPEN_OK       300u /* 491.49 cove.tunnel_open_ok */
+#define ALX_SLOT_LOGIC_COVE_TUNNEL_RECORD_OK     301u /* 491.50 cove.tunnel_record_ok */
+#define ALX_SLOT_NUM_COVE_TUNNEL_SEQ_GAP         302u /* 591.43 cove.tunnel_seq_gap */
+#define ALX_SLOT__COUNT 302u
 /* clang-format on */
 
 #endif

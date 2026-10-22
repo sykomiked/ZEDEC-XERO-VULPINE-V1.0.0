@@ -333,3 +333,7 @@
 296	num.warble_shuffle_at	591.42	warble.shuffle_at	base
 297	logic.warble_track_record_ok	491.46	warble.track_record_ok	base
 298	logic.warble_volume_cap_ok	491.47	warble.volume_cap_ok	base
+299	logic.cove_tunnel_frame_ok	491.48	cove.tunnel_frame_ok	base
+300	logic.cove_tunnel_open_ok	491.49	cove.tunnel_open_ok	base
+301	logic.cove_tunnel_record_ok	491.50	cove.tunnel_record_ok	base
+302	num.cove_tunnel_seq_gap	591.43	cove.tunnel_seq_gap	base

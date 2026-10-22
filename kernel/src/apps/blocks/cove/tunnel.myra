@@ -1,0 +1,11 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Cove files one tunnel, in MYRA (cove_rules.h CR4): its number
+; (0 .. 99), the far device's row on the signed roster (0 .. 7, devmesh
+; holds 8), the Endian Hopping band (0 control .. 4 bulk, ehop.bands), the
+; channel id and the key epoch (0 .. 2^32 - 1 each), the last seq sent
+; (eighteen digits, the channel's nonce space) and when it last moved (ms
+; since 1970). No piece holds a key: the channel secret is the caller's,
+; given for one call and never filed.
+^ZXCOVE(tunnel:i2) = peer:i1! ^ band:i1! ^ chan:i10! ^ epoch:i10! ^ seq:i18! ^ stamp:i15!

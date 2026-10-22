@@ -1,0 +1,1 @@
+(selfactive>0)&(selfrevoked<1)&(peeractive>0)&peerrevoked<1

@@ -1,0 +1,109 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Cove, private tunnels between your own devices: layer 32 of the matrix.
+# A tunnel runs only between two devices on the owner's signed roster
+# (devmesh.status, devmesh.devices), and every frame on it is sealed and
+# opened by zxvd (ehop.seal, ehop.open) on an Endian Hopping band from
+# ehop.bands. Every method is zxvd's; none is invented.
+#
+# No carrier is wired to the socket (devmesh.h H7): zxvd has no method
+# that puts a sealed frame on a wire or takes one off, so Cove hands the
+# sealed frame to the caller and opens a frame the caller gives it. The
+# channel secret is the caller's, given for one call: Cove never keeps,
+# files or logs it, and wipes the request that carried it as soon as zxvd
+# answers (cove_model.h CM4). Tests use fixed test-vector keys only.
+#
+# Cove carries data between the owner's own devices, never money: the
+# settle band (payments) is never a tunnel's band. What may open is
+# advice; zxvd's roster decides who is in the mesh.
+#
+# No later layer leans on this one (LAYER_ORDER.tsv), but its rules are
+# general to any private channel between the owner's devices, so they are
+# registered as concepts owned here (CONCEPTS.tsv): whether a tunnel may
+# open, a channel's seq gap (the nonce discipline), a sealed frame's width
+# against its band, and a tunnel's record. Trellis (29) is built before
+# this one and owns how many peers are in one state: the tunnel screen's
+# count of active devices is that rule, used as it is
+# (trellis.peers_in_state). Aerie (35) owns whether a message fits a band
+# (fits_the_band, message bytes against the band), but it comes after
+# this layer in the build order (MATRIX_ORDER.tsv), so it is not used:
+# tunnel_frame_ok is a different rule, the sealed frame itself on the wire
+# against the band's largest frame, checked before ehop.open is asked.
+# Witness (18) owns a chain link (chain_ok, a truth); a seq gap is a
+# number the tunnel shows (frames lost), so it is a rule of its own.
+#
+# Witness pairs are of one kind (zxapp.c run_one B3). Eve and KRON witness
+# tunnel_open_ok, a truth: Eve holds each flag to its range, KRON reads
+# past a flag that is no flag (held). Sutra and Rust (as WebAssembly)
+# witness tunnel_seq_gap, a number: Sutra's pictures stop at eighteen
+# digits, Rust answers to 64 bits (held past them). Eve alone holds a
+# frame's width, MYRA the tunnel record. The model's C (cove_rules.h) is
+# the third witness of each.
+#
+# Planned (no runtime yet): Go owns concurrency and messaging, and a
+# channel's nonce discipline is how a messaging service keeps its frames
+# in order: pending on tunnel_seq_gap. System/360 assembler owns exact
+# machine-level arithmetic, and the seq gap is one 64-bit compare and
+# subtract, so tunnel_seq_gap is its entry; but a pending line cannot
+# name it: its fit-table name holds a '/', which zxapp.c's pending check
+# refuses (letters, digits and + # - . _ only), so it has no pending line
+# here until that check takes the name. Objective-C owns message-based
+# objects, and a tunnel's record is Cove's object: pending on
+# tunnel_record_ok.
+#
+# Defaults taken (cove_model.h): "active" is a roster row whose status is
+# active and "revoked" one that is a tombstone; a device that is not on
+# the roster is neither and never opens a tunnel. Seqs start at 1 (last 0
+# is a channel nothing has gone through), and a channel stops at eighteen
+# digits of seq, far below the 2^64 - 1 that ehop.seal refuses, so a
+# tunnel moves to a new epoch long before zxvd would refuse it.
+zxapp 1
+id     cove
+name   Cove
+version 1.0.0
+slot   32
+layer  L1
+matrix 32
+icon   icons/l1/032-cove.svg
+budget 233
+needs  peers
+needs  net
+needs  notify
+model  apps/cove_model.c
+use    trellis 1   # @num.trellis_peers_in_state
+
+# May this tunnel open (CR1): both devices active on the roster, neither
+# revoked. Eve holds each flag to its range; KRON reads past a flag that
+# is no flag (a 2, a -1): held.
+provides tunnel_open_ok truth selfactive selfrevoked peeractive peerrevoked
+logic    eve  tunnel_open_ok apps/blocks/cove/open.eve
+logic    kron tunnel_open_ok apps/blocks/cove/open.kron
+
+# The nonce discipline of a channel (CR2): seq strictly rising, the gap
+# seq - last; a reuse or an overflow refused. Sutra (COBOL) refuses past
+# 9(18); Rust answers to 64 bits: held.
+provides tunnel_seq_gap num last seq
+logic    sutra tunnel_seq_gap apps/blocks/cove/seq.sutra
+logic    wasm  tunnel_seq_gap apps/blocks/cove/seq.wasm
+pending  Go tunnel_seq_gap
+
+# A sealed frame within its band's largest frame (CR3), in Eve (Ada).
+provides tunnel_frame_ok truth framelen room
+logic    eve tunnel_frame_ok apps/blocks/cove/frame.eve
+
+# A tunnel fits its record (CR4): ^ZXCOVE's digits, in MYRA (MUMPS).
+provides tunnel_record_ok truth tunnel peer band chan epoch seq stamp
+logic    myra tunnel_record_ok apps/blocks/cove/tunnel.myra
+pending  Objective-C tunnel_record_ok
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check tunnel_open_ok selfactive=1,0,1,1,1,0 selfrevoked=0,0,1,0,0,1 peeractive=1,1,1,0,1,0 peerrevoked=0,0,0,0,1,1 = true,false,false,false,false,false
+check tunnel_open_ok selfactive=1,2 selfrevoked=0,0 peeractive=1,1 peerrevoked=0,0 = both
+check tunnel_open_ok selfactive=1,1 selfrevoked=0,-1 peeractive=1,1 peerrevoked=0,0 = both
+check tunnel_seq_gap last=0,1,5,0,999999999999999998 seq=1,2,9,999999999999999999,999999999999999999 = 1,1,4,999999999999999999,1
+check tunnel_seq_gap last=0,1 seq=1,1000000000000000000 = both
+check tunnel_frame_ok framelen=48,560,2096,47,2097,560,560 room=0,0,0,0,0,-1,2049 = true,true,true,false,false,false,false
+check tunnel_record_ok tunnel=0,99,100,0,0,0,-5 peer=0,7,0,10,0,0,0 band=0,4,0,0,0,0,0 chan=0,4294967295,0,0,10000000000,0,0 epoch=0,4294967295,0,0,0,0,0 seq=1,999999999999999999,1,1,1,1000000000000000000,1 stamp=1700000000000,999999999999999,0,0,0,0,0 = true,true,false,false,false,false,true
+# The tunnel screen's active devices (CM6): how many roster rows are active
+check trellis.peers_in_state state=1,1,2,1 want=1,1,1,1 = 3

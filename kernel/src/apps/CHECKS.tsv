@@ -135,6 +135,14 @@ commons	check room_record_ok room=0,999,1000,1,1 kind=0,2,0,1,10 newest=0,999999
 commons	check message_record_ok room=0,999,1,1,1 pos=0,999999999999,1,1,1 lamport=1,999999999999999999,1,1,1 stamp=0,9999999999999,10000000000000,0,0 bytes=1,1024,1,10000,1 = true,true,false,false,true
 commons	check witness.kind_count kind=1,0,2,1 want=1 = 2
 commons	check witness.kind_count kind=1,2 want=1,1 = both
+cove	check tunnel_open_ok selfactive=1,0,1,1,1,0 selfrevoked=0,0,1,0,0,1 peeractive=1,1,1,0,1,0 peerrevoked=0,0,0,0,1,1 = true,false,false,false,false,false
+cove	check tunnel_open_ok selfactive=1,2 selfrevoked=0,0 peeractive=1,1 peerrevoked=0,0 = both
+cove	check tunnel_open_ok selfactive=1,1 selfrevoked=0,-1 peeractive=1,1 peerrevoked=0,0 = both
+cove	check tunnel_seq_gap last=0,1,5,0,999999999999999998 seq=1,2,9,999999999999999999,999999999999999999 = 1,1,4,999999999999999999,1
+cove	check tunnel_seq_gap last=0,1 seq=1,1000000000000000000 = both
+cove	check tunnel_frame_ok framelen=48,560,2096,47,2097,560,560 room=0,0,0,0,0,-1,2049 = true,true,true,false,false,false,false
+cove	check tunnel_record_ok tunnel=0,99,100,0,0,0,-5 peer=0,7,0,10,0,0,0 band=0,4,0,0,0,0,0 chan=0,4294967295,0,0,10000000000,0,0 epoch=0,4294967295,0,0,0,0,0 seq=1,999999999999999999,1,1,1,1000000000000000000,1 stamp=1700000000000,999999999999999,0,0,0,0,0 = true,true,false,false,false,false,true
+cove	check trellis.peers_in_state state=1,1,2,1 want=1,1,1,1 = 3
 crown	check standing uptime=0,1,0,0,0 dropped=0,0,0,0,0 routing=0,0,1,0,0 audit=0,0,0,0,0 fraud=0,0,0,1,0 volume=0,0,0,0,0 stake=0,0,0,0,0 invalid=0,0,0,0,1 = true,false,false,false,false
 crown	check standing uptime=0,-1 dropped=0,0 routing=0,0 audit=0,0 fraud=0,0 volume=0,0 stake=0,0 invalid=0,0 = both
 crown	check allot units=7 weight=5,3,2 total=10 extra=1,0,0 = 4,2,1

@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether a sealed frame fits its Endian Hopping band (cove_rules.h CR3),
+# in Eve: the frame on the wire is 48 bytes of header, channel tag and
+# AEAD tag around 0 to 2048 bytes of data (EHOP_MAX_PAYLOAD), so 48 to
+# 2096 bytes, and the room the band's largest frame leaves beside it
+# (max_frame - framelen, worked out by the model from ehop.bands) is 0 to
+# 2048 bytes. Eve checks each field against its own range alone, so
+# "within the band's largest frame" comes as that margin: a frame wider
+# than its band leaves a room below 0 and does not fit.
+eve cove
+frame_bytes = 48 .. 2096
+band_room = 0 .. 2048
+
+tunnel_frame {
+  framelen: frame_bytes
+  room: band_room
+}
