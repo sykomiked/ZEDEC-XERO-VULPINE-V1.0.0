@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A product's price from its cost and the owner's margin, in Sutra
+# (mercer_rules.h MR2): cost * (mden + mnum) / mden in integer minor
+# units, the margin mnum / mden (25 / 100 is 25% over cost), rounded half
+# up to a whole minor unit: floor((2 * cost * (mden + mnum) + mden) /
+# (2 * mden)); COMPUTE truncates, and nothing here is negative. cost fits
+# 9(9), mnum and mden 9(5): a negative or a longer value is a size error,
+# refused, and an mden of 0 a division by zero, refused. price.tb takes a
+# cost to 12 digits: past 9(9) the two disagree, held.
+record cost-plus-price
+  cost: 9(9)
+  mnum: 9(5)
+  mden: 9(5)
+  price: 9(15)
+procedure
+  compute price = (2 * cost * (mden + mnum) + mden) / (2 * mden)
+  answer price

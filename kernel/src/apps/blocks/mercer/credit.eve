@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether a sale on credit is allowed, in Eve (mercer_rules.h MR3): the
+# customer's balance plus the sale at most the limit they declared. Eve
+# checks each field against its own range, so the rule comes as its
+# margin: room = limit - balance - sale (coffer.balance, twice), which
+# must be 0 or more and fit 18 digits; the sale is 1 to 2^53 - 1 minor
+# units (libzxv ZXV_AMOUNT_MAX, the most one posting carries) and the
+# limit 0 to 2^53 - 1. credit.sutra says the same in Sutra.
+eve mercer
+credit_sale = 1 .. 9007199254740991
+credit_limit = 0 .. 9007199254740991
+credit_room = 0 .. 999999999999999999
+
+credit_rule {
+  sale: credit_sale
+  limit: credit_limit
+  room: credit_room
+}

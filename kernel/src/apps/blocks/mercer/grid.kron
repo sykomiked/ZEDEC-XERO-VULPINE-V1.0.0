@@ -1,0 +1,4 @@
+a:1-1&abs product-\:product
+b:1-1&abs place-\:place
+c:qty*\:1+0*qty
++/a*b*c

@@ -1,0 +1,38 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A product's price from its cost and the owner's margin, in Trebago
+! (mercer_rules.h MR2), one product per row: cost * (mden + mnum) / mden
+! rounded half up to a whole minor unit. Trebago is exact and has no
+! floor, so it is counted in integers: the margin's whole part
+! a = floor(mnum / mden) (two digit groups, each the count of k with
+! mnum - k * step * mden >= 0, which min(1, max(0, ... + 1)) is for
+! integers), its rest b = mnum - a * mden below mden, and the price
+! cost + cost * a + floor((2 * cost * b + mden) / (2 * mden)), the last
+! quotient at most the cost (below 10^12), counted three digits at a time.
+! ok is 0 for a cost outside 0..999999999999, an mnum outside 0..99999 or
+! an mden outside 1..99999, and the price is divided by it: refused.
+! price.sutra holds the cost to 9(9): past it the two disagree, held.
+trebago costplus
+  in  cost(n), mnum(n), mden(n)
+  out price(n)
+  var ok(n), g(n), h(n), a(n), b(n), y(n), d(n), p(n), q(n), s(n), t(n)
+  ok(i) = min(1, max(0, cost(i) + 1)) * min(1, max(0, 999999999999 - cost(i) + 1)) &
+        * min(1, max(0, mnum(i) + 1)) * min(1, max(0, 99999 - mnum(i) + 1)) &
+        * min(1, max(0, mden(i))) * min(1, max(0, 99999 - mden(i) + 1))
+  g(i) = sum(k = 1:99, min(1, max(0, mnum(i) - k * 1000 * mden(i) + 1)))
+  h(i) = sum(k = 1:999, min(1, max(0, mnum(i) - g(i) * 1000 * mden(i) - k * mden(i) + 1)))
+  a(i) = (g(i) * 1000 + h(i)) * ok(i)
+  b(i) = (mnum(i) - g(i) * 1000 * mden(i) - h(i) * mden(i)) * ok(i)
+  y(i) = 2 * cost(i) * b(i) * ok(i) + mden(i)
+  d(i) = 2 * mden(i)
+  p(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000000000 * d(i) + 1)))
+  y(i) = y(i) - p(i) * 1000000000 * d(i)
+  q(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000000 * d(i) + 1)))
+  y(i) = y(i) - q(i) * 1000000 * d(i)
+  s(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000 * d(i) + 1)))
+  y(i) = y(i) - s(i) * 1000 * d(i)
+  t(i) = sum(k = 1:999, min(1, max(0, y(i) - k * d(i) + 1)))
+  price(i) = (cost(i) * ok(i) + cost(i) * a(i) + p(i) * 1000000000 + q(i) * 1000000 &
+           + s(i) * 1000 + t(i)) / ok(i)
+end

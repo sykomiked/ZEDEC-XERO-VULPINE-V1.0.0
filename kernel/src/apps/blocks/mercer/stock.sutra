@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The stock of a product after a sale, in Sutra (mercer_rules.h MR1): what
+# was on the shelf less what was sold, in whole units, never below zero.
+# stock, sold and left fit 9(9): a sale of more than the stock makes left
+# negative, a size error, refused; once (sold - 1) is unsigned, so a sale
+# of no unit is refused too. stock.kron answers any stock past nine
+# digits: past 9(9) the two disagree, held.
+record stock-after-sale
+  stock: 9(9)
+  sold: 9(9)
+  once: 9(9)
+  left: 9(9)
+procedure
+  compute once = sold - 1
+  compute left = stock - sold
+  answer left

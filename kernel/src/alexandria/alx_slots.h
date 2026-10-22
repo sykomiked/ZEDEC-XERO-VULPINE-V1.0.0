@@ -409,7 +409,12 @@
 #define ALX_SLOT_LOGIC_BONFIRE_INVITE_RECORD_OK  401u /* 492.03 bonfire.invite_record_ok */
 #define ALX_SLOT_NUM_BONFIRE_RSVP_HEADCOUNT      402u /* 591.91 bonfire.rsvp_headcount */
 #define ALX_SLOT_NUM_BONFIRE_SEATS_LEFT          403u /* 591.92 bonfire.seats_left */
-#define ALX_SLOT__COUNT 403u
+#define ALX_SLOT_NUM_MERCER_COST_PLUS_PRICE      404u /* 591.93 mercer.cost_plus_price */
+#define ALX_SLOT_LOGIC_MERCER_CREDIT_SALE_OK     405u /* 492.04 mercer.credit_sale_ok */
+#define ALX_SLOT_LOGIC_MERCER_PRODUCT_NODE_OK    406u /* 492.05 mercer.product_node_ok */
+#define ALX_SLOT_NUM_MERCER_STOCK_AFTER_SALE     407u /* 591.94 mercer.stock_after_sale */
+#define ALX_SLOT_NUM_MERCER_STOCK_GRID_CELL      408u /* 591.95 mercer.stock_grid_cell */
+#define ALX_SLOT__COUNT 408u
 /* clang-format on */
 
 #endif

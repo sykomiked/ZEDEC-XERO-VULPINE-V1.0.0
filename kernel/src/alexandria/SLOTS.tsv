@@ -438,3 +438,8 @@
 401	logic.bonfire_invite_record_ok	492.03	bonfire.invite_record_ok	base
 402	num.bonfire_rsvp_headcount	591.91	bonfire.rsvp_headcount	base
 403	num.bonfire_seats_left	591.92	bonfire.seats_left	base
+404	num.mercer_cost_plus_price	591.93	mercer.cost_plus_price	base
+405	logic.mercer_credit_sale_ok	492.04	mercer.credit_sale_ok	base
+406	logic.mercer_product_node_ok	492.05	mercer.product_node_ok	base
+407	num.mercer_stock_after_sale	591.94	mercer.stock_after_sale	base
+408	num.mercer_stock_grid_cell	591.95	mercer.stock_grid_cell	base

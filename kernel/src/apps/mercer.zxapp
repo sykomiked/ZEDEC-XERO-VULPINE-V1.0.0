@@ -1,0 +1,158 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Mercer, a small shop: L2, slot 171. A catalogue of products with their
+# cost, margin, price and stock, kept in a file of the Hoard (files.read,
+# files.write); sales rung up at the till and posted to the owner's books
+# (ledger.post, through Tallystick and Coffer), read back from them
+# (ledger.balance, ledger.entries) with a numbered receipt saved through
+# the Banker and printed (print.submit); sales on a customer's credit
+# inside the limit the customer declared; listings shown beside the
+# market's offers (net.offers) with the seller's card (player.card). See
+# mercer_model.h MM1-MM9 and mercer_rules.h MR1-MR6.
+#
+# Financial and advisory: every posting, every credit limit, every saved
+# catalogue and every print is the owner's act (owner_confirmed), and the
+# app never moves money by itself. A sale whose till record and buyer's
+# receipt disagree is BOTH (lpres_kjoin of the two sources), held and
+# never posted until the owner rules, so the books stay balanced.
+#
+# Composed, not written again (five uses of ZXAPP_USES 8; its own 8 logic
+# lines and its parts' 36 are 44 of ZXAPP_LOGIC_MAX 128; every part
+# carries version 1.0.0 and its provides lines): a customer's room under
+# a credit limit is coffer.balance and a payment's limits
+# coffer.transfer_ok (inside coffer_propose); a sale's amount is
+# tallystick.taxed_line_total, "paid in full" tallystick.paid_in_full and
+# sale and receipt numbers tallystick.next_doc_number; a listing's
+# assurance fee is fairground.assurance_fee, whether it may be offered
+# fairground.offer_allowed and the price per unit across the day's sales
+# fairground.offer_unit_price; a price in a second currency is
+# tally.fx_amount and the factor a margin puts on cost tally.ratio_add;
+# the seller's tier earned, shown on listings, talisman.earned.
+#
+# The task's "matrix 171" is refused by zxapp.c (M1: a matrix layer is
+# 0..144); an L2 app sits on the layer of its part that is outermost in
+# MATRIX_ORDER.tsv: Tallystick (place 41, layer 78), past Tally (18),
+# Talisman (12), Fairground (11) and Coffer (1).
+#
+# Eve answers truths only and holds each field to its own range, so the
+# credit rule comes as its margin, room = limit - balance - sale, which
+# the model works out with coffer.balance; Sutra answers the same
+# condition. The price's rounding is not stated by the task: it is taken
+# half up to a whole minor unit, as tallystick.taxed_line_total rounds a
+# tax, so a shop's prices and its invoices round alike.
+#
+# Later layers use the stock after a sale, the price from cost and
+# margin, the credit rule, the stock grid and the product record (eleven
+# L3 tasks use Mercer), so every entry is general and registered in
+# CONCEPTS.tsv with Mercer as owner. Kept in C: text (names, the catalogue
+# file, receipts, listings), zxvd's answers and the four-valued join.
+#
+# LISP (twin Coilwyrm) runs now and owns lists, but Lingua's LISP cannot
+# read input ((read) is refused), so a LISP block cannot take an entry's
+# arguments; no LISP line is written. player.card is read under sys.read,
+# as Talisman declares it, so sys.read is needed beside the task's list.
+zxapp 1
+id     mercer
+name   Mercer
+version 1.0.0
+slot   171
+layer  L2
+matrix 78
+icon   icons/l2/171-mercer.svg
+budget 233
+needs  ledger.read
+needs  ledger.post
+needs  fs.read
+needs  fs.write
+needs  print
+needs  net
+needs  peers
+needs  sys.read
+model  apps/mercer_model.c
+use    coffer 1       # @num.coffer_balance @logic.coffer_transfer_ok
+use    tallystick 1   # @num.tallystick_taxed_line_total @logic.tallystick_paid_in_full @num.tallystick_next_doc_number
+use    fairground 1   # @num.fairground_assurance_fee @logic.fairground_offer_allowed @num.fairground_offer_unit_price
+use    tally 1        # @num.tally_fx_amount @num.tally_ratio_add
+use    talisman 1     # @logic.talisman_earned
+# what it exports, so apps built from it can use them too (C1)
+provides coffer.balance num before moved
+provides coffer.transfer_ok truth amount after room gap
+provides tallystick.taxed_line_total num qty price taxn taxd
+provides tallystick.paid_in_full truth total over
+provides tallystick.next_doc_number num last
+provides fairground.assurance_fee num amount
+provides fairground.offer_allowed truth price units priceroom unitsroom
+provides fairground.offer_unit_price num price units
+provides tally.fx_amount num amount rnum rden
+provides tally.ratio_add num an ad bn bd
+provides talisman.earned truth cred bond uptime
+
+# The stock after a sale (MR1, critical): stock - sold, a sale of 1 or
+# more units, never below zero (refused). COBOL as Sutra and APL as KRON,
+# witnessed; a stock past Sutra's 9(9) held (Sutra refuses, KRON
+# answers).
+provides stock_after_sale num stock sold
+logic    sutra stock_after_sale apps/blocks/mercer/stock.sutra
+logic    kron  stock_after_sale apps/blocks/mercer/stock.kron
+
+# The price from cost and margin (MR2, critical): cost * (mden + mnum) /
+# mden rounded half up. FORTRAN as Trebago and COBOL as Sutra, witnessed;
+# a cost past Sutra's 9(9) held (Sutra refuses, Trebago answers).
+provides cost_plus_price num cost mnum mden
+logic    trebago cost_plus_price apps/blocks/mercer/price.tb
+logic    sutra   cost_plus_price apps/blocks/mercer/price.sutra
+
+# A sale on credit allowed (MR3, critical): the customer's balance plus
+# the sale at most their declared limit, as its margin room. Ada as Eve
+# and COBOL as Sutra, witnessed; a field past 18 digits held (Sutra
+# refuses, Eve answers no).
+provides credit_sale_ok truth sale limit room
+logic    eve   credit_sale_ok apps/blocks/mercer/credit.eve
+logic    sutra credit_sale_ok apps/blocks/mercer/credit.sutra
+
+# The stock grid (MR4), products by places: each row's cell, the units of
+# every row with its product and its place. APL as KRON.
+provides stock_grid_cell num product place qty
+logic    kron stock_grid_cell apps/blocks/mercer/grid.kron
+
+# The product tree (MR5): ^ZXMERCER(category, product) = price ^ stock.
+# MUMPS as MYRA.
+provides product_node_ok truth category product price stock
+logic    myra product_node_ok apps/blocks/mercer/product.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check stock_after_sale stock=10,5,999999999,1,7 sold=3,5,1,1,7 = 7,0,999999998,0,0
+check stock_after_sale stock=5,1000000000 sold=1,1 = both
+check cost_plus_price cost=1000,0,1,1,999999999,999999999,7 mnum=25,1,1,1,99999,0,99999 mden=100,1,2,3,1,99999,99999 = 1250,0,2,1,99999999900000,999999999,14
+check cost_plus_price cost=1,1000000000 mnum=0,0 mden=1,1 = both
+check credit_sale_ok sale=1,9007199254740991,0,500,500,500,500 limit=1,9007199254740991,1000,1000,1000,-1,9007199254740992 room=0,0,500,0,-1,0,0 = true,true,false,true,false,false,false
+check credit_sale_ok sale=500,500 limit=1000,1000 room=0,1000000000000000000 = both
+check stock_grid_cell product=1,1,2,1,2 place=1,1,1,2,1 qty=3,4,5,6,7 = 7,7,12,6,12
+check product_node_ok category=1,9999,10000,1,1 product=7,999999,1,1000000,1 price=1250,999999999999999,1,1,1000000000000000 stock=3,999999999,0,0,0 = true,true,false,false,false
+# A credit room and a payment's limits
+check coffer.balance before=0,100,-50,999999999999999998 moved=0,-100,25,1 = 0,0,-25,999999999999999999
+check coffer.balance before=1,1000000000000000000 moved=0,0 = both
+check coffer.transfer_ok amount=1,9007199254740991,0,5,5,5 after=0,0,0,-1,0,0 room=0,0,0,0,-1,0 gap=0,0,0,0,0,1 = true,true,false,false,false,false
+check coffer.transfer_ok amount=5,5 after=0,1000000000000000000 room=0,0 gap=0,0 = both
+# Sale 88 as the till rings it and as the buyer's receipt says it, paid in full, numbered
+check tallystick.taxed_line_total qty=3,2,0,999999 price=500,500,0,9999999 taxn=0,0,0,1 taxd=1,1,1,1 = 1500,1000,0,19999978000002
+check tallystick.taxed_line_total qty=1,1000000 price=1,1 taxn=0,0 taxd=1,1 = both
+check tallystick.paid_in_full total=100,100,0,9007199254740991,100,9007199254740992 over=0,5,0,999999999999999999,-1,0 = true,true,true,true,false,false
+check tallystick.paid_in_full total=100,100 over=0,1000000000000000000 = both
+check tallystick.next_doc_number last=0,87,999999998 = 1,88,999999999
+# A listing's fee, whether it may be offered, the price per unit across sales
+check fairground.assurance_fee amount=0,1124,1125,180000,10000000,999999999999999 = 0,0,1,160,8889,888899999999
+check fairground.assurance_fee amount=1,1000000000000000 = both
+check fairground.offer_allowed price=1,999999999,0,5,5,5 units=1,999999999,1,0,1,1 priceroom=0,999999999,0,0,-1,0 unitsroom=0,0,0,0,0,-1 = true,true,false,false,false,false
+check fairground.offer_allowed price=1,1000000000 units=1,1 priceroom=0,0 unitsroom=0,0 = both
+check fairground.offer_unit_price price=1500,1000 units=3,2 = 500
+check fairground.offer_unit_price price=1250,7 units=2,1 = 1257/3
+# A price in a second currency, and the factor a margin puts on cost
+check tally.fx_amount amount=1250 rnum=10873 rden=10000 = 1359
+check tally.fx_amount amount=1000000000000 rnum=1 rden=1 = both
+check tally.ratio_add an=1,1,1 ad=1,1,1 bn=25,1,0 bd=100,2,7 = 5/4,3/2,1
+check tally.ratio_add an=1,1000000000000000000 ad=3,1 bn=1,0 bd=6,1 = both
+# The seller's tier earned, shown on a listing
+check talisman.earned cred=0,5,0,0,-1,0,0,999999999999999999 bond=0,0,7,0,0,-1,0,0 uptime=0,0,0,10000,0,0,-1,0 = true,true,true,true,false,false,false,true
+check talisman.earned cred=0,0 bond=0,0 uptime=0,10001 = both

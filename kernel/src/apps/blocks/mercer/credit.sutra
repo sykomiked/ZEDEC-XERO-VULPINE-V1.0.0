@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether a sale on credit is allowed, in Sutra (mercer_rules.h MR3): the
+# sale 1 to 2^53 - 1 minor units, the declared limit 0 to 2^53 - 1, and
+# room (limit - balance - sale) not below zero. Every field is s9(18): a
+# value past 18 digits either way is a size error, refused, where
+# credit.eve answers FALSE: held. The sale goes on the customer's account
+# only when both say TRUE.
+record credit-sale
+  sale: s9(18)
+  limit: s9(18)
+  room: s9(18)
+procedure
+  answer sale >= 1 and sale <= 9007199254740991 and limit >= 0 and limit <= 9007199254740991 and room >= 0

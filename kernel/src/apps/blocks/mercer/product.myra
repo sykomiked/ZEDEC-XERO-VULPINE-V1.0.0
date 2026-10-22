@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Mercer files one product of its catalogue in MYRA (mercer_rules.h
+; MR5): a tree kept as a sparse record under the product's category and
+; its own code, with its price in minor units (MR2's answer) and the
+; units in stock (MR1's answer). The model asks whether the numbers fit
+; before it keeps the product.
+^ZXMERCER(category:i4, product:i6) = price:i15! ^ stock:i9!
