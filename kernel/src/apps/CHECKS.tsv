@@ -339,6 +339,23 @@ ferry	check banker.share size=600,400 total=1000 = 6000,4000
 ferry	check banker.share size=5,11 total=10 = both
 ferry	check used_share.used_x100 total=1000,1000,1000,3 left=1000,400,0,2 = 0,6000,10000,3333
 ferry	check used_share.used_x100 total=1000,1000 left=0,1001 = both
+fieldguide	check species_caution mark=0,0,0 = 0
+fieldguide	check species_caution mark=0,-1,0 = 1
+fieldguide	check species_caution mark=-1,1,0 = 2
+fieldguide	check species_caution mark=-1,-1 = 1
+fieldguide	check species_caution mark=0,2 = both
+fieldguide	check species_caution mark=-2,0 = both
+fieldguide	check key_next_lead answer=1 yes=5 no=-7 = 5
+fieldguide	check key_next_lead answer=0 yes=5 no=-7 = -7
+fieldguide	check key_next_lead answer=-1 yes=5 no=-7 = 0
+fieldguide	check key_next_lead answer=1 yes=999999999 no=-999999999 = 999999999
+fieldguide	check key_next_lead answer=2 yes=5 no=-7 = both
+fieldguide	check key_next_lead answer=0 yes=5 no=1000000000 = both
+fieldguide	check match_order_key score=0,4294967295,1200,0 keyed=0,0,1,1 = 0,4294967295,4294968496,4294967296
+fieldguide	check match_order_key score=4294967296,5 keyed=0,0 = both
+fieldguide	check match_order_key score=7,5 keyed=2,0 = both
+fieldguide	check article_row_ok article=9999,1,10000,1,1,1 taxon=999999999,5240046,1,1000000000,1,1 kind=3,2,1,1,10,1 mark=-1,1,0,0,0,1 mtime=999999999999,1760000000,1,1,1,1000000000000 = true,true,false,false,false,false
+fieldguide	check assay.score_rank score=5,4294967301,5 = 2,1,2
 fireglow	check speed_left_ms length=0,60000,60000,60000,359999999,3600000 pos=0,0,30000,60000,0,0 rate=65536,65536,131072,32768,32768,196608 = 0,60000,15000,0,719999998,1200000
 fireglow	check speed_left_ms length=1000,1000 pos=0,0 rate=65536,98304 = 1000,2000/3
 fireglow	check speed_left_ms length=1000,1000 pos=0,1001 rate=65536,65536 = both

@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Each matched article's order key (fieldguide_rules.h FR3), in Trebago:
+! keyed * 4294967296 + score, so the species the identification key
+! reached comes first and search.query's order holds among the rest.
+! bad counts the rows with a score outside 0..4294967295 or keyed outside
+! 0..1; every key is divided by 1 - min(1, bad), so any one of them is a
+! division by zero, refused, where match_key.kron answers: held.
+trebago match_order_key
+  in  score(n), keyed(n)
+  out key(n)
+  var bad
+  bad = sum(j, min(1, max(0, 0 - score(j))) + min(1, max(0, score(j) - 4294967295)) &
+        + min(1, max(0, 0 - keyed(j))) + min(1, max(0, keyed(j) - 1)))
+  key(i) = (keyed(i) * 4294967296 + score(i)) / (1 - min(1, bad))
+end

@@ -521,3 +521,7 @@
 484	logic.trickle_stream_pay_ok	492.37	trickle.stream_pay_ok	base
 485	num.trickle_tithe_carry	592.41	trickle.tithe_carry	base
 486	num.trickle_tithe_due	592.42	trickle.tithe_due	base
+487	logic.fieldguide_article_row_ok	492.38	fieldguide.article_row_ok	base
+488	num.fieldguide_key_next_lead	592.43	fieldguide.key_next_lead	base
+489	num.fieldguide_match_order_key	592.44	fieldguide.match_order_key	base
+490	num.fieldguide_species_caution	592.45	fieldguide.species_caution	base

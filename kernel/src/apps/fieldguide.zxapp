@@ -1,0 +1,111 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Fieldguide, the offline encyclopedia and nature guide: layer 102 of the
+# matrix. Articles are text files under Fieldguide/ in the Hoard, found by
+# the words in them with zxvd's search.query (search.refresh brings the
+# index up to date) and read with files.read; an identification key is a
+# file of couplets under Fieldguide/keys/, walked one question at a time
+# (fieldguide_model.h FM1-FM6).
+#
+# A data-pack app (docs/DATAPACKS.md): the core pack fieldguide-core.tar
+# (GBIF Backbone Taxonomy, CC BY 4.0; Wikidata species with an English
+# name, CC0) and the optional Wikipedia ZIM pack (CC BY-SA 4.0) install
+# into the Hoard; nothing of either is in this repository.
+#
+# The caution is advice and says only what an article says. No source in
+# the data-pack table marks species toxic, so an article from the packs
+# carries no toxicity information; the caution then says the toxicity is
+# unknown. It is "marked" only from a toxic: or dangerous: line an article
+# itself carries. Fieldguide never says a plant or fungus is safe to eat:
+# no level means safe, the model reads no edibility from any article, and
+# every caution it shows ends with that warning.
+#
+# Built on what is nearer the core: the match ranking is Assay's
+# score_rank (KRON, best first, ties sharing a place) of each article's
+# order key, so the ranking is not written again.
+#
+# The task asks for the caution in KRON and MYRA, witnessed. MYRA checks
+# only whether values fit a record's fields (zxapp_myra.c MY1-MY4): it
+# cannot read "any mark is 1" across the matched articles, nor the "else
+# unknown" that follows. So the caution is witnessed in KRON and Trebago
+# (FORTRAN, exact sums over a vector, as homestead.device_energy is), and
+# MYRA holds the article index record that carries each mark, as the task
+# asks for the index. The identification key is BASIC (twin Hatchling),
+# as the task asks, witnessed by KRON, since the next lead decides what
+# the person sees. The match order key is KRON, witnessed by Trebago.
+#
+# Later layers lean on this one (Verderer, Fen, Sedge, Atoll, Corbel and
+# Varve use the caution, the key or the ranking), so the caution, the key
+# step and the match order key are general and registered in CONCEPTS.tsv
+# with Fieldguide as owner. The article record is Fieldguide's own.
+#
+# Kept in C, since no runnable language owns it: reading an article's
+# header lines (text), the key file's couplets (text), zxvd's answers and
+# the four-valued join of what two articles say about one species
+# (lpres_kjoin: one marks it toxic, another not, is BOTH).
+#
+# Logo (twin Kiteling) runs now and owns geometry, but it is not used:
+# Lingua's Logo refuses readword and readlist (zl_logo.c), so a Logo
+# program cannot read an entry's arguments (zxapp_lingua.c L1), and
+# Fieldguide decides no geometry. Python is planned for the task, but it
+# already has a runtime (python in LANGUAGE_FIT.tsv), so no pending line;
+# no entry here is scripting or a model pipeline.
+zxapp 1
+id     fieldguide
+name   Fieldguide
+version 1.0.0
+slot   102
+layer  L1
+matrix 102
+icon   icons/l1/102-fieldguide.svg
+budget 233
+needs  fs.read
+needs  search
+model  apps/fieldguide_model.c
+use    assay 1   # @num.assay_score_rank
+
+# Show a caution (FR1, critical): KRON and Trebago (FORTRAN), witnessed;
+# a mark outside -1..1 held (Trebago refuses, KRON clamps it).
+provides species_caution num mark
+logic    kron    species_caution apps/blocks/fieldguide/caution.kron
+logic    trebago species_caution apps/blocks/fieldguide/caution.tb
+
+# The identification key, one question at a time (FR2, critical): BASIC,
+# twin Hatchling, witnessed by KRON; an answer outside -1..1 or a lead
+# past nine digits held (BASIC refuses, KRON answers).
+provides key_next_lead num answer yes no
+# Minimal BASIC, twin Hatchling: the file is in the twin's canonical form
+# (zxlang twin); the line names the runtime "basic".
+logic    basic key_next_lead apps/blocks/fieldguide/key.bas
+logic    kron  key_next_lead apps/blocks/fieldguide/key.kron
+
+# The match order key (FR3, critical): KRON, witnessed by Trebago; a score
+# past 32 bits or a keyed flag outside 0..1 held (Trebago refuses).
+provides match_order_key num score keyed
+logic    kron    match_order_key apps/blocks/fieldguide/match_key.kron
+logic    trebago match_order_key apps/blocks/fieldguide/match_key.tb
+
+# The article index (FR4), a ^ZXFIELDGUIDE record in MYRA.
+provides article_row_ok truth article taxon kind mark mtime
+logic    myra article_row_ok apps/blocks/fieldguide/article.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check species_caution mark=0,0,0 = 0
+check species_caution mark=0,-1,0 = 1
+check species_caution mark=-1,1,0 = 2
+check species_caution mark=-1,-1 = 1
+check species_caution mark=0,2 = both
+check species_caution mark=-2,0 = both
+check key_next_lead answer=1 yes=5 no=-7 = 5
+check key_next_lead answer=0 yes=5 no=-7 = -7
+check key_next_lead answer=-1 yes=5 no=-7 = 0
+check key_next_lead answer=1 yes=999999999 no=-999999999 = 999999999
+check key_next_lead answer=2 yes=5 no=-7 = both
+check key_next_lead answer=0 yes=5 no=1000000000 = both
+check match_order_key score=0,4294967295,1200,0 keyed=0,0,1,1 = 0,4294967295,4294968496,4294967296
+check match_order_key score=4294967296,5 keyed=0,0 = both
+check match_order_key score=7,5 keyed=2,0 = both
+check article_row_ok article=9999,1,10000,1,1,1 taxon=999999999,5240046,1,1000000000,1,1 kind=3,2,1,1,10,1 mark=-1,1,0,0,0,1 mtime=999999999999,1760000000,1,1,1,1000000000000 = true,true,false,false,false,false
+# Match ranking, Assay's: keys 5, 4294967301 and 5 rank 2, 1, 2
+check assay.score_rank score=5,4294967301,5 = 2,1,2

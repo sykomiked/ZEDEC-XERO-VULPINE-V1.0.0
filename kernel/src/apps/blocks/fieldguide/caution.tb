@@ -1,0 +1,19 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The caution over the matched articles (fieldguide_rules.h FR1), in
+! Trebago: 2 when any article marks its species toxic or dangerous (mark
+! 1), else 1 when any article carries no toxicity information (mark -1),
+! else 0, which never means safe. For integers min(1, sum of min(1,
+! max(0, x))) is 1 exactly when some x is above 0. bad counts the marks
+! outside -1..1; the level is divided by 1 - min(1, bad), so any one of
+! them is a division by zero, refused, where caution.kron clamps it: held.
+trebago species_caution
+  in  mark(n)
+  out level
+  var bad, marked, blank
+  bad = sum(i, min(1, max(0, 0 - 1 - mark(i))) + min(1, max(0, mark(i) - 1)))
+  marked = min(1, sum(i, min(1, max(0, mark(i)))))
+  blank = min(1, sum(i, min(1, max(0, 0 - mark(i)))))
+  level = (2 * marked + (1 - marked) * blank) / (1 - min(1, bad))
+end

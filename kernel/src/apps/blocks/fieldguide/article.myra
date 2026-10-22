@@ -1,0 +1,11 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Fieldguide files one article of its index in MYRA
+; (fieldguide_rules.h FR4): a record under the article's place in the
+; index, with the species' GBIF key (taxon, 0 not known), what it is
+; (kind: 0 other, 1 plant, 2 fungus, 3 animal), the article's toxicity
+; mark (1 toxic or dangerous, 0 marks neither, -1 carries nothing) and
+; when the file last changed. The model asks whether the numbers fit
+; before it keeps the article.
+^ZXFIELDGUIDE(article:i4) = taxon:i9! ^ kind:i1! ^ mark:i1! ^ mtime:i12!

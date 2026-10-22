@@ -492,7 +492,11 @@
 #define ALX_SLOT_LOGIC_TRICKLE_STREAM_PAY_OK     484u /* 492.37 trickle.stream_pay_ok */
 #define ALX_SLOT_NUM_TRICKLE_TITHE_CARRY         485u /* 592.41 trickle.tithe_carry */
 #define ALX_SLOT_NUM_TRICKLE_TITHE_DUE           486u /* 592.42 trickle.tithe_due */
-#define ALX_SLOT__COUNT 486u
+#define ALX_SLOT_LOGIC_FIELDGUIDE_ARTICLE_ROW_OK 487u /* 492.38 fieldguide.article_row_ok */
+#define ALX_SLOT_NUM_FIELDGUIDE_KEY_NEXT_LEAD    488u /* 592.43 fieldguide.key_next_lead */
+#define ALX_SLOT_NUM_FIELDGUIDE_MATCH_ORDER_KEY  489u /* 592.44 fieldguide.match_order_key */
+#define ALX_SLOT_NUM_FIELDGUIDE_SPECIES_CAUTION  490u /* 592.45 fieldguide.species_caution */
+#define ALX_SLOT__COUNT 490u
 /* clang-format on */
 
 #endif
