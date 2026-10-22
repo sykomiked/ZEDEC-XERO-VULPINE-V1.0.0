@@ -659,7 +659,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 45
+    timeout-minutes: 75  # shard 2/3 ran 35 to 45+ minutes
     strategy:
       fail-fast: false
       matrix:
