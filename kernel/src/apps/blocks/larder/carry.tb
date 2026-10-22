@@ -1,0 +1,15 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The unspent carry-over into next month, in Trebago (larder_rules.h LR3):
+! the exact sum over the categories of max(0, budget - spent), in integer
+! minor units, so an overspent category carries nothing and takes nothing
+! from the others. A budget below 0 makes the divisor 1 - 1 = 0, which
+! refuses the whole answer; a difference or a sum past 64 bits is refused
+! too, never wrapped.
+trebago carry
+  in  budget(n), spent(n)
+  out carry
+  carry = sum(i, max(0, budget(i) - spent(i))) &
+        / (1 - min(1, sum(j, max(0, 0 - budget(j)))))
+end

@@ -461,7 +461,10 @@
 #define ALX_SLOT_LOGIC_BRAMBLE_MINDMAP_LIMITS_OK 453u /* 492.23 bramble.mindmap_limits_ok */
 #define ALX_SLOT_NUM_BRAMBLE_RING_PLACE_X        454u /* 592.24 bramble.ring_place_x */
 #define ALX_SLOT_NUM_BRAMBLE_RING_PLACE_Y        455u /* 592.25 bramble.ring_place_y */
-#define ALX_SLOT__COUNT 455u
+#define ALX_SLOT_LOGIC_LARDER_CATEGORY_OVER      456u /* 492.24 larder.category_over */
+#define ALX_SLOT_NUM_LARDER_CATEGORY_SPENT       457u /* 592.26 larder.category_spent */
+#define ALX_SLOT_NUM_LARDER_UNSPENT_CARRY        458u /* 592.27 larder.unspent_carry */
+#define ALX_SLOT__COUNT 458u
 /* clang-format on */
 
 #endif

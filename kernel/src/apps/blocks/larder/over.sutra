@@ -1,0 +1,13 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether a category is over its budget, in Sutra (larder_rules.h LR2): a
+# budget set (at least one minor unit) and an excess, spent - budget, of
+# at least one minor unit. Both fields are s9(18): a value past 18 digits
+# is a size error, refused, where over.eve answers FALSE: held. The model
+# shows a category as over only when both say TRUE.
+record larder-over
+  budget: s9(18)
+  excess: s9(18)
+procedure
+  answer budget >= 1 and excess >= 1

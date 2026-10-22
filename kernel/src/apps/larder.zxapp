@@ -1,0 +1,89 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Larder, the household budget: layer 82 of the matrix. A monthly budget
+# per category against what the owner's books say was spent in it: each
+# category is a holder account of the books (ledger.accounts), what was
+# spent this month is its balance now less its balance when the month
+# began (ledger.balance), and the month's entries of that account
+# (ledger.entries, those after the month's first) must add up to the same
+# figure, or the answer is refused. Money is integer minor units, never a
+# float; anything that does not fit is refused, never rounded or cut.
+#
+# Advisory and owner-confirmed: Larder never posts or moves money (it has
+# no ledger.post). Setting a budget, starting a month and closing one
+# (carrying what was left unspent into next month's budgets) each take the
+# owner's word (larder_model.h LA3), and nothing is asked of zxvd without it.
+#
+# Built from an earlier layer: Coffer (73), nearest the core. A month's
+# totals (budgeted, spent) are coffer.holdings, the exact sum in minor
+# units (Trebago), and a category's excess over its budget is
+# coffer.balance (spent - budget). The layer leans on no other layer's
+# code. Understory (93) has over_budget (an excess of 1..18 digits), but
+# it is built after this layer in the matrix order (place 92 against 87),
+# so a use of it points outward and is refused; Larder's rule is its own,
+# per category, and adds that a budget is set (0 is none, never over). No
+# later layer leans on this one yet; its three entries are still general
+# money rules, registered in CONCEPTS.tsv with Larder as their owner.
+#
+# Witness pairs are of one kind: what was spent is a number, in Sutra and
+# Trebago (Sutra holds a holder's balance to 0..18 digits and refuses past
+# it, Trebago answers: held); over budget is a truth whose fields Eve
+# checks each against its own range, so the model gives it the excess
+# spent - budget, and Sutra answers the same condition (an excess past 18
+# digits: Sutra refuses, Eve says FALSE: held). The carry-over is an exact
+# sum, in Trebago alone.
+#
+# The notify capability is declared for the over-budget notice, but zxvd
+# has no method that raises a notice (notes.list and notes.mark_read only
+# read and mark), so the model composes the notice's text
+# (larder_t.notice) for the view to show. ledger.entries carries no
+# posting time, so a month is the entries after the last one seen when
+# the owner started it, not a calendar month read from the books.
+zxapp 1
+id     larder
+name   Larder
+version 1.0.0
+slot   82
+layer  L1
+matrix 82
+icon   icons/l1/082-larder.svg
+budget 233
+needs  ledger.read
+needs  notify
+model  apps/larder_model.c
+use    coffer 1   # @num.coffer_holdings @num.coffer_balance
+
+# What was spent in a category this month (LR1): closing - opening of its
+# holder account, in minor units, one category per row.
+provides category_spent num opening closing
+logic    sutra   category_spent apps/blocks/larder/spent.sutra
+logic    trebago category_spent apps/blocks/larder/spent.tb
+
+# Over budget (LR2): a budget of 1..18 digits and an excess (spent -
+# budget) of 1..18 digits.
+provides category_over truth budget excess
+logic    eve   category_over apps/blocks/larder/over.eve
+logic    sutra category_over apps/blocks/larder/over.sutra
+# Eiffel (contracts) and Solidity (contract rules) own this rule; neither
+# runs yet, so Eve and Sutra stand in. PHP, also planned, owns templated
+# pages and reports; no entry here is a report (the month's summary is the
+# model's notice text, in C), so it has no line.
+pending  Eiffel category_over
+pending  Solidity category_over
+
+# The unspent carry-over into next month (LR3): the exact sum of
+# max(0, budget - spent) over the categories, refused past 64 bits.
+provides unspent_carry num budget spent
+logic    trebago unspent_carry apps/blocks/larder/carry.tb
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check category_spent opening=0,100,500,0,999999999999999999 closing=0,350,200,999999999999999999,999999999999999999 = 0,250,-300,999999999999999999,0
+check category_spent opening=0,0 closing=5,1000000000000000000 = both
+check category_spent opening=0,-1 closing=5,5 = both
+check category_over budget=100,100,100,0,1,999999999999999999,-5 excess=1,0,-50,500,999999999999999999,999999999999999999,10 = true,false,false,false,true,true,false
+check category_over budget=100,100 excess=1,1000000000000000000 = both
+check unspent_carry budget=1000,500,0,300 spent=400,700,50,-100 = 1000
+check unspent_carry budget=9223372036854775807,0 spent=0,0 = 9223372036854775807
+check coffer.holdings balance=40000,12500,-300 = 52200
+check coffer.balance before=350,100 moved=-300,-100 = 50,0

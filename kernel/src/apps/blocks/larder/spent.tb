@@ -1,0 +1,13 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! What was spent in a category this month, in Trebago (larder_rules.h
+! LR1): closing - opening of the category's account, in integer minor
+! units, one category per row, exact. Trebago does not hold the balances
+! to a holder's range; spent.sutra does (0 to 18 digits), so a negative
+! balance or one past 18 digits makes the two disagree and is held.
+trebago spent
+  in  opening(n), closing(n)
+  out spent(n)
+  spent(i) = closing(i) - opening(i)
+end

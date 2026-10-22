@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether a category is over its budget, in Eve (larder_rules.h LR2): a
+# budget is set (1 to 18 digits of minor units; 0 is none, never over) and
+# the excess, spent - budget (coffer.balance), is 1 to 18 digits. Each
+# field is held to its own range; an excess of 0 or below does not fit:
+# within budget. over.sutra says the same in Sutra.
+eve larder
+minor_budget = 1 .. 999999999999999999
+minor_excess = 1 .. 999999999999999999
+
+over_rule {
+  budget: minor_budget
+  excess: minor_excess
+}

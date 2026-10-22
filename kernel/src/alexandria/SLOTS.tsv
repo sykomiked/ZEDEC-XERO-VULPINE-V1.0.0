@@ -490,3 +490,6 @@
 453	logic.bramble_mindmap_limits_ok	492.23	bramble.mindmap_limits_ok	base
 454	num.bramble_ring_place_x	592.24	bramble.ring_place_x	base
 455	num.bramble_ring_place_y	592.25	bramble.ring_place_y	base
+456	logic.larder_category_over	492.24	larder.category_over	base
+457	num.larder_category_spent	592.26	larder.category_spent	base
+458	num.larder_unspent_carry	592.27	larder.unspent_carry	base

@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What was spent in a category this month, in Sutra (larder_rules.h LR1):
+# closing - opening of the category's holder account, in integer minor
+# units, one category per row. A holder account is never below zero, so
+# both balances are 9(18): a negative balance or one past 18 digits is a
+# size error, refused. The answer is s9(18): below 0 when more came back
+# than went in. spent.tb says the same in Trebago.
+record larder-spent
+  opening: 9(18)
+  closing: 9(18)
+  spent: s9(18)
+procedure
+  compute spent = closing - opening
+  answer spent
