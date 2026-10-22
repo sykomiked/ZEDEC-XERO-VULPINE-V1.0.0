@@ -553,3 +553,10 @@
 516	logic.verderer_share_coarse_ok	492.52	verderer.share_coarse_ok	base
 517	num.verderer_sighting_grid_cell	592.58	verderer.sighting_grid_cell	base
 518	logic.verderer_species_tree_ok	492.53	verderer.species_tree_ok	base
+519	num.dibber_bed_family_repeats	592.59	dibber.bed_family_repeats	base
+520	num.dibber_bed_water_litres	592.60	dibber.bed_water_litres	base
+521	num.dibber_harvest_gdd_days	592.61	dibber.harvest_gdd_days	base
+522	logic.dibber_plot_bed_record_ok	492.54	dibber.plot_bed_record_ok	base
+523	num.dibber_seed_supply_cost	592.62	dibber.seed_supply_cost	base
+524	logic.dibber_water_now_ok	492.55	dibber.water_now_ok	base
+525	logic.dibber_watering_limit_ok	492.56	dibber.watering_limit_ok	base

@@ -1,0 +1,4 @@
+a:1-1&abs bed-\:bed
+b:1-1&abs family-\:family
+c:1&abs year-\:year
++/a*b*c

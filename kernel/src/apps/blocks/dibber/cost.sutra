@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A seed or supply line's cost (dibber_rules.h DR4), in Sutra: count units
+# (packets, bags, metres of hose) at price minor units of the owner's
+# currency each, count * price minor units, exact. count fits 9(6) and
+# price 9(9), so a larger or a negative one is a size error: refused,
+# where cost.tb answers any count and price from 0: held. Advice only: it
+# is no bill.
+record supply-line
+  count: 9(6)
+  price: 9(9)
+  cost: 9(15)
+procedure
+  compute cost = count * price
+  answer cost

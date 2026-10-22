@@ -1,0 +1,142 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Dibber, the garden planner: L2, slot 149. Plantings, watering and
+# harvests for a plot, planned from the weather and the land's water
+# budget, kept in the Hoard (files.read, files.write) for where the plot
+# is (place.here). See dibber_model.h DM1-DM8 and dibber_rules.h DR1-DR8.
+# ADVISORY: Dibber never controls a pump or a valve; the owner waters,
+# and the plan is saved only on the owner's word. zxvd has no weather
+# source (as Weatherglass reports), no soil sensor and no notification
+# method: readings are handed in and a notice is composed as text for the
+# view (needs notify for when it has one).
+#
+# Composed, not written again (four uses of ZXAPP_USES 8; its own 10
+# logic lines and its parts' 36 are 46 of ZXAPP_LOGIC_MAX 128):
+#   furrow.range_total        the bed sheet's column sums: a range of
+#                             beds' week of water, and the supply list
+#   solstice.next_occurrence  the next day of a repeating task
+#   weatherglass.temp_f_tenths, warn_flags and forecast_ok  the frost
+#                             warning of a reading that fits its record,
+#                             shown in C and F
+#   understory.over_budget    "over budget" for the week's water
+#   understory.rolling_total  the week's water, a rolling window of 7 days
+#
+# matrix: zxapp.c takes 0..144 and slot 149 is no matrix layer; an L2 app
+# sits on the layer of its part outermost in MATRIX_ORDER.tsv: Understory
+# (place 92, layer 93), past Weatherglass (89, 88), Solstice (66, 43) and
+# Furrow (63, 40).
+#
+# Witness pairs answer one kind. "May water now" is Ada as Eve and APL as
+# KRON, truths both: Eve holds each field to its own range, so the budget
+# enters as the excess (the week's use plus this watering less the
+# budget, 0 or less) and the frost warning as warn_flags' frost flag; no
+# relation across fields is needed. Water per bed is FORTRAN as Trebago
+# and APL as KRON, the exact rational both; the costs are COBOL as Sutra
+# and FORTRAN as Trebago, numbers both.
+#
+# The task's "bed area in square decimetres x depth in mm = litres" is a
+# hundred times too much (a square metre under a millimetre is a litre):
+# the units are kept and the litres are area * depth / 100, exact.
+# Defaults taken: a bed moist enough to sow at 30 percent or more, one
+# watering at most 40 mm and 14 a week, frost as Weatherglass reads it.
+#
+# Later layers (Chintz, Linen, Sunfleck, Wardian, Descant, Solarium,
+# Piccolo) use the water per bed, "may water now", the days to harvest
+# and the bed grid, so those are registered in CONCEPTS.tsv with Dibber as
+# owner. Kept in C: text (the plan file, a notice), zxvd's answers and the
+# four-valued join of two soil readings of one bed on one day
+# (lpres_kjoin: BOTH holds the planting suggestion until a re-test).
+#
+# Planned (no runtime yet): Simula 67 owns simulation, and the days to
+# harvest simulate a crop's growth day by day; Oberon owns structure, and
+# the plot hierarchy is that structure.
+zxapp 1
+id     dibber
+name   Dibber
+version 1.0.0
+slot   149
+layer  L2
+matrix 93
+icon   icons/l2/149-dibber.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  location
+needs  notify
+model  apps/dibber_model.c
+use    furrow 1         # @num.furrow_range_total
+use    solstice 1       # @num.solstice_next_occurrence
+use    weatherglass 1   # @num.weatherglass_temp_f_tenths @num.weatherglass_warn_flags @logic.weatherglass_forecast_ok
+use    understory 1     # @logic.understory_over_budget @num.understory_rolling_total
+# what it exports, so apps built from it can use them too (C1)
+provides furrow.range_total num pos lo hi cell
+provides solstice.next_occurrence num start every today
+provides weatherglass.temp_f_tenths num celsius
+provides weatherglass.warn_flags num temp wind
+provides weatherglass.forecast_ok truth stamp temp wind rain
+provides understory.over_budget truth excess
+provides understory.rolling_total num amount width
+
+# Water per bed per week (DR1, critical): FORTRAN as Trebago and APL as
+# KRON, the exact rational; past Trebago's domain held.
+provides bed_water_litres num area depth
+logic    trebago bed_water_litres apps/blocks/dibber/litres.tb
+logic    kron    bed_water_litres apps/blocks/dibber/litres.kron
+
+# May water now (DR2, critical): Ada as Eve and APL as KRON; an excess
+# past 18 digits, Eve no, KRON yes: held.
+provides water_now_ok truth excess frost
+logic    eve  water_now_ok apps/blocks/dibber/water.eve
+logic    kron water_now_ok apps/blocks/dibber/water.kron
+
+# Water limits (DR3), Ada as Eve, advisory.
+provides watering_limit_ok truth depth times
+logic    eve watering_limit_ok apps/blocks/dibber/limits.eve
+
+# Seed and supply costs in minor units (DR4, critical): COBOL as Sutra and
+# FORTRAN as Trebago; past Sutra's pictures held.
+provides seed_supply_cost num count price
+logic    sutra   seed_supply_cost apps/blocks/dibber/cost.sutra
+logic    trebago seed_supply_cost apps/blocks/dibber/cost.tb
+
+# Days to harvest from growing degree days (DR5), FORTRAN as Trebago.
+provides harvest_gdd_days num mean base need
+logic    trebago harvest_gdd_days apps/blocks/dibber/harvest.tb
+pending  Simula_67 harvest_gdd_days
+
+# The bed grid, crop family per bed per year (DR6), APL as KRON.
+provides bed_family_repeats num bed year family
+logic    kron bed_family_repeats apps/blocks/dibber/grid.kron
+
+# The plot hierarchy (DR7), MUMPS as MYRA.
+provides plot_bed_record_ok truth plot bed area
+logic    myra plot_bed_record_ok apps/blocks/dibber/plot.myra
+pending  Oberon plot_bed_record_ok
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check bed_water_litres area=0,100,3,999999,120 depth=0,25,1,999,7 = 0,25,3/100,998999001/100,42/5
+check bed_water_litres area=1,1000000 depth=1,1 = both
+check water_now_ok excess=-5,0,1,-999999999999999999,0 frost=0,0,0,0,1 = true,true,false,true,false
+check water_now_ok excess=0,-1000000000000000000 frost=0,0 = both
+check watering_limit_ok depth=1,40,41,0,10,10 times=1,14,1,1,15,0 = true,true,false,false,false,false
+check seed_supply_cost count=0,12,999999,3 price=0,250,999999999,1999 = 0,3000,999998999000001,5997
+check seed_supply_cost count=1,1000000 price=1,1 = both
+check harvest_gdd_days mean=120,150,90,200 base=100 need=100 = 4
+check harvest_gdd_days mean=-1000,1000 base=0 need=1000 = 2
+check harvest_gdd_days mean=401,401 base=400 need=1 = 1
+check bed_family_repeats bed=1,1,1,2,2 year=2024,2025,2026,2024,2025 family=3,3,5,3,4 = 1,1,0,0,0
+check plot_bed_record_ok plot=1,999999,1000000,1,1,-5 bed=1,9999,1,10000,1,1 area=1,999999999,1,1,1000000000,0 = true,true,false,false,false,true
+# The parts: the bed sheet, a task's next day, the frost warning, the budget and the week
+check furrow.range_total pos=1,2,3,4,5 lo=2,2,2,2,2 hi=4,4,4,4,4 cell=2500,4200,300,999,7 = 5499
+check furrow.range_total pos=1,1,1 lo=1,1,1 hi=1,1,1 cell=9223372036854775807,1,-1 = both
+check solstice.next_occurrence start=100,100,100 every=7,7,7 today=50,101,107 = 100,107,107
+check solstice.next_occurrence start=100,100 every=7,7 today=101,2932897 = both
+check weatherglass.temp_f_tenths celsius=-1000,0,1,-15 = -1480,320,1609/5,293
+check weatherglass.temp_f_tenths celsius=0,1001 = both
+check weatherglass.warn_flags temp=0,1,350,-15 wind=0,0,0,172 = 1,0,2,5
+check weatherglass.warn_flags temp=0,0 wind=0,-1 = both
+check weatherglass.forecast_ok stamp=1792627200,100000000000 temp=-15,0 wind=41,0 rain=2,0 = true,false
+check understory.over_budget excess=-5,0,1 = false,false,true
+check understory.over_budget excess=5,1000000000000000000 = both
+check understory.rolling_total amount=5,10,20,40,0,0,0 width=7 = 5,15,35,75,75,75,75

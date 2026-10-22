@@ -524,7 +524,14 @@
 #define ALX_SLOT_LOGIC_VERDERER_SHARE_COARSE_OK  516u /* 492.52 verderer.share_coarse_ok */
 #define ALX_SLOT_NUM_VERDERER_SIGHTING_GRID_CELL 517u /* 592.58 verderer.sighting_grid_cell */
 #define ALX_SLOT_LOGIC_VERDERER_SPECIES_TREE_OK  518u /* 492.53 verderer.species_tree_ok */
-#define ALX_SLOT__COUNT 518u
+#define ALX_SLOT_NUM_DIBBER_BED_FAMILY_REPEATS   519u /* 592.59 dibber.bed_family_repeats */
+#define ALX_SLOT_NUM_DIBBER_BED_WATER_LITRES     520u /* 592.60 dibber.bed_water_litres */
+#define ALX_SLOT_NUM_DIBBER_HARVEST_GDD_DAYS     521u /* 592.61 dibber.harvest_gdd_days */
+#define ALX_SLOT_LOGIC_DIBBER_PLOT_BED_RECORD_OK 522u /* 492.54 dibber.plot_bed_record_ok */
+#define ALX_SLOT_NUM_DIBBER_SEED_SUPPLY_COST     523u /* 592.62 dibber.seed_supply_cost */
+#define ALX_SLOT_LOGIC_DIBBER_WATER_NOW_OK       524u /* 492.55 dibber.water_now_ok */
+#define ALX_SLOT_LOGIC_DIBBER_WATERING_LIMIT_OK  525u /* 492.56 dibber.watering_limit_ok */
+#define ALX_SLOT__COUNT 525u
 /* clang-format on */
 
 #endif

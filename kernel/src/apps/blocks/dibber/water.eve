@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# May this bed be watered now (dibber_rules.h DR2), in Eve, advisory: the
+# watering stays within the week's water budget (excess, what the week
+# has used plus this watering less the budget, in hundredths of a litre,
+# 0 or less, down to -999999999999999999, the 18 digits Understory's
+# over_budget reads) AND no frost warning is raised (frost 0, the frost
+# flag of weatherglass.warn_flags). Each is held to its own range;
+# water.kron compares the same two. An excess past 18 digits is no
+# measurement: Eve refuses it, KRON reads it as inside the budget: held.
+# Dibber never opens a valve or starts a pump: the owner waters.
+eve dibber_water
+water_excess = -999999999999999999 .. 0
+no_frost = 0 .. 0
+
+water_now {
+  excess: water_excess
+  frost: no_frost
+}

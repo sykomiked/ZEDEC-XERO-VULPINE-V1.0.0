@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Water limits (dibber_rules.h DR3), in Eve, advisory: one watering is 1
+# .. 40 mm deep (more runs off rather than soaking in, a default taken)
+# and a week holds 1 .. 14 waterings (twice a day at most). Each value is
+# held to its own range; one outside it and the plan is past the limits.
+eve dibber_limits
+one_watering = 1 .. 40
+waterings_a_week = 1 .. 14
+
+watering_limit {
+  depth: one_watering
+  times: waterings_a_week
+}

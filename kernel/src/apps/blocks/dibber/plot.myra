@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Dibber files a plot's beds in MYRA (dibber_rules.h DR7): under the
+; plot (its number), each bed (its number in the plot) with its area in
+; square decimetres. Dibber asks whether the numbers fit before it keeps
+; a bed.
+^ZXDIBBER(plot:i6, bed:i4) = area:i9!

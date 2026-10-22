@@ -1,0 +1,25 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Days to harvest from growing degree days (dibber_rules.h DR5), in
+! Trebago, one day a row from the day of sowing: each day adds max(0,
+! mean - base) tenths of a degree day (mean the day's mean temperature
+! and base the crop's base, both tenths of a degree C), and the harvest
+! is due on the first day whose running sum reaches need. Since the sum
+! never falls, that day is 1 plus the count of days whose running sum is
+! still below need; min(1, max(0, need - c)) is 1 exactly when c < need
+! for integers. mean is -1000 .. 1000 each, base 0 .. 400 and need 1 ..
+! 9999999; need never reached in the days given is no date. Any of these
+! makes ok 0 and the answer a division by zero: refused.
+trebago harvest_gdd_days
+  in  mean(n), base, need
+  out days
+  var g(n), c(n), ok
+  g(i) = max(0, mean(i) - base)
+  c(i) = scan(g(i))
+  ok = min(1, max(0, base + 1)) * min(1, max(0, 401 - base)) &
+     * min(1, max(0, need)) * min(1, max(0, 10000000 - need)) &
+     * (1 - min(1, sum(j, min(1, max(0, -1000 - mean(j))) + min(1, max(0, mean(j) - 1000))))) &
+     * min(1, max(0, sum(j, g(j)) - need + 1))
+  days = (1 + sum(i, min(1, max(0, need - c(i))))) / ok
+end

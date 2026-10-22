@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A seed or supply line's cost (dibber_rules.h DR4), in Trebago, one line
+! a row: count units at price minor units each, count * price minor
+! units, exact. A negative count or price makes ok 0 and the answer a
+! division by zero, refused; past 64 bits Trebago refuses by itself. Any
+! other count and price are answered, so past cost.sutra's pictures (a
+! count of 1000000 or more, a price of 10 digits) Sutra refuses, Trebago
+! answers: held.
+trebago seed_supply_cost
+  in  count(n), price(n)
+  out cost(n)
+  var ok(n)
+  ok(i) = min(1, max(0, count(i) + 1)) * min(1, max(0, price(i) + 1))
+  cost(i) = count(i) * price(i) / ok(i)
+end
