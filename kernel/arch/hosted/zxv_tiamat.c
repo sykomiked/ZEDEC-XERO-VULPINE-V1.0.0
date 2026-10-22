@@ -11,6 +11,10 @@
 #include <string.h>
 #include <time.h>
 
+#if defined(_WIN32)
+#    include <windows.h>
+#endif
+
 /* ---- H1 config ---- */
 
 /* The next token of line at *p (whitespace-separated; "..." keeps spaces).
@@ -389,9 +393,16 @@ const char *zxv_tiamat_tv_name(int v)
 
 static uint64_t now_ms(void)
 {
+#if defined(_WIN32)
+    FILETIME f;
+    GetSystemTimeAsFileTime(&f);
+    uint64_t t = ((uint64_t) f.dwHighDateTime << 32) | f.dwLowDateTime; /* 100 ns since 1601 */
+    return t / 10000u - 11644473600000ull;
+#else
     struct timespec ts;
     if (timespec_get(&ts, TIME_UTC) != TIME_UTC) return 0;
     return (uint64_t) ts.tv_sec * 1000u + (uint64_t) ts.tv_nsec / 1000000u;
+#endif
 }
 
 /* Copy at most n bytes of s, cut on a UTF-8 boundary, newlines as spaces. */

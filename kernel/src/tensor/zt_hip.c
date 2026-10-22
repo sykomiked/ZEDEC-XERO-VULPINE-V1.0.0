@@ -402,9 +402,17 @@ static void *dp(zh_dptr d)
 
 static uint64_t now_ns(void)
 {
+#ifdef _WIN32
+    LARGE_INTEGER f, c;
+    QueryPerformanceFrequency(&f);
+    QueryPerformanceCounter(&c);
+    return (uint64_t) (c.QuadPart / f.QuadPart) * 1000000000ull +
+           (uint64_t) (c.QuadPart % f.QuadPart) * 1000000000ull / (uint64_t) f.QuadPart;
+#else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t) ts.tv_sec * 1000000000ull + (uint64_t) ts.tv_nsec;
+#endif
 }
 
 static void say(char *err, uint32_t cap, const char *what, const char *why)
