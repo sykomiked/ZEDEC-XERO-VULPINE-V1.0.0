@@ -1,0 +1,23 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! An escrowed key's strength, 0..100 (moraine_rules.h MR3), in Trebago,
+! from lengths and counts only, never the key's bytes: 15 points for each
+! whole 64 bits of the key (bits, up to 256: 60 points), 10 for each
+! guardian of the quorum (quorum, up to 3: 30 points) and 5 for each
+! guardian beyond the quorum who may be lost without locking the key away
+! (guardians - quorum, up to 2: 10 points). Trebago has no floor, so the
+! whole 64s are counted: min(1, max(0, bits - 64 * k + 1)) is 1 exactly
+! when bits >= 64 * k. ok is 0 for bits outside 0 .. 65536, a quorum
+! outside 1 .. 5 or guardians outside quorum .. 5, and the score is
+! divided by it: refused. strength.kron answers any count: held.
+trebago keystrength
+  in  bits(n), quorum(n), guardians(n)
+  out score(n)
+  var ok(n)
+  ok(i) = min(1, max(0, bits(i) + 1)) * min(1, max(0, 65536 - bits(i) + 1)) &
+        * min(1, max(0, quorum(i))) * min(1, max(0, 5 - quorum(i) + 1)) &
+        * min(1, max(0, guardians(i) - quorum(i) + 1)) * min(1, max(0, 5 - guardians(i) + 1))
+  score(i) = (15 * sum(k = 1:4, min(1, max(0, bits(i) - 64 * k + 1))) &
+           + 10 * min(3, quorum(i)) + 5 * min(2, guardians(i) - quorum(i))) * ok(i) / ok(i)
+end

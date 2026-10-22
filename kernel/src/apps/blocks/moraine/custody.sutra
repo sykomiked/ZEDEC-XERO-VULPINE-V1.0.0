@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One entry of the custody register (moraine_rules.h MR2), in Sutra: a
+# release's number is exactly the one after the last release (last + 1:
+# never reused and no gap, so a missing number shows a hidden release),
+# the guardian whose signature completed the quorum is one of zxvd's five
+# (0 .. 4), and its time (seconds since 1970) is not before the release
+# before it (prior). Each field fits its picture; a negative value or one
+# past it is a size error, refused, never wrapped.
+record custody-entry
+  number: 9(9)
+  last: 9(9)
+  guardian: 9
+  stamp: 9(12)
+  prior: 9(12)
+procedure
+  answer number = last + 1 and guardian <= 4 and stamp >= prior

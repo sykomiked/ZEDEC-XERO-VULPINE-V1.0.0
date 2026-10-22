@@ -558,7 +558,11 @@
 #define ALX_SLOT_NUM_UPDRAFT_RADIO_LINK_STATE    550u /* 592.75 updraft.radio_link_state */
 #define ALX_SLOT_LOGIC_UPDRAFT_RELAY_NODE_OK     551u /* 492.69 updraft.relay_node_ok */
 #define ALX_SLOT_LOGIC_UPDRAFT_TRANSMIT_POWER_OK 552u /* 492.70 updraft.transmit_power_ok */
-#define ALX_SLOT__COUNT 552u
+#define ALX_SLOT_LOGIC_MORAINE_ESCROW_CUSTODY_OK 553u /* 492.71 moraine.escrow_custody_ok */
+#define ALX_SLOT_NUM_MORAINE_ESCROW_KEY_STRENGTH 554u /* 592.76 moraine.escrow_key_strength */
+#define ALX_SLOT_LOGIC_MORAINE_GUARDIAN_NODE_OK  555u /* 492.72 moraine.guardian_node_ok */
+#define ALX_SLOT_LOGIC_MORAINE_KEY_RELEASE_NOW   556u /* 492.73 moraine.key_release_now */
+#define ALX_SLOT__COUNT 556u
 /* clang-format on */
 
 #endif

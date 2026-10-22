@@ -1,0 +1,150 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Moraine, key escrow: L2, slot 210. It holds keys in escrow with
+# guardians and releases one only on their word: zxvd's recovery engine
+# keeps the guardians and the claim (recovery.setup, recovery.status,
+# recovery.claim, recovery.approve, recovery.veto, recovery.finalize,
+# recovery.cancel, and recovery.message for the bytes each signer signs),
+# the model keeps the escrowed keys by their public ids and counts, the
+# time-limited access grants and the custody register, and every release
+# is stamped with the journal's newest seq (journal.query). See
+# moraine_model.h MM1-MM8 and moraine_rules.h MR1-MR5.
+#
+# Never a key's bytes: an escrowed key is a public id, a name, its
+# length in symbols and its alphabet (for its bits), and its phrase's
+# length, classes and repeats; the tests give counts only. Security stays
+# advice and owner-confirmed: every change Moraine keeps or sends (the
+# guardians, a key, a grant, a claim, an approval, an objection, a veto,
+# a release, a cancel) takes the owner's confirmed word, and each
+# guardian signs by their own act elsewhere. zxvd has no notification
+# method, so each notice is composed as text for the view (notify).
+#
+# Composed, not written again (five uses of ZXAPP_USES 8; its own 6 logic
+# lines and its parts' are inside ZXAPP_LOGIC_MAX 128, the test counts
+# them):
+#   heirloom.heir_release_due  "release due": k approvals, the waiting
+#                         period over, no living veto (the first term of
+#                         "release now")
+#   gatehouse.use_ok      "is this use allowed" for the requester (the
+#                         third term of "release now")
+#   lockbox.days_left     a key's and a window's days left (expiry), and
+#   lockbox.secret_ok     a key's phrase inside the key limits
+#   witness.chain_ok      the custody register's chain intact, and
+#   witness.audit_ok      each release's entry record
+#   warding.key_entropy_bits  a key's bits from its length and alphabet,
+#                         the length the strength score counts, and
+#   warding.access_grid_cell  the access grid: the task asks for one in
+#                         APL as KRON, and CONCEPTS.tsv already gives it an
+#                         owner (key_access_grid_cell, holder by item with
+#                         live 0 or 1: here requester by escrowed key), so
+#                         Warding (wave 14, nearer the core) is used and
+#                         the grid is never written again. Warding is not
+#                         on the task's list of parts; the rule that a
+#                         concept's owner is used decides it.
+#
+# matrix: zxapp.c takes 0..144 and slot 210 is no matrix layer; an L2 app
+# sits on the layer of its L1 part outermost in MATRIX_ORDER.tsv: Heirloom
+# (place 86, layer 81), past Lockbox (23), Witness (10) and Gatehouse (7);
+# Warding is an L2 part and has no place in that order.
+#
+# zxvd's recovery engine decides the numbers taken here (recovery.h R1-R4):
+# exactly five guardians, a quorum of 3, and after a device's veto a
+# quorum of 4 and 14 days; the default wait is 72 hours. The task's "no
+# living veto" is Heirloom's rule; zxvd lets 4 approvals and 14 days pass a
+# device's veto, and Moraine follows zxvd for that. zxvd has no method for
+# a guardian to object (recovery.veto takes an old device's key), so a
+# guardian's objection is kept in the model: one guardian approving and
+# another objecting within the waiting period is BOTH, held, and the key
+# is neither released nor lost until the objection is resolved or the
+# claim is cancelled (MR5).
+#
+# "Release now" (key_release_now) is Ada as Eve and APL as KRON; the
+# custody register (escrow_custody_ok) COBOL as Sutra; the key's strength
+# (escrow_key_strength) FORTRAN as Trebago and APL as KRON; the guardian
+# hierarchy (guardian_node_ok) MUMPS as MYRA. Later layers (Carrick,
+# Druse, Bitting, Bulwark, Orlop, Seachest) use "release now" and the
+# custody register, so both are registered in CONCEPTS.tsv with Moraine as
+# owner. Kept in C: hex, zxvd's answers, the hierarchy's tree walk and the
+# four-valued join of the guardians' words (lpres_kjoin).
+#
+# Planned (no runtime yet): Eiffel (design by contract) waits on "release
+# now", Solidity (contract rules; ZXV settles in Sutra) on the custody
+# register.
+zxapp 1
+id     moraine
+name   Moraine
+version 1.0.0
+slot   210
+layer  L2
+matrix 81
+icon   icons/l2/210-moraine.svg
+budget 233
+needs  peers
+needs  journal
+needs  notify
+needs  sys.read
+model  apps/moraine_model.c
+use    heirloom 1    # @logic.heirloom_heir_release_due
+use    gatehouse 1   # @logic.gatehouse_use_ok
+use    lockbox 1     # @num.lockbox_days_left @logic.lockbox_secret_ok
+use    witness 1     # @logic.witness_chain_ok @logic.witness_audit_ok
+use    warding 1     # @num.warding_key_entropy_bits @num.warding_access_grid_cell
+# what it exports, so apps built from it can use them too (C1)
+provides heirloom.heir_release_due truth reported k spare over vetoed
+provides gatehouse.use_ok truth asked granted revoked
+provides lockbox.days_left num expires now
+provides lockbox.secret_ok truth length classes repeats
+provides witness.chain_ok truth seq prev last
+provides witness.audit_ok truth seq prev kind stamp
+provides warding.key_entropy_bits num chars alphabet
+provides warding.access_grid_cell num holder item live
+
+# Release an escrowed key now (MR1, critical): Heirloom's release due AND
+# the requester's access window not over AND the requester allowed. Ada as
+# Eve and APL as KRON; a window past year 9999 fits KRON, not Eve: held.
+provides key_release_now truth due left allowed
+logic    eve  key_release_now apps/blocks/moraine/release.eve
+logic    kron key_release_now apps/blocks/moraine/release.kron
+pending  Eiffel key_release_now
+
+# The custody register (MR2): a release's number exactly last + 1 (never
+# reused, no gap), its guardian 0..4, its time not before the last. COBOL
+# as Sutra.
+provides escrow_custody_ok truth number last guardian stamp prior
+logic    sutra escrow_custody_ok apps/blocks/moraine/custody.sutra
+pending  Solidity escrow_custody_ok
+
+# A key's strength, 0..100, from lengths and counts only (MR3, critical):
+# FORTRAN as Trebago and APL as KRON; outside its domain Trebago refuses,
+# KRON answers: held.
+provides escrow_key_strength num bits quorum guardians
+logic    trebago escrow_key_strength apps/blocks/moraine/strength.tb
+logic    kron    escrow_key_strength apps/blocks/moraine/strength.kron
+
+# The guardian hierarchy (MR4): ^ZXMORAINE(escrow, guardian) = parent ^ rank ^ added. MUMPS as MYRA.
+provides guardian_node_ok truth escrow guardian parent rank added
+logic    myra guardian_node_ok apps/blocks/moraine/guardian.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check key_release_now due=1,1,0,1,1,2,1,1 left=1,253402300799,5,0,5,5,-5,5 allowed=1,1,1,1,0,1,1,2 = true,true,false,false,false,false,false,false
+check key_release_now due=1,1 left=5,253402300800 allowed=1,1 = both
+check escrow_custody_ok number=1,6,5,7,6,6,999999999 last=0,5,5,5,5,5,999999998 guardian=0,4,1,1,5,1,2 stamp=1700000000,1700000100,1700000100,1700000100,1700000100,99,999999999999 prior=0,1700000100,0,0,0,100,0 = true,true,false,false,false,false,true
+check escrow_key_strength bits=0,256,63,64,200,65536,128,191 quorum=1,3,3,3,4,5,1,2 guardians=1,5,5,5,5,5,1,4 = 10,100,40,55,80,90,40,60
+check escrow_key_strength bits=256,65537 quorum=3,3 guardians=5,5 = both
+check escrow_key_strength bits=256,256 quorum=3,0 guardians=5,5 = both
+check guardian_node_ok escrow=1,999999999,1000000000,1,1 guardian=1,9,1,10,1 parent=0,9,0,0,0 rank=1,9,1,1,1 added=1700000000,999999999999,0,0,1000000000000 = true,true,false,false,false
+# The parts: release due, the requester allowed, expiry and key limits, the register's chain, bits and the grid
+check heirloom.heir_release_due reported=1,1,1,0,1 k=3,3,3,3,4 spare=0,-1,2,0,0 over=0,0,5,5,1 vetoed=0,0,0,0,1 = true,false,true,false,false
+check heirloom.heir_release_due reported=1,1 k=3,3 spare=0,0 over=0,1000000000000000000 vetoed=0,0 = both
+check gatehouse.use_ok asked=1,1,0,1 granted=1,0,1,1 revoked=0,0,0,1 = true,false,false,false
+check gatehouse.use_ok asked=1,2 granted=1,1 revoked=0,0 = both
+check lockbox.days_left expires=86400,172799,0,253402300799 now=0,0,86400,0 = 1,1,0,2932896
+check lockbox.days_left expires=86400,-1 now=0,0 = both
+check lockbox.secret_ok length=11,12,1024,1025 classes=1,1,4,4 repeats=0,0,1023,0 = false,true,true,false
+check witness.chain_ok seq=1,2,3,3 prev=0,1,2,2 last=0,1,2,3 = true,true,true,false
+check witness.chain_ok seq=2,-1 prev=1,1 last=1,1 = both
+check witness.audit_ok seq=1,1000000000000000000 prev=0,0 kind=7,7 stamp=1700000000000,0 = true,false
+check warding.key_entropy_bits chars=32,16,0,20 alphabet=256,62,256,10 = 256,95,0,66
+check warding.key_entropy_bits chars=32,4097 alphabet=256,256 = both
+check warding.access_grid_cell holder=1,1,2,1,2 item=7,7,7,9,7 live=1,1,1,0,0 = 2,2,1,0,1

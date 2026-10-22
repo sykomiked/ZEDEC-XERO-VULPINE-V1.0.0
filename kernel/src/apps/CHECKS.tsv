@@ -919,6 +919,26 @@ mockingbird	check run_cycles steps=0,1,1000,999999999 cost=0,1,4,9999 stall=0,0,
 mockingbird	check run_cycles steps=1,1000000000 cost=1,1 stall=0,0 = both
 mockingbird	check emu_limits_ok ram=1,4294967296,0,4294967297,65536,65536,65536 devices=0,64,0,0,65,-1,0 cycles=0,1000000000,0,0,0,0,1000000001 = true,true,false,false,false,false,false
 mockingbird	check emu_device_ok device=99,100,0,0,-99 kind=99,1,1,1,8 base=999999999999999,0,1000000000000000,0,0 size=999999999999999,1,1,0,4096 irq=999,1,1,1000,-999 = true,false,false,false,true
+moraine	check key_release_now due=1,1,0,1,1,2,1,1 left=1,253402300799,5,0,5,5,-5,5 allowed=1,1,1,1,0,1,1,2 = true,true,false,false,false,false,false,false
+moraine	check key_release_now due=1,1 left=5,253402300800 allowed=1,1 = both
+moraine	check escrow_custody_ok number=1,6,5,7,6,6,999999999 last=0,5,5,5,5,5,999999998 guardian=0,4,1,1,5,1,2 stamp=1700000000,1700000100,1700000100,1700000100,1700000100,99,999999999999 prior=0,1700000100,0,0,0,100,0 = true,true,false,false,false,false,true
+moraine	check escrow_key_strength bits=0,256,63,64,200,65536,128,191 quorum=1,3,3,3,4,5,1,2 guardians=1,5,5,5,5,5,1,4 = 10,100,40,55,80,90,40,60
+moraine	check escrow_key_strength bits=256,65537 quorum=3,3 guardians=5,5 = both
+moraine	check escrow_key_strength bits=256,256 quorum=3,0 guardians=5,5 = both
+moraine	check guardian_node_ok escrow=1,999999999,1000000000,1,1 guardian=1,9,1,10,1 parent=0,9,0,0,0 rank=1,9,1,1,1 added=1700000000,999999999999,0,0,1000000000000 = true,true,false,false,false
+moraine	check heirloom.heir_release_due reported=1,1,1,0,1 k=3,3,3,3,4 spare=0,-1,2,0,0 over=0,0,5,5,1 vetoed=0,0,0,0,1 = true,false,true,false,false
+moraine	check heirloom.heir_release_due reported=1,1 k=3,3 spare=0,0 over=0,1000000000000000000 vetoed=0,0 = both
+moraine	check gatehouse.use_ok asked=1,1,0,1 granted=1,0,1,1 revoked=0,0,0,1 = true,false,false,false
+moraine	check gatehouse.use_ok asked=1,2 granted=1,1 revoked=0,0 = both
+moraine	check lockbox.days_left expires=86400,172799,0,253402300799 now=0,0,86400,0 = 1,1,0,2932896
+moraine	check lockbox.days_left expires=86400,-1 now=0,0 = both
+moraine	check lockbox.secret_ok length=11,12,1024,1025 classes=1,1,4,4 repeats=0,0,1023,0 = false,true,true,false
+moraine	check witness.chain_ok seq=1,2,3,3 prev=0,1,2,2 last=0,1,2,3 = true,true,true,false
+moraine	check witness.chain_ok seq=2,-1 prev=1,1 last=1,1 = both
+moraine	check witness.audit_ok seq=1,1000000000000000000 prev=0,0 kind=7,7 stamp=1700000000000,0 = true,false
+moraine	check warding.key_entropy_bits chars=32,16,0,20 alphabet=256,62,256,10 = 256,95,0,66
+moraine	check warding.key_entropy_bits chars=32,4097 alphabet=256,256 = both
+moraine	check warding.access_grid_cell holder=1,1,2,1,2 item=7,7,7,9,7 live=1,1,1,0,0 = 2,2,1,0,1
 murmuration	check swarm_shares.cycle_share t=1,1,2 = 250,250,500
 murmuration	check swarm_shares.busiest t=5,9,1,7 = 1,3,0
 murmuration	check swarm_shares.within_limits share=0,500,501,10 intensity=5,0,0,6 = true,true,false,false

@@ -1,0 +1,1 @@
+(15*_(256&0|bits)%64)+(10*3&quorum)+5*2&0|guardians-quorum

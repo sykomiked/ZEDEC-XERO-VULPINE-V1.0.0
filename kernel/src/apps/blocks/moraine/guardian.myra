@@ -1,0 +1,11 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Moraine files an escrow's guardian hierarchy, in MYRA
+; (moraine_rules.h MR4): under the escrow, each guardian (1 .. 5, zxvd's
+; index plus one) with the guardian above it (parent, 0 for the owner at
+; the top), its rank (1 just under the owner) and when it was added, in
+; seconds since 1970. Never a key's bytes: there is no field for one. The
+; model asks whether the numbers fit, and checks the tree itself (no
+; guardian under itself or under one of its own), before it keeps one.
+^ZXMORAINE(escrow:i9, guardian:i1) = parent:i1! ^ rank:i1! ^ added:i12!

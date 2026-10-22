@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Release an escrowed key now (moraine_rules.h MR1), in Eve: the one
+# record that fits is Heirloom's release due (due 1, heirloom.heir_release_due
+# as a flag), the requester's access window not over (left, seconds to the
+# window's end, 1 .. 253402300799: it ends after now and no later than the
+# last second of year 9999) and the requester allowed (allowed 1,
+# gatehouse.use_ok as a flag). Any other row does not fit: not now.
+# release.kron reads any window past now as open: a window past year 9999
+# fits KRON but not this record, held.
+eve moraine
+release_is_due = 1 .. 1
+window_open = 1 .. 253402300799
+requester_allowed = 1 .. 1
+
+key_release_now {
+  due: release_is_due
+  left: window_open
+  allowed: requester_allowed
+}

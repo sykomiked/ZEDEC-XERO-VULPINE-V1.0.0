@@ -587,3 +587,7 @@
 550	num.updraft_radio_link_state	592.75	updraft.radio_link_state	base
 551	logic.updraft_relay_node_ok	492.69	updraft.relay_node_ok	base
 552	logic.updraft_transmit_power_ok	492.70	updraft.transmit_power_ok	base
+553	logic.moraine_escrow_custody_ok	492.71	moraine.escrow_custody_ok	base
+554	num.moraine_escrow_key_strength	592.76	moraine.escrow_key_strength	base
+555	logic.moraine_guardian_node_ok	492.72	moraine.guardian_node_ok	base
+556	logic.moraine_key_release_now	492.73	moraine.key_release_now	base
