@@ -1,0 +1,27 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether a kit fits the running libzxv ABI (toolchest_rules.h TC1), in
+# Sutra: 1 when the kit's major is the running major and the running
+# minor and patch are at least the kit's, else 0. Each part fits 9(3),
+# 0..999, so a part past 999 or a negative one is no version: refused.
+# With every part inside 0..999 the minor weighed by a thousand and the
+# patch by one keep their order exactly.
+record version-fits
+  kmajor: 9(3)
+  kminor: 9(3)
+  kpatch: 9(3)
+  dmajor: 9(3)
+  dminor: 9(3)
+  dpatch: 9(3)
+  kk: 9(6)
+  dk: 9(6)
+  fits: 9(1)
+procedure
+  compute kk = kminor * 1000 + kpatch
+  compute dk = dminor * 1000 + dpatch
+  compute fits = 0
+  if dmajor = kmajor and dk >= kk
+    compute fits = 1
+  end-if
+  answer fits

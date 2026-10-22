@@ -1,0 +1,6 @@
+kk:(1000*kminor)+kpatch
+dk:(1000*dminor)+dpatch
+over:0|1&dmajor-kmajor
+under:0|1&kmajor-dmajor
+atleast:0|1&1+dk-kk
+(1-over+under)*atleast

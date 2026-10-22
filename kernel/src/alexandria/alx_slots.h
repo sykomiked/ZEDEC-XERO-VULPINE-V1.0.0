@@ -220,7 +220,12 @@
 #define ALX_SLOT_LOGIC_HEDGEROW_PATH_OPEN        212u /* 491.03 hedgerow.path_open */
 #define ALX_SLOT_NUM_HEDGEROW_PATH_OPEN_N        213u /* 591.01 hedgerow.path_open_n */
 #define ALX_SLOT_LOGIC_HEDGEROW_REACH_RULE_OK    214u /* 491.04 hedgerow.reach_rule_ok */
-#define ALX_SLOT__COUNT 214u
+#define ALX_SLOT_NUM_TOOLCHEST_DOWNLOAD_BYTES    215u /* 591.02 toolchest.download_bytes */
+#define ALX_SLOT_LOGIC_TOOLCHEST_INSTALL_ALLOWED 216u /* 491.05 toolchest.install_allowed */
+#define ALX_SLOT_NUM_TOOLCHEST_INSTALLED_BYTES   217u /* 591.03 toolchest.installed_bytes */
+#define ALX_SLOT_LOGIC_TOOLCHEST_KIT_RECORD_OK   218u /* 491.06 toolchest.kit_record_ok */
+#define ALX_SLOT_NUM_TOOLCHEST_VERSION_FITS      219u /* 591.04 toolchest.version_fits */
+#define ALX_SLOT__COUNT 219u
 /* clang-format on */
 
 #endif

@@ -249,3 +249,8 @@
 212	logic.hedgerow_path_open	491.03	hedgerow.path_open	base
 213	num.hedgerow_path_open_n	591.01	hedgerow.path_open_n	base
 214	logic.hedgerow_reach_rule_ok	491.04	hedgerow.reach_rule_ok	base
+215	num.toolchest_download_bytes	591.02	toolchest.download_bytes	base
+216	logic.toolchest_install_allowed	491.05	toolchest.install_allowed	base
+217	num.toolchest_installed_bytes	591.03	toolchest.installed_bytes	base
+218	logic.toolchest_kit_record_ok	491.06	toolchest.kit_record_ok	base
+219	num.toolchest_version_fits	591.04	toolchest.version_fits	base

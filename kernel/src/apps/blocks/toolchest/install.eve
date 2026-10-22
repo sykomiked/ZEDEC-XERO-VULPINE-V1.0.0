@@ -1,0 +1,22 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Install allowed (toolchest_rules.h TC2), in Eve: the only record that
+# fits is both of the release's signatures verified (each verify result
+# exactly 1), the kit fitting the running ABI (version_fits answered
+# exactly 1) and room, the bytes the owner may still write less the bytes
+# the kit needs, of 0 to 18 digits. Eve checks each field against its own
+# range, so the size comes as that margin. A verify result or a fit that
+# is no result at all (2, say) does not fit; install.kron reads any value
+# above 0 as yes: held.
+eve toolchest
+verified = 1 .. 1
+fit_yes = 1 .. 1
+room_bytes = 0 .. 999999999999999999
+
+install_allowed {
+  firstsig: verified
+  secondsig: verified
+  fits: fit_yes
+  room: room_bytes
+}

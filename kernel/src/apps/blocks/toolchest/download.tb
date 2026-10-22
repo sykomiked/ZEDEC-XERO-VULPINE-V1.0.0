@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A kit's download size in bytes (toolchest_rules.h TC3), in Trebago: the
+! exact sum of its recipe's blocks, each 1..2097152 bytes (a fab block of
+! at most 2 MiB, kernel/src/fab/fab.h). For integers min(1, max(0, 1 - b))
+! is 1 exactly when b < 1 and min(1, max(0, b - 2097152)) exactly when b is
+! past 2 MiB, so bad counts the blocks outside their range, and the sum is
+! divided by 1 - min(1, bad): any block outside is a division by zero,
+! refused, never added.
+trebago download
+  in  blockbytes(n)
+  out download
+  var bad(n)
+  bad(i) = min(1, max(0, 1 - blockbytes(i))) + min(1, max(0, blockbytes(i) - 2097152))
+  download = sum(i, blockbytes(i)) / (1 - min(1, sum(i, bad(i))))
+end

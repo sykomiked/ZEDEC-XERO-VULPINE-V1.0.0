@@ -1,0 +1,102 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Toolchest, developer tools: layer 126 of the matrix. The SDK kits
+# (sdk/kits) and the language SDKs (sdk/<language>), what each needs, and
+# what this zxvd offers them: its version and libzxv's ABI (zxvd.version),
+# its methods (rpc.discover), the Playground's samples (play.catalogue),
+# one signed update check (update.check) and the room on the Hoard's
+# volume (sys.disk). zxvd has no method that lists kits, their releases or
+# sizes, and none that installs, lists or removes one, and none is
+# invented: a kit's release (its version, the ABI it needs, its blocks and
+# files and its two verify results) comes to the model as an offer, the
+# model judges it, and installing stays the owner's word; nothing is ever
+# installed here (toolchest_model.h TM4).
+#
+# 8 later layers lean on this one, so its entries are general rules owned
+# here (CONCEPTS.tsv): whether a version fits an ABI, whether an install
+# is allowed, a download's and an install's exact size, and a kit's
+# record. Of the layers the task names, Ninefold (80) is built before this
+# one, but it holds money by capital form and Toolchest decides nothing
+# about money, so it is not used; Tally (109) comes after this layer in the
+# build order and Toolchest needs nothing from it. Tideturn (6) owns the
+# order of two versions and a dual signature, but it comes after this
+# layer in the build order (MATRIX_ORDER.tsv), so neither is used:
+# version_fits is a different rule (the same major, at least the needed
+# minor and patch), and install_allowed holds both verify results to
+# exactly 1 inside its own record. The share of the volume in use once a
+# kit is written is used_share.used_x100 (the core), used as it is.
+#
+# Witness pairs are of one kind (zxapp.c run_one B3). Sutra and KRON
+# witness version_fits, a number 1 or 0; Eve and KRON witness
+# install_allowed, a truth: Eve checks each field against its own range
+# alone, so the size comes as its margin, room = avail - need, worked out
+# by the model from download_bytes and installed_bytes. Trebago holds the
+# exact sizes, MYRA the kit record. The model's C (toolchest_rules.h) is
+# the third witness of each.
+#
+# Planned (no runtime yet): Haskell owns pure functions and types, and
+# version_fits is Toolchest's pure function: pending. Raku owns grammars
+# and text and Bash shell jobs: Toolchest decides neither (the version
+# text is parsed by the model's C), so neither has a pending line.
+#
+# Defaults taken (toolchest_model.h): a kit fits the running libzxv ABI
+# (zxvd.version's libzxv), the version kits are built on (sdk/kits
+# README); an install needs its download and its installed bytes at once,
+# since the recipe's blocks are held until the files are written, and room
+# is against what the owner may still write (sys.disk avail).
+zxapp 1
+id     toolchest
+name   Toolchest
+version 1.0.0
+slot   126
+layer  L1
+matrix 126
+icon   icons/l1/126-toolchest.svg
+budget 233
+needs  sys.read
+needs  net
+model  apps/toolchest_model.c
+use    used_share 1   # @num.used_x100
+
+# A kit fits the running ABI (TC1): the same major, and the running minor
+# and patch at least the kit's. Sutra holds each part to 9(3); KRON
+# answers any part: past 999, or below 0, held.
+provides version_fits num kmajor kminor kpatch dmajor dminor dpatch
+logic    sutra version_fits apps/blocks/toolchest/fits.sutra
+logic    kron  version_fits apps/blocks/toolchest/fits.kron
+pending  Haskell version_fits
+
+# A kit may be offered for install (TC2): both signatures verified, it
+# fits, and room (avail - need) is at least 0. Eve holds each to its
+# range; KRON reads anything above 0 as yes: a 2 is held.
+provides install_allowed truth firstsig secondsig fits room
+logic    eve  install_allowed apps/blocks/toolchest/install.eve
+logic    kron install_allowed apps/blocks/toolchest/install.kron
+
+# A kit's download size (TC3): its recipe's blocks, each 1..2 MiB, exact.
+provides download_bytes num blockbytes
+logic    trebago download_bytes apps/blocks/toolchest/download.tb
+
+# A kit's installed size (TC4): its files, each 0..12 digits, exact.
+provides installed_bytes num filebytes
+logic    trebago installed_bytes apps/blocks/toolchest/installed.tb
+
+# A kit fits its record (TC5): ^ZXTOOLCHEST's digits.
+provides kit_record_ok truth kit lang major minor patch bytes
+logic    myra kit_record_ok apps/blocks/toolchest/kit.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check version_fits kmajor=1,1,1,1,1,0,999,2,1 kminor=3,3,6,0,6,0,999,0,9 kpatch=0,0,1,0,0,0,999,0,9 dmajor=1,1,1,1,1,0,999,1,2 dminor=6,3,6,0,5,0,999,9,0 dpatch=0,0,0,0,9,0,999,9,0 = 1,1,0,1,0,1,1,0,0
+check version_fits kmajor=1,1 kminor=0,0 kpatch=0,0 dmajor=1,1000 dminor=0,0 dpatch=0,0 = both
+check version_fits kmajor=1,1 kminor=0,0 kpatch=0,-1 dmajor=1,1 dminor=0,0 dpatch=0,0 = both
+check install_allowed firstsig=1,0,1,1,1,1,-1 secondsig=1,1,0,1,1,1,1 fits=1,1,1,0,1,1,1 room=0,5,5,5,-1,999999999999999999,5 = true,false,false,false,false,true,false
+check install_allowed firstsig=1,2 secondsig=1,1 fits=1,1 room=0,0 = both
+check install_allowed firstsig=1,1 secondsig=1,1 fits=1,2 room=0,0 = both
+check download_bytes blockbytes=2097152,1,1000 = 2098153
+check download_bytes blockbytes=262144,262144,262144,262144 = 1048576
+check installed_bytes filebytes=0,999999999999,1 = 1000000000000
+check installed_bytes filebytes=4096,0,12345 = 16441
+check kit_record_ok kit=0,999,1000,1,1,1,-5 lang=0,99,1,100,1,1,-1 major=0,999,0,0,1000,0,1 minor=0,999,0,0,0,0,6 patch=0,999,0,0,0,0,0 bytes=0,999999999999999,0,0,0,1000000000000000,-7 = true,true,false,false,false,false,true
+# The volume in use once a kit is written (TC6): 1000 bytes, 400 left after it; none left
+check used_share.used_x100 total=1000,1000 left=400,0 = 6000,10000

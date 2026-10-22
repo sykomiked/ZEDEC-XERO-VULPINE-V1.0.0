@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Toolchest files one kit in MYRA (toolchest_rules.h TC5): the kit's
+; place in the catalogue (its name, toolchest_model.c), its language
+; (toolchest_model.h TOOLCHEST_LANG_*), its version major, minor and
+; patch, and its installed size in bytes. The rules say what the values
+; may mean; this says whether they make a record.
+^ZXTOOLCHEST(kit:i3) = lang:i2! ^ major:i3! ^ minor:i3! ^ patch:i3! ^ bytes:i15!
