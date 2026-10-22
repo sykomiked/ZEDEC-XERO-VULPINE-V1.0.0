@@ -363,7 +363,12 @@
 #define ALX_SLOT_NUM_TICKER_CAPTION_LEAST_MS     355u /* 591.73 ticker.caption_least_ms */
 #define ALX_SLOT_NUM_TICKER_CAPTION_PACE_MS      356u /* 591.74 ticker.caption_pace_ms */
 #define ALX_SLOT_LOGIC_TICKER_CAPTION_RECORD_OK  357u /* 491.74 ticker.caption_record_ok */
-#define ALX_SLOT__COUNT 357u
+#define ALX_SLOT_NUM_CHAINMAN_CELL_RIVAL_CLAIMS  358u /* 591.75 chainman.cell_rival_claims */
+#define ALX_SLOT_NUM_CHAINMAN_CLOSURE_SLACK      359u /* 591.76 chainman.closure_slack */
+#define ALX_SLOT_LOGIC_CHAINMAN_CORNER_NODE_OK   360u /* 491.75 chainman.corner_node_ok */
+#define ALX_SLOT_LOGIC_CHAINMAN_TITLE_RECORD_OK  361u /* 491.76 chainman.title_record_ok */
+#define ALX_SLOT_LOGIC_CHAINMAN_TRAVERSE_CLOSES  362u /* 491.77 chainman.traverse_closes */
+#define ALX_SLOT__COUNT 362u
 /* clang-format on */
 
 #endif

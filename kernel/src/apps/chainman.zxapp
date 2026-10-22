@@ -1,0 +1,128 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Chainman, land survey: L2, slot 154. A survey's field book (parcels, the
+# traverse legs round each, curved boundaries, title register lines and
+# the grid cells each parcel claims) is a Hoard file (files.read,
+# files.write); each corner the surveyor stands on is taken from where the
+# machine is (place.here) and kept as a place on the map (place.add,
+# place.list). See chainman_model.h CM1-CM7 and chainman_rules.h CH1-CH7.
+# Survey records are advisory: legal title is a person's and the land
+# registry's decision, and a disputed cell is shown, never settled.
+#
+# Composed, not written again (five uses of ZXAPP_USES 8; its own 7 logic
+# lines and its parts' 32 are 39 of ZXAPP_LOGIC_MAX 128): a field book
+# column's sum (the misclosure east and north, the perimeter) is
+# furrow.range_total; a curved boundary is flattened by burin.bezier_at
+# and the outline is filed as a path record checked by
+# burin.drawing_record_ok; every corner's latitude and longitude is
+# waymark.place_ok; a parcel filed as a land entry is
+# understory.land_entry_ok.
+#
+# The parcel's area (twice the shoelace area over its corners in mm) is
+# not written again: CONCEPTS.tsv gives polygon_twice_area (alias
+# shoelace_area2) to Gnomon, whose polygon_area2 is the task's own pair,
+# FORTRAN as Trebago and APL as KRON, witnessed; so Chainman uses gnomon
+# 1 (layer 107, nearer the core than this L2 app) and inherits its domain,
+# corners within 1 km of the survey's origin either way. Gnomon is the
+# one part the task does not name.
+#
+# The task's "matrix 154" is refused by zxapp.c (M1: a matrix layer is
+# 0..144); an L2 app sits on the outermost L1 layer it is composed from in
+# MATRIX_ORDER.tsv, Gnomon's 107.
+#
+# Eve answers truths only, field by field, so "closes within tolerance"
+# (Eve and KRON) takes the closure as its slack, and the slack, a number,
+# is closure_slack (Trebago and KRON), as Caravan and Understory give a
+# margin. Later layers lean on the closure, the title record, the disputed
+# cells and the corner hierarchy, so they are registered in CONCEPTS.tsv
+# with Chainman as owner.
+#
+# Logo (twin Kiteling) runs now, but a Logo block cannot take arguments
+# (Lingua's Logo refuses readword and readlist, as its LISP refuses
+# read), so no entry here has a Logo line; a pending line is refused for a
+# language that runs. zxvd has no method that signs an arbitrary file, so
+# a survey record is unsigned (listed in the report, not invented). Kept in
+# C: the field book's text, the outline's walk and the inside test (CH7).
+zxapp 1
+id     chainman
+name   Chainman
+version 1.0.0
+slot   154
+layer  L2
+matrix 107
+icon   icons/l2/154-chainman.svg
+budget 233
+needs  location
+needs  fs.read
+needs  fs.write
+model  apps/chainman_model.c
+use    furrow 1       # @num.furrow_range_total
+use    burin 1        # @num.burin_bezier_at @logic.burin_drawing_record_ok
+use    waymark 1      # @logic.waymark_place_ok
+use    understory 1   # @logic.understory_land_entry_ok
+use    gnomon 1       # @num.gnomon_polygon_area2
+# what it exports, so apps built from it can use them too (C1)
+provides gnomon.polygon_area2 num x y
+provides furrow.range_total num pos lo hi cell
+provides burin.bezier_at num pa pb pc pd step steps
+provides burin.drawing_record_ok truth path points stroke mtime
+provides waymark.place_ok truth lat lon
+provides understory.land_entry_ok truth parcel kind area
+
+# The closure slack (CH1, critical): (tol * perim)^2 - 10000 * (dx^2 +
+# dy^2), 0 or more when the closure error is at most tol mm per 100 m.
+# FORTRAN as Trebago (an exact numeric sum) and APL as KRON, witnessed; a
+# misclosure, perimeter or tolerance outside its domain is held
+# (Trebago refuses, KRON answers).
+provides closure_slack num dx dy perim tol
+logic    trebago closure_slack apps/blocks/chainman/closure.tb
+logic    kron    closure_slack apps/blocks/chainman/closure.kron
+pending  ML closure_slack
+
+# Closes within tolerance (CH2, critical): the slack 0..18 digits. Ada as
+# Eve and APL as KRON; a slack past 18 digits is held (Eve refuses, KRON
+# reads any slack at or above 0 as closed).
+provides traverse_closes truth slack
+logic    eve  traverse_closes apps/blocks/chainman/closes.eve
+logic    kron traverse_closes apps/blocks/chainman/closes.kron
+pending  Haskell traverse_closes
+
+# The title register (CH3): title 9(9), parcel 9(6), area 9(12) square
+# metres, each 1 or more; COBOL as Sutra, refused past its pictures.
+provides title_record_ok truth title parcel area
+logic    sutra title_record_ok apps/blocks/chainman/title.sutra
+
+# The parcel grid (CH4): each claim's rivals, claims on its cell by
+# another parcel. APL as KRON.
+provides cell_rival_claims num cx cy parcel
+logic    kron cell_rival_claims apps/blocks/chainman/grid.kron
+
+# The land hierarchy (CH5): ^ZXCHAIN(survey, parcel, corner) = x ^ y.
+# MUMPS as MYRA.
+provides corner_node_ok truth survey parcel corner x y
+logic    myra corner_node_ok apps/blocks/chainman/corner.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check closure_slack dx=0,3,0,999999,-999999 dy=0,4,0,999999,-999999 perim=100,100,1,99999,99999 tol=10,10,0,9999,9999 = 1000000,750000,0,979780054099760001,979780054099760001
+check closure_slack dx=30,0 dy=40,0 perim=100,100 tol=1,1 = -24990000,10000
+check closure_slack dx=0,1000000 dy=0,0 perim=100,100 tol=10,10 = both
+check closure_slack dx=0,0 dy=0,0 perim=100,0 tol=10,10 = both
+check traverse_closes slack=0,1,-1,999999999999999999,-24990000 = true,true,false,true,false
+check traverse_closes slack=5,1000000000000000000 = both
+check title_record_ok title=1,999999999,0,5,5 parcel=1,999999,3,0,3 area=1,999999999999,10,10,0 = true,true,false,false,false
+check cell_rival_claims cx=12,12,3,12 cy=7,7,4,7 parcel=3,4,3,3 = 1,2,0,1
+check cell_rival_claims cx=1,2 cy=1,1 parcel=1,1 = 0,0
+check corner_node_ok survey=1,999999,1000000,1,1 parcel=3,999999,1,1,1 corner=1,9999,1,10000,1 x=0,9999999,0,0,10000000 y=0,-9999999,0,0,0 = true,true,false,false,false
+# A parcel's twice area, a field book column, a curved boundary, its path record
+check gnomon.polygon_area2 x=0,40000,40000,0 y=0,0,30000,30000 = 2400000000
+check gnomon.polygon_area2 x=0,1000001,0 y=0,0,1 = both
+check furrow.range_total pos=3,4,3 lo=3,3,3 hi=3,3,3 cell=100,200,-40 = 60
+check furrow.range_total pos=1,1,1 lo=1,1,1 hi=1,1,1 cell=9223372036854775807,1,-1 = both
+check burin.bezier_at pa=0,0 pb=100,100 pc=200,200 pd=300,300 step=1,2 steps=3,3 = 100,200
+check burin.bezier_at pa=0,2000000 pb=0,0 pc=0,0 pd=0,0 step=1,1 steps=2,2 = both
+check burin.drawing_record_ok path=3,1000000000 points=40,1 stroke=100,1 mtime=1760000000,1 = true,false
+# Every corner's place, and the parcel as a land entry
+check waymark.place_ok lat=51500000,-90000000,90000001 lon=-120000,180000000,0 = true,true,false
+# agree: waymark.place_ok Eve and KRON check the same two ranges, latitude within 90 and longitude within 180 degrees, so no input parts them
+check understory.land_entry_ok parcel=3,1000000 kind=1,1 area=1200,5 = true,false

@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A traverse closes within tolerance (chainman_rules.h CH2), in Eve. Eve
+# checks each field against its own range, so the closure comes as its
+# slack, closure_slack's (tol * perim)^2 - 10000 * (dx^2 + dy^2): it
+# closes when the slack is 0 to 999999999999999999 (18 digits). A
+# negative slack does not close; one past 18 digits is no measurement,
+# which Eve refuses while closes.kron reads any slack at or above 0 as
+# closed: held.
+eve chainman
+closure_room = 0 .. 999999999999999999
+
+traverse_closure {
+  slack: closure_room
+}

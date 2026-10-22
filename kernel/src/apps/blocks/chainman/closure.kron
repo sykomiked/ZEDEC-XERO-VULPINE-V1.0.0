@@ -1,0 +1,2 @@
+a:tol*perim
+(a*a)-10000*(dx*dx)+dy*dy

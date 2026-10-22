@@ -392,3 +392,8 @@
 355	num.ticker_caption_least_ms	591.73	ticker.caption_least_ms	base
 356	num.ticker_caption_pace_ms	591.74	ticker.caption_pace_ms	base
 357	logic.ticker_caption_record_ok	491.74	ticker.caption_record_ok	base
+358	num.chainman_cell_rival_claims	591.75	chainman.cell_rival_claims	base
+359	num.chainman_closure_slack	591.76	chainman.closure_slack	base
+360	logic.chainman_corner_node_ok	491.75	chainman.corner_node_ok	base
+361	logic.chainman_title_record_ok	491.76	chainman.title_record_ok	base
+362	logic.chainman_traverse_closes	491.77	chainman.traverse_closes	base

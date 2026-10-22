@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Chainman files a corner in its land hierarchy, in MYRA
+; (chainman_rules.h CH5): the survey, the parcel in it and the corner of
+; the parcel, then the corner's place on the survey grid, x east and y
+; north in millimetres. The model asks whether the numbers fit before it
+; writes the field book.
+^ZXCHAIN(survey:i6, parcel:i6, corner:i4) = x:i7! ^ y:i7!

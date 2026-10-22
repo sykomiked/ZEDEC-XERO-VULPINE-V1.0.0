@@ -144,6 +144,25 @@ cellar	check used_share.used_x100 total=1000,1000 left=0,1001 = both
 cellar	check banker.share size=150,300,7 total=457 = 3282,6564,153
 cellar	check banker.share size=5,11 total=10 = both
 cellar	check banker.total size=150,300,7 = 457
+chainman	check closure_slack dx=0,3,0,999999,-999999 dy=0,4,0,999999,-999999 perim=100,100,1,99999,99999 tol=10,10,0,9999,9999 = 1000000,750000,0,979780054099760001,979780054099760001
+chainman	check closure_slack dx=30,0 dy=40,0 perim=100,100 tol=1,1 = -24990000,10000
+chainman	check closure_slack dx=0,1000000 dy=0,0 perim=100,100 tol=10,10 = both
+chainman	check closure_slack dx=0,0 dy=0,0 perim=100,0 tol=10,10 = both
+chainman	check traverse_closes slack=0,1,-1,999999999999999999,-24990000 = true,true,false,true,false
+chainman	check traverse_closes slack=5,1000000000000000000 = both
+chainman	check title_record_ok title=1,999999999,0,5,5 parcel=1,999999,3,0,3 area=1,999999999999,10,10,0 = true,true,false,false,false
+chainman	check cell_rival_claims cx=12,12,3,12 cy=7,7,4,7 parcel=3,4,3,3 = 1,2,0,1
+chainman	check cell_rival_claims cx=1,2 cy=1,1 parcel=1,1 = 0,0
+chainman	check corner_node_ok survey=1,999999,1000000,1,1 parcel=3,999999,1,1,1 corner=1,9999,1,10000,1 x=0,9999999,0,0,10000000 y=0,-9999999,0,0,0 = true,true,false,false,false
+chainman	check gnomon.polygon_area2 x=0,40000,40000,0 y=0,0,30000,30000 = 2400000000
+chainman	check gnomon.polygon_area2 x=0,1000001,0 y=0,0,1 = both
+chainman	check furrow.range_total pos=3,4,3 lo=3,3,3 hi=3,3,3 cell=100,200,-40 = 60
+chainman	check furrow.range_total pos=1,1,1 lo=1,1,1 hi=1,1,1 cell=9223372036854775807,1,-1 = both
+chainman	check burin.bezier_at pa=0,0 pb=100,100 pc=200,200 pd=300,300 step=1,2 steps=3,3 = 100,200
+chainman	check burin.bezier_at pa=0,2000000 pb=0,0 pc=0,0 pd=0,0 step=1,1 steps=2,2 = both
+chainman	check burin.drawing_record_ok path=3,1000000000 points=40,1 stroke=100,1 mtime=1760000000,1 = true,false
+chainman	check waymark.place_ok lat=51500000,-90000000,90000001 lon=-120000,180000000,0 = true,true,false
+chainman	check understory.land_entry_ok parcel=3,1000000 kind=1,1 area=1200,5 = true,false
 coffer	check balance before=0,100,-50,999999999999999998 moved=0,-100,25,1 = 0,0,-25,999999999999999999
 coffer	check balance before=1,1000000000000000000 moved=0,0 = both
 coffer	check transfer_ok amount=1,9007199254740991,0,5,5,5 after=0,0,0,-1,0,0 room=0,0,0,0,-1,0 gap=0,0,0,0,0,1 = true,true,false,false,false,false

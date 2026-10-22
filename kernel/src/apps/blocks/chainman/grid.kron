@@ -1,0 +1,4 @@
+a:1-1&abs cx-\:cx
+b:1-1&abs cy-\:cy
+c:1&abs parcel-\:parcel
++/a*b*c

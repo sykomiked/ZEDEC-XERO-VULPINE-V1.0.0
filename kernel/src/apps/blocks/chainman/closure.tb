@@ -1,0 +1,22 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A traverse's closure slack (chainman_rules.h CH1), in Trebago, exact:
+! (tol * perim)^2 - 10000 * (dx^2 + dy^2), 0 or more when the closure
+! error sqrt(dx^2 + dy^2) mm is at most tol mm per 100 m of a perimeter of
+! perim whole metres. One traverse a row. ok is 0 for a misclosure dx or
+! dy outside -999999 .. 999999, a perimeter outside 1 .. 99999 or a
+! tolerance outside 0 .. 9999 (min(1, max(0, v - lo + 1)) is 1 exactly
+! when v >= lo, and min(1, max(0, hi - v + 1)) when v <= hi), and the slack
+! is divided by it: refused, where closure.kron answers: held.
+trebago closure_slack
+  in  dx(n), dy(n), perim(n), tol(n)
+  out slack(n)
+  var ok(n), a(n)
+  ok(i) = min(1, max(0, dx(i) + 999999 + 1)) * min(1, max(0, 999999 - dx(i) + 1)) &
+        * min(1, max(0, dy(i) + 999999 + 1)) * min(1, max(0, 999999 - dy(i) + 1)) &
+        * min(1, max(0, perim(i))) * min(1, max(0, 99999 - perim(i) + 1)) &
+        * min(1, max(0, tol(i) + 1)) * min(1, max(0, 9999 - tol(i) + 1))
+  a(i) = tol(i) * perim(i)
+  slack(i) = (a(i) * a(i) - 10000 * (dx(i) * dx(i) + dy(i) * dy(i))) / ok(i)
+end

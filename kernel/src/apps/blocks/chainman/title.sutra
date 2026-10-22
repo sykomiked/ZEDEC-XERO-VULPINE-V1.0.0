@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A title register line, in Sutra (chainman_rules.h CH3): the title
+# number 9(9), the parcel 9(6) and its area in square metres 9(12), a
+# fixed business record. A negative or longer value is a size error,
+# refused outright; inside the pictures the title, the parcel and the
+# area are each 1 or more. Advisory: the title itself is the land
+# registry's.
+record chainman-title
+  title: 9(9)
+  parcel: 9(6)
+  area: 9(12)
+procedure
+  answer title >= 1 and parcel >= 1 and area >= 1
