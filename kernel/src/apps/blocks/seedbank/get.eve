@@ -1,0 +1,12 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# How big a block Seedbank asks this node's blockstore for
+# (seedbank_rules.h SR4): 0 to 65536 bytes, zxvd's own limit for one
+# aipi.get (ZXVD_AIPI_GET_MAX); a larger block is refused there, not cut.
+eve seedbank
+get_bytes = 0 .. 65536
+
+block_get {
+  bytes: get_bytes
+}

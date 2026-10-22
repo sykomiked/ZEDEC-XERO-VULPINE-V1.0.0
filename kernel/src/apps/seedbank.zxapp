@@ -1,0 +1,90 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Seedbank, IPFS: layer 33 of the matrix. It pins content into this node's
+# blockstore by CID (aipi.put, by hex or by a file of the Hoard found with
+# files.root and files.stat), names it on this device first (web4.cid),
+# fetches it back (aipi.get), shows how full the blockstore is
+# (aipi.status) and records the CID a published cloud top or park lives
+# under (spaces.set_cid). aipi names a block "z" + base58btc and web4 and
+# spaces "b" + base32: both spell one binary CID, which the model turns
+# from the one into the other in C (seedbank_model.h SM1).
+#
+# Advisory and owner-confirmed: publishing a space's CID, or taking it
+# back, happens only on the owner's confirmed word. zxvd has no method that
+# unpins a block or announces one to the network, so forgetting a pin drops
+# it from Seedbank's table only; none is invented (seedbank_model.h SM5).
+#
+# 12 later layers lean on this one, so each entry is a general rule
+# registered in CONCEPTS.tsv with Seedbank as owner: one byte of a
+# published CID's text (Ramble's CID check, the same rule, uses it), the
+# size of a block put and of a block get, and a pin's record. The
+# blockstore's share in use is used_share.used_x100, used as it is.
+# Keystone (layer 4) and Tideturn (layer 6), which the task names, are
+# built after this layer, so they are not used: an app uses only what is
+# nearer the core.
+#
+# Witness pairs are of one kind. The CID check is a number (1 fits, 0 does
+# not), since WebAssembly answers numbers only (zxapp_wasm.c W2): Rust
+# refuses a byte that is no byte of a text (a trap), where KRON answers 0:
+# held. The size limits are Eve's ranges as the task asks; a limit decides
+# what is allowed, so Sutra witnesses each, and a count past its 9(7)
+# picture (or negative) is refused by Sutra where Eve answers: held.
+#
+# Size limits: 1 MiB is zxvd's own limit for a put by path (AIPI_MODULE_MAX)
+# and 65536 bytes its limit for a get (ZXVD_AIPI_GET_MAX), as the task
+# says; a put by hex is further held to zxvd's 8000 bytes (ZXVD_AIPI_HEX_MAX).
+#
+# Kept in C, since no runnable language owns it: base58 and base32 text
+# (SM1), and the hex of a block's bytes.
+#
+# Planned languages with no entry of their kind here: Elixir (messaging,
+# faults), TeX (typesetting), Smalltalk (objects, view); no pending line.
+zxapp 1
+id     seedbank
+name   Seedbank
+version 1.0.0
+slot   33
+layer  L1
+matrix 33
+icon   icons/l1/033-seedbank.svg
+budget 233
+needs  net
+needs  fs.read
+needs  fs.write
+model  apps/seedbank_model.c
+use    used_share 1   # @num.used_x100
+
+# One byte of a published space's CID text (SR1): 1 fits, 0 not. Rust (as
+# WebAssembly) and KRON; a byte outside the domain is refused by Rust and
+# answered by KRON: held.
+provides cid_byte num pos code len
+logic    wasm cid_byte apps/blocks/seedbank/cid.wasm
+logic    kron cid_byte apps/blocks/seedbank/cid.kron
+
+# A block put within 1 MiB (SR3): Eve's range, witnessed by Sutra.
+provides block_put_ok truth bytes
+logic    eve   block_put_ok apps/blocks/seedbank/put.eve
+logic    sutra block_put_ok apps/blocks/seedbank/put.sutra
+
+# A block get within 65536 bytes (SR4): Eve's range, witnessed by Sutra.
+provides block_get_ok truth bytes
+logic    eve   block_get_ok apps/blocks/seedbank/get.eve
+logic    sutra block_get_ok apps/blocks/seedbank/get.sutra
+
+# A pin makes a ^ZXSEED record (SR5), in MYRA.
+provides pin_record_ok truth pin bytes sealed stamp
+logic    myra pin_record_ok apps/blocks/seedbank/pin.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check cid_byte pos=0,0,1,58,5,5,5,5,0,254 code=98,97,97,55,56,49,123,65,98,0 len=59,59,59,59,59,59,59,59,58,255 = 1,0,1,1,0,0,0,0,0,0
+check cid_byte pos=1,-1 code=97,97 len=59,59 = both
+check cid_byte pos=1,1 code=97,256 len=59,59 = both
+check block_put_ok bytes=0,1048576,1048577,9999999 = true,true,false,false
+check block_put_ok bytes=1,-1 = both
+check block_put_ok bytes=1,10000000 = both
+check block_get_ok bytes=0,65536,65537,9999999 = true,true,false,false
+check block_get_ok bytes=1,10000000 = both
+check pin_record_ok pin=0,63,99,100,5,5 bytes=0,1048576,9999999,1,10000000,1 sealed=0,1,9,0,0,10 stamp=1700000000,99999999999,0,1,1,1 = true,true,true,false,false,false
+check used_share.used_x100 total=1000,1000,1000,3 left=1000,400,0,2 = 0,6000,10000,3333
+check used_share.used_x100 total=1000,1000 left=0,1001 = both

@@ -1,0 +1,7 @@
+lenok:(0|1&len-58)*0|1&60-len
+posok:(0|1&1+pos)*0|1&59-pos
+first:0|1&1-pos
+isb:(0|1&code-97)*0|1&99-code
+lower:(0|1&code-96)*0|1&123-code
+digit:(0|1&code-49)*0|1&56-code
+lenok*posok*(first*isb)+(1-first)*lower+digit

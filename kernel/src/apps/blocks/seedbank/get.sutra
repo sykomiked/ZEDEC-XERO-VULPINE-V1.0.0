@@ -1,0 +1,10 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A block get fits (seedbank_rules.h SR4), in Sutra: at most 65536 bytes.
+# The count fits 9(7): a negative count, or one of 10000000 bytes or more,
+# is no count Seedbank keeps, so it is refused. get.eve holds the same range.
+record block-get
+  bytes: 9(7)
+procedure
+  answer bytes <= 65536

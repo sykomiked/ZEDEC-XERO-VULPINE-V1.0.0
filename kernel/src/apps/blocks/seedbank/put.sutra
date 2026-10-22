@@ -1,0 +1,10 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A block put fits (seedbank_rules.h SR3), in Sutra: at most 1048576 bytes.
+# The count fits 9(7): a negative count, or one of 10000000 bytes or more,
+# is no count Seedbank keeps, so it is refused. put.eve holds the same range.
+record block-put
+  bytes: 9(7)
+procedure
+  answer bytes <= 1048576

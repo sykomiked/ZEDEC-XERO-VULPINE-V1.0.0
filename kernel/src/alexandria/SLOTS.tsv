@@ -185,3 +185,7 @@
 148	logic.lifeboat_restore_fits	490.71	lifeboat.restore_fits	base
 149	num.lifeboat_start_n	590.67	lifeboat.start_n	base
 150	logic.lifeboat_start_ok	490.72	lifeboat.start_ok	base
+151	logic.seedbank_block_get_ok	490.73	seedbank.block_get_ok	base
+152	logic.seedbank_block_put_ok	490.74	seedbank.block_put_ok	base
+153	num.seedbank_cid_byte	590.68	seedbank.cid_byte	base
+154	logic.seedbank_pin_record_ok	490.75	seedbank.pin_record_ok	base

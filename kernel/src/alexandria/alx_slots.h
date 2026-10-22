@@ -156,7 +156,11 @@
 #define ALX_SLOT_LOGIC_LIFEBOAT_RESTORE_FITS     148u /* 490.71 lifeboat.restore_fits */
 #define ALX_SLOT_NUM_LIFEBOAT_START_N            149u /* 590.67 lifeboat.start_n */
 #define ALX_SLOT_LOGIC_LIFEBOAT_START_OK         150u /* 490.72 lifeboat.start_ok */
-#define ALX_SLOT__COUNT 150u
+#define ALX_SLOT_LOGIC_SEEDBANK_BLOCK_GET_OK     151u /* 490.73 seedbank.block_get_ok */
+#define ALX_SLOT_LOGIC_SEEDBANK_BLOCK_PUT_OK     152u /* 490.74 seedbank.block_put_ok */
+#define ALX_SLOT_NUM_SEEDBANK_CID_BYTE           153u /* 590.68 seedbank.cid_byte */
+#define ALX_SLOT_LOGIC_SEEDBANK_PIN_RECORD_OK    154u /* 490.75 seedbank.pin_record_ok */
+#define ALX_SLOT__COUNT 154u
 /* clang-format on */
 
 #endif

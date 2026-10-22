@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Seedbank files one pin in MYRA (seedbank_rules.h SR5): its place in
+; the pin table (0 .. 63), the block's size in bytes (at most 1048576),
+; whether it was sealed at rest (1) or not (0), and when it was pinned, in
+; seconds since 1970. Seedbank asks whether the numbers fit before it
+; keeps them.
+^ZXSEED(pin:i2) = bytes:i7! ^ sealed:i1! ^ stamp:i11!

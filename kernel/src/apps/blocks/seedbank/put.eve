@@ -1,0 +1,12 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# How big a block Seedbank puts into this node's blockstore
+# (seedbank_rules.h SR3): 0 to 1048576 bytes, 1 MiB, zxvd's own limit for
+# a put by path (AIPI_MODULE_MAX).
+eve seedbank
+put_bytes = 0 .. 1048576
+
+block_put {
+  bytes: put_bytes
+}
