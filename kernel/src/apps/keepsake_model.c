@@ -87,8 +87,9 @@ int keepsake_refresh(keepsake_t *k)
     return ZXM_OK;
 }
 
-int keepsake_backup(keepsake_t *k, bool full)
+int keepsake_backup(keepsake_t *k, bool full, bool owner_confirmed)
 {
+    if (!owner_confirmed) return ZXM_E_STATE;
     int rc = start(k, "backup.run");
     if (rc) return rc;
     zxm_link_t *l = k->link;
@@ -160,10 +161,12 @@ bool keepsake_tested(const keepsake_t *k)
     return c->done && k->nsnaps && c->snapshot == k->snap[0].id && !c->bad && !c->missing;
 }
 
-int keepsake_restore(keepsake_t *k, uint32_t snapshot, const char *path, const char *to)
+int keepsake_restore(keepsake_t *k, uint32_t snapshot, const char *path, const char *to,
+                     bool owner_confirmed)
 {
     if ((path && strlen(path) > KEEPSAKE_PATH) || (to && strlen(to) > KEEPSAKE_PATH))
         return ZXM_E_ARG;
+    if (!owner_confirmed) return ZXM_E_STATE;
     int rc = start(k, "backup.restore");
     if (rc) return rc;
     zxm_link_t *l = k->link;
@@ -181,9 +184,10 @@ int keepsake_restore(keepsake_t *k, uint32_t snapshot, const char *path, const c
     return ZXM_OK;
 }
 
-int keepsake_prune(keepsake_t *k, uint32_t keep)
+int keepsake_prune(keepsake_t *k, uint32_t keep, bool owner_confirmed)
 {
     if (!keep) return ZXM_E_ARG;
+    if (!owner_confirmed) return ZXM_E_STATE;
     int rc = start(k, "backup.prune");
     if (rc) return rc;
     zxm_link_t *l = k->link;

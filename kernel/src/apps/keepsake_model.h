@@ -72,8 +72,10 @@ int keepsake_set_space(keepsake_t *k, const char *space); /* clears what was lis
 int keepsake_set_dest(keepsake_t *k, const char *dest);   /* an absolute path */
 
 /* Back up now (full: read every file again and repair kept copies), then
- * list the backups. */
-int keepsake_backup(keepsake_t *k, bool full);
+ * list the backups. Backup, restore and prune change what is kept, so each
+ * sends only on the owner's word (owner_confirmed); without it ZXM_E_STATE
+ * and nothing is sent. */
+int keepsake_backup(keepsake_t *k, bool full, bool owner_confirmed);
 int keepsake_refresh(keepsake_t *k);
 int keepsake_versions(keepsake_t *k, const char *path);
 /* snapshot 0: the newest */
@@ -81,9 +83,10 @@ int keepsake_check(keepsake_t *k, uint32_t snapshot);
 /* Whether the newest backup has been checked and read back whole. */
 bool keepsake_tested(const keepsake_t *k);
 /* to: NULL or "" puts it back where it was, or beside it when that is taken. */
-int keepsake_restore(keepsake_t *k, uint32_t snapshot, const char *path, const char *to);
+int keepsake_restore(keepsake_t *k, uint32_t snapshot, const char *path, const char *to,
+                     bool owner_confirmed);
 /* Keep the newest `keep` backups of this space; the owner confirms first. */
-int keepsake_prune(keepsake_t *k, uint32_t keep);
+int keepsake_prune(keepsake_t *k, uint32_t keep, bool owner_confirmed);
 
 /* AI: what a failed check means and what to do (held, M3). */
 int keepsake_ai(keepsake_t *k, int32_t action);
