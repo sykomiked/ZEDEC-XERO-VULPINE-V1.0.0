@@ -338,7 +338,7 @@ def make_plan(m, manifest_path, out_dir=None, host=False, boot_check=False, repo
         src = "dist/discs/zxv-%s-uefi.img" % arch
         artifact = "zxv-%s-%s-uefi.img" % (bid, arch)
         if boot_check:
-            check = ["bash", "build_system/uefi_boot_check.sh", arch, src, "90", "[AI_OK]"]
+            check = ["bash", "build_system/uefi_boot_check.sh", arch, src, "90", "[AI_SELFCHECK_OK]"]
             if m["console"]["framebuffer"] == "uefi-gop":
                 check.append(t["screen_marker"])
             if host:
@@ -410,7 +410,8 @@ def boot_text(m, p, digest):
         lines.append("Console: %s UART at %s, %d baud 8N1." % (ser["uart"], ser["base"], ser["baud"]))
     if m["console"]["framebuffer"] == "uefi-gop":
         lines.append("Console: the boot log is also drawn on the UEFI GOP framebuffer.")
-    lines.append("Success is the line [BOOT_OK] on the console, after [AI_OK].")
+    lines.append("Success is the line [BOOT_OK] on the console, after [AI_SELFCHECK_OK]; a golden "
+                 "disc also prints [AI_OK] with its boot model's answer.")
     lines.append("")
     if fw["type"] == "uefi":
         lines += ["Write the image to a removable disk with a tool that shows the target",

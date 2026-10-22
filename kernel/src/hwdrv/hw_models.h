@@ -68,6 +68,7 @@ typedef struct hw_model_cur {
     uint32_t cluster, hops;
     uint64_t done;
     sha256_ctx_t ctx;
+    uint8_t *dst; /* hw_models_load: where the bytes go as they are hashed */
 } hw_model_cur_t;
 
 /* A swarm disc the core disc expects (/ZXV/SWARM.LST). */
@@ -132,6 +133,16 @@ int hw_models_step(hw_models_t *s, const hw_plat_t *p, uint32_t clusters);
  * it has none yet: first use pays for its own check. HW_F for an unknown
  * name. */
 hw_verdict_t hw_models_require(hw_models_t *s, const hw_plat_t *p, const char *name);
+
+/* Read model i whole into dst (cap bytes) and hash those same bytes as they
+ * arrive, so what is in memory is what was checked: one read of the disc,
+ * never a check of one copy and use of another. Settles the model's
+ * verdict and logs it as hw_models_step does; a model already TRUE is read
+ * and checked again (the disc could have changed), one already FALSE is
+ * not read. HW_N when dst is too small (nothing read, nothing settled), HW_F
+ * for an unknown index. Only HW_T means dst holds the model. */
+hw_verdict_t hw_models_load(hw_models_t *s, const hw_plat_t *p, uint32_t i, uint8_t *dst,
+                            uint64_t cap);
 
 /* Settle model i as FALSE, hashed or not, logging [MODEL_BAD] with
  * why: a check outside this module (the release layers, kernel/src/layers)

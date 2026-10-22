@@ -18,15 +18,18 @@ engine (`swarm_boot_selfcheck`, `zt_boot_selfcheck`) are not linked in.
 ## Boot check
 
 ```bash
-bash build_system/uefi_boot_check.sh arm64  "" 90 "[AI_OK]"
-bash build_system/uefi_boot_check.sh x86_64 "" 90 "[AI_OK]"
+bash build_system/uefi_boot_check.sh arm64  "" 90 "[AI_SELFCHECK_OK]" "[AI_NO_MODEL]"
+bash build_system/uefi_boot_check.sh x86_64 "" 90 "[AI_SELFCHECK_OK]" "[AI_NO_MODEL]"
 ```
 
 Runs inside the container (OVMF / QEMU_EFI) or on a Mac with Homebrew QEMU
 (edk2 firmware). The firmware loads the EFI app from the disc itself; QEMU uses
 `snapshot=on`, so the image file is never modified. It exits non-zero unless the
-serial log reaches `[BOOT_OK]` and `[AI_OK]` with no fault marker. CI runs the
-same check in the `uefi-disc` job.
+serial log reaches `[BOOT_OK]` and the markers given, with no fault marker. CI
+runs the same check in the `uefi-disc` job. A plain disc carries no model:
+`[AI_SELFCHECK_OK]` is the swarm and tensor arithmetic self-check, and
+`[AI_NO_MODEL]` says the AI is not running. `[AI_OK]` appears only on a disc
+whose model answered (next section).
 
 ## Golden discs: models and assets on the discs
 
@@ -50,7 +53,8 @@ SHA-256 sums and serve every architecture. Today the core is Qwen2.5-0.5B
 docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash -c \
   'bash build_system/baremetal_images.sh x86_64 && bash build_system/mk_golden_disc.sh x86_64 && bash build_system/mk_golden_disc.sh swarm'
 UEFI_DISK=ahci UEFI_EXTRA=dist/discs/zxv-swarm-disc2-reason.img UEFI_MEM=4G \
-  bash build_system/uefi_boot_check.sh x86_64 dist/discs/zxv-x86_64-disc1-core.img 420 "[AI_OK]" "[MODELS_OK] 2 verified"
+  bash build_system/uefi_boot_check.sh x86_64 dist/discs/zxv-x86_64-disc1-core.img 1200 \
+  "[AI_OK] qwen2.5-0.5b-instruct-q4_k_m.gguf answered" "[MODELS_OK] 2 verified"
 ```
 
 Each model is downloaded once from its pinned URL into `dist/models` (or
@@ -83,7 +87,7 @@ loader checks the core disc's models before ExitBootServices, streamed 4 MiB
 at a time (`kernel/arch/efi_models.h`), and prints `[MODELS_OK] 1 verified`.
 
 `build_system/test_golden_disc.sh <arch>` proves the check in about two
-minutes per arch with small test files as the models, one on a core disc and
+minutes per arch with small test models, one on a core disc and
 one on a swarm disc: intact, they must verify; with one byte changed on a
 disc, it must be caught. CI runs it in the `uefi-disc` job. The Golden disc
 workflow builds the real discs and boots them with 4 GB and with 8 GB of RAM.
@@ -284,10 +288,107 @@ flipped bit, that `zxv-cid.c` builds the same DAG as mk_bucket at any depth, and
 resumes from a `.part`, and fetches a `.part` that is not the image's start
 again.
 
-The kernel does not yet run the discs' models on bare metal: it checks them,
-and runs its built-in swarm and tensor self-check (`[AI_OK]`). A riscv64 core
-disc needs a riscv64 UEFI loader first; the riscv64 kernel boots through
-OpenSBI only.
+### The kernel runs the boot model: what `[AI_OK]` means
+
+The smallest model on the core disc's boot partition (Qwen2.5-0.5B-Instruct)
+is the boot model. On x86_64 the kernel reads it off the disc itself after
+indexing the models (`hw_models_load`: the bytes are copied into memory and
+hashed there, so what runs is what was checked; `[AI_LOAD]`), into RAM above
+1 GB from the firmware's map when there is room, with a scratch region as
+large as the model. On arm64, whose kernel has no PCI storage driver yet, the
+loader reads it into its own pages, hashes it there and leaves a record for
+the kernel (`kernel/arch/zxv_aimodel.h`, `[AI_HANDOFF]`). Either way the
+kernel (`kernel/src/swarm/swarm_bootmodel.c`) checks that both regions are
+inside the memory it maps and outside its own image, hashes the model a
+second time and joins the two digests (`lpres_kjoin`: they must agree), loads
+it into the integer engine (`zt_model`, `zt_tok`) and answers a fixed prompt
+greedily:
+
+```
+[AI_MODEL] qwen2.5-0.5b-instruct-q4_k_m.gguf 491400032 bytes, kernel sha256 74a4da8c9fdbcd15 agrees with the loader
+[AI_OK] qwen2.5-0.5b-instruct-q4_k_m.gguf answered "Hello! It's nice to meet you!" (32 prompt + 9 tokens, digest 0x7af4f2fc)
+```
+
+Both lines are from QEMU boots of the golden disc on x86_64 (OVMF) and arm64
+(QEMU_EFI) with 2 GB of guest RAM, 2026-10-15; a host run of the same file
+gives the same answer and digest. Under emulation the answer takes a few
+minutes; with hardware virtualisation or on a real machine, seconds. Any
+refusal prints `[AI_FAULT] <name> <why>` and the boot goes on; a disc without
+a model prints `[AI_NO_MODEL]`. Neither prints `[AI_OK]`.
+
+`build_system/test_golden_disc.sh` (above) uses a tiny generated model as the
+core disc's model (`build_system/mk_boot_test_model.py`, 120 KB, a real qwen2
+GGUF with random weights, so its answer is noise): intact, it must verify,
+reach the kernel and answer with the token digest `test_swarm_bootmodel` pins
+on the host; changed or refused by the layers, the kernel must say
+`[AI_NO_MODEL]`.
+
+### Log in and ask
+
+After boot the console takes a passport login and questions for the boot
+model: on arm64 the EL0 shell (`P-TERM/EL0`, prompt `> `), on x86_64 the
+kernel's console (`[CONSOLE]`, prompt `> `, `kernel/arch/x86_64/x86_console.c`),
+which reads the PS/2 keyboard (the i8042 a PC, QEMU, KVM and a VPS's VNC
+console have; polled, US layout) and COM1 together and echoes to the screen
+and the serial line:
+
+```
+> login <seed text>        [LOGIN_OK] did:zxv:...      (or [LOGIN_FAIL] <why>)
+> whoami                   [WHOAMI] did:zxv:...        (or nobody)
+> ask <question>           [AI_ANSWER] "<text>" (<p> prompt + <g> tokens, digest 0x...)
+> logout                   [LOGOUT] did:zxv:...
+> create                   [NEW_SEED] <seed text>      (first time: write it down)
+> confirm <seed text>      [CREATED] did:zxv:..., [LOGIN_OK] did:zxv:...
+```
+
+A first-time person makes a passport from nothing, with no server: `create`
+takes 32 bytes from the CPU's random source (RNDR on arm64, RDRAND on
+x86_64; a CPU without one refuses rather than make a weak seed), shows the seed text once, and nobody is logged
+in until `confirm` types back that same seed.
+
+`login` rebuilds the whole identity from the seed text at the matrix level
+(`kernel/src/passport/pp_console.h`, ML-DSA-87 + SLH-DSA-256s); the shell
+echoes typed seeds (`login`, `confirm`) as `*`, and both the shell's and the kernel's copies of the
+line are wiped after it runs. `ask` is refused with `[AI_REFUSED]` until
+someone is logged in, takes up to 200 bytes, and treats a `<` in the question
+as text, never as a chat-template token (`swarm_bootmodel_ask`). Passphrase
+login is not offered here: Argon2id needs a 64 MiB work area the kernel does
+not set aside.
+
+`build_system/golden_login_check.sh` boots the tiny-model disc and types the
+whole session over the serial line: refused before login, a one-character
+typo refused by the checksum, logged in as the DID the host's
+`test_pp_console` builds from the same seed, the boot question answered with
+the digest `test_swarm_bootmodel` pins, logged out and refused again, then a new passport created, a
+wrong confirmation refused and the right one logged in, with no typed seed
+in the log (QEMU `-cpu max`, for RNDR and RDRAND). CI runs it in the
+`uefi-disc` job on both arches: `golden_login_check.sh [arm64|x86_64]`.
+
+The same check then stresses it: hostile login lines (empty, overlong,
+punctuation, chat-template markup, a seed one character short or long), every
+fourth seed position mistyped, five logins and ten asks in a row (the same
+digest every time), the plain disc with no model (login works, `ask` says
+there is no model), RAM just above the floor (the boot reaches the shell and
+says why the AI is off, or answers) and just below it. On x86_64 it also types
+the session on the PS/2 keyboard through QEMU's QMP `send-key`: refused
+before login, a typo refused, a mistake erased with backspace, logged in,
+asked and answered, the question echoed exactly as typed (so Shift and every
+key map right), a shifted `ASK` not taken for `ask`, the seed echoed as `*`.
+`make -C kernel test-x86-console` checks the line editor and the scancode map
+on the host.
+
+**RAM floor.** The arm64 kernel's image, BSS and stack run from 0x40000000 to
+`__kernel_end` (about 235 MB). The loader checks the firmware's memory map
+covers that window before anything else; when it does not it prints
+`[BOOT_FAIL] this kernel needs RAM from 0x40000000 to ...` and stops, where it
+used to hand off and hang without a word. It then reserves the window, so the
+boot model and its scratch are placed above it. The x86_64 loader already
+refuses a window it cannot own (`[BOOT_REFUSED]`) and returns to the firmware;
+under OVMF its floor is about 160 MB (the kernel's window must be clear of the
+firmware's own memory), and 128 MB is refused.
+
+A riscv64 core disc needs a riscv64 UEFI loader first; the riscv64 kernel
+boots through OpenSBI only.
 
 ## Run it on any OS (Docker only)
 
@@ -341,7 +442,8 @@ You need: the PC, a USB stick of 64 MB or more **that will be erased**, and
 4. Plug in the stick, power on, open the one-time boot menu (F12, F11, F8 or
    Esc depending on the maker) and pick the entry named "UEFI: <your stick>".
 5. Expected: grey capital-letter boot log on screen, ending in
-   `[AI_OK] SWARM+TENSOR SELFCHECK ...` and
+   `[AI_SELFCHECK_OK] SWARM+TENSOR SELFCHECK ...` (and, on a golden disc,
+   `[AI_OK] ... ANSWERED "..."`) and
    `[BOOT_OK] PHASE E0082 COMPLETE`, then the event cycle running. The same
    text goes to COM1 at 38400 baud if the PC has a serial port.
 

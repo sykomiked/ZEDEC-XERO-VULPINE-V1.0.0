@@ -274,6 +274,48 @@ static void test_require(void)
     CHECK(fake_log_has(&fp, "[MODELS_OK] 2 verified"));
 }
 
+/* hw_models_load: one read of the disc, into memory, hashed as it lands. */
+static void test_load(void)
+{
+    static mdisk_t m;
+    static uint8_t dst[B_LEN + 64];
+    build(&m);
+    CHECK(index_one(&m) == 2);
+    /* too small a buffer: nothing read, nothing settled */
+    CHECK(hw_models_load(&s, &fp.plat, 0, dst, A_LEN - 1) == HW_N);
+    CHECK(s.m[0].verdict == HW_N);
+    CHECK(hw_models_load(&s, &fp.plat, 9, dst, sizeof dst) == HW_F);
+    /* the background check is part-way through model 0: load takes over */
+    CHECK(hw_models_step(&s, &fp.plat, 1) == 1 && s.bg.idx == 0);
+    memset(dst, 0xEE, sizeof dst);
+    CHECK(hw_models_load(&s, &fp.plat, 0, dst, sizeof dst) == HW_T);
+    CHECK(memcmp(dst, A, A_LEN) == 0 && dst[A_LEN] == 0xEE);
+    CHECK(s.bg.idx == -1 && s.ok == 1);
+    CHECK(fake_log_has(&fp, "[MODEL_OK] qwen-core 1500 bytes, sha256 matches"));
+    /* a model across a FAT sector boundary */
+    CHECK(hw_models_load(&s, &fp.plat, 1, dst, sizeof dst) == HW_T);
+    CHECK(memcmp(dst, B, B_LEN) == 0);
+    /* already TRUE: read and counted again, not twice */
+    CHECK(hw_models_load(&s, &fp.plat, 0, dst, sizeof dst) == HW_T && s.ok == 2);
+    CHECK(hw_models_step(&s, &fp.plat, 1) == 0);
+    CHECK(fake_log_has(&fp, "[MODELS_OK] 2 verified"));
+
+    /* a flipped byte on the disc: FALSE, and stays FALSE without a read */
+    build(&m);
+    m.d[(ESP0 + 3 + 4) * 512 + 700] ^= 1;
+    CHECK(index_one(&m) == 2);
+    CHECK(hw_models_load(&s, &fp.plat, 0, dst, sizeof dst) == HW_F);
+    CHECK(fake_log_has(&fp, "[MODEL_BAD] qwen-core (esp:MDL000.GGU) sha256 differs"));
+    uint32_t reads = m.reads;
+    CHECK(hw_models_load(&s, &fp.plat, 0, dst, sizeof dst) == HW_F && m.reads == reads);
+    /* the disc changes after a TRUE check: the next load sees it */
+    build(&m);
+    CHECK(index_one(&m) == 2);
+    CHECK(hw_models_load(&s, &fp.plat, 0, dst, sizeof dst) == HW_T);
+    m.d[(ESP0 + 3 + 4) * 512 + 3] ^= 1;
+    CHECK(hw_models_load(&s, &fp.plat, 0, dst, sizeof dst) == HW_F && s.ok == 0 && s.bad == 1);
+}
+
 static void run_all(void)
 {
     while (hw_models_step(&s, &fp.plat, 3));
@@ -816,6 +858,7 @@ int main(void)
     fake_plat_init(&fp);
     test_happy();
     test_require();
+    test_load();
     test_bad_models();
     test_manifests();
     test_no_disc();

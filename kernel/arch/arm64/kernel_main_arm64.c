@@ -557,7 +557,10 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 #include "../src/loader/abupdate.h"  /* A/B update + probation + rollback */
 #include "../src/appkit/doc.h"       /* AppKit document model (Writer et al) */
 #include "../src/refinery/refinery.h" /* Magitech Refinery: text -> sigil card */
-#include "../src/swarm/swarm_boot.h"  /* swarm + tensor boot self-check ([AI_OK]) */
+#include "../src/swarm/swarm_boot.h"  /* swarm + tensor arithmetic self-check ([AI_SELFCHECK_OK]) */
+#include "../src/swarm/swarm_bootmodel.h" /* the boot model answers ([AI_OK]) */
+#include "../src/passport/pp_console.h"   /* login <seed>, whoami, logout */
+#include "../zxv_aimodel.h"               /* the loader's boot model record */
 #include "../userapp/hello_signed.h" /* root pubkey + signed .zsp, seeded to disk */
 #include "../src/crash/crash.h"      /* crash dumps kept on disk across a reboot */
 #include "../src/crash/bootctl.h"    /* boot modes: normal, safe, recovery */
@@ -907,6 +910,36 @@ static void cell_fabric_boot_init(void) {
         cell_fabric_add_route(&cell_fabric, &r_net2);
         boot_msg("  [RECOVERED] arm64-io re-admitted with incarnation=2 and new routes");
     }
+}
+
+/* ---- the boot model (zxv_aimodel.h, swarm_bootmodel.h) ----
+ * The loader leaves its record at ZXAI_REC_ADDR_ARM64, below the kernel; the
+ * model and scratch lie in RAM arm64_mmu.c maps as Normal memory
+ * (0x40000000 up to ZXAI_MAX_ADDR_ARM64). The -kernel path has no loader:
+ * the page is zero and the record is absent. */
+extern char __kernel_end[];
+
+static void ai_boot_model(void)
+{
+    static swarm_bootmodel_out_t res;
+    const zxai_rec_t *r = (const zxai_rec_t *) (uintptr_t) ZXAI_REC_ADDR_ARM64;
+    if (!zxai_valid(r)) {
+        swarm_bootmodel_none("no model handed over by the loader", uart_puts);
+        return;
+    }
+    swarm_bootmodel_in_t in;
+    in.model = (const uint8_t *) (uintptr_t) r->model_phys;
+    in.model_bytes = r->model_bytes;
+    in.loader_sha256 = r->sha256;
+    in.name = r->name;
+    in.name_len = r->name_len;
+    in.scratch = (uint8_t *) (uintptr_t) r->scratch_phys;
+    in.scratch_bytes = r->scratch_bytes;
+    in.map_lo = 0x40000000ULL;
+    in.map_hi = ZXAI_MAX_ADDR_ARM64;
+    in.kernel_lo = 0x40070000ULL; /* the bootinfo and record pages, then the image */
+    in.kernel_hi = (uint64_t) (uintptr_t) __kernel_end;
+    swarm_bootmodel_run(&in, &res, uart_puts);
 }
 
 /* The entry x0 (boot.s): QEMU -kernel's device tree, or anything. */
@@ -3140,6 +3173,10 @@ void kernel_main_arm64(void) {
     } else if (!ai_boot_selfcheck(uart_puts)) {
         uart_puts("[FAULT] AI selfcheck failed; halting before BOOT_OK\n");
         for (;;) halt();
+    } else {
+        /* The AI itself: run the model the loader handed over. [AI_OK]
+         * means it answered; a boot without a model says so and goes on. */
+        ai_boot_model();
     }
 
     /* The boot got this far: confirm it, so the next one is normal. */
@@ -4112,6 +4149,14 @@ static void shell_flush_row(const char *row) {
     uart_puts("\r\n");
 }
 
+/* 1 when line begins with p (no strncmp in the freestanding kernel). */
+static int sh_prefix(const char *line, const char *p)
+{
+    while (*p)
+        if (*line++ != *p++) return 0;
+    return 1;
+}
+
 void kernel_shell_exec(const char *line) {
     if (!g_pterm_ready) {
         uart_puts("[shell] P-TERM engine not initialized\r\n");
@@ -4119,6 +4164,53 @@ void kernel_shell_exec(const char *line) {
     }
     /* the chiglet session's calls come first (chg_abi.h) */
     if (gov_line(line)) return;
+
+    /* --- passport login, and asking the boot model ---
+     * login <seed text>: the passport (pp_console.h); create then confirm
+     * <seed text>: a first-time passport; the shell echoed both seeds as '*'. ask <question>: the
+     * boot model, for whoever is logged in (swarm_bootmodel_ask). */
+    if (sh_prefix(line, "login ")) {
+        pp_console_login(line + 6, (uint32_t) strlen(line + 6), uart_puts);
+        return;
+    }
+    if (strcmp(line, "login") == 0) {
+        uart_puts("login: login <seed text>\r\n");
+        return;
+    }
+    if (strcmp(line, "create") == 0) {
+        /* A first-time identity: 32 bytes from the CPU's RNDR. A CPU without
+         * one cannot make a seed safely here, so it refuses. */
+        uint8_t rnd[32];
+        if (!arm64_rng_fill(rnd, sizeof rnd)) {
+            uart_puts("[CREATE_FAIL] this CPU has no hardware random source (RNDR); make the "
+                      "seed on another device and log in with it\r\n");
+            return;
+        }
+        pp_console_create(rnd, uart_puts);
+        for (uint32_t i = 0; i < sizeof rnd; i++) ((volatile uint8_t *) rnd)[i] = 0;
+        return;
+    }
+    if (sh_prefix(line, "confirm ")) {
+        pp_console_confirm(line + 8, (uint32_t) strlen(line + 8), uart_puts);
+        return;
+    }
+    if (strcmp(line, "whoami") == 0) {
+        pp_console_whoami(uart_puts);
+        return;
+    }
+    if (strcmp(line, "logout") == 0) {
+        pp_console_logout(uart_puts);
+        return;
+    }
+    if (sh_prefix(line, "ask ") || strcmp(line, "ask") == 0) {
+        if (!pp_console_logged_in()) {
+            uart_puts("[AI_REFUSED] log in first: login <seed text>\r\n");
+            return;
+        }
+        const char *q = line[3] ? line + 4 : "";
+        swarm_bootmodel_ask(q, (uint32_t) strlen(q), 0, uart_puts);
+        return;
+    }
 
     /* --- kernel-native commands (live subsystem state) --- */
     if (strcmp(line, "stats") == 0) {
@@ -4662,6 +4754,9 @@ void kernel_shell_exec(const char *line) {
 
     /* Native command addendum to `help` */
     if (strcmp(line, "help") == 0) {
+        uart_puts("  login <seed> / whoami / logout  \xe2\x80\x94  passport login\r\n");
+        uart_puts("  create, then confirm <seed>  \xe2\x80\x94  first time: make a passport\r\n");
+        uart_puts("  ask <question>  \xe2\x80\x94  ask the boot model (logged in)\r\n");
         uart_puts("  stats  \xe2\x80\x94  live kernel subsystem coverage report\r\n");
         uart_puts("  uptime  \xe2\x80\x94  ticks and event cycles since boot\r\n");
         uart_puts("  ls-p  \xe2\x80\x94  list files on the persistent disk (ZXVFS)\r\n");

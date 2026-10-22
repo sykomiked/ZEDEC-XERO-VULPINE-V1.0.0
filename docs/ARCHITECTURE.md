@@ -86,7 +86,7 @@ before they run, and anything that would change the machine waits for the person
 | Kernel modules | 261 directories under `kernel/src` (242 on `main`, 19 added by #156), each assigned a stratum | `build_system/strata.txt`, checked by `verify_strata.py` in CI |
 | Code size | About 460,000 lines of C and headers in `kernel/src` outside tests; 61,000 in `kernel/arch` | `wc -l` at `7d4297c2` |
 | Tests | 408 test programs in `kernel/src` (about 200,000 lines); 707 test files in the repository | same |
-| Kernel images | Five CPU targets boot under QEMU and CI fails any that does not reach `[BOOT_OK]`; arm64 and x86_64 also pass the AI self-check `[AI_OK]` | `build_system/ci_boot_check.sh` |
+| Kernel images | Five CPU targets boot under QEMU and CI fails any that does not reach `[BOOT_OK]`; arm64 and x86_64 also pass the AI self-check `[AI_SELFCHECK_OK]`; a golden disc's boot model answers in the kernel, `[AI_OK]` (`swarm_bootmodel.c`) | `build_system/ci_boot_check.sh` |
 | What a user runs today | The desktop app (zxvd engine with an HTML window), ZXV Studio on the Mac, the phone companion, and plain UEFI discs that boot to a self-test | section 4 |
 | Real AI model | Qwen2.5-1.5B runs on the integer engine, bit-identical on every CPU; perplexity 9.371 against llama.cpp's 9.362; the whole forward pass also runs on an Apple GPU, bit-exact | [TENSOR_ENGINE.md](TENSOR_ENGINE.md), [GPU_STRATEGY.md](GPU_STRATEGY.md) |
 | libzxv | ABI 1.6.0 (#156; `main` has 1.5.0), 468 exported functions, 15 capability bits | `sdk/libzxv/include/zxv_api.h`, `sdk/docs/ABI.md` |
@@ -250,7 +250,7 @@ runs on bare metal, what runs only in the hosted build, and what is absent.
 | L2 Kernel | memory, processes, scheduler, syscalls, IPC, faults, power | arm64: EL0 processes, preemption, four-state `pmm`; x86_64: none of these (halts in a `hlt` loop after self-tests) | x86 process runtime, kernel heap with `free`, threads, channel IPC, signals |
 | L3 Drivers | NVMe, AHCI, xHCI, USB keyboard and storage, NICs, HDA, virtio | x86_64 class drivers pass boot self-tests; arm64 virtio set | HID parser, I2C-HID, USB audio/video/serial, Bluetooth, Wi-Fi, GPU, display modes |
 | L4 System services | filesystems, update, login, network, TLS, time, search, backup | arm64: ZXVFS, signed `.zsp` apps, TCP/DHCP/DNS, crash records and recovery boot (#156) | root filesystem from disk, disc v2 layout, service manager, installer, system A/B, encryption at rest, IPv6, firewall |
-| L5 Runtimes | tensor engine, swarm, pillars, Lingua, Z-Wasm, SDKs | tensor self-check `[AI_OK]`; Sutra on arm64 | models from the disc, the swarm as a service, user-space runtime `zxrt`, four pillars and Lingua on bare metal |
+| L5 Runtimes | tensor engine, swarm, pillars, Lingua, Z-Wasm, SDKs | tensor self-check `[AI_SELFCHECK_OK]`; the golden disc's boot model answers (`[AI_OK]`); Sutra on arm64 | more models from the disc, the swarm as a service, user-space runtime `zxrt`, four pillars and Lingua on bare metal |
 | L6 GUI | zui toolkit, window manager, fonts, shaping, input methods, accessibility | old framebuffer shell (`desktop/zxv_shell.c`); zui is in no image yet (🔒 one visual system ports the bare-metal desktop to zui) | zui as the compositor, window protocol, login on bare metal |
 | L7 Apps and tools | 407 apps, zxsh, editor, browser, no-code builder | `xedit`, the arm64 shell, a small browser | app container `.zxa`, sandbox from manifests, self-hosting toolchain, debugger |
 
@@ -386,7 +386,7 @@ groups are not in libzxv yet.
 
 | Image | Status | What it does | What it lacks |
 |---|---|---|---|
-| x86_64 (first physical target) | 🟡 | UEFI boot, handoff v2 (#156), PCI class drivers with self-tests, one ring-3 test, `[AI_OK]` | No timer interrupt, scheduler or user processes; halts in a `hlt` loop |
+| x86_64 (first physical target) | 🟡 | UEFI boot, handoff v2 (#156), PCI class drivers with self-tests, one ring-3 test, `[AI_SELFCHECK_OK]`, the boot model read off the disc and answering (`[AI_OK]`), a PS/2 + serial console with passport login | No timer interrupt, scheduler or user processes; halts in a `hlt` loop |
 | arm64 (most complete) | 🟡 | GICv3, timer preemption, EL0 processes, `pmm` (#156), virtio, ZXVFS, signed `.zsp` apps, crash records, framebuffer desktop, network stack; boot hands the console to the chiglet governor (🔒 section 3.4); CI types into its shell across two boots | No handoff in its EFI stub, no PCI (cannot see the golden disc's models), no spawn/wait/kill |
 | riscv64, riscv32, arm32 | 🟡 | Boot to `[BOOT_OK]` under QEMU | No AI self-check, no user processes |
 

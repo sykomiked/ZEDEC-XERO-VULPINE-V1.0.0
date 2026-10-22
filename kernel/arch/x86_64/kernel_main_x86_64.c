@@ -35,7 +35,9 @@
 #include "holographic/holo.h"
 #include "bootfeat/boot_features.h"
 #include "efifb_con.h"        /* UEFI GOP text console (real PCs have no COM1) */
-#include "swarm/swarm_boot.h" /* swarm + tensor boot self-check ([AI_OK]) */
+#include "swarm/swarm_boot.h" /* swarm + tensor arithmetic self-check ([AI_SELFCHECK_OK]) */
+#include "swarm/swarm_bootmodel.h" /* the boot model answers ([AI_OK]) */
+#include "../zxv_aimodel.h"        /* zxai_scratch_bytes: the boot model's scratch */
 #include "hwplat_x86.h"       /* standard class drivers (kernel/src/hwdrv) */
 #include "acpi_x86.h"         /* ACPI tables, AML interpreter, power management */
 #include "hwdrv/hw_storage.h" /* GPT + FAT32 on those disks */
@@ -47,6 +49,7 @@
 #include "x86_userspace.h"      /* ring-3 processes and the scheduler (gap 6) */
 #include "msr_safe.h"           /* fault-safe RDMSR/WRMSR + RAPL helpers */
 #include "mca_x86.h"            /* machine check: banks, #MC, poll */
+#include "x86_console.h"        /* PS/2 + COM1 console: login, create, ask */
 
 /* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
  * kernel/src/modbind/zxv_decl_gate.c holds the whole sequence; this main calls
@@ -180,6 +183,131 @@ static void cell_fabric_boot_init(void) {
  * damaged record is never half-used; an absent one (direct -kernel boot)
  * changes nothing. bootmem_x86.c takes the kernel's large buffers from the
  * map. */
+
+/* ---- the boot model (swarm_bootmodel.h) ----
+ * The core disc's smallest boot-partition model is the boot model. The
+ * kernel reads it itself (hw_models_load: the bytes hashed are the bytes
+ * kept) and runs it with a scratch region. Both come from RAM above the
+ * 1 GB boot.asm maps, out of the handoff map, so the low memory bootmem_x86
+ * hands out stays for drivers; each is mapped here, identity and
+ * write-back, with 2 MB pages. Without such RAM (no handoff, or too little
+ * there) both come from bootmem_x86 below 1 GB. */
+#define AI_PTE_P  0x001ULL
+#define AI_PTE_RW 0x002ULL
+#define AI_PTE_PS 0x080ULL
+#define AI_PTE_A  0x000FFFFFFFFFF000ULL
+#define AI_2M     0x200000ULL
+#define AI_1G     0x40000000ULL
+#define AI_TOP    0x8000000000ULL /* what PML4 entry 0 covers: 512 GB */
+#define AI_L2S    6u              /* 2 MB tables: two regions of up to 2 GB */
+static uint64_t g_ai_l2[AI_L2S][512] __attribute__((aligned(4096)));
+static uint32_t g_ai_l2_used;
+
+/* Map [lo, hi), 2 MB aligned, between 1 GB and AI_TOP. A 1 GB slot that
+ * already has a table (a driver's MMIO pages) keeps every entry it has; only
+ * absent entries are filled. */
+static int ai_map_ram(uint64_t lo, uint64_t hi)
+{
+    if (hi > AI_TOP || lo >= hi || lo < AI_1G) return 0;
+    uint64_t cr3;
+    __asm__ __volatile__("mov %%cr3, %0" : "=r"(cr3));
+    uint64_t *l4 = (uint64_t *) (uintptr_t) (cr3 & AI_PTE_A);
+    if (!(l4[0] & AI_PTE_P)) return 0;
+    uint64_t *l3 = (uint64_t *) (uintptr_t) (l4[0] & AI_PTE_A);
+    for (uint64_t a = lo; a < hi; a += AI_2M) {
+        uint32_t i3 = (uint32_t) (a >> 30), i2 = (uint32_t) (a >> 21) & 511u;
+        if (l3[i3] & AI_PTE_PS) continue; /* a 1 GB page covers it */
+        if (!(l3[i3] & AI_PTE_P)) {
+            if (g_ai_l2_used == AI_L2S) return 0;
+            uint64_t *t = g_ai_l2[g_ai_l2_used++];
+            for (int i = 0; i < 512; i++) t[i] = 0;
+            l3[i3] = (uint64_t) (uintptr_t) t | AI_PTE_P | AI_PTE_RW;
+        }
+        uint64_t *l2 = (uint64_t *) (uintptr_t) (l3[i3] & AI_PTE_A);
+        if (!(l2[i2] & AI_PTE_P)) l2[i2] = a | AI_PTE_P | AI_PTE_RW | AI_PTE_PS;
+    }
+    __asm__ __volatile__("mov %%cr3, %%rax\n\tmov %%rax, %%cr3" : : : "rax", "memory");
+    return 1;
+}
+
+/* need bytes (a multiple of 2 MB) of usable RAM between 1 GB and AI_TOP,
+ * whole 2 MB pages, outside [skip_lo, skip_hi); 0 when there is none.
+ * Nothing else in the kernel takes RAM there. */
+static uint64_t ai_high_ram(uint64_t need, uint64_t skip_lo, uint64_t skip_hi)
+{
+    const zxh_t *h = zxv_handoff();
+    if (!h || !need) return 0;
+    for (uint32_t i = 0; i < h->n_mem && i < ZXH_MAX_MEM; i++) {
+        if (h->mem[i].kind != ZXH_MEM_USABLE) continue;
+        uint64_t lo = h->mem[i].base, hi = lo + h->mem[i].pages * 4096u;
+        if (lo < AI_1G) lo = AI_1G;
+        if (hi > AI_TOP) hi = AI_TOP;
+        lo = (lo + AI_2M - 1) & ~(AI_2M - 1);
+        hi &= ~(AI_2M - 1);
+        if (lo < skip_hi && lo + need > skip_lo) lo = skip_hi; /* past the other region */
+        if (hi > lo && hi - lo >= need && (lo + need <= skip_lo || lo >= skip_hi)) return lo;
+    }
+    return 0;
+}
+
+extern char __stack_top[];
+
+static void ai_boot_model(hw_models_t *ms, const hw_plat_t *hp)
+{
+    static swarm_bootmodel_out_t res;
+    int b = -1;
+    for (uint32_t i = 0; i < ms->n; i++)
+        if (ms->m[i].vol == 0 && ms->m[i].found && ms->m[i].verdict != HW_F &&
+            (b < 0 || ms->m[i].bytes < ms->m[b].bytes))
+            b = (int) i;
+    if (b < 0) {
+        swarm_bootmodel_none("no model on the boot partition checks out", uart_puts);
+        return;
+    }
+    hw_model_t *m = &ms->m[b];
+    uint64_t mbytes = ((uint64_t) m->bytes + AI_2M - 1) & ~(AI_2M - 1);
+    uint64_t sbytes = (zxai_scratch_bytes(m->bytes) + AI_2M - 1) & ~(AI_2M - 1);
+    uint8_t *model = 0, *scratch = 0;
+    uint64_t mh = ai_high_ram(mbytes, 0, 0);
+    uint64_t sh = mh ? ai_high_ram(sbytes, mh, mh + mbytes) : 0;
+    if (sh && ai_map_ram(mh, mh + mbytes) && ai_map_ram(sh, sh + sbytes)) {
+        model = (uint8_t *) (uintptr_t) mh;
+        scratch = (uint8_t *) (uintptr_t) sh;
+    } else {
+        model = bootmem_x86_take(mbytes, "the boot model");
+        scratch = model ? bootmem_x86_take(sbytes, "the boot model's scratch") : 0;
+    }
+    if (!scratch) {
+        swarm_bootmodel_none("no memory for the boot model and its scratch", uart_puts);
+        return;
+    }
+    uart_puts("[AI_LOAD] ");
+    uart_puts(m->name);
+    uart_puts(": reading ");
+    uart_put_dec(m->bytes);
+    uart_puts(" bytes from the boot partition\n");
+    if (hw_models_load(ms, hp, (uint32_t) b, model, mbytes) != HW_T) {
+        swarm_bootmodel_none("the boot model on the disc is not the one MODELS.SHA lists",
+                             uart_puts);
+        return;
+    }
+    uint32_t nlen = 0;
+    while (m->name[nlen]) nlen++;
+    swarm_bootmodel_in_t in;
+    in.model = model;
+    in.model_bytes = m->bytes;
+    in.loader_sha256 = m->sha; /* MODELS.SHA's digest, matched as it was read */
+    in.name = m->name;
+    in.name_len = nlen;
+    in.scratch = scratch;
+    in.scratch_bytes = sbytes;
+    in.map_lo = 0x100000ULL;
+    in.map_hi = AI_TOP;
+    in.kernel_lo = 0x80000ULL; /* the handoff page, then the image */
+    in.kernel_hi = (uint64_t) (uintptr_t) __stack_top;
+    swarm_bootmodel_run(&in, &res, uart_puts);
+}
+
 static void handoff_report(void)
 {
     const zxh_t *h = (const zxh_t *) (ZXV_X86_BOOTINFO_ADDR + ZXH_OFFSET);
@@ -215,11 +343,15 @@ static uint64_t x86_ms(void *ctx)
     return x86_ticks() * 1000u / X86_HZ;
 }
 
+/* Set once someone types at the console: the heartbeat has shown the timer
+ * works, and a line every ten seconds would cut into what they type. */
+static int g_console_typed;
+
 static void x86_heartbeat(void *ctx)
 {
     (void) ctx;
     uint64_t now = x86_ticks();
-    if (now < g_heartbeat_next) return;
+    if (now < g_heartbeat_next || g_console_typed) return;
     g_heartbeat_next = now + 10u * X86_HZ;
     uart_puts("[BOOT_OK] heartbeat: ticks=");
     uart_put_dec(now);
@@ -528,6 +660,10 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
         for (;;) hlt();
     }
 
+    /* The AI itself: run the model the loader handed over. [AI_OK] means it
+     * answered; a boot without a model says so and goes on. */
+    ai_boot_model(&models, hp);
+
     boot_msg("\n[BOOT] ZEDEC pqOS [x86-64] — All systems online.");
     boot_msg("[BOOT_OK] Phase E0082 complete; kernel_main reached; Stage-1 kernel loop ready\n");
     boot_msg("[BOOT] Entering event cycle...\n");
@@ -584,6 +720,14 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
      * clusters of 4 KiB) per pass instead of halting, and while discs are
      * fetched it takes one step of the fetch per pass; the timer keeps
      * interrupting both, so the heartbeat goes on. */
+    /* The console (x86_console.h): typed lines from the PS/2 keyboard, COM1
+     * and any USB keyboard, for login, create and ask. While swarm discs are
+     * fetched the keys belong to the fetch (d), so the console opens when it
+     * ends. Each pass polls it; after a key the loop stays awake (pause, not
+     * hlt) for a second, so a burst of typing is never left waiting on the
+     * next timer tick. */
+    int console = 0;
+    uint64_t awake_until = 0;
     if (!g_heartbeat_next) g_heartbeat_next = x86_ticks() + 10u * X86_HZ;
     while (1) {
         x86_mca_poll(); /* corrected errors raise no interrupt */
@@ -611,8 +755,29 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
                 (void) zxv_layers_boot(&layers, &models, hp, "x86_64", "BOOTX64.EFI", l0_cid);
             }
         }
+        if (!hydrating) {
+            if (!console) {
+                x86_console_init(uart_puts);
+                console = 1;
+            }
+            uint32_t typed = x86_console_poll();
+            for (uint32_t i = 0; i < hreg.n_input; i++) {
+                hw_key_t ev;
+                while (hreg.input[i]->poll(hreg.input[i], &ev))
+                    if (ev.pressed && ev.ascii) {
+                        x86_console_feed(ev.ascii);
+                        typed++;
+                    }
+            }
+            if (typed) {
+                awake_until = x86_ticks() + X86_HZ;
+                g_console_typed = 1;
+            }
+        }
         if (models_left)
             models_left = hw_models_step(&models, hp, 256);
+        else if (x86_ticks() < awake_until)
+            __asm__ __volatile__("pause");
         else if (!hydrating || x86_ms(0) < fetch.next_try) /* idle, or waiting for peers */
             hlt();
         x86_heartbeat(0);

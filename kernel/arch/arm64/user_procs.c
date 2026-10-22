@@ -141,9 +141,9 @@ static inline uint64_t svc_exec(const char *buf, uint64_t len) {
  * the user address space).
  *
  * Loop: poll SYS_READ (non-blocking); SYS_SLEEP between polls so the
- * CPU isn't burned spinning; echo; handle backspace; on Enter, pass
- * the line to the kernel P-TERM engine via SYS_EXEC.  'exit' leaves
- * the shell (checked user-side, char-by-char). */
+ * CPU isn't burned spinning; echo (a seed after "login " or "confirm " as '*'); handle backspace;
+ * on Enter, pass the line to the kernel P-TERM engine via SYS_EXEC.  'exit' leaves the shell
+ * (checked user-side, char-by-char). */
 void pterm_user_entry(void) {
     char line[128];
     uint64_t len = 0;
@@ -174,6 +174,8 @@ void pterm_user_entry(void) {
             }
             if (len > 0) {
                 svc_exec(line, len);
+                /* The line may hold a passport seed: wipe it. */
+                for (uint64_t i = 0; i < len; i++) ((volatile char *) line)[i] = 0;
                 len = 0;
             }
             svc_write('>'); svc_write(' ');
@@ -189,8 +191,15 @@ void pterm_user_entry(void) {
         }
 
         if (c >= 0x20 && c < 0x7F && len < sizeof(line) - 1) {
+            /* After "login " or "confirm " the rest is a passport seed:
+             * echo '*' so it never reaches the screen or the serial log. */
+            int secret =
+                (len >= 6 && line[0] == 'l' && line[1] == 'o' && line[2] == 'g' && line[3] == 'i' &&
+                 line[4] == 'n' && line[5] == ' ') ||
+                (len >= 8 && line[0] == 'c' && line[1] == 'o' && line[2] == 'n' && line[3] == 'f' &&
+                 line[4] == 'i' && line[5] == 'r' && line[6] == 'm' && line[7] == ' ');
             line[len++] = (char)c;
-            svc_write(c);                       /* echo */
+            svc_write(secret ? '*' : c); /* echo */
         }
     }
 

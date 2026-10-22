@@ -4,7 +4,7 @@
 #
 # boards_boot_check.sh — build each SoC board profile and boot it in QEMU's
 # model of that board, failing closed unless the console reached [BOOT_OK]
-# (and [AI_OK] on arm64) with no fault marker.
+# (and [AI_SELFCHECK_OK] on arm64) with no fault marker.
 #
 #   build_system/boards_boot_check.sh [seconds]
 #
@@ -90,7 +90,7 @@ if build arm64-board6 -f build_system/Makefile.arm64 BOARD=6; then
     boot arm64-board6 boot_arm64-board6.log qemu-system-aarch64 -M xlnx-zcu102 -m 4G \
         -kernel kernel_arm64_board6.elf -display none -monitor none \
         -serial file:boot_arm64-board6.log &&
-        check "arm64-board6 (Zynq UltraScale+)" boot_arm64-board6.log '[AI_OK]'
+        check "arm64-board6 (Zynq UltraScale+)" boot_arm64-board6.log '[AI_SELFCHECK_OK]'
 fi
 
 if build arm64-board7 -f build_system/Makefile.arm64 BOARD=7; then
@@ -98,7 +98,7 @@ if build arm64-board7 -f build_system/Makefile.arm64 BOARD=7; then
     boot arm64-board7 boot_arm64-board7.log qemu-system-aarch64 -M xlnx-versal-virt -m 4G \
         -kernel kernel_arm64_board7.elf -display none -monitor none \
         -serial file:boot_arm64-board7.log &&
-        check "arm64-board7 (Versal)" boot_arm64-board7.log '[AI_OK]'
+        check "arm64-board7 (Versal)" boot_arm64-board7.log '[AI_SELFCHECK_OK]'
 fi
 
 # ---- riscv ------------------------------------------------------------------

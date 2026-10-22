@@ -59,6 +59,8 @@ CFLAGS  := -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib \
            -Ikernel/src/lpres -Ikernel/src/mage -Ikernel/src/mesh_net \
            -Ikernel/src/mesh_token -Ikernel/src/ministry -Ikernel/src/mlkem \
            -Ikernel/src/net -Ikernel/src/nlb -Ikernel/src/onepolicy \
+           -Ikernel/src/passport -Ikernel/src/ident -Ikernel/src/tls -Ikernel/src/ipfs_node \
+           -Ikernel/src/pqsec \
            -Ikernel/src/orbital_compat -Ikernel/src/orbital_elevator -Ikernel/src/oseq \
            -Ikernel/src/phase_coord -Ikernel/src/pirate_apps -Ikernel/src/pirate_fleet \
            -Ikernel/src/plnp -Ikernel/src/porter_house -Ikernel/src/predictive \
@@ -144,6 +146,7 @@ SRCS := \
     kernel/src/acpi/aml_dev.c \
     kernel/arch/x86_64/mca_x86.c \
     kernel/src/mca/mca.c \
+    kernel/arch/x86_64/x86_console.c \
     kernel/src/hwdrv/hwdrv_core.c \
     kernel/src/hwdrv/hwdrv_probe.c \
     kernel/src/hwdrv/nvme.c \
@@ -312,6 +315,7 @@ SRCS := \
     kernel/src/loader/zsp.c \
     kernel/src/logistics/logistics.c \
     kernel/src/lpres/lpres_core.c \
+    kernel/src/lpres/lpres.c \
     kernel/src/mage/mage.c \
     kernel/src/mesh_net/mesh_net.c \
     kernel/src/mesh_token/mesh_token.c \
@@ -432,6 +436,35 @@ SRCS := \
     kernel/src/timesvc/tz.c \
     kernel/src/bringup/arch_globals.c \
     kernel/src/swarm/swarm_boot.c \
+    kernel/src/swarm/swarm_bootmodel.c \
+    kernel/src/pqsec/pq_mldsa65.c \
+    kernel/src/pqsec/mldsa/fips202.c \
+    kernel/src/pqsec/mldsa/ntt.c \
+    kernel/src/pqsec/mldsa/packing.c \
+    kernel/src/pqsec/mldsa/poly.c \
+    kernel/src/pqsec/mldsa/polyvec.c \
+    kernel/src/pqsec/mldsa/reduce.c \
+    kernel/src/pqsec/mldsa/rounding.c \
+    kernel/src/pqsec/mldsa/sign.c \
+    kernel/src/pqsec/mldsa/symmetric-shake.c \
+    kernel/src/pqsec/pq_slhdsa.c \
+    kernel/src/pqsec/slhdsa/sha3_api.c \
+    kernel/src/pqsec/slhdsa/sha3_f1600.c \
+    kernel/src/pqsec/slhdsa/slh_dsa.c \
+    kernel/src/pqsec/slhdsa/slh_shake.c \
+    kernel/src/pqsec/pq_matrix.c \
+    kernel/src/pqsec/pq_mlkem1024.c \
+    kernel/src/pqsec/pq_mldsa87.c \
+    kernel/src/pqsec/pq_hqc5.c \
+    kernel/src/pqsec/pq_slh256s.c \
+    kernel/src/ident/id_argon2.c \
+    kernel/src/ident/id_core.c \
+    kernel/src/ident/id_passkey.c \
+    kernel/src/ipfs_node/ipfsn_multiformats.c \
+    kernel/src/passport/pp_core.c \
+    kernel/src/passport/pp_state.c \
+    kernel/src/passport/pp_cafe.c \
+    kernel/src/passport/pp_console.c \
     kernel/src/swarm/swarm_budget.c \
     kernel/src/swarm/swarm_dna.c \
     kernel/src/swarm/swarm_emotion.c \

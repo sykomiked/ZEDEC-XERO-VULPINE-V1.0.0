@@ -245,10 +245,10 @@ else
     step "host tests: make -C kernel verify-all (host-tests)" host_tests
     if [ "$BOOT" = 1 ]; then
         if have aarch64-linux-gnu-gcc && have qemu-system-aarch64; then
-            step "boot arm64 in QEMU (boot)" boot_one arm64 build_system/Makefile.arm64 "[AI_OK]"
+            step "boot arm64 in QEMU (boot)" boot_one arm64 build_system/Makefile.arm64 "[AI_SELFCHECK_OK]"
         else skip "boot arm64" "needs gcc-aarch64-linux-gnu and qemu-system-arm, or --docker"; fi
         if have nasm && have qemu-system-x86_64 && have grub-mkrescue; then
-            step "boot x86_64 in QEMU (boot)" boot_one x86_64 build_system/Makefile.x86_64 "[AI_OK]"
+            step "boot x86_64 in QEMU (boot)" boot_one x86_64 build_system/Makefile.x86_64 "[AI_SELFCHECK_OK]"
         else skip "boot x86_64" "needs nasm, grub-pc-bin, xorriso and qemu-system-x86, or --docker"; fi
     fi
     if [ "$SAN" = 1 ]; then

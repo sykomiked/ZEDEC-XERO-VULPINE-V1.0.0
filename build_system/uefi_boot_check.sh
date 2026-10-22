@@ -6,7 +6,7 @@
 #
 #   image    default dist/discs/zxv-<arch>-uefi.img (from baremetal_images.sh)
 #   seconds  how long QEMU runs before timeout stops it (default 60)
-#   marker   extra literal lines the log must also contain, e.g. [AI_OK]
+#   marker   extra literal lines the log must also contain, e.g. [AI_SELFCHECK_OK]
 #
 # Unlike ci_boot_check.sh (qemu -kernel), this is a real media boot: the
 # firmware (OVMF for x86_64, QEMU_EFI for arm64) finds /EFI/BOOT/BOOT<arch>.EFI
