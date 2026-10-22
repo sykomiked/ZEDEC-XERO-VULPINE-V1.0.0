@@ -182,6 +182,33 @@ crown	check pool_after opening=100 inflow=50,0,25 granted=120,30,25 = 30,0,0
 crown	check pool_after opening=0 inflow=0,999999999 granted=0,1 = 0,999999998
 crown	check vintner.sale_value bottles=0,40 price=2500,2500 = 0,100000
 crown	check gatehouse.use_ok asked=1,1 granted=1,0 revoked=0,0 = true,false
+escapement	check offset_median offsets=0,2500,100 = 100
+escapement	check offset_median offsets=-5,7 = -5
+escapement	check offset_median offsets=86400000,-86400000,0,3 = 0
+escapement	check offset_median offsets=40,40,-3,40,-3 = 40
+escapement	check offset_median offsets=42 = 42
+escapement	check offset_median offsets=0,86400001 = both
+escapement	check offset_median offsets=-86400001,0,0 = both
+escapement	check job_may_run opened=0,5,0,31622400000,-1,5,5 closes=1,1,0,31622400000,1,1,1 due=0,0,0,31622400000,0,-1,7 = true,true,false,true,false,false,true
+escapement	check job_may_run opened=0,31622400001 closes=1,1 due=0,0 = both
+escapement	check job_may_run opened=0,0 closes=1,1 due=0,31622400001 = both
+escapement	check timesheet_week start=0,480,0,600,0,9000 finish=0,1020,10080,600,9999,10080 unpaid=0,30,0,0,999,80 prior=0,0,0,10080,0,9080 = 0,510,10080,10080,9000,10080
+escapement	check timesheet_week start=0,20000 finish=60,20060 unpaid=0,0 prior=0,0 = both
+escapement	check shift_clashes person=1,1,2,1,2 start=480,600,480,1020,1500 finish=1020,660,1020,1080,1560 = 1,1,0,0,0
+escapement	check shift_clashes person=7,7,7 start=0,0,60 finish=60,60,120 = 1,1,0
+escapement	check shift_node_ok person=1,999999,1000000,1,1 week=1,9999,1,1,1 shift=1,999,1,1000,1 start=480,99999,1,1,1 finish=1020,99999,1,1,100000 worked=510,99999,1,1,1 = true,true,false,false,false
+escapement	check treadle.next_run start=480,480,480 period=60,60,60 now=0,481,1439 = 480,540,1920
+escapement	check treadle.next_run start=480,480 period=60,60 now=481,1440 = both
+escapement	check treadle.budget_ok cost=0,10,10 left=0,-1,0 = true,false,true
+escapement	check treadle.budget_ok cost=10,1000000000 left=0,0 = both
+escapement	check treadle.task_ok task=1,1000 kind=0,0 start=480,0 period=60,1 cost=500,1 approved=0,0 = true,false
+escapement	check solstice.weekday year=2026 month=10 day=22 = 4
+escapement	check solstice.weekday year=1000000000 month=1 day=1 = both
+escapement	check solstice.events_overlap aover=1,0,3600 bover=1,5,3600 = true,false,true
+escapement	check solstice.events_overlap aover=1,253402300800 bover=1,1 = both
+escapement	check tallystick.next_doc_number last=0,1,41,999999998 = 1,2,42,999999999
+escapement	check sundial.zone_minute utc=0,1439,600 offset=-1,1,840 = 1439,0,0
+escapement	check sundial.zone_minute utc=0,1440 offset=0,0 = both
 fairground	check assurance_fee amount=0,1124,1125,180000,10000000,999999999999999 = 0,0,1,160,8889,888899999999
 fairground	check assurance_fee amount=1,1000000000000000 = both
 fairground	check assurance_fee amount=1,9007199254740991 = both

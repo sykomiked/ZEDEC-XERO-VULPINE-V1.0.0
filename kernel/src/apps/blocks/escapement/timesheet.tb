@@ -1,0 +1,22 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! One shift on a person's timesheet, in Trebago (escapement_rules.h ER3),
+! one shift per row: worked = finish - start - unpaid, and the week's
+! minutes after it, prior + worked. ok is 0 for a start below 0, a finish
+! past the week's 10080 minutes, a break outside 0..999 minutes, a shift
+! that ends before it starts, a prior below 0 or a week past 10080 minutes
+! (the weekly sum's overflow), and the answer is divided by it: refused
+! (min(1, max(0, x)) is x > 0 on integers). timesheet.sutra holds only its
+! pictures for start and finish, so a shift past the week is held.
+trebago timesheet
+  in  start(n), finish(n), unpaid(n), prior(n)
+  out week(n)
+  var worked(n), ok(n)
+  worked(i) = finish(i) - start(i) - unpaid(i)
+  ok(i) = min(1, max(0, start(i) + 1)) * min(1, max(0, 10081 - finish(i))) &
+        * min(1, max(0, unpaid(i) + 1)) * min(1, max(0, 1000 - unpaid(i))) &
+        * min(1, max(0, worked(i) + 1)) * min(1, max(0, prior(i) + 1)) &
+        * min(1, max(0, 10081 - prior(i) - worked(i)))
+  week(i) = (prior(i) + worked(i)) / ok(i)
+end

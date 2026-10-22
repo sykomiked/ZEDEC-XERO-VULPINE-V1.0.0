@@ -1,0 +1,26 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One shift on a person's timesheet, in Sutra (escapement_rules.h ER3), one
+# shift per row: worked = finish - start - unpaid, the shift's minutes less
+# its unpaid break, added to prior, the week's minutes so far; the answer
+# is the week's minutes after it. worked is unsigned, so a shift that ends
+# before it starts (or a break longer than it) does not fit, refused; room
+# (10080 less the week) is unsigned, so a week past the 10080 minutes a
+# week has does not fit: the weekly sum is refused on overflow, never
+# wrapped. start and finish fit 9(5) and unpaid 9(3); timesheet.tb also
+# holds a shift inside the week (finish at most 10080), so a shift past it
+# is answered here and refused there: held.
+record timesheet-shift
+  start: 9(5)
+  finish: 9(5)
+  unpaid: 9(3)
+  prior: 9(5)
+  worked: 9(5)
+  week: 9(5)
+  room: 9(5)
+procedure
+  compute worked = finish - start - unpaid
+  compute week = prior + worked
+  compute room = 10080 - week
+  answer week

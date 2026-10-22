@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A timed job may run (escapement_rules.h ER2), in Eve: it is inside its
+# window and its deadline has not passed, given as margins from now in ms:
+# opened (now less the window's opening) 0 or more, closes (the window's
+# close less now) 1 or more, due (the deadline less now) 0 or more, each
+# at most 366 days. Eve holds each margin to its own range; job.kron reads
+# the floors only, so a margin past 366 days, no window the owner set, is
+# held.
+eve escapement
+since_open = 0 .. 31622400000
+until_close = 1 .. 31622400000
+until_due = 0 .. 31622400000
+
+job_window {
+  opened: since_open
+  closes: until_close
+  due: until_due
+}

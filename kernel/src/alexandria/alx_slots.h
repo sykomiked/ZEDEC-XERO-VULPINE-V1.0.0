@@ -327,7 +327,12 @@
 #define ALX_SLOT_LOGIC_GAZETTE_FEED_ITEM_SHOWN   319u /* 491.58 gazette.feed_item_shown */
 #define ALX_SLOT_LOGIC_GAZETTE_FEED_READ_OK      320u /* 491.59 gazette.feed_read_ok */
 #define ALX_SLOT_NUM_GAZETTE_FEED_UNREAD_TOTAL   321u /* 591.53 gazette.feed_unread_total */
-#define ALX_SLOT__COUNT 321u
+#define ALX_SLOT_LOGIC_ESCAPEMENT_JOB_MAY_RUN    322u /* 491.60 escapement.job_may_run */
+#define ALX_SLOT_NUM_ESCAPEMENT_OFFSET_MEDIAN    323u /* 591.54 escapement.offset_median */
+#define ALX_SLOT_NUM_ESCAPEMENT_SHIFT_CLASHES    324u /* 591.55 escapement.shift_clashes */
+#define ALX_SLOT_LOGIC_ESCAPEMENT_SHIFT_NODE_OK  325u /* 491.61 escapement.shift_node_ok */
+#define ALX_SLOT_NUM_ESCAPEMENT_TIMESHEET_WEEK   326u /* 591.56 escapement.timesheet_week */
+#define ALX_SLOT__COUNT 326u
 /* clang-format on */
 
 #endif

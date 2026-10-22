@@ -1,0 +1,135 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Escapement, the shared clock: L2, slot 172. It keeps one time across the
+# owner's devices and runs shifts, timesheets and timed jobs from it. This
+# device's clock is zxvd's wall clock (sys.info's time_ms), the devices are
+# the signed roster (devmesh.devices) and the network's verified peers
+# (net.peers). zxvd has no method that asks a device or a peer for its
+# clock, and none is invented: the other devices' readings are given to
+# the model (escapement_model.h EM2), each from a device on the roster or
+# a peer zxvd has verified. Two clocks more than the tolerance apart make
+# the time BOTH; with three devices or more their median offset is the
+# vote, which the owner confirms; no clock is ever overwritten. A
+# timesheet and its numbering register are Hoard files (files.read,
+# files.write); a due job is told as text for the view (notify is declared
+# for it; zxvd has no notice-post method). Advisory and owner-confirmed.
+#
+# Composed, not written again (four uses of ZXAPP_USES 8; its own 8 logic
+# lines and its parts' 31 are 39 of ZXAPP_LOGIC_MAX 128): a timed job's
+# next run is treadle.next_run, its cost within the owner's budget
+# treadle.budget_ok and its record treadle.task_ok; a shift's day of the
+# week is solstice.weekday and whether two shifts overlap
+# solstice.events_overlap (the schedule matrix counts its overlaps); a
+# timesheet's number is tallystick.next_doc_number; the local minute of a
+# zone is sundial.zone_minute. stillwater.quiet_now is a daily window of
+# minutes; a job's window is a span of milliseconds with a deadline, so it
+# is not that concept.
+#
+# Later layers use the clock offset, "job may run", the timesheets and the
+# schedule matrix, so each is general and registered in CONCEPTS.tsv with
+# Escapement as owner. The shift tree is Escapement's own.
+#
+# zxapp.c takes a matrix layer 0..144 only (M1) and MATRIX.tsv does not
+# home an L2 app, so it sits on the outermost of its parts' layers in
+# MATRIX_ORDER.tsv, Sundial's 110 (after Solstice 43, Treadle 24 and
+# Tallystick 78). Eve answers truths only, each field against its own
+# range, so "job may run" is given as three margins from now (the model
+# works them out), and KRON witnesses it. Kept in C: zxvd's answers, the
+# readings' sources and the timesheet text.
+#
+# Planned languages: Go owns messaging, and gathering the devices'
+# readings for the vote is that: pending on offset_median. Bourne
+# shell owns jobs: pending on job_may_run. Crystal owns typed native
+# machine code: no entry here is machine work, so it is not pending.
+zxapp 1
+id     escapement
+name   Escapement
+version 1.0.0
+slot   172
+layer  L2
+matrix 110
+icon   icons/l2/172-escapement.svg
+budget 233
+needs  sys.read
+needs  peers
+needs  notify
+needs  fs.read
+needs  fs.write
+model  apps/escapement_model.c
+use    treadle 1      # @num.treadle_next_run @logic.treadle_budget_ok @logic.treadle_task_ok
+use    solstice 1     # @num.solstice_weekday @logic.solstice_events_overlap
+use    tallystick 1   # @num.tallystick_next_doc_number
+use    sundial 1      # @num.sundial_zone_minute
+# what it exports, so apps built from it can use them too (C1)
+provides treadle.next_run num start period now
+provides treadle.budget_ok truth cost left
+provides treadle.task_ok truth task kind start period cost approved
+provides solstice.weekday num year month day
+provides solstice.events_overlap truth aover bover
+provides tallystick.next_doc_number num last
+provides sundial.zone_minute num utc offset
+
+# The clock offset the devices vote (ER1): the lower median of their
+# offsets from this clock in ms. FORTRAN as Trebago and APL as KRON,
+# witnessed; an offset past a day is refused by Trebago, answered by KRON:
+# held.
+provides offset_median num offsets
+logic    trebago offset_median apps/blocks/escapement/median.tb
+logic    kron    offset_median apps/blocks/escapement/median.kron
+pending  Go offset_median
+
+# A timed job may run (ER2): inside its window, its deadline not passed.
+# Ada as Eve and APL as KRON; a margin past 366 days is held.
+provides job_may_run truth opened closes due
+logic    eve  job_may_run apps/blocks/escapement/job.eve
+logic    kron job_may_run apps/blocks/escapement/job.kron
+pending  Bourne_shell job_may_run
+
+# A timesheet (ER3): one shift's minutes added to the week's, refused on
+# overflow. COBOL as Sutra and FORTRAN as Trebago; a shift past the week
+# is answered by Sutra's pictures and refused by Trebago: held.
+provides timesheet_week num start finish unpaid prior
+logic    sutra   timesheet_week apps/blocks/escapement/timesheet.sutra
+logic    trebago timesheet_week apps/blocks/escapement/timesheet.tb
+
+# The schedule matrix (ER4): person by shift, each shift's clashes with
+# the same person's other shifts; 0 is nobody booked twice at once. APL
+# as KRON.
+provides shift_clashes num person start finish
+logic    kron shift_clashes apps/blocks/escapement/clashes.kron
+
+# The shift tree (ER5): ^ZXSHIFT(person, week, shift) = start ^ finish ^
+# worked, in MUMPS as MYRA.
+provides shift_node_ok truth person week shift start finish worked
+logic    myra shift_node_ok apps/blocks/escapement/shift.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check offset_median offsets=0,2500,100 = 100
+check offset_median offsets=-5,7 = -5
+check offset_median offsets=86400000,-86400000,0,3 = 0
+check offset_median offsets=40,40,-3,40,-3 = 40
+check offset_median offsets=42 = 42
+check offset_median offsets=0,86400001 = both
+check offset_median offsets=-86400001,0,0 = both
+check job_may_run opened=0,5,0,31622400000,-1,5,5 closes=1,1,0,31622400000,1,1,1 due=0,0,0,31622400000,0,-1,7 = true,true,false,true,false,false,true
+check job_may_run opened=0,31622400001 closes=1,1 due=0,0 = both
+check job_may_run opened=0,0 closes=1,1 due=0,31622400001 = both
+check timesheet_week start=0,480,0,600,0,9000 finish=0,1020,10080,600,9999,10080 unpaid=0,30,0,0,999,80 prior=0,0,0,10080,0,9080 = 0,510,10080,10080,9000,10080
+check timesheet_week start=0,20000 finish=60,20060 unpaid=0,0 prior=0,0 = both
+check shift_clashes person=1,1,2,1,2 start=480,600,480,1020,1500 finish=1020,660,1020,1080,1560 = 1,1,0,0,0
+check shift_clashes person=7,7,7 start=0,0,60 finish=60,60,120 = 1,1,0
+check shift_node_ok person=1,999999,1000000,1,1 week=1,9999,1,1,1 shift=1,999,1,1000,1 start=480,99999,1,1,1 finish=1020,99999,1,1,100000 worked=510,99999,1,1,1 = true,true,false,false,false
+# The parts, as Escapement calls them
+check treadle.next_run start=480,480,480 period=60,60,60 now=0,481,1439 = 480,540,1920
+check treadle.next_run start=480,480 period=60,60 now=481,1440 = both
+check treadle.budget_ok cost=0,10,10 left=0,-1,0 = true,false,true
+check treadle.budget_ok cost=10,1000000000 left=0,0 = both
+check treadle.task_ok task=1,1000 kind=0,0 start=480,0 period=60,1 cost=500,1 approved=0,0 = true,false
+check solstice.weekday year=2026 month=10 day=22 = 4
+check solstice.weekday year=1000000000 month=1 day=1 = both
+check solstice.events_overlap aover=1,0,3600 bover=1,5,3600 = true,false,true
+check solstice.events_overlap aover=1,253402300800 bover=1,1 = both
+check tallystick.next_doc_number last=0,1,41,999999998 = 1,2,42,999999999
+check sundial.zone_minute utc=0,1439,600 offset=-1,1,840 = 1439,0,0
+check sundial.zone_minute utc=0,1440 offset=0,0 = both

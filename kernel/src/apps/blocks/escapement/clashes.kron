@@ -1,0 +1,4 @@
+same:1-1&abs person-\:person
+ab:0|1&finish-\:start
+ba:0|1&0-start-\:finish
+(+/same*ab*ba)-0|1&finish-start

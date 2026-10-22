@@ -1,0 +1,26 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The clock offset the devices vote (escapement_rules.h ER1), in Trebago:
+! offsets(1..n) are n devices' clocks less this one's, in ms, read at one
+! instant, and the vote is their lower median, the smallest offset v with
+! 2 * count(offset <= v) >= n. Trebago has no sort, so it is counted: lt(i)
+! is how many offsets lie below offsets(i), le(i) how many at or below it
+! (min(1, max(0, x)) is x > 0 on integers), and w(i) is 1 exactly when
+! offsets(i) is the lower median (2 * lt(i) < n and 2 * le(i) >= n). Every
+! such offset has the same value, so their sum over their count is that
+! value, exact. ok is 0 for more than 256 offsets or one past a day either
+! way (86400000 ms), and the vote is divided by it: refused, where
+! median.kron answers (held).
+trebago clock_median
+  in  offsets(n)
+  out median
+  var lt(n), le(n), w(n), ok
+  lt(i) = sum(k, min(1, max(0, offsets(i) - offsets(k))))
+  le(i) = sum(k, min(1, max(0, offsets(i) - offsets(k) + 1)))
+  w(i) = min(1, max(0, n - 2 * lt(i))) * min(1, max(0, 2 * le(i) - n + 1))
+  ok = min(1, max(0, 257 - n)) &
+     * (1 - min(1, sum(j, min(1, max(0, offsets(j) - 86400000)) &
+     + min(1, max(0, 0 - offsets(j) - 86400000)))))
+  median = sum(i, w(i) * offsets(i)) / (sum(i, w(i)) * ok)
+end

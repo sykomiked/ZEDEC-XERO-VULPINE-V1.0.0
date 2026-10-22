@@ -356,3 +356,8 @@
 319	logic.gazette_feed_item_shown	491.58	gazette.feed_item_shown	base
 320	logic.gazette_feed_read_ok	491.59	gazette.feed_read_ok	base
 321	num.gazette_feed_unread_total	591.53	gazette.feed_unread_total	base
+322	logic.escapement_job_may_run	491.60	escapement.job_may_run	base
+323	num.escapement_offset_median	591.54	escapement.offset_median	base
+324	num.escapement_shift_clashes	591.55	escapement.shift_clashes	base
+325	logic.escapement_shift_node_ok	491.61	escapement.shift_node_ok	base
+326	num.escapement_timesheet_week	591.56	escapement.timesheet_week	base

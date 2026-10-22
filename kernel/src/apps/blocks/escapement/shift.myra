@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Escapement files a shift in its shift tree, in MYRA
+; (escapement_rules.h ER5): person, week, shift, then its start and finish
+; (minutes of the week) and the minutes worked. The model asks whether the
+; numbers fit before it keeps the shift.
+^ZXSHIFT(person:i6, week:i4, shift:i3) = start:i5! ^ finish:i5! ^ worked:i5!
