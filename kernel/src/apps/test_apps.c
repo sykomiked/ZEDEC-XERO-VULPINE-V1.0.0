@@ -679,45 +679,54 @@ static void test_spindle(void)
     for (uint32_t i = 0; i < S.n_methods; i++) has |= !strcmp(S.methods[i], "files.empty_trash");
     CHECK(has, "files.empty_trash listed");
 
-    CHECK(spindle_call(&S, "files.list", "{\"path\":\"Pics\"}") == ZXM_OK, "call: %s", LINK.err);
+    CHECK(spindle_call(&S, "files.list", "{\"path\":\"Pics\"}", true) == ZXM_OK, "call: %s",
+          LINK.err);
     const spindle_entry_t *e = spindle_entry(&S, 0);
     CHECK(e && !strcmp(e->method, "files.list") && !strncmp(e->reply, "{\"path\":\"Pics\"", 14) &&
               e->rc == ZXM_OK && e->reply_len == strlen(e->reply) && !e->reply_cut,
           "kept: %s", e ? e->reply : "");
-    CHECK(spindle_call(&S, "files.root", "") == ZXM_OK && spindle_history_len(&S) == 2 &&
+    CHECK(spindle_call(&S, "files.root", "", true) == ZXM_OK && spindle_history_len(&S) == 2 &&
               !strcmp(spindle_entry(&S, 0)->method, "files.root") &&
               !strcmp(spindle_entry(&S, 1)->method, "files.list"),
           "newest first");
-    CHECK(spindle_call(&S, "files.list", "{\"path\":\"..\"}") == ZXM_E_REMOTE, "refused");
+    CHECK(spindle_call(&S, "files.list", "{\"path\":\"..\"}", true) == ZXM_E_REMOTE, "refused");
     e = spindle_entry(&S, 0);
     CHECK(e->rc == ZXM_E_REMOTE && e->err_code == ZXVD_E_FILES &&
               !strcmp(e->reply, "not a valid name or path in the Hoard"),
           "a refusal is kept: %s", e->reply);
-    CHECK(spindle_call(&S, "no.such", "") == ZXM_E_REMOTE &&
+    CHECK(spindle_call(&S, "no.such", "", true) == ZXM_E_REMOTE &&
               spindle_entry(&S, 0)->err_code == -32601,
           "unknown method");
     sent = 0;
-    CHECK(spindle_call(&S, "", "") == ZXM_E_ARG && spindle_call(&S, "a b", "") == ZXM_E_ARG &&
-              spindle_call(&S, "a\"", "") == ZXM_E_ARG &&
-              spindle_call(&S, "files.list", "{") == ZXM_E_ARG &&
-              spindle_call(&S, "files.list", "[]") == ZXM_E_ARG &&
-              spindle_call(&S, "files.list", "{} {}") == ZXM_E_ARG &&
-              spindle_call(&S, "files.list", "\"x\"") == ZXM_E_ARG && sent == 0 &&
+    CHECK(spindle_call(&S, "", "", true) == ZXM_E_ARG &&
+              spindle_call(&S, "a b", "", true) == ZXM_E_ARG &&
+              spindle_call(&S, "a\"", "", true) == ZXM_E_ARG &&
+              spindle_call(&S, "files.list", "{", true) == ZXM_E_ARG &&
+              spindle_call(&S, "files.list", "[]", true) == ZXM_E_ARG &&
+              spindle_call(&S, "files.list", "{} {}", true) == ZXM_E_ARG &&
+              spindle_call(&S, "files.list", "\"x\"", true) == ZXM_E_ARG && sent == 0 &&
               spindle_history_len(&S) == 4,
           "refused before sending");
+    static spindle_t s_was;
+    s_was = S;
+    CHECK(spindle_call(&S, "files.mkdir", "{\"path\":\"Gated\"}", false) == ZXM_E_STATE &&
+              spindle_call(&S, "files.root", "", false) == ZXM_E_STATE &&
+              spindle_call(&S, "", "", false) == ZXM_E_ARG && sent == 0 &&
+              !memcmp(&S, &s_was, sizeof S),
+          "no call without the owner's word: nothing sent, the history as it was");
     static char m[SPINDLE_METHOD_MAX + 2];
     memset(m, 'a', SPINDLE_METHOD_MAX + 1);
-    CHECK(spindle_call(&S, m, "") == ZXM_E_ARG, "method name too long");
+    CHECK(spindle_call(&S, m, "", true) == ZXM_E_ARG, "method name too long");
     m[SPINDLE_METHOD_MAX] = 0;
-    CHECK(spindle_call(&S, m, "") == ZXM_E_REMOTE, "the longest method name is sent");
+    CHECK(spindle_call(&S, m, "", true) == ZXM_E_REMOTE, "the longest method name is sent");
     static char pbig[SPINDLE_PARAMS_MAX + 2];
     memset(pbig, ' ', sizeof pbig - 1);
     pbig[0] = '{';
     pbig[SPINDLE_PARAMS_MAX] = '}';
-    CHECK(spindle_call(&S, "files.root", pbig) == ZXM_E_ARG, "params too long");
+    CHECK(spindle_call(&S, "files.root", pbig, true) == ZXM_E_ARG, "params too long");
     pbig[SPINDLE_PARAMS_MAX - 1] = '}';
     pbig[SPINDLE_PARAMS_MAX] = 0;
-    CHECK(spindle_call(&S, "files.root", pbig) == ZXM_OK &&
+    CHECK(spindle_call(&S, "files.root", pbig, true) == ZXM_OK &&
               strlen(spindle_entry(&S, 0)->params) == SPINDLE_PARAMS_MAX,
           "the longest params: %s", LINK.err);
 
@@ -725,7 +734,8 @@ static void test_spindle(void)
     zxm_link_t *real = S.link;
     S.link = &FAKE;
     CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":\"hi\"}";
-    CHECK(spindle_call(&S, "x", "") == ZXM_OK && !strcmp(spindle_entry(&S, 0)->reply, "\"hi\""),
+    CHECK(spindle_call(&S, "x", "", true) == ZXM_OK &&
+              !strcmp(spindle_entry(&S, 0)->reply, "\"hi\""),
           "string result: %s", spindle_entry(&S, 0)->reply);
     static char reply[SPINDLE_REPLY_MAX * 2];
     int o = sprintf(reply, "{\"jsonrpc\":\"2.0\",\"id\":%%u,\"result\":[");
@@ -733,12 +743,12 @@ static void test_spindle(void)
     sprintf(reply + o, "0]}");
     CANNED = reply;
     e = NULL;
-    CHECK(spindle_call(&S, "x", "") == ZXM_OK && (e = spindle_entry(&S, 0)) && e->reply_cut &&
+    CHECK(spindle_call(&S, "x", "", true) == ZXM_OK && (e = spindle_entry(&S, 0)) && e->reply_cut &&
               e->reply_len <= SPINDLE_REPLY_MAX && e->reply_len >= SPINDLE_REPLY_MAX - 1 &&
               e->reply[0] == '[',
           "cut reply");
     CANNED = NULL;
-    CHECK(spindle_call(&S, "x", "") == ZXM_E_TRANSPORT &&
+    CHECK(spindle_call(&S, "x", "", true) == ZXM_E_TRANSPORT &&
               !strcmp(spindle_entry(&S, 0)->reply, "no connection to zxvd"),
           "a transport failure is kept");
     static char hugep[SPINDLE_PARAMS_MAX + 1];
@@ -749,7 +759,7 @@ static void test_spindle(void)
     uint32_t before = S.n_hist;
     for (uint32_t i = 0; i < SPINDLE_HISTORY + 3; i++) {
         snprintf(hugep, sizeof hugep, "{\"path\":\"%u\"}", i);
-        spindle_call(&S, "files.stat", hugep);
+        spindle_call(&S, "files.stat", hugep, true);
     }
     CHECK(S.n_hist == before + SPINDLE_HISTORY + 3 && spindle_history_len(&S) == SPINDLE_HISTORY,
           "ring length");
@@ -761,7 +771,7 @@ static void test_spindle(void)
     CHECK(!spindle_entry(&S, SPINDLE_HISTORY), "past the end");
 
     /* AI */
-    CHECK(spindle_call(&S, "files.root", "") == ZXM_OK, "a call to explain");
+    CHECK(spindle_call(&S, "files.root", "", true) == ZXM_OK, "a call to explain");
     ANSWER = "It says where the ZXV folder is.";
     CHECK(spindle_ai(&S, SPINDLE_AI_COUNT, 0) == ZXM_E_ARG && spindle_ai(&S, 0, 99) == ZXM_E_STATE,
           "bad action or entry");
@@ -772,7 +782,7 @@ static void test_spindle(void)
     CHECK(strstr(last_prompt, "Method: files.root\nParameters: {}\nReply: {\"root\":"),
           "prompt: %s", last_prompt);
     CHECK(spindle_ai_accept(&S) == ZXM_OK && spindle_ai_accept(&S) == ZXM_E_STATE, "accept");
-    CHECK(spindle_call(&S, "files.list", "{\"path\":\"..\"}") == ZXM_E_REMOTE &&
+    CHECK(spindle_call(&S, "files.list", "{\"path\":\"..\"}", true) == ZXM_E_REMOTE &&
               spindle_ai(&S, 0, 0) == ZXM_OK && strstr(last_prompt, "\nError: not a valid"),
           "explain an error: %s", last_prompt);
     CHECK(spindle_ai_reject(&S) == ZXM_OK && S.held.state == ZXM_HELD_REJECTED && !S.held.len &&
@@ -1763,42 +1773,55 @@ static void test_shepherd(void)
           "empty: %s", LINK.err);
     CHECK(shepherd_ai(&SH, SHEPHERD_AI_PLAN) == ZXM_E_STATE, "no week yet");
     CHECK(raw_call("screen.tick", "{\"app\":\"quillon\"}") == ZXM_OK, "a minute");
-    CHECK(shepherd_set_limit(&SH, NULL, "quillon", 30, 8 * 60, 21 * 60) == ZXM_OK && SH.nlim == 1 &&
-              shepherd_limit(&SH, "quillon")->minutes == 30 &&
+    CHECK(shepherd_set_limit(&SH, NULL, "quillon", 30, 8 * 60, 21 * 60, true) == ZXM_OK &&
+              SH.nlim == 1 && shepherd_limit(&SH, "quillon")->minutes == 30 &&
               shepherd_limit(&SH, "quillon")->from == 480 &&
               shepherd_limit(&SH, "quillon")->to == 1260 && SH.ndays == 1 &&
               shepherd_week(&SH, "quillon") == 1 && shepherd_today_total(&SH) == 1 &&
               !shepherd_limit(&SH, "glint") && shepherd_week(&SH, "glint") == 0,
           "a limit: %s", LINK.err);
-    CHECK(shepherd_set_limit(&SH, NULL, SHEPHERD_ALL, -1, 0, 0) == ZXM_OK &&
+    CHECK(shepherd_set_limit(&SH, NULL, SHEPHERD_ALL, -1, 0, 0, true) == ZXM_OK &&
               shepherd_limit(&SH, "*")->minutes == -1 && SH.nlim == 2,
           "all apps, no cap");
-    CHECK(shepherd_grant(&SH, NULL, "quillon", 15) == ZXM_OK &&
+    CHECK(shepherd_grant(&SH, NULL, "quillon", 15, true) == ZXM_OK &&
               shepherd_limit(&SH, "quillon")->extra == 15,
           "more time");
-    CHECK(shepherd_lock(&SH, NULL, "open sesame") == ZXM_OK && SH.locked, "locked");
-    CHECK(shepherd_grant(&SH, "wrong", "quillon", 5) == ZXM_E_REMOTE &&
+    CHECK(shepherd_lock(&SH, NULL, "open sesame", true) == ZXM_OK && SH.locked, "locked");
+    CHECK(shepherd_grant(&SH, "wrong", "quillon", 5, true) == ZXM_E_REMOTE &&
               LINK.err_code == ZXVD_E_SCREEN &&
               !strcmp(LINK.err, "the guardian's passphrase is wrong") &&
               shepherd_limit(&SH, "quillon")->extra == 15,
           "a wrong passphrase: %s", LINK.err);
-    CHECK(shepherd_clear_limit(&SH, NULL, "*") == ZXM_E_REMOTE && SH.nlim == 2, "no passphrase");
-    CHECK(shepherd_clear_limit(&SH, "open sesame", "*") == ZXM_OK && SH.nlim == 1, "cleared");
-    CHECK(shepherd_lock(&SH, "open sesame", "") == ZXM_OK && !SH.locked, "unlocked");
-    CHECK(shepherd_set_limit(&SH, NULL, "", 1, 0, 0) == ZXM_E_ARG &&
-              shepherd_set_limit(&SH, NULL, "abcdefghijklmnopqrstuvwxyz123456", 1, 0, 0) ==
+    CHECK(shepherd_clear_limit(&SH, NULL, "*", true) == ZXM_E_REMOTE && SH.nlim == 2,
+          "no passphrase");
+    CHECK(shepherd_clear_limit(&SH, "open sesame", "*", true) == ZXM_OK && SH.nlim == 1, "cleared");
+    CHECK(shepherd_lock(&SH, "open sesame", "", true) == ZXM_OK && !SH.locked, "unlocked");
+    static shepherd_t sh_was;
+    sh_was = SH;
+    int sh_before = sent;
+    CHECK(shepherd_set_limit(&SH, NULL, "glint", 5, 0, 0, false) == ZXM_E_STATE &&
+              shepherd_clear_limit(&SH, NULL, "quillon", false) == ZXM_E_STATE &&
+              shepherd_grant(&SH, NULL, "quillon", 5, false) == ZXM_E_STATE &&
+              shepherd_lock(&SH, NULL, "shut", false) == ZXM_E_STATE && sent == sh_before &&
+              !memcmp(&SH, &sh_was, sizeof SH),
+          "no limit, grant or lock without the owner's word: nothing sent, the model as it was");
+    CHECK(shepherd_refresh(&SH) == ZXM_OK && SH.nlim == 1 && !SH.locked &&
+              shepherd_limit(&SH, "quillon")->extra == 15 && !shepherd_limit(&SH, "glint"),
+          "and zxvd's limits as they were: %s", LINK.err);
+    CHECK(shepherd_set_limit(&SH, NULL, "", 1, 0, 0, true) == ZXM_E_ARG &&
+              shepherd_set_limit(&SH, NULL, "abcdefghijklmnopqrstuvwxyz123456", 1, 0, 0, true) ==
                   ZXM_E_ARG &&
-              shepherd_set_limit(&SH, NULL, "a", -2, 0, 0) == ZXM_E_ARG &&
-              shepherd_set_limit(&SH, NULL, "a", 1441, 0, 0) == ZXM_E_ARG &&
-              shepherd_set_limit(&SH, NULL, "a", 1, 1440, 0) == ZXM_E_ARG &&
-              shepherd_set_limit(&SH, NULL, "a", 1, 0, 1440) == ZXM_E_ARG &&
-              shepherd_clear_limit(&SH, NULL, NULL) == ZXM_E_ARG &&
-              shepherd_grant(&SH, NULL, "a", 0) == ZXM_E_ARG &&
-              shepherd_grant(&SH, NULL, "a", 1441) == ZXM_E_ARG,
+              shepherd_set_limit(&SH, NULL, "a", -2, 0, 0, true) == ZXM_E_ARG &&
+              shepherd_set_limit(&SH, NULL, "a", 1441, 0, 0, true) == ZXM_E_ARG &&
+              shepherd_set_limit(&SH, NULL, "a", 1, 1440, 0, true) == ZXM_E_ARG &&
+              shepherd_set_limit(&SH, NULL, "a", 1, 0, 1440, true) == ZXM_E_ARG &&
+              shepherd_clear_limit(&SH, NULL, NULL, true) == ZXM_E_ARG &&
+              shepherd_grant(&SH, NULL, "a", 0, true) == ZXM_E_ARG &&
+              shepherd_grant(&SH, NULL, "a", 1441, true) == ZXM_E_ARG,
           "refused before sending");
     static char longpass[SHEPHERD_PASS + 2];
     memset(longpass, 'p', SHEPHERD_PASS + 1);
-    CHECK(shepherd_lock(&SH, NULL, longpass) == ZXM_E_ARG, "too long a passphrase");
+    CHECK(shepherd_lock(&SH, NULL, longpass, true) == ZXM_E_ARG, "too long a passphrase");
     asked = 0;
     CHECK(shepherd_ai(&SH, SHEPHERD_AI_PLAN) == ZXM_OK && asked == 1 &&
               strstr(last_prompt, ": 1 in all, quillon 1\n") &&
@@ -1889,31 +1912,31 @@ static void test_shepherd(void)
               "bad reply %zu: the view stays", i);
     }
     CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"app\":\"a\",\"set\":true}}";
-    CHECK(shepherd_set_limit(&SH, "pw", "a", 10, 60, 120) == ZXM_E_PROTOCOL &&
+    CHECK(shepherd_set_limit(&SH, "pw", "a", 10, 60, 120, true) == ZXM_E_PROTOCOL &&
               strstr(last_req, "\"method\":\"screen.status\""),
           "a change refreshes");
     CANNED = NULL;
-    CHECK(shepherd_set_limit(&SH, "pw", "a", 10, 60, 120) == ZXM_E_TRANSPORT &&
+    CHECK(shepherd_set_limit(&SH, "pw", "a", 10, 60, 120, true) == ZXM_E_TRANSPORT &&
               strstr(last_req, "\"params\":{\"app\":\"a\",\"minutes\":10,\"from\":60,\"to\":120,"
                                "\"passphrase\":\"pw\"}"),
           "set_limit: %s", last_req);
-    CHECK(shepherd_set_limit(&SH, "", "a", -1, 0, 0) == ZXM_E_TRANSPORT &&
+    CHECK(shepherd_set_limit(&SH, "", "a", -1, 0, 0, true) == ZXM_E_TRANSPORT &&
               strstr(last_req, "\"params\":{\"app\":\"a\"}"),
           "no cap, any time, no passphrase: %s", last_req);
-    CHECK(shepherd_clear_limit(&SH, "pw", "a") == ZXM_E_TRANSPORT &&
+    CHECK(shepherd_clear_limit(&SH, "pw", "a", true) == ZXM_E_TRANSPORT &&
               strstr(last_req, "\"method\":\"screen.clear_limit\",\"params\":{\"app\":\"a\","
                                "\"passphrase\":\"pw\"}"),
           "clear: %s", last_req);
-    CHECK(shepherd_grant(&SH, "pw", "a", 7) == ZXM_E_TRANSPORT &&
+    CHECK(shepherd_grant(&SH, "pw", "a", 7, true) == ZXM_E_TRANSPORT &&
               strstr(last_req,
                      "\"method\":\"screen.grant\",\"params\":{\"app\":\"a\",\"minutes\":7,"
                      "\"passphrase\":\"pw\"}"),
           "grant: %s", last_req);
-    CHECK(shepherd_lock(&SH, "old", "new pass") == ZXM_E_TRANSPORT &&
+    CHECK(shepherd_lock(&SH, "old", "new pass", true) == ZXM_E_TRANSPORT &&
               strstr(last_req, "\"method\":\"screen.lock\",\"params\":{\"passphrase\":\"new pass\","
                                "\"old\":\"old\"}"),
           "lock: %s", last_req);
-    CHECK(shepherd_lock(&SH, NULL, NULL) == ZXM_E_TRANSPORT &&
+    CHECK(shepherd_lock(&SH, NULL, NULL, true) == ZXM_E_TRANSPORT &&
               strstr(last_req, "\"params\":{\"passphrase\":\"\"}"),
           "unlock: %s", last_req);
 }

@@ -54,13 +54,18 @@ extern const zxm_ai_action_t SHEPHERD_AI[SHEPHERD_AI_COUNT];
 void shepherd_init(shepherd_t *s, zxm_link_t *link);
 int shepherd_refresh(shepherd_t *s);
 /* minutes -1: no daily cap; from == to: any time. pass: NULL or "" when not
- * locked. Each refreshes. */
+ * locked. Each refreshes. Each changes a kept setting (screen.set_limit,
+ * screen.clear_limit, screen.grant, screen.lock), so each sends only on the
+ * owner's word: owner_confirmed false (after the argument checks) is
+ * ZXM_E_STATE, nothing is sent and the model is unchanged. The passphrase is
+ * zxvd's check of the guardian; owner_confirmed is the person's own action. */
 int shepherd_set_limit(shepherd_t *s, const char *pass, const char *app, int32_t minutes,
-                       uint16_t from, uint16_t to);
-int shepherd_clear_limit(shepherd_t *s, const char *pass, const char *app);
-int shepherd_grant(shepherd_t *s, const char *pass, const char *app, uint32_t minutes);
+                       uint16_t from, uint16_t to, bool owner_confirmed);
+int shepherd_clear_limit(shepherd_t *s, const char *pass, const char *app, bool owner_confirmed);
+int shepherd_grant(shepherd_t *s, const char *pass, const char *app, uint32_t minutes,
+                   bool owner_confirmed);
 /* Set or change the passphrase; "" or NULL `pass` unlocks. */
-int shepherd_lock(shepherd_t *s, const char *old, const char *pass);
+int shepherd_lock(shepherd_t *s, const char *old, const char *pass, bool owner_confirmed);
 
 const shepherd_limit_t *shepherd_limit(const shepherd_t *s, const char *app);
 /* An app's minutes over the days listed (the week). */

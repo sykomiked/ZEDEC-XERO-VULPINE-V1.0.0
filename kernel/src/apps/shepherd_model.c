@@ -127,10 +127,11 @@ static int done(shepherd_t *s)
 }
 
 int shepherd_set_limit(shepherd_t *s, const char *pass, const char *app, int32_t minutes,
-                       uint16_t from, uint16_t to)
+                       uint16_t from, uint16_t to, bool owner_confirmed)
 {
     if (!good_app(app) || minutes < -1 || minutes > 1440 || from > 1439 || to > 1439)
         return ZXM_E_ARG;
+    if (!owner_confirmed) return ZXM_E_STATE; /* a limit changes only on the owner's word */
     zxm_link_t *l = s->link;
     zxm_begin(l, "screen.set_limit");
     zxm_p_str(l, "app", app);
@@ -141,18 +142,21 @@ int shepherd_set_limit(shepherd_t *s, const char *pass, const char *app, int32_t
     return done(s);
 }
 
-int shepherd_clear_limit(shepherd_t *s, const char *pass, const char *app)
+int shepherd_clear_limit(shepherd_t *s, const char *pass, const char *app, bool owner_confirmed)
 {
     if (!good_app(app)) return ZXM_E_ARG;
+    if (!owner_confirmed) return ZXM_E_STATE; /* a limit changes only on the owner's word */
     zxm_begin(s->link, "screen.clear_limit");
     zxm_p_str(s->link, "app", app);
     p_pass(s->link, "passphrase", pass);
     return done(s);
 }
 
-int shepherd_grant(shepherd_t *s, const char *pass, const char *app, uint32_t minutes)
+int shepherd_grant(shepherd_t *s, const char *pass, const char *app, uint32_t minutes,
+                   bool owner_confirmed)
 {
     if (!good_app(app) || minutes < 1 || minutes > 1440) return ZXM_E_ARG;
+    if (!owner_confirmed) return ZXM_E_STATE; /* a limit changes only on the owner's word */
     zxm_begin(s->link, "screen.grant");
     zxm_p_str(s->link, "app", app);
     zxm_p_u64(s->link, "minutes", minutes);
@@ -160,9 +164,10 @@ int shepherd_grant(shepherd_t *s, const char *pass, const char *app, uint32_t mi
     return done(s);
 }
 
-int shepherd_lock(shepherd_t *s, const char *old, const char *pass)
+int shepherd_lock(shepherd_t *s, const char *old, const char *pass, bool owner_confirmed)
 {
     if (pass && strlen(pass) > SHEPHERD_PASS) return ZXM_E_ARG;
+    if (!owner_confirmed) return ZXM_E_STATE; /* the lock changes only on the owner's word */
     zxm_begin(s->link, "screen.lock");
     zxm_p_str(s->link, "passphrase", pass ? pass : "");
     p_pass(s->link, "old", old);

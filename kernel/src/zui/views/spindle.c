@@ -110,7 +110,8 @@ bool spindle_view_action(spindle_view_t *v, zui_id_t w, zui_action_t a, int32_t 
     } else if ((w == v->call && a == ZUI_ACT_PRESS) ||
                ((w == v->params || w == v->method) && a == ZUI_ACT_SUBMIT)) {
         if (!v->method_buf[0]) return true;
-        rc = spindle_call(m, v->method_buf, v->params_buf);
+        /* the owner pressed Call or submitted the call: their word */
+        rc = spindle_call(m, v->method_buf, v->params_buf, true);
         if (rc == ZXM_OK || rc == ZXM_E_REMOTE) v->shown = 0;
         if (rc == ZXM_E_REMOTE) rc = ZXM_OK; /* the refusal is in the history, as is */
     } else if (w == v->history && (a == ZUI_ACT_SELECT || a == ZUI_ACT_OPEN)) {

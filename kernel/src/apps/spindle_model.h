@@ -43,8 +43,11 @@ int spindle_discover(spindle_t *s); /* fills methods and protocol */
 /* Call `method` with `params` (a JSON object, "" for none). Calls that
  * reach zxvd, including ones it refuses, enter the history; a bad method
  * name or params that are not one JSON object are refused (ZXM_E_ARG) and
- * not sent. */
-int spindle_call(spindle_t *s, const char *method, const char *params);
+ * not sent. The method is the owner's to choose and may change kept state
+ * (a write, a setting, a delete), so a call is sent only on the owner's
+ * word: owner_confirmed false (after the argument checks) is ZXM_E_STATE,
+ * nothing is sent and the history is unchanged. */
+int spindle_call(spindle_t *s, const char *method, const char *params, bool owner_confirmed);
 
 /* History: 0 is the newest; NULL past the end. */
 uint32_t spindle_history_len(const spindle_t *s);

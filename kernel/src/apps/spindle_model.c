@@ -70,11 +70,12 @@ static void keep(spindle_entry_t *e, const char *s, uint32_t n)
     e->reply_len = n;
 }
 
-int spindle_call(spindle_t *s, const char *method, const char *params)
+int spindle_call(spindle_t *s, const char *method, const char *params, bool owner_confirmed)
 {
     size_t pn = strlen(params);
     if (!method_ok(method) || pn > SPINDLE_PARAMS_MAX) return ZXM_E_ARG;
     if (pn && !object_ok(params, (uint32_t) pn)) return ZXM_E_ARG;
+    if (!owner_confirmed) return ZXM_E_STATE; /* any method may change state: the owner's word */
     zxm_link_t *l = s->link;
     zxm_begin(l, method);
     if (pn) zxm_p_raw(l, params, (uint32_t) pn);
