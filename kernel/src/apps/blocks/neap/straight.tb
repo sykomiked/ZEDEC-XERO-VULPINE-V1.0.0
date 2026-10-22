@@ -1,0 +1,37 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Straight-line depreciation, in Trebago (neap_rules.h NR3), one period
+! per row: q = floor((cost - salvage) / life) in every period but the
+! last, and the remainder (cost - salvage) - (life - 1) * q in the last,
+! in minor units. Trebago is exact and has no floor, so q is counted in
+! integers only, three digits at a time: each digit group the count of
+! k = 1 to 999 with k * step * life <= what is left, which
+! min(1, max(0, t - k * step * life + 1)) is for integers. last is 1 in the
+! last period (period = life), else 0. ok is 0 for a cost outside
+! 0..999999999999999, a salvage outside 0..cost, a life outside 1..1200
+! or a period outside 1..life, and the charge is divided by it: refused.
+! straight.sutra holds a cost to 12 digits: past them the two disagree,
+! held.
+trebago straight
+  in  cost(n), salvage(n), life(n), period(n)
+  out charge(n)
+  var t(n), q(n), a(n), b(n), c(n), d(n), e(n), last(n), ok(n)
+  ok(i) = min(1, max(0, cost(i) + 1)) * min(1, max(0, 999999999999999 - cost(i) + 1)) &
+        * min(1, max(0, salvage(i) + 1)) * min(1, max(0, cost(i) - salvage(i) + 1)) &
+        * min(1, max(0, life(i))) * min(1, max(0, 1200 - life(i) + 1)) &
+        * min(1, max(0, period(i))) * min(1, max(0, life(i) - period(i) + 1))
+  t(i) = max(0, cost(i) - salvage(i)) * min(1, max(0, 999999999999999 - cost(i) + 1))
+  a(i) = sum(k = 1:999, min(1, max(0, t(i) - k * 1000000000000 * life(i) + 1)))
+  t(i) = t(i) - a(i) * 1000000000000 * life(i)
+  b(i) = sum(k = 1:999, min(1, max(0, t(i) - k * 1000000000 * life(i) + 1)))
+  t(i) = t(i) - b(i) * 1000000000 * life(i)
+  c(i) = sum(k = 1:999, min(1, max(0, t(i) - k * 1000000 * life(i) + 1)))
+  t(i) = t(i) - c(i) * 1000000 * life(i)
+  d(i) = sum(k = 1:999, min(1, max(0, t(i) - k * 1000 * life(i) + 1)))
+  t(i) = t(i) - d(i) * 1000 * life(i)
+  e(i) = sum(k = 1:999, min(1, max(0, t(i) - k * life(i) + 1)))
+  q(i) = a(i) * 1000000000000 + b(i) * 1000000000 + c(i) * 1000000 + d(i) * 1000 + e(i)
+  last(i) = 1 - min(1, max(0, life(i) - period(i)))
+  charge(i) = (q(i) + last(i) * (cost(i) - salvage(i) - life(i) * q(i))) / ok(i)
+end

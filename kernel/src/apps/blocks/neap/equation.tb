@@ -1,0 +1,13 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The accounting equation after a post, in Trebago (neap_rules.h NR2):
+! assets - liabilities - equity in minor units, one set of books per row,
+! exact; 0 exactly when A = L + E. A gap past 64 bits is refused, never
+! wrapped. equation.sutra holds 18 digits: past them the two disagree and
+! the answer is held.
+trebago equation
+  in  assets(n), liabilities(n), equity(n)
+  out gap(n)
+  gap(i) = assets(i) - liabilities(i) - equity(i)
+end

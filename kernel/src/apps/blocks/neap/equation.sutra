@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The accounting equation after a post, in Sutra (neap_rules.h NR2):
+# assets - liabilities - equity in minor units, each its class's balances
+# on their normal side (equity with income less expenses carried in); 0
+# exactly when A = L + E. Every field is s9(18): an input or a gap past 18
+# digits either way is a size error, refused; equation.tb answers to 64
+# bits: held.
+record neap-equation
+  assets: s9(18)
+  liabilities: s9(18)
+  equity: s9(18)
+  gap: s9(18)
+procedure
+  compute gap = assets - liabilities - equity
+  answer gap

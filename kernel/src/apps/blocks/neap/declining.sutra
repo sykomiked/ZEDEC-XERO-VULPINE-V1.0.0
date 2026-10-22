@@ -1,0 +1,34 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Declining-balance depreciation, in Sutra (neap_rules.h NR4): one
+# period's charge on an asset whose book value at the period's start is
+# book, at rate hundredths of a percent, never below salvage: the last
+# period (last 1) takes what is left above salvage, any other book * rate
+# / 10000 truncated as COMPUTE does (the floor: nothing is negative), at
+# most what is left. book and salvage fit 9(12); room (book - salvage),
+# top (10000 - rate) and once (1 - last) are unsigned, so a salvage past
+# the book, a rate past 100 percent or a last flag past 1 is a size error,
+# refused. declining.tb takes a book to 15 digits: past 12 the two
+# disagree, held.
+record neap-declining
+  book: 9(12)
+  salvage: 9(12)
+  rate: 9(5)
+  last: 9(1)
+  room: 9(12)
+  top: 9(5)
+  once: 9(1)
+  charge: 9(12)
+procedure
+  compute room = book - salvage
+  compute top = 10000 - rate
+  compute once = 1 - last
+  if last = 1
+    answer room
+  end-if
+  compute charge = book * rate / 10000
+  if charge > room
+    answer room
+  end-if
+  answer charge

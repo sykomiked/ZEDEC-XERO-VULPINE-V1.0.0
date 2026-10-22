@@ -339,7 +339,14 @@
 #define ALX_SLOT_NUM_FOOTLIGHT_SLIDE_FIT_W       331u /* 591.61 footlight.slide_fit_w */
 #define ALX_SLOT_LOGIC_FOOTLIGHT_SLIDE_RECORD_OK 332u /* 491.62 footlight.slide_record_ok */
 #define ALX_SLOT_NUM_FOOTLIGHT_SLIDE_START       333u /* 591.62 footlight.slide_start */
-#define ALX_SLOT__COUNT 333u
+#define ALX_SLOT_NUM_NEAP_ACCOUNT_MONTH_TOTAL    334u /* 591.63 neap.account_month_total */
+#define ALX_SLOT_LOGIC_NEAP_COA_NODE_OK          335u /* 491.63 neap.coa_node_ok */
+#define ALX_SLOT_NUM_NEAP_DECLINING_CHARGE       336u /* 591.64 neap.declining_charge */
+#define ALX_SLOT_LOGIC_NEAP_ENTRY_MAY_POST       337u /* 491.64 neap.entry_may_post */
+#define ALX_SLOT_NUM_NEAP_EQUATION_GAP           338u /* 591.65 neap.equation_gap */
+#define ALX_SLOT_NUM_NEAP_GL_LINE_AMOUNT         339u /* 591.66 neap.gl_line_amount */
+#define ALX_SLOT_NUM_NEAP_STRAIGHT_CHARGE        340u /* 591.67 neap.straight_charge */
+#define ALX_SLOT__COUNT 340u
 /* clang-format on */
 
 #endif

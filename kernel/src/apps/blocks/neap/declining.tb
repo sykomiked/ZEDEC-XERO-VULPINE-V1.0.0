@@ -1,0 +1,42 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Declining-balance depreciation, in Trebago (neap_rules.h NR4), one
+! period per row: the last period (last 1) takes book - salvage, any
+! other min(floor(book * rate / 10000), book - salvage), rate in
+! hundredths of a percent. Trebago is exact and has no floor, so it is
+! counted in integers only, as reckoner's band.tb does: q = floor(book /
+! 10000) three digits at a time, each digit the count of k = 1 to 999
+! with k * step <= t, which min(1, max(0, t - k * step + 1)) is for
+! integers; then book * rate / 10000 is q * rate plus the floor of what is
+! left (r * rate, below 10^8) over 10000, counted the same way. ok is 0
+! for a book outside 0..999999999999999, a salvage outside 0..book, a rate
+! outside 0..10000 or a last flag outside 0..1, and the charge is divided
+! by it: refused. declining.sutra holds a book to 12 digits: past them the
+! two disagree, held.
+trebago declining
+  in  book(n), salvage(n), rate(n), last(n)
+  out charge(n)
+  var t(n), s(n), a(n), b(n), c(n), d(n), e(n), f(n), fl(n), room(n), ok(n)
+  ok(i) = min(1, max(0, book(i) + 1)) * min(1, max(0, 999999999999999 - book(i) + 1)) &
+        * min(1, max(0, salvage(i) + 1)) * min(1, max(0, book(i) - salvage(i) + 1)) &
+        * min(1, max(0, rate(i) + 1)) * min(1, max(0, 10000 - rate(i) + 1)) &
+        * min(1, max(0, last(i) + 1)) * min(1, max(0, 1 - last(i) + 1))
+  t(i) = max(0, book(i)) * min(1, max(0, 999999999999999 - book(i) + 1))
+  a(i) = sum(k = 1:999, min(1, max(0, t(i) - k * 10000000000000 + 1)))
+  t(i) = t(i) - a(i) * 10000000000000
+  b(i) = sum(k = 1:999, min(1, max(0, t(i) - k * 10000000000 + 1)))
+  t(i) = t(i) - b(i) * 10000000000
+  c(i) = sum(k = 1:999, min(1, max(0, t(i) - k * 10000000 + 1)))
+  t(i) = t(i) - c(i) * 10000000
+  d(i) = sum(k = 1:999, min(1, max(0, t(i) - k * 10000 + 1)))
+  t(i) = t(i) - d(i) * 10000
+  s(i) = t(i) * max(0, min(10000, rate(i)))
+  e(i) = sum(k = 1:9, min(1, max(0, s(i) - k * 10000000 + 1)))
+  s(i) = s(i) - e(i) * 10000000
+  f(i) = sum(k = 1:999, min(1, max(0, s(i) - k * 10000 + 1)))
+  fl(i) = (a(i) * 1000000000 + b(i) * 1000000 + c(i) * 1000 + d(i)) * rate(i) &
+        + e(i) * 1000 + f(i)
+  room(i) = book(i) - salvage(i)
+  charge(i) = (last(i) * room(i) + (1 - last(i)) * min(fl(i), room(i))) / ok(i)
+end

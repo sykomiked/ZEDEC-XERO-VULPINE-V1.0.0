@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether a journal entry may post, in Sutra (neap_rules.h NR1): an amount
+# of 1 to 2^53 - 1 minor units, debits equal to credits (gap 0), no closed
+# account touched (shut 0) and the period open (period 1). amount and gap
+# are s9(18), shut 9(4) and period 9(1): a value past its picture, or a
+# negative count, is a size error, refused, where entry.eve answers no:
+# held.
+record neap-entry
+  amount: s9(18)
+  gap: s9(18)
+  shut: 9(4)
+  period: 9(1)
+procedure
+  answer amount >= 1 and amount <= 9007199254740991 and gap = 0 and shut = 0 and period = 1

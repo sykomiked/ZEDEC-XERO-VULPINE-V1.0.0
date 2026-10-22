@@ -1,0 +1,35 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Straight-line depreciation, in Sutra (neap_rules.h NR3): what period
+# `period` of an asset's life of `life` periods is charged, in minor units:
+# (cost - salvage) / life truncated as COMPUTE does (the floor: nothing
+# here is negative) in every period but the last, and in the last what
+# is left, so the charges sum to cost - salvage exactly. cost and salvage
+# fit 9(12); base (cost - salvage), most (1200 - life), left (life -
+# period) and first (period - 1) are unsigned, so a salvage past the cost,
+# a life past 1200 periods or a period outside 1..life is a size error and
+# a life of 0 a division Sutra refuses. straight.tb takes a cost to 15
+# digits: past 12 the two disagree, held.
+record neap-straight
+  cost: 9(12)
+  salvage: 9(12)
+  life: 9(4)
+  period: 9(4)
+  base: 9(12)
+  most: 9(4)
+  left: 9(4)
+  first: 9(4)
+  each: 9(12)
+  charge: 9(12)
+procedure
+  compute base = cost - salvage
+  compute most = 1200 - life
+  compute left = life - period
+  compute first = period - 1
+  compute each = base / life
+  if left > 0
+    answer each
+  end-if
+  compute charge = base - each * (life - 1)
+  answer charge

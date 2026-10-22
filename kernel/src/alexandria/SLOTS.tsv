@@ -368,3 +368,10 @@
 331	num.footlight_slide_fit_w	591.61	footlight.slide_fit_w	base
 332	logic.footlight_slide_record_ok	491.62	footlight.slide_record_ok	base
 333	num.footlight_slide_start	591.62	footlight.slide_start	base
+334	num.neap_account_month_total	591.63	neap.account_month_total	base
+335	logic.neap_coa_node_ok	491.63	neap.coa_node_ok	base
+336	num.neap_declining_charge	591.64	neap.declining_charge	base
+337	logic.neap_entry_may_post	491.64	neap.entry_may_post	base
+338	num.neap_equation_gap	591.65	neap.equation_gap	base
+339	num.neap_gl_line_amount	591.66	neap.gl_line_amount	base
+340	num.neap_straight_charge	591.67	neap.straight_charge	base

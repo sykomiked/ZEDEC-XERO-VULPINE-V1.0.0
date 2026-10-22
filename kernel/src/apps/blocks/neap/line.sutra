@@ -1,0 +1,23 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One general ledger line, in Sutra (neap_rules.h NR5): what it moves its
+# account's balance on the account's normal side, (debit - credit) *
+# normal, normal 1 for a debit-normal account (an asset, an expense) and
+# -1 for a credit-normal one (a liability, equity, income). debit and
+# credit fit 9(18), so a negative or a longer one is a size error,
+# refused; odd (1 - normal * normal) is unsigned, so a normal past 1
+# either way is refused, and unit (1 / (normal * normal)) refuses a normal
+# of 0 as a division by zero. Never rounded, never cut short.
+record neap-gl-line
+  debit: 9(18)
+  credit: 9(18)
+  normal: s9(1)
+  odd: 9(1)
+  unit: 9(1)
+  amount: s9(18)
+procedure
+  compute odd = 1 - normal * normal
+  compute unit = 1 / (normal * normal)
+  compute amount = (debit - credit) * normal
+  answer amount

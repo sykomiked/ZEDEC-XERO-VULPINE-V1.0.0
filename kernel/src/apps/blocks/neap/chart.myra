@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Neap files one node of its chart of accounts in MYRA (neap_rules.h
+; NR7): a tree kept as a sparse record under the parent's code (0 for a
+; root) and the node's own code, with its kind (1 asset, 2 liability,
+; 3 equity, 4 income, 5 expense) and whether it is open (1) or closed
+; (0). The model asks whether the numbers fit before it keeps the node.
+^ZXNEAP(parent:i6, code:i6) = kind:i1! ^ open:i1!

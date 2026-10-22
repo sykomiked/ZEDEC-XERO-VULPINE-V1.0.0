@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether a journal entry may post, in Eve (neap_rules.h NR1): an amount
+# of 1 to 2^53 - 1 minor units (libzxv ZXV_AMOUNT_MAX), its debits equal
+# to its credits (gap = debits - credits = 0), every account it touches
+# open in the chart (shut, the closed ones, 0) and the period it falls in
+# open (period 1). Each is held to its own range; entry.sutra says the
+# same in Sutra.
+eve neap
+post_amount = 1 .. 9007199254740991
+post_gap = 0 .. 0
+post_shut = 0 .. 0
+post_period = 1 .. 1
+
+entry_post {
+  amount: post_amount
+  gap: post_gap
+  shut: post_shut
+  period: post_period
+}
