@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Energy per answer (retort_rules.h RT4), in Trebago: uj / answers, the
+! microjoules one answer took, an exact reduced rational, never rounded
+! (10 over 3 answers is 10/3). uj is 0..999999999999999999 (power.status's
+! total_uj, 18 digits) and answers 1..999999999: ok is 1 inside both and 0
+! outside, and the answer is divided by it, so anything else (no answers
+! at all among them) is a division by zero, refused.
+trebago energy_per_answer
+  in  uj(n), answers(n)
+  out per(n)
+  var ok(n)
+  ok(i) = min(1, max(0, uj(i) + 1)) * min(1, max(0, 1000000000000000000 - uj(i))) &
+        * min(1, max(0, answers(i))) * min(1, max(0, 1000000000 - answers(i)))
+  per(i) = uj(i) / answers(i) / ok(i)
+end

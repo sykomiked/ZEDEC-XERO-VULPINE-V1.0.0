@@ -1,0 +1,10 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Retort files one run in MYRA (retort_rules.h RT5): the run's place
+; in the session, its contestant (model), the contestant's kind
+; (retort_model.h RETORT_KIND_*), the prompt's bytes, the fuel it may
+; burn, its latency in milliseconds, its score (-1 while ungraded) and the
+; energy read after it in microjoules. The rules say what the values may
+; mean; this says whether they make a record.
+^ZXRETORT(run:i3) = model:i2! ^ kind:i1! ^ prompt:i4! ^ fuel:i18! ^ ms:i7! ^ score:i3! ^ uj:i18!

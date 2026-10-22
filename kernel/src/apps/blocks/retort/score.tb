@@ -1,0 +1,20 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A contestant's score total (retort_rules.h RT1), in Trebago: the exact
+! sum of the scores of the graded answers whose model is want (one value
+! for the whole vector), added from the first. An answer counts when both
+! 1 + model - want and 1 + want - model are at least 1, that is when its
+! model is want. Each score is 0..100 points: min(1, max(0, 0 - s)) is 1
+! exactly when s < 0 and min(1, max(0, s - 100)) exactly when s > 100, so
+! bad counts the scores that are no grade, and the sum is divided by
+! 1 - min(1, bad): any one of them is a division by zero, refused, never
+! added. score.kron adds every score as it is: held.
+trebago score_total
+  in  model(n), want, score(n)
+  out total
+  var bad(n)
+  bad(i) = min(1, max(0, 0 - score(i))) + min(1, max(0, score(i) - 100))
+  total = sum(i, max(0, min(1, 1 + model(i) - want)) * max(0, min(1, 1 + want - model(i))) &
+        * score(i)) / (1 - min(1, sum(i, bad(i))))
+end

@@ -330,6 +330,20 @@ reckoner	check band_tax income=1,100000000000000 lo=0,0 hi=1,100000000000000 rat
 reckoner	check report_ok closed=1,1,0,0,2 books=1,0,1,0,1 = true,false,false,false,false
 reckoner	check coffer.holdings balance=100,-30 = 70
 reckoner	check coffer.balance before=0,100 moved=5,-100 = 5,0
+retort	check model_score_total model=1,2,1,3,1 want=1 score=50,70,100,0,0 = 150
+retort	check model_score_total model=4,4 want=9 score=5,6 = 0
+retort	check model_score_total model=1,2 want=1 score=50,101 = both
+retort	check model_score_total model=1,2 want=1 score=-1,5 = both
+retort	check latency_fastest_ms fastest=3600000,500,0,3600000,7 ms=120,700,0,3600000,6 = 120,500,0,3600000,6
+retort	check latency_fastest_ms fastest=10,10 ms=5,3600001 = both
+retort	check latency_fastest_ms fastest=10,-1 ms=5,5 = both
+retort	check latency_slowest_ms slowest=0,500,0,3600000,7 ms=120,700,0,3600000,6 = 120,700,0,3600000,7
+retort	check latency_slowest_ms slowest=10,10 ms=5,3600001 = both
+retort	check latency_slowest_ms slowest=10,-1 ms=5,5 = both
+retort	check run_limits_ok prompt=1,4095,0,4096,100,100,100,100 fuel=1,999999999999999999,1,1,0,1000000000000000000,5,5 seconds=1,3600,1,1,1,1,0,3601 = true,true,false,false,false,false,false,false
+retort	check energy_per_answer_uj uj=1000,10,7,0,999999999999999999 answers=4,3,7,1,1 = 250,10/3,1,0,999999999999999999
+retort	check run_record_ok run=0,999,1000,1,1,1,1,1 model=0,99,0,100,0,0,0,7 kind=0,2,0,0,10,0,0,1 prompt=0,4095,0,0,0,10000,0,12 fuel=0,999999999999999999,0,0,0,0,0,5 ms=0,9999999,0,0,0,0,10000000,120 score=0,100,0,0,0,0,0,-1 uj=0,999999999999999999,0,0,0,0,0,3 = true,true,false,false,false,false,false,true
+retort	check banker.share size=150,300,0 total=450 = 3333,6666,0
 rookery	check letter_send_ok verified=1,1,0,1,1,1,1 room=0,2048,100,-1,2049,100,100 consentgap=0,0,0,0,0,1,2 = true,true,false,false,false,false,false
 rookery	check letter_send_ok verified=1,2 room=100,100 consentgap=0,0 = both
 rookery	check letter_size_ok subject=0,200,201,0,10,-1 content=0,1837,0,1838,-1,0 = true,true,false,false,false,false

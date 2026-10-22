@@ -244,7 +244,13 @@
 #define ALX_SLOT_LOGIC_TRELLIS_PEER_RECORD_OK    236u /* 491.19 trellis.peer_record_ok */
 #define ALX_SLOT_NUM_TRELLIS_PEERS_IN_STATE      237u /* 591.09 trellis.peers_in_state */
 #define ALX_SLOT_LOGIC_TRELLIS_REVOKE_ALLOWED    238u /* 491.20 trellis.revoke_allowed */
-#define ALX_SLOT__COUNT 238u
+#define ALX_SLOT_NUM_RETORT_ENERGY_PER_ANSWER_UJ 239u /* 591.10 retort.energy_per_answer_uj */
+#define ALX_SLOT_NUM_RETORT_LATENCY_FASTEST_MS   240u /* 591.11 retort.latency_fastest_ms */
+#define ALX_SLOT_NUM_RETORT_LATENCY_SLOWEST_MS   241u /* 591.12 retort.latency_slowest_ms */
+#define ALX_SLOT_NUM_RETORT_MODEL_SCORE_TOTAL    242u /* 591.13 retort.model_score_total */
+#define ALX_SLOT_LOGIC_RETORT_RUN_LIMITS_OK      243u /* 491.21 retort.run_limits_ok */
+#define ALX_SLOT_LOGIC_RETORT_RUN_RECORD_OK      244u /* 491.22 retort.run_record_ok */
+#define ALX_SLOT__COUNT 244u
 /* clang-format on */
 
 #endif

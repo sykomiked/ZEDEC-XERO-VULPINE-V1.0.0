@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Run limits (retort_rules.h RT3), in Eve: the owner's limits on one run
+# fit when the prompt is 1 to 4095 bytes (swarm.ask's maxLength), the fuel
+# 1 to 18 digits (aipi.execute runs under a function's fuel_max, which
+# zxvd needs above 0) and the seconds 1 to 3600 (zxvd sets no wall-clock
+# limit on a run; an hour is Retort's). Each field is held to its own
+# range; a limit of 0 or past its range does not fit.
+eve retort
+prompt_bytes = 1 .. 4095
+fuel_units = 1 .. 999999999999999999
+run_seconds = 1 .. 3600
+
+run_limits_ok {
+  prompt: prompt_bytes
+  fuel: fuel_units
+  seconds: run_seconds
+}
