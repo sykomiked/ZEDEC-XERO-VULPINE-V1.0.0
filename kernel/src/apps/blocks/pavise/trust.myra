@@ -1,0 +1,10 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; Pavise's trust tree in MYRA (pavise_rules.h PR7): each device on the
+; signed roster (devmesh.devices), each app under it and each key under
+; that app, a node whose value is whether it is trusted (1) or not (0)
+; and since when, in seconds since 1970. Never a key's bytes: a key is
+; its place on passkeys.list. The model asks whether the numbers fit
+; before it keeps a node.
+^ZXPAVISE(device:i4, app:i4, key:i4) = trust:i1! ^ since:i11!

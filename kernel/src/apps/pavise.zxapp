@@ -1,0 +1,140 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pavise, the security perimeter: L2, slot 153. One policy over the
+# firewall's paths, the apps' permissions and the keys, read from zxvd:
+# the feature switches (features.get), the interfaces (sys.net), the
+# routing table's peers (net.peers), the signed device roster
+# (devmesh.devices) and the registered passkeys (passkeys.list), with its
+# history from the journal (journal.query, journal.verify). See
+# pavise_model.h PM1-PM8 and pavise_rules.h PR1-PR7. Advisory and
+# owner-confirmed: a grant, a policy, a key's lifetime and a ruling are
+# kept only on the owner's confirmed word, and Pavise opens, closes or
+# writes nothing in zxvd. zxvd has no method that writes a firewall rule,
+# grants a capability, lists the installed apps with their signatures or
+# posts a notice, so the grants and policies live in the model, the view
+# hands it each app, and a notice is composed for the view.
+#
+# Composed, not written again (five uses of ZXAPP_USES 8; its own 7 logic
+# lines and its parts' 29 are 36 of ZXAPP_LOGIC_MAX 128): "is this use
+# allowed" is gatehouse.use_ok and the apps holding a capability
+# gatehouse.holders; a key's days left are lockbox.days_left and a key
+# phrase's limits lockbox.secret_ok; the ledger's chain is
+# witness.chain_ok and each journal entry witness.audit_ok; "is this path
+# reachable" is hedgerow.path_open, a peer's address class
+# hedgerow.addr_scope and a filed opening hedgerow.reach_rule_ok. The
+# access ledger's numbers are tallystick.next_doc_number (CONCEPTS.tsv
+# next_document_number: any numbered business record, last + 1, never
+# reused), so Tallystick is a fifth use the task did not name: the
+# concept has its one owner, and Pavise's Sutra block holds the record.
+#
+# The task's "matrix 153" is refused by zxapp.c (M1: a matrix layer is
+# 0..144); an L2 app sits on the layer of its part that is outermost in
+# MATRIX_ORDER.tsv: Tallystick (place 41, layer 78), past Lockbox (23),
+# Hedgerow (21), Witness (10) and Gatehouse (7).
+#
+# Eve answers truths only and holds each field to its own range, so the
+# allow rule takes Gatehouse's, Hedgerow's and the key's answers as flags
+# and days (the model asks those entries first), and the clause "no
+# policy denies" as a flag; the four-valued join of two policy sources
+# (lpres_kjoin) and of the policy with the rule (lpres_conjoin) is C,
+# where the kernel's tables are (pavise_rules.h PR2).
+#
+# Later layers use the combined allow and the exposure score (eleven L3
+# tasks name them), so every entry is general and registered in
+# CONCEPTS.tsv with Pavise as owner. Kept in C: text (feature names,
+# addresses, ids), zxvd's answers and the four-valued joins. Prolog owns
+# rules and stands for perimeter_allow.
+zxapp 1
+id     pavise
+name   Pavise
+version 1.0.0
+slot   153
+layer  L2
+matrix 78
+icon   icons/l2/153-pavise.svg
+budget 233
+needs  sys.read
+needs  net
+needs  peers
+needs  journal
+needs  notify
+model  apps/pavise_model.c
+use    gatehouse 1    # @logic.gatehouse_use_ok @num.gatehouse_holders
+use    lockbox 1      # @num.lockbox_days_left @logic.lockbox_secret_ok
+use    witness 1      # @logic.witness_chain_ok @logic.witness_audit_ok
+use    hedgerow 1     # @logic.hedgerow_path_open @num.hedgerow_addr_scope @logic.hedgerow_reach_rule_ok
+use    tallystick 1   # @num.tallystick_next_doc_number
+# what it exports, so apps built from it can use them too (C1)
+provides gatehouse.use_ok truth asked granted revoked
+provides gatehouse.holders num held
+provides lockbox.days_left num expires now
+provides lockbox.secret_ok truth length classes repeats
+provides witness.chain_ok truth seq prev last
+provides witness.audit_ok truth seq prev kind stamp
+provides hedgerow.path_open truth sw moderoom bindroom
+provides hedgerow.addr_scope num fam a b c d
+provides hedgerow.reach_rule_ok truth seq path open port stamp
+provides tallystick.next_doc_number num last
+
+# Allow (PR1): Gatehouse allows AND the path is reachable AND the key is
+# valid and not expired AND no policy denies. Ada as Eve, APL as KRON,
+# witnessed: a flag that is no flag, or days past year 9999, fits KRON's
+# reading and not Eve's record: held (BOTH).
+provides perimeter_allow truth gate reach keyok keydays deny
+logic    eve  perimeter_allow apps/blocks/pavise/allow.eve
+logic    kron perimeter_allow apps/blocks/pavise/allow.kron
+pending  Prolog perimeter_allow
+
+# The access ledger (PR3): decision number, app, capability and verdict
+# as a fixed record. COBOL as Sutra.
+provides access_ledger_ok truth decision app cap verdict
+logic    sutra access_ledger_ok apps/blocks/pavise/ledger.sutra
+
+# The exposure score (PR4): open paths, keys expiring within 30 days and
+# unsigned apps, weighted 2, 3 and 5, exact. FORTRAN as Trebago.
+provides perimeter_exposure num paths keydays signed
+logic    trebago perimeter_exposure apps/blocks/pavise/exposure.tb
+
+# The permission matrix (PR5), app by capability: each cell's app total.
+# APL as KRON.
+provides perm_app_total num app allow
+logic    kron perm_app_total apps/blocks/pavise/matrix.kron
+
+# Declared policy bounds (PR6). Ada as Eve.
+provides policy_rule_ok truth source app cap effect
+logic    eve policy_rule_ok apps/blocks/pavise/policy.eve
+
+# The trust tree (PR7): ^ZXPAVISE(device, app, key) = trust ^ since.
+# MUMPS as MYRA.
+provides trust_node_ok truth device app key trust since
+logic    myra trust_node_ok apps/blocks/pavise/trust.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check perimeter_allow gate=1,1,0,1,1,1,1 reach=1,1,1,0,1,1,1 keyok=1,1,1,1,0,1,1 keydays=30,2932896,30,30,30,0,30 deny=0,0,0,0,0,0,1 = true,true,false,false,false,false,false
+check perimeter_allow gate=1,2 reach=1,1 keyok=1,1 keydays=30,30 deny=0,0 = both
+check perimeter_allow gate=1,1 reach=1,1 keyok=1,1 keydays=30,2932897 deny=0,0 = both
+check access_ledger_ok decision=1,999999999,0,5,5,5 app=12,9999,12,0,12,12 cap=0,18,0,0,19,0 verdict=1,3,1,1,1,4 = true,true,false,false,false,false
+check perimeter_exposure paths=1,0,1 keydays=0,31,30,400 signed=1,0 = 15
+check perimeter_exposure paths=0 keydays=2932896 signed=1 = 0
+check perm_app_total app=12,12,7,12,9 allow=1,0,1,1,0 = 2,2,1,2,0
+check policy_rule_ok source=1,99,0,1,1,1 app=12,9999,12,10000,12,12 cap=0,18,0,0,19,0 effect=1,0,1,1,0,2 = true,true,false,false,false,false
+check trust_node_ok device=1,9999,10000,1,1 app=12,9999,1,1,1 key=3,9999,1,1,1 trust=1,9,1,10,1 since=1700000000,99999999999,1,1,100000000000 = true,true,false,false,false
+# The parts it composes, at their edges
+check gatehouse.use_ok asked=1,1,1 granted=1,0,1 revoked=0,0,1 = true,false,false
+check gatehouse.use_ok asked=1,2 granted=1,1 revoked=0,0 = both
+check gatehouse.holders held=1,0,1,1 = 3
+check gatehouse.holders held=1,2 = both
+check lockbox.days_left expires=86400,0,2678400 now=0,86400,0 = 1,0,31
+check lockbox.days_left expires=86400,-1 now=0,0 = both
+check lockbox.secret_ok length=11,12 classes=1,1 repeats=0,0 = false,true
+check witness.chain_ok seq=1,2,2 prev=0,1,0 last=0,1,1 = true,true,false
+check witness.chain_ok seq=2,-1 prev=1,1 last=1,1 = both
+check witness.audit_ok seq=1,1000000000000000000 prev=0,0 kind=1,1 stamp=1700000000000,0 = true,false
+check hedgerow.path_open sw=1,0,1 moderoom=0,0,-1 bindroom=0,0,0 = true,false,false
+check hedgerow.path_open sw=1,2 moderoom=0,0 bindroom=0,0 = both
+check hedgerow.addr_scope fam=4,4,4 a=8,192,127 b=8,168,0 c=8,1,0 d=8,1,1 = 0,2,1
+check hedgerow.addr_scope fam=4,4 a=8,256 b=8,0 c=8,0 d=8,0 = both
+check hedgerow.reach_rule_ok seq=1,1000000000 path=1,1 open=0,0 port=443,0 stamp=1700000000,0 = true,false
+check hedgerow.reach_rule_ok seq=1,1 path=1,7 open=0,0 port=0,0 stamp=0,0 = both
+check tallystick.next_doc_number last=0,41,999999998 = 1,42,999999999

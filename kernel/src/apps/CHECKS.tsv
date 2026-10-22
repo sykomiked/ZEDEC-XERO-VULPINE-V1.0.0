@@ -575,6 +575,32 @@ orrery	check almanac.days seconds=0,86399,86400,200000 = 0,0,1,2
 orrery	check almanac.days seconds=86400,-86401 = both
 orrery	check solstice.month_days year=2000 month=2 = 29
 orrery	check solstice.month_days year=1900 month=2 = 28
+pavise	check perimeter_allow gate=1,1,0,1,1,1,1 reach=1,1,1,0,1,1,1 keyok=1,1,1,1,0,1,1 keydays=30,2932896,30,30,30,0,30 deny=0,0,0,0,0,0,1 = true,true,false,false,false,false,false
+pavise	check perimeter_allow gate=1,2 reach=1,1 keyok=1,1 keydays=30,30 deny=0,0 = both
+pavise	check perimeter_allow gate=1,1 reach=1,1 keyok=1,1 keydays=30,2932897 deny=0,0 = both
+pavise	check access_ledger_ok decision=1,999999999,0,5,5,5 app=12,9999,12,0,12,12 cap=0,18,0,0,19,0 verdict=1,3,1,1,1,4 = true,true,false,false,false,false
+pavise	check perimeter_exposure paths=1,0,1 keydays=0,31,30,400 signed=1,0 = 15
+pavise	check perimeter_exposure paths=0 keydays=2932896 signed=1 = 0
+pavise	check perm_app_total app=12,12,7,12,9 allow=1,0,1,1,0 = 2,2,1,2,0
+pavise	check policy_rule_ok source=1,99,0,1,1,1 app=12,9999,12,10000,12,12 cap=0,18,0,0,19,0 effect=1,0,1,1,0,2 = true,true,false,false,false,false
+pavise	check trust_node_ok device=1,9999,10000,1,1 app=12,9999,1,1,1 key=3,9999,1,1,1 trust=1,9,1,10,1 since=1700000000,99999999999,1,1,100000000000 = true,true,false,false,false
+pavise	check gatehouse.use_ok asked=1,1,1 granted=1,0,1 revoked=0,0,1 = true,false,false
+pavise	check gatehouse.use_ok asked=1,2 granted=1,1 revoked=0,0 = both
+pavise	check gatehouse.holders held=1,0,1,1 = 3
+pavise	check gatehouse.holders held=1,2 = both
+pavise	check lockbox.days_left expires=86400,0,2678400 now=0,86400,0 = 1,0,31
+pavise	check lockbox.days_left expires=86400,-1 now=0,0 = both
+pavise	check lockbox.secret_ok length=11,12 classes=1,1 repeats=0,0 = false,true
+pavise	check witness.chain_ok seq=1,2,2 prev=0,1,0 last=0,1,1 = true,true,false
+pavise	check witness.chain_ok seq=2,-1 prev=1,1 last=1,1 = both
+pavise	check witness.audit_ok seq=1,1000000000000000000 prev=0,0 kind=1,1 stamp=1700000000000,0 = true,false
+pavise	check hedgerow.path_open sw=1,0,1 moderoom=0,0,-1 bindroom=0,0,0 = true,false,false
+pavise	check hedgerow.path_open sw=1,2 moderoom=0,0 bindroom=0,0 = both
+pavise	check hedgerow.addr_scope fam=4,4,4 a=8,192,127 b=8,168,0 c=8,1,0 d=8,1,1 = 0,2,1
+pavise	check hedgerow.addr_scope fam=4,4 a=8,256 b=8,0 c=8,0 d=8,0 = both
+pavise	check hedgerow.reach_rule_ok seq=1,1000000000 path=1,1 open=0,0 port=443,0 stamp=1700000000,0 = true,false
+pavise	check hedgerow.reach_rule_ok seq=1,1 path=1,7 open=0,0 port=0,0 stamp=0,0 = both
+pavise	check tallystick.next_doc_number last=0,41,999999998 = 1,42,999999999
 pinhole	check camera_ready sensor=1,0,1,1,0,-1 mode=1,1,0,1,0,1 buffer=1,1,1,0,0,1 = true,false,false,false,false,false
 pinhole	check camera_ready sensor=1,2 mode=1,1 buffer=1,1 = both
 pinhole	check camera_ready sensor=1,1 mode=1,1 buffer=1,3 = both

@@ -1,0 +1,1 @@
+(gate>0)&(reach>0)&(keyok>0)&(keydays>0)&deny<1

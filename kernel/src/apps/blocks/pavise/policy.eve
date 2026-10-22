@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a declared policy rule may say (pavise_rules.h PR6), in Eve: the
+# policy it belongs to (source 1..99), the app (1..9999), the capability
+# (zxapp.c R3's index, 0..18) and its effect, 0 deny or 1 allow. Each is
+# held to its own range; two sources that disagree about one use are
+# joined by the model (PR2), never by one rule.
+eve pavise
+policy_source = 1 .. 99
+app_number = 1 .. 9999
+cap_index = 0 .. 18
+effect_flag = 0 .. 1
+
+policy_rule {
+  source: policy_source
+  app: app_number
+  cap: cap_index
+  effect: effect_flag
+}

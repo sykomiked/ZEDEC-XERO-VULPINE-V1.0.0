@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Allow (pavise_rules.h PR1), in Eve: the only records that fit are
+# Gatehouse allows the use (gate 1, gatehouse.use_ok as a flag), Hedgerow's
+# path for it is reachable (reach 1, hedgerow.path_open as a flag), the key
+# is valid (keyok 1) and not expired (keydays 1..2932896, lockbox.days_left)
+# and no policy denies it (deny 0). Any other row, a flag that is no flag
+# among them, does not fit: not allowed. allow.kron compares the same five.
+eve pavise
+flag_yes = 1 .. 1
+flag_no = 0 .. 0
+days_to_go = 1 .. 2932896
+
+perimeter_use {
+  gate: flag_yes
+  reach: flag_yes
+  keyok: flag_yes
+  keydays: days_to_go
+  deny: flag_no
+}

@@ -349,7 +349,13 @@
 #define ALX_SLOT_NUM_HAMLET_GIFT_ROOM            341u /* 591.68 hamlet.gift_room */
 #define ALX_SLOT_LOGIC_HAMLET_POST_SHOW_OK       342u /* 491.65 hamlet.post_show_ok */
 #define ALX_SLOT_LOGIC_HAMLET_READ_MARKER_OK     343u /* 491.66 hamlet.read_marker_ok */
-#define ALX_SLOT__COUNT 343u
+#define ALX_SLOT_LOGIC_PAVISE_ACCESS_LEDGER_OK   344u /* 491.67 pavise.access_ledger_ok */
+#define ALX_SLOT_LOGIC_PAVISE_PERIMETER_ALLOW    345u /* 491.68 pavise.perimeter_allow */
+#define ALX_SLOT_NUM_PAVISE_PERIMETER_EXPOSURE   346u /* 591.69 pavise.perimeter_exposure */
+#define ALX_SLOT_NUM_PAVISE_PERM_APP_TOTAL       347u /* 591.70 pavise.perm_app_total */
+#define ALX_SLOT_LOGIC_PAVISE_POLICY_RULE_OK     348u /* 491.69 pavise.policy_rule_ok */
+#define ALX_SLOT_LOGIC_PAVISE_TRUST_NODE_OK      349u /* 491.70 pavise.trust_node_ok */
+#define ALX_SLOT__COUNT 349u
 /* clang-format on */
 
 #endif

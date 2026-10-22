@@ -378,3 +378,9 @@
 341	num.hamlet_gift_room	591.68	hamlet.gift_room	base
 342	logic.hamlet_post_show_ok	491.65	hamlet.post_show_ok	base
 343	logic.hamlet_read_marker_ok	491.66	hamlet.read_marker_ok	base
+344	logic.pavise_access_ledger_ok	491.67	pavise.access_ledger_ok	base
+345	logic.pavise_perimeter_allow	491.68	pavise.perimeter_allow	base
+346	num.pavise_perimeter_exposure	591.69	pavise.perimeter_exposure	base
+347	num.pavise_perm_app_total	591.70	pavise.perm_app_total	base
+348	logic.pavise_policy_rule_ok	491.69	pavise.policy_rule_ok	base
+349	logic.pavise_trust_node_ok	491.70	pavise.trust_node_ok	base

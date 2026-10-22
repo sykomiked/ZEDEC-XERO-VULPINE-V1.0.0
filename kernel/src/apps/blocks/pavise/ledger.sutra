@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One access decision filed in the ledger (pavise_rules.h PR3), in Sutra:
+# a fixed business record of the decision number (given by
+# tallystick.next_doc_number, last + 1, never reused), the app, the
+# capability (zxapp.c R3's index, 0..18) and the verdict (the four-valued
+# state, 0..3). Each field fits its picture, and a negative value or one
+# with more digits is a size error, refused; the record fits when the
+# decision and the app are past 0, the capability is one of the 19 and the
+# verdict one of the four.
+record access-entry
+  decision: 9(9)
+  app: 9(4)
+  cap: 9(2)
+  verdict: 9
+procedure
+  answer decision > 0 and app > 0 and cap < 19 and verdict < 4

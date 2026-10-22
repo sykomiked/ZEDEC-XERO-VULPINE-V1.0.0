@@ -1,0 +1,20 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The perimeter's exposure score (pavise_rules.h PR4), in Trebago: 2
+! points for each path open from beyond the local network (paths, one flag
+! each), 3 for each key with 30 days left or fewer (keydays, each
+! lockbox.days_left; 0 is due or past), 5 for each unsigned app (signed,
+! one flag each, 1 signed). Exact. ok is 1 when every flag is 0 or 1 and
+! every keydays is 0..2932896 (year 9999), else 0, and the score is
+! divided by it: anything else is a division by zero, refused.
+trebago exposure
+  in  paths(p), keydays(k), signed(a)
+  out score
+  var ok
+  ok = 1 - min(1, sum(i, min(1, max(0, 0 - paths(i))) + min(1, max(0, paths(i) - 1))) &
+       + sum(j, min(1, max(0, 0 - keydays(j))) + min(1, max(0, keydays(j) - 2932896))) &
+       + sum(m, min(1, max(0, 0 - signed(m))) + min(1, max(0, signed(m) - 1))))
+  score = (2 * sum(i, paths(i)) + 3 * sum(j, min(1, max(0, 31 - keydays(j)))) &
+          + 5 * sum(m, 1 - signed(m))) / ok
+end
