@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The screen reader's speech limits (nightjar_rules.h NR2), in Eve: a rate
+# of 80 to 450 words a minute and a pitch of 50 to 200 (hundredths of the
+# voice's own, 100 its natural pitch), each against its own range.
+eve nightjar
+speech_wpm = 80 .. 450
+speech_pitch = 50 .. 200
+
+voice {
+  wpm: speech_wpm
+  pitch: speech_pitch
+}

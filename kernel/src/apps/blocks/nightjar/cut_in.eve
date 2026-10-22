@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What may cut in on the screen reader's speech (nightjar_rules.h NR1), in
+# Eve: an alert (kind 1) or a change of focus (kind 2); page reading (kind
+# 3) waits its turn. Eve holds the kind to the two that cut in, so a kind
+# that is no kind (0 or below) is never read as one; KRON's half orders the
+# kinds by urgency (below page reading cuts in) and answers it, and the two
+# then disagree: held.
+eve nightjar
+cut_kind = 1 .. 2
+
+cut_in {
+  kind: cut_kind
+}

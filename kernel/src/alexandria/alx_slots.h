@@ -570,7 +570,11 @@
 #define ALX_SLOT_LOGIC_CUTWATER_EDIT_CLIP_OK     562u /* 492.77 cutwater.edit_clip_ok */
 #define ALX_SLOT_LOGIC_CUTWATER_EDIT_CLIP_ROW_OK 563u /* 492.78 cutwater.edit_clip_row_ok */
 #define ALX_SLOT_NUM_CUTWATER_FRAME_TIMECODE     564u /* 592.79 cutwater.frame_timecode */
-#define ALX_SLOT__COUNT 564u
+#define ALX_SLOT_LOGIC_NIGHTJAR_A11Y_ELEMENT_OK  565u /* 492.79 nightjar.a11y_element_ok */
+#define ALX_SLOT_NUM_NIGHTJAR_READING_PLACE      566u /* 592.80 nightjar.reading_place */
+#define ALX_SLOT_LOGIC_NIGHTJAR_SPEECH_CUTS_IN   567u /* 492.80 nightjar.speech_cuts_in */
+#define ALX_SLOT_LOGIC_NIGHTJAR_SPEECH_VOICE_OK  568u /* 492.81 nightjar.speech_voice_ok */
+#define ALX_SLOT__COUNT 568u
 /* clang-format on */
 
 #endif

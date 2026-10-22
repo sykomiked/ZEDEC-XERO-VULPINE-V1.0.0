@@ -1,0 +1,75 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Nightjar, the screen reader: layer 133 of the matrix. It says what is on
+# the screen and where focus is, in reading order, and lets alerts and
+# focus changes cut in on page reading (nightjar_model.c). The language of
+# each thing said comes from xlate.detect and simple mode from ui.get;
+# notices come from notes.list (left unread) and the machine's name from
+# sys.info. zxvd has no accessibility-tree or speech method
+# (kernel/src/speech is not on RPC), so the view hands in the screen's
+# elements and speaks what the model queues; none is invented.
+#
+# Its layer leans on Lamplight (layer 139), which is built after it, so
+# nothing is used from there; nothing nearer the core fits (the shared
+# blocks are capacities, shares, day counts and gcds; assay.score_rank
+# ranks the best first, where reading order counts what comes before).
+# Every entry is general, registered in CONCEPTS.tsv with Nightjar as its
+# owner for Lamplight and Parley to use:
+#   speech_cuts_in     NR1: an alert (kind 1) or a focus change (kind 2)
+#                      cuts in, page reading (kind 3) does not. Eve and
+#                      KRON witnessed: Eve holds the kind to 1..2, KRON
+#                      reads every kind below 3 as cutting in, so a kind
+#                      that is no kind (0 or below) is held (BOTH). Both
+#                      answer truths, so the pair is of one kind.
+#   speech_voice_ok    NR2: 80..450 words a minute, pitch 50..200, each
+#                      against its own range (Eve).
+#   a11y_element_ok    NR3: an element makes its ^ZXNIGHTJAR record: role,
+#                      name (its length; the text is the model's), row,
+#                      column and state (MYRA).
+#   reading_place      NR4: an element's place in reading order, by row
+#                      then column; 1 + the elements strictly before it
+#                      (KRON over the key row * 1000000 + column).
+#
+# Planned languages: OCaml (types) for the typed element record and
+# HyperTalk (views) for the order a card's fields are read in; each has a
+# runnable stand-in and a pending line. Python already has a runtime
+# (python in LANGUAGE_FIT.tsv), so it has no pending line.
+zxapp 1
+id     nightjar
+name   Nightjar
+version 1.0.0
+slot   133
+layer  L1
+matrix 133
+icon   icons/l1/133-nightjar.svg
+budget 233
+needs  sys.read
+needs  notify
+model  apps/nightjar_model.c
+
+provides speech_cuts_in truth kind
+logic    eve  speech_cuts_in apps/blocks/nightjar/cut_in.eve
+logic    kron speech_cuts_in apps/blocks/nightjar/cut_in.kron
+
+provides speech_voice_ok truth wpm pitch
+logic    eve speech_voice_ok apps/blocks/nightjar/voice.eve
+
+provides a11y_element_ok truth element role namelen row column state
+logic    myra a11y_element_ok apps/blocks/nightjar/element.myra
+pending  OCaml a11y_element_ok
+
+provides reading_place num row column
+logic    kron reading_place apps/blocks/nightjar/reading.kron
+pending  HyperTalk reading_place
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check speech_cuts_in kind=1,2,3,4 = true,true,false,false
+check speech_cuts_in kind=1,0 = both
+check speech_cuts_in kind=2,-1 = both
+check speech_voice_ok wpm=80,450,79,451,180,180 pitch=100,100,100,100,49,201 = true,true,false,false,false,false
+check speech_voice_ok wpm=180,180 pitch=50,200 = true,true
+check a11y_element_ok element=0,999,1000,1,1,1 role=0,9,0,10,0,0 namelen=1,99,1,1,100,1 row=0,9999,0,0,0,10000 column=0,9999,0,0,0,0 state=0,7,0,0,0,0 = true,true,false,false,false,false
+check a11y_element_ok element=-999,1 role=-9,1 namelen=-99,1 row=-9999,1 column=-9999,10000 state=-9,10 = true,false
+check reading_place row=0,0,1,1,0 column=5,1,0,0,9 = 2,1,4,4,3
+check reading_place row=999999,0 column=999999,0 = 2,1

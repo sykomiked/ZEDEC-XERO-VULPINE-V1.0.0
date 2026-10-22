@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Nightjar files one element on the screen, in MYRA (nightjar_rules.h
+; NR3): its number, its role (zui_widget.h zui_kind_t, 0 box .. 9
+; separator), the length of its name in bytes (the text is the model's),
+; its row and column on the screen and its state (bit 0 selected, bit 1
+; dimmed, bit 2 checked).
+^ZXNIGHTJAR(element:i3) = role:i1! ^ namelen:i2! ^ row:i4! ^ column:i4! ^ state:i1!

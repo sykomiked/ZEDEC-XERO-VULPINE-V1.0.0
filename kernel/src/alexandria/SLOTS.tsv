@@ -599,3 +599,7 @@
 562	logic.cutwater_edit_clip_ok	492.77	cutwater.edit_clip_ok	base
 563	logic.cutwater_edit_clip_row_ok	492.78	cutwater.edit_clip_row_ok	base
 564	num.cutwater_frame_timecode	592.79	cutwater.frame_timecode	base
+565	logic.nightjar_a11y_element_ok	492.79	nightjar.a11y_element_ok	base
+566	num.nightjar_reading_place	592.80	nightjar.reading_place	base
+567	logic.nightjar_speech_cuts_in	492.80	nightjar.speech_cuts_in	base
+568	logic.nightjar_speech_voice_ok	492.81	nightjar.speech_voice_ok	base
