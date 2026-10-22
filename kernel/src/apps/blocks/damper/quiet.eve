@@ -1,0 +1,22 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One sensor quiet (damper_rules.h DR1), in Eve: its hottest reading of
+# its latest second at or under its limit (margin = limit - temperature,
+# tenths of a degree, 0 .. 1900: a limit of at most 150.0 C less a reading
+# of at least -40.0 C), no smoke reported (smoke 0) and no reading of that
+# second that is BOTH (split 0). The alarm is raised when this is not
+# TRUE: Eve checks each field against its own range and cannot say "or",
+# so the rule is written as the quiet it negates. A margin past 1900, or a
+# smoke or split below 0, is no reading: Eve refuses it, quiet.kron reads
+# it as quiet, so such a row is held.
+eve damper
+heat_margin = 0 .. 1900
+no_smoke = 0 .. 0
+no_split = 0 .. 0
+
+sensor_quiet {
+  margin: heat_margin
+  smoke: no_smoke
+  split: no_split
+}

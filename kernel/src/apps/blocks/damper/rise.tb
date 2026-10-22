@@ -1,0 +1,23 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A sensor's temperature rise against its declared rate (damper_rules.h
+! DR2), in Trebago, exact: over its last readings temp(1..n), tenths of a
+! degree C, taken at stamp(1..n), seconds, the rise per minute from the
+! first to the last, 60 * (temp(n) - temp(1)) / (stamp(n) - stamp(1)),
+! less the declared rate in tenths of a degree a minute. Above 0 the
+! temperature climbs faster than the rate; an exact reduced fraction,
+! never rounded. ok is 0, and the answer divided by it refused, for fewer
+! than 2 or more than 64 readings, a last stamp not after the first, a
+! rate outside 10 .. 300, a reading outside -400 .. 1500 or a stamp
+! outside 0 .. 999999999999.
+trebago heatrise
+  in  temp(n), stamp(n), rate
+  out excess
+  var ok
+  ok = min(1, max(0, n - 1)) * min(1, max(0, 64 - n + 1)) * min(1, max(0, stamp(n) - stamp(1))) &
+     * min(1, max(0, rate - 9)) * min(1, max(0, 300 - rate + 1)) &
+     * (1 - min(1, sum(j, min(1, max(0, 0 - 400 - temp(j))) + min(1, max(0, temp(j) - 1500)) &
+     + min(1, max(0, 0 - stamp(j))) + min(1, max(0, stamp(j) - 999999999999)))))
+  excess = (60 * (temp(n) - temp(1)) / max(1, stamp(n) - stamp(1)) - rate) / ok
+end

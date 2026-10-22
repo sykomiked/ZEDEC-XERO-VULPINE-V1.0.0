@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a heat sensor's limits may be (damper_rules.h DR3), in Eve, in
+# tenths of a degree C: its temperature limit 40.0 .. 150.0 C (a fixed
+# heat detector's rating sits inside it) and its declared rate of rise
+# 1.0 .. 30.0 C a minute (the usual rate-of-rise rating is 8.3 C a
+# minute). A sensor with limits outside these is not kept.
+eve damper
+heat_limit = 400 .. 1500
+rise_rate = 10 .. 300
+
+sensor_limits {
+  limit: heat_limit
+  rate: rise_rate
+}

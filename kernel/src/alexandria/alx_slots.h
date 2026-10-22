@@ -562,7 +562,12 @@
 #define ALX_SLOT_NUM_MORAINE_ESCROW_KEY_STRENGTH 554u /* 592.76 moraine.escrow_key_strength */
 #define ALX_SLOT_LOGIC_MORAINE_GUARDIAN_NODE_OK  555u /* 492.72 moraine.guardian_node_ok */
 #define ALX_SLOT_LOGIC_MORAINE_KEY_RELEASE_NOW   556u /* 492.73 moraine.key_release_now */
-#define ALX_SLOT__COUNT 556u
+#define ALX_SLOT_LOGIC_DAMPER_BUILDING_ROOM_OK   557u /* 492.74 damper.building_room_ok */
+#define ALX_SLOT_LOGIC_DAMPER_FIRE_ALARM_QUIET   558u /* 492.75 damper.fire_alarm_quiet */
+#define ALX_SLOT_NUM_DAMPER_HEAT_RISE_EXCESS     559u /* 592.77 damper.heat_rise_excess */
+#define ALX_SLOT_LOGIC_DAMPER_HEAT_SENSOR_OK     560u /* 492.76 damper.heat_sensor_ok */
+#define ALX_SLOT_NUM_DAMPER_ROOM_ALARM_SENSORS   561u /* 592.78 damper.room_alarm_sensors */
+#define ALX_SLOT__COUNT 561u
 /* clang-format on */
 
 #endif

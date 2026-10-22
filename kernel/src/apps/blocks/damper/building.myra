@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Damper files one room of the building tree in MYRA (damper_rules.h
+; DR5): a sparse record under the floor and the room, with the room the
+; way out leads to next (toward, 0 for outside) and how many doors of the
+; room open straight outside (exits). The model asks whether the numbers
+; fit before it keeps the room.
+^ZXDAMPER(floor:i2, room:i3) = toward:i3! ^ exits:i1!

@@ -1,0 +1,170 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Damper, the fire and power watch: L2, slot 174. It watches heat and
+# smoke readings room by room, the machine's own power and battery heat
+# (sys.info, power.status) and zxvd's warnings (log.tail, journal.query),
+# says when the alarm is raised and which way leads out of the building,
+# and, on the person's own request, rings the evacuation contacts after a
+# cancel window and tells the ones the owner chose where the machine is
+# (phone.list, call.start, place.here). See damper_model.h DM1-DM9 and
+# damper_rules.h DR1-DR6.
+#
+# Life-safety: advisory and human-approved. Damper never replaces a
+# certified smoke alarm, never calls emergency services or anyone by
+# itself; contacts are rung only after the person confirms, and
+# Watchfire's cancel window is never skipped. Every setting (a room, a
+# sensor, a heat source, the alert pattern, the tone) changes only on the
+# owner's word (owner_confirmed), and so does standing down the calls
+# (call.hangup).
+#
+# zxvd has no method for home heat and smoke sensor readings and none
+# that posts a notice: readings are handed in by the person or a sensor
+# bridge (damper_reading), and the alarm's notice is composed as text for
+# the view (notify). Neither is invented.
+#
+# Composed, not written again (five uses of ZXAPP_USES 8; its own 6 logic
+# lines and its parts' 30 are 36 of ZXAPP_LOGIC_MAX 128; every part
+# carries version 1.0.0 and its provides lines): zxvd's warnings counted
+# at a level are wake.count (Wake's own filter and count); the machine's
+# battery heat against its limits is brazier.heat_ok and
+# brazier.heat_safe, and the minutes it runs on battery when the power
+# fails brazier.minutes_left; a heat source (a plug, a heater, an oven) is
+# a Homestead device, filed by homestead.home_device_ok, and its energy
+# over the readings is homestead.device_energy; the evacuation contacts
+# are Watchfire's (watchfire.sos_contact_ok), with its cancel window
+# (watchfire.cancel_left), its ring rule (watchfire.sos_ring_ok) and
+# "share where the machine is with this contact"
+# (watchfire.place_share_ok); the alarm's flash and vibrate pattern is
+# conch.sound_alert_map_ok (sound 3, an alarm) and its tone on a hearing
+# device stays under the owner's cap by conch.hearing_level_ok.
+#
+# The task's slot 174 is no matrix layer (zxapp.c M1: 0..144); an L2 app
+# sits on the layer of its part that is outermost in MATRIX_ORDER.tsv:
+# Watchfire (place 129, layer 143), past Conch (128), Homestead (93) and
+# Brazier (52); Wake is a wave 0 app, nearer the core.
+#
+# Witness pairs are of one kind (zxapp.c run_one B3), and Eve answers
+# only truths, each field against its own range, with no "or" across
+# fields. The task's "raise the alarm" (any sensor over its limit OR
+# smoke reported OR a reading that is BOTH) is an "or", so Eve and KRON
+# witness its negation, one sensor quiet (fire_alarm_quiet), and the
+# alarm is raised when that is not TRUE for every sensor (lpres_conjoin):
+# a sensor FALSE, BOTH or held is raised, never quiet. The temperature
+# against its limit comes in as a margin (limit - reading), as Levin's
+# and Homestead's margins do.
+#
+# Later layers use "raise the alarm" and the temperature rise (Athanor,
+# Heartstring, Pyrometer, Ravelin), so both are registered in CONCEPTS.tsv
+# with Damper as owner. Kept in C: the readings' window, the four-valued
+# join of two reports of one second (lpres_kjoin), the way out along the
+# building tree, zxvd's answers and the notice's words.
+#
+# Planned (no runtime yet): JOVIAL owns real-time control tables, so it
+# waits on fire_alarm_quiet; Scala owns typed dataflow over readings, so
+# it waits on heat_rise_excess; Objective-C owns objects, so it waits on
+# the building tree's room record.
+zxapp 1
+id     damper
+name   Damper
+version 1.0.0
+slot   174
+layer  L2
+matrix 143
+icon   icons/l2/174-damper.svg
+budget 233
+needs  journal
+needs  sys.read
+needs  notify
+needs  peers
+needs  location
+model  apps/damper_model.c
+use    wake 1        # @num.wake_count
+use    brazier 1     # @logic.brazier_heat_ok @logic.brazier_heat_safe @num.brazier_minutes_left
+use    homestead 1   # @logic.homestead_home_device_ok @num.homestead_device_energy
+use    watchfire 1   # @logic.watchfire_place_share_ok @num.watchfire_cancel_left @logic.watchfire_sos_ring_ok @logic.watchfire_sos_contact_ok
+use    conch 1       # @logic.conch_sound_alert_map_ok @logic.conch_hearing_level_ok
+# what it exports, so apps built from it can use them too (C1)
+provides wake.count num level bar
+provides brazier.heat_ok truth temp
+provides brazier.heat_safe truth temp
+provides brazier.minutes_left num charge draw
+provides homestead.home_device_ok truth device kind lo hi setpoint
+provides homestead.device_energy num device want wh
+provides watchfire.place_share_ok truth started optin listed placeok
+provides watchfire.cancel_left num window waited
+provides watchfire.sos_ring_ok truth window left cancelled
+provides watchfire.sos_contact_ok truth seq peer bytes stamp
+provides conch.sound_alert_map_ok truth sound flash vibrate
+provides conch.hearing_level_ok truth gain total cap
+
+# One sensor quiet (DR1, critical): margin 0..1900, no smoke, no BOTH
+# reading. Ada as Eve declares each range, APL as KRON compares; the alarm
+# is raised when it is not TRUE. A margin past 1900 or a flag below 0
+# held (Eve refuses, KRON reads it as quiet).
+provides fire_alarm_quiet truth margin smoke split
+logic    eve  fire_alarm_quiet apps/blocks/damper/quiet.eve
+logic    kron fire_alarm_quiet apps/blocks/damper/quiet.kron
+pending  JOVIAL fire_alarm_quiet
+
+# The temperature rise per minute over the last readings against the
+# declared rate (DR2), exact. FORTRAN as Trebago.
+provides heat_rise_excess num temp stamp rate
+logic    trebago heat_rise_excess apps/blocks/damper/rise.tb
+pending  Scala heat_rise_excess
+
+# A heat sensor's limits (DR3): 40.0..150.0 C, 1.0..30.0 C a minute. Ada
+# as Eve.
+provides heat_sensor_ok truth limit rate
+logic    eve heat_sensor_ok apps/blocks/damper/limits.eve
+
+# The sensor grid (DR4), rooms by sensors: each sensor's room's raised
+# sensors. APL as KRON.
+provides room_alarm_sensors num room raised
+logic    kron room_alarm_sensors apps/blocks/damper/grid.kron
+
+# The building tree (DR5): ^ZXDAMPER(floor, room) = toward ^ exits.
+# MUMPS as MYRA.
+provides building_room_ok truth floor room toward exits
+logic    myra building_room_ok apps/blocks/damper/building.myra
+pending  Objective-C building_room_ok
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check fire_alarm_quiet margin=0,1900,-1,5,5,1100 smoke=0,0,0,1,0,0 split=0,0,0,0,1,0 = true,true,false,false,false,true
+check fire_alarm_quiet margin=5,1901 smoke=0,0 split=0,0 = both
+check fire_alarm_quiet margin=5,5 smoke=0,-1 split=0,0 = both
+check heat_rise_excess temp=200,250,300 stamp=0,30,60 rate=83 = 17
+check heat_rise_excess temp=200,215 stamp=0,7 rate=10 = 830/7
+check heat_rise_excess temp=300,200 stamp=1700000000,1700000060 rate=83 = -183
+check heat_rise_excess temp=-400,1500 stamp=0,999999999999 rate=300 = -99999999961900/333333333333
+check heat_sensor_ok limit=400,1500,399,1501,570,570 rate=10,300,83,83,9,301 = true,true,false,false,false,false
+check room_alarm_sensors room=12,12,3,12,3 raised=1,0,1,1,0 = 2,2,1,2,1
+check building_room_ok floor=1,99,-99,100,1,1,1 room=12,999,1,1,1000,1,1 toward=3,0,999,0,0,1000,0 exits=0,9,1,1,1,1,10 = true,true,true,false,false,false,false
+# zxvd's warnings at or past a level
+check wake.count level=0,3,5,2 bar=3 = 2
+check wake.count level=0,3 bar=1,2 = both
+# The machine's battery heat, and its minutes on battery
+check brazier.heat_ok temp=-1,0,450,451 = false,true,true,false
+# agree: brazier.heat_ok one integer against one declared range: Eve and KRON read the same reading the same way
+check brazier.heat_safe temp=-201,-200,600,601 = false,true,true,false
+# agree: brazier.heat_safe one integer against one declared range: Eve and KRON read the same reading the same way
+check brazier.minutes_left charge=0,1000,35700 draw=1000,1000,14090 = 0,60,152
+check brazier.minutes_left charge=1,1000000000 draw=1,1 = both
+# A heat source as a Homestead device, and its energy
+check homestead.home_device_ok device=41,9999,10000 kind=5,6,5 lo=50,-99999,0 hi=300,99999,1 setpoint=200,0,1 = true,true,false
+check homestead.home_device_ok device=7,7 kind=4,7 lo=0,0 hi=1,1 setpoint=1,1 = both
+check homestead.device_energy device=41,42,41 want=41 wh=400,7,12 = 412
+check homestead.device_energy device=1,1,1 want=1 wh=9223372036854775807,1,-1 = both
+# The evacuation contacts: Watchfire's share, cancel window, ring rule and record
+check watchfire.place_share_ok started=1,1 optin=1,0 listed=1,1 placeok=1,1 = true,false
+check watchfire.place_share_ok started=1,2 optin=1,1 listed=1,1 placeok=1,1 = both
+check watchfire.cancel_left window=30,30,30 waited=0,29,31 = 30,1,0
+check watchfire.cancel_left window=30,30 waited=0,-1 = both
+check watchfire.sos_ring_ok window=10,30,30 left=0,1,0 cancelled=0,0,1 = true,false,false
+check watchfire.sos_ring_ok window=30,30 left=0,-1 cancelled=0,0 = both
+check watchfire.sos_contact_ok seq=1,100 peer=7,7 bytes=3,1 stamp=1700000000000,0 = true,false
+# The alarm's flash and vibrate pattern, and its tone under the owner's cap
+check conch.sound_alert_map_ok sound=3,3,3 flash=3,0,3 vibrate=3,0,-10 = true,true,false
+check conch.sound_alert_map_ok sound=3,3 flash=1,4 vibrate=1,1 = both
+check conch.hearing_level_ok gain=0,301 total=850,850 cap=900,900 = true,false
+check conch.hearing_level_ok gain=0,0 total=850,901 cap=900,900 = both

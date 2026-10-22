@@ -328,6 +328,37 @@ cupel	check gnomon.triangle_area2 ax=0,0,0,-1000000,5 ay=0,0,0,-1000000,5 bx=1,0
 cupel	check gnomon.triangle_area2 ax=0,1000001 ay=0,0 bx=1,0 by=0,0 cx=0,0 cy=1,1 = both
 cupel	check gnomon.side_len_sq ax=0,0,-1000000,7 ay=0,0,-1000000,7 bx=3,0,1000000,7 by=4,0,1000000,7 = 25,0,8000000000000,0
 cupel	check gnomon.side_len_sq ax=0,0 ay=0,-1000001 bx=3,0 by=4,0 = both
+damper	check fire_alarm_quiet margin=0,1900,-1,5,5,1100 smoke=0,0,0,1,0,0 split=0,0,0,0,1,0 = true,true,false,false,false,true
+damper	check fire_alarm_quiet margin=5,1901 smoke=0,0 split=0,0 = both
+damper	check fire_alarm_quiet margin=5,5 smoke=0,-1 split=0,0 = both
+damper	check heat_rise_excess temp=200,250,300 stamp=0,30,60 rate=83 = 17
+damper	check heat_rise_excess temp=200,215 stamp=0,7 rate=10 = 830/7
+damper	check heat_rise_excess temp=300,200 stamp=1700000000,1700000060 rate=83 = -183
+damper	check heat_rise_excess temp=-400,1500 stamp=0,999999999999 rate=300 = -99999999961900/333333333333
+damper	check heat_sensor_ok limit=400,1500,399,1501,570,570 rate=10,300,83,83,9,301 = true,true,false,false,false,false
+damper	check room_alarm_sensors room=12,12,3,12,3 raised=1,0,1,1,0 = 2,2,1,2,1
+damper	check building_room_ok floor=1,99,-99,100,1,1,1 room=12,999,1,1,1000,1,1 toward=3,0,999,0,0,1000,0 exits=0,9,1,1,1,1,10 = true,true,true,false,false,false,false
+damper	check wake.count level=0,3,5,2 bar=3 = 2
+damper	check wake.count level=0,3 bar=1,2 = both
+damper	check brazier.heat_ok temp=-1,0,450,451 = false,true,true,false
+damper	check brazier.heat_safe temp=-201,-200,600,601 = false,true,true,false
+damper	check brazier.minutes_left charge=0,1000,35700 draw=1000,1000,14090 = 0,60,152
+damper	check brazier.minutes_left charge=1,1000000000 draw=1,1 = both
+damper	check homestead.home_device_ok device=41,9999,10000 kind=5,6,5 lo=50,-99999,0 hi=300,99999,1 setpoint=200,0,1 = true,true,false
+damper	check homestead.home_device_ok device=7,7 kind=4,7 lo=0,0 hi=1,1 setpoint=1,1 = both
+damper	check homestead.device_energy device=41,42,41 want=41 wh=400,7,12 = 412
+damper	check homestead.device_energy device=1,1,1 want=1 wh=9223372036854775807,1,-1 = both
+damper	check watchfire.place_share_ok started=1,1 optin=1,0 listed=1,1 placeok=1,1 = true,false
+damper	check watchfire.place_share_ok started=1,2 optin=1,1 listed=1,1 placeok=1,1 = both
+damper	check watchfire.cancel_left window=30,30,30 waited=0,29,31 = 30,1,0
+damper	check watchfire.cancel_left window=30,30 waited=0,-1 = both
+damper	check watchfire.sos_ring_ok window=10,30,30 left=0,1,0 cancelled=0,0,1 = true,false,false
+damper	check watchfire.sos_ring_ok window=30,30 left=0,-1 cancelled=0,0 = both
+damper	check watchfire.sos_contact_ok seq=1,100 peer=7,7 bytes=3,1 stamp=1700000000000,0 = true,false
+damper	check conch.sound_alert_map_ok sound=3,3,3 flash=3,0,3 vibrate=3,0,-10 = true,true,false
+damper	check conch.sound_alert_map_ok sound=3,3 flash=1,4 vibrate=1,1 = both
+damper	check conch.hearing_level_ok gain=0,301 total=850,850 cap=900,900 = true,false
+damper	check conch.hearing_level_ok gain=0,0 total=850,901 cap=900,900 = both
 dibber	check bed_water_litres area=0,100,3,999999,120 depth=0,25,1,999,7 = 0,25,3/100,998999001/100,42/5
 dibber	check bed_water_litres area=1,1000000 depth=1,1 = both
 dibber	check water_now_ok excess=-5,0,1,-999999999999999999,0 frost=0,0,0,0,1 = true,true,false,true,false
