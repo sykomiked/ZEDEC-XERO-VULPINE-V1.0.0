@@ -1,0 +1,106 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Kinetoscope, the video player: layer 51 of the matrix. A video is an IVF
+# file (VP8 or VP9) in the Hoard, read with files.read: its header gives
+# the picture's size and the frame rate, its frames' headers the times and
+# keyframes. The frames are cut for streaming with zxvd's own rule
+# (stream.plan) and each segment described with its CID (stream.segment).
+# Watching together is a watch hall: hall.load puts the media CID the
+# owner publishes in a hall, hall.play, hall.pause and hall.seek steer it,
+# hall.status says where every viewer is (kinetoscope_model.h KM1-KM8).
+#
+# zxvd has no method that decodes or shows video on this device (no local
+# video output), none that plays it at a local rate, and none that gives
+# a Hoard file's media CID past fab.put's 2 MiB block. None is invented:
+# the view draws the frames where Kinetoscope fits them, and the owner
+# publishes the media CID. The hall's methods are behind zxvd's pspace
+# switch, off until the owner turns it on.
+#
+# Advisory and owner-confirmed: hall.load, hall.play, hall.pause and
+# hall.seek change what every viewer sees, so each takes the owner's
+# confirmed word; without it nothing is sent.
+#
+# Built on what is nearer the core. Its layer leans on Witness: the
+# segments of a plan that start on a keyframe (the places a viewer can
+# start) are counted with witness.kind_count, never written again. A
+# position or a length shown as h:mm:ss is halloo.hms. Footlight owns a
+# 16:9 slide's fit and letterbox_bar, but it is built after this layer
+# (MATRIX_ORDER place 64, this one 37), so it cannot be used here: the
+# fit of a picture of any aspect is new (video_fit_w, video_fit_h), and
+# the bars beside it, floor((side - fit) / 2), are taken in the model's C.
+# Fireglow's play_speed_ok (half to three times) is a listener's speed,
+# also built later; a hall's rate keeps zxvd's own range, so hall_rate_ok
+# is new.
+#
+# One later layer leans on this one, so each entry is a general rule
+# registered in CONCEPTS.tsv with Kinetoscope as owner:
+#   video_fit_w      the width of a picture of vidw by vidh fitted whole
+#                    in a window of winw by winh, aspect kept (KR1). KRON
+#                    and C++ (as WebAssembly) witness it: the C++ refuses
+#                    a side outside its domain, KRON answers: held.
+#   video_fit_h      its height (KR2), the same pair and refusal.
+#   frame_at_pos     the frame a position falls in at fnum / fden frames
+#                    a second, an exact rational in Trebago (KR3).
+#   hall_rate_ok     a watch hall's rate, 1..262144 (up to four times),
+#                    Eve's range (KR4). The task asks for "up to 4x"; the
+#                    least, 1, is zxvd's own (zxvd_pspace.c), followed.
+#   resume_row_ok where a video was left, a ^ZXKINETOSCOPE record in
+#                    MYRA (KR5).
+# Input names have no underscore: KRON reads _ as floor.
+#
+# Kept in C, since no runnable language owns it: reading the IVF header
+# and frame headers (bytes, base64), a keyframe's bits, and zxvd's answers.
+#
+# Planned languages: LabVIEW (dataflow, signal) owns sampling a time
+# signal at a rate, frame_at_pos. MATLAB (matrix numerics) has no entry of
+# its kind here: nothing Kinetoscope decides is a matrix, so there is no
+# pending line for it.
+zxapp 1
+id     kinetoscope
+name   Kinetoscope
+version 1.0.0
+slot   51
+layer  L1
+matrix 51
+icon   icons/l1/051-kinetoscope.svg
+budget 233
+needs  fs.read
+needs  peers
+model  apps/kinetoscope_model.c
+use    witness 1   # @num.witness_kind_count
+use    halloo 1    # @num.halloo_hms
+
+# The fit (KR1, KR2): KRON and C++ (as WebAssembly), witnessed.
+provides video_fit_w num vidw vidh winw winh
+logic    kron video_fit_w apps/blocks/kinetoscope/fit_w.kron
+logic    wasm video_fit_w apps/blocks/kinetoscope/fit_w.wasm
+
+provides video_fit_h num vidw vidh winw winh
+logic    kron video_fit_h apps/blocks/kinetoscope/fit_h.kron
+logic    wasm video_fit_h apps/blocks/kinetoscope/fit_h.wasm
+
+# The frame at a position (KR3): exact in Trebago.
+provides frame_at_pos num pos fnum fden
+logic    trebago frame_at_pos apps/blocks/kinetoscope/frame.tb
+pending  LabVIEW frame_at_pos
+
+# A hall's rate (KR4): Eve's range.
+provides hall_rate_ok truth rate
+logic    eve hall_rate_ok apps/blocks/kinetoscope/rate.eve
+
+# Where a video was left (KR5): a ^ZXKINETOSCOPE record in MYRA.
+provides resume_row_ok truth video pos length stamp
+logic    myra resume_row_ok apps/blocks/kinetoscope/resume.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check video_fit_w vidw=1920,1920,640,1,65535,1080,65535 vidh=1080,1080,480,65535,1,1920,65535 winw=1920,1280,1920,65535,0,1366,65535 winh=1080,1024,1080,65535,0,768,65535 = 1920,1280,1440,1,0,432,65535
+check video_fit_w vidw=1920,1920 vidh=1080,1080 winw=1920,70000 winh=1080,1080 = both
+check video_fit_h vidw=1920,1920,640,1,65535,1080,65535 vidh=1080,1080,480,65535,1,1920,65535 winw=1920,1280,1920,65535,0,1366,65535 winh=1080,1024,1080,65535,0,768,65535 = 1080,720,1080,65535,0,768,65535
+check video_fit_h vidw=1920,1920 vidh=1080,1080 winw=1920,1920 winh=1080,-1 = both
+check frame_at_pos pos=0,1000,1001,33,40,359999999,359999999 fnum=30,30,30000,30,24,999999,1 fden=1,1,1001,1,1,1,999999 = 0,30,30,99/100,24/25,359999639000001/1000,359999999/999999000
+check hall_rate_ok rate=0,1,65536,262144,262145,-1 = false,true,true,true,false,false
+check resume_row_ok video=0,9999,10000,-9999,1,1 pos=0,999999999,1,-1,1000000000,1 length=0,999999999,1,1,1,1 stamp=0,99999999999,1,1,1,100000000000 = true,true,false,true,false,false
+check witness.kind_count kind=1,0,1,1 want=1 = 3
+check witness.kind_count kind=1,2 want=1,1 = both
+check halloo.hms ms=0,5025000 = 0,12345

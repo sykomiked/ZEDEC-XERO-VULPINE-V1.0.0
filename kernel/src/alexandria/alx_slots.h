@@ -399,7 +399,12 @@
 #define ALX_SLOT_NUM_COLONNADE_PILLAR_TIME_MS    391u /* 591.87 colonnade.pillar_time_ms */
 #define ALX_SLOT_LOGIC_COLONNADE_PLAY_LIMITS_OK  392u /* 491.96 colonnade.play_limits_ok */
 #define ALX_SLOT_LOGIC_COLONNADE_WITNESS_SPLIT   393u /* 491.97 colonnade.witness_split */
-#define ALX_SLOT__COUNT 393u
+#define ALX_SLOT_NUM_KINETOSCOPE_FRAME_AT_POS    394u /* 591.88 kinetoscope.frame_at_pos */
+#define ALX_SLOT_LOGIC_KINETOSCOPE_HALL_RATE_OK  395u /* 491.98 kinetoscope.hall_rate_ok */
+#define ALX_SLOT_LOGIC_KINETOSCOPE_RESUME_ROW_OK 396u /* 491.99 kinetoscope.resume_row_ok */
+#define ALX_SLOT_NUM_KINETOSCOPE_VIDEO_FIT_H     397u /* 591.89 kinetoscope.video_fit_h */
+#define ALX_SLOT_NUM_KINETOSCOPE_VIDEO_FIT_W     398u /* 591.90 kinetoscope.video_fit_w */
+#define ALX_SLOT__COUNT 398u
 /* clang-format on */
 
 #endif

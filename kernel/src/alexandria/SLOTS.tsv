@@ -428,3 +428,8 @@
 391	num.colonnade_pillar_time_ms	591.87	colonnade.pillar_time_ms	base
 392	logic.colonnade_play_limits_ok	491.96	colonnade.play_limits_ok	base
 393	logic.colonnade_witness_split	491.97	colonnade.witness_split	base
+394	num.kinetoscope_frame_at_pos	591.88	kinetoscope.frame_at_pos	base
+395	logic.kinetoscope_hall_rate_ok	491.98	kinetoscope.hall_rate_ok	base
+396	logic.kinetoscope_resume_row_ok	491.99	kinetoscope.resume_row_ok	base
+397	num.kinetoscope_video_fit_h	591.89	kinetoscope.video_fit_h	base
+398	num.kinetoscope_video_fit_w	591.90	kinetoscope.video_fit_w	base

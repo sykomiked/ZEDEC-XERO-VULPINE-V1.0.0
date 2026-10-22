@@ -1,0 +1,20 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The frame a position falls in, in Trebago (kinetoscope_rules.h KR3): a
+! position of pos ms in a video of fnum / fden frames a second is frame
+! pos * fnum / (1000 * fden) from the first, an exact reduced rational,
+! never rounded (the frame shown is its floor; 1001 ms at 30000/1001 is
+! frame 30 exactly). For integers min(1, max(0, x)) is 1 exactly when x is
+! 1 or more, so ok is 1 when pos is 0 .. 359999999 (under 100 hours) and
+! fnum and fden are each 1 .. 999999, and 0 otherwise; the answer is
+! divided by ok, so anything outside is a division by zero, refused.
+trebago frame_at
+  in  pos(n), fnum(n), fden(n)
+  out frame(n)
+  var ok(n)
+  ok(i) = min(1, max(0, pos(i) + 1)) * min(1, max(0, 360000000 - pos(i))) &
+        * min(1, max(0, fnum(i))) * min(1, max(0, 1000000 - fnum(i))) &
+        * min(1, max(0, fden(i))) * min(1, max(0, 1000000 - fden(i)))
+  frame(i) = pos(i) * fnum(i) / (1000 * fden(i)) / ok(i)
+end

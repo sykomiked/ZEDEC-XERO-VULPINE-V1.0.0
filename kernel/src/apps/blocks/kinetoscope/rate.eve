@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a watch hall's playing rate may be (kinetoscope_rules.h KR4), in
+# Eve: a q16 multiple of the normal speed (65536), from the least step
+# above a stop (1) up to four times (262144), the very range zxvd's hall
+# keeps (zxvd_pspace.c). A rate outside is refused, never sent and never
+# brought inside silently.
+eve kinetoscope
+hall_rate_q16 = 1 .. 262144
+
+hall_play_rate {
+  rate: hall_rate_q16
+}

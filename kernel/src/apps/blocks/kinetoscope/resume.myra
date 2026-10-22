@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Kinetoscope files where a video was watched to, in MYRA
+; (kinetoscope_rules.h KR5): under the video's place in the resume table,
+; the position and the video's length in ms and when it was kept (seconds
+; since 1970). Kinetoscope asks whether the numbers fit before it keeps
+; them; that the position is inside the length is the model's own check.
+^ZXKINETOSCOPE(video:i4) = pos:i9! ^ length:i9! ^ stamp:i11!
