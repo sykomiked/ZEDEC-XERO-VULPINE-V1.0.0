@@ -175,3 +175,8 @@
 138	logic.ferry_move_ok	490.65	ferry.move_ok	base
 139	logic.ferry_target_fits	490.66	ferry.target_fits	base
 140	num.ferry_target_room	590.63	ferry.target_room	base
+141	num.homestead_device_cmd_n	590.64	homestead.device_cmd_n	base
+142	logic.homestead_device_cmd_ok	490.67	homestead.device_cmd_ok	base
+143	num.homestead_device_energy	590.65	homestead.device_energy	base
+144	logic.homestead_home_device_ok	490.68	homestead.home_device_ok	base
+145	logic.homestead_home_scene_ok	490.69	homestead.home_scene_ok	base

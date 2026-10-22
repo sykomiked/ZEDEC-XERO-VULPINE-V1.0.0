@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Homestead files a home device in MYRA (homestead_rules.h HR5): its
+; number, its kind (homestead_rules.h HOMESTEAD_LIGHT .. HOMESTEAD_OVEN),
+; the low and high ends of its range and its setpoint, in the device's own
+; unit. The rules say what the values may mean; this says whether they
+; make a record.
+^ZXHOME(device:i4) = kind:i1! ^ lo:i5! ^ hi:i5! ^ setpoint:i5!

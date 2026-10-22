@@ -1,0 +1,23 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A home device command is allowed (homestead_rules.h HR2), in Eve. Eve
+# checks each field against its own range, so the setpoint comes as its two
+# margins inside the device's range (above = setpoint - lo, below = hi -
+# setpoint, 0 to 199998, the widest range -99999..99999 allows), the
+# owner's approval as what is still owed (owed = guarded - approved: 1 when
+# a lock, heater or oven lacks warren.approval_ok's yes, so only -1 and 0
+# pass), and whether an AI suggested it (ai: only 0 runs; a suggestion is
+# held for the owner). command.kron reads any margin at or above 0 as
+# inside: a margin past 199998 is held.
+eve homestead
+setpoint_room = 0 .. 199998
+approval_owed = -1 .. 0
+from_ai = 0 .. 0
+
+device_command {
+  above: setpoint_room
+  below: setpoint_room
+  owed: approval_owed
+  ai: from_ai
+}

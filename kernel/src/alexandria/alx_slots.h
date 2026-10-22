@@ -146,7 +146,12 @@
 #define ALX_SLOT_LOGIC_FERRY_MOVE_OK             138u /* 490.65 ferry.move_ok */
 #define ALX_SLOT_LOGIC_FERRY_TARGET_FITS         139u /* 490.66 ferry.target_fits */
 #define ALX_SLOT_NUM_FERRY_TARGET_ROOM           140u /* 590.63 ferry.target_room */
-#define ALX_SLOT__COUNT 140u
+#define ALX_SLOT_NUM_HOMESTEAD_DEVICE_CMD_N      141u /* 590.64 homestead.device_cmd_n */
+#define ALX_SLOT_LOGIC_HOMESTEAD_DEVICE_CMD_OK   142u /* 490.67 homestead.device_cmd_ok */
+#define ALX_SLOT_NUM_HOMESTEAD_DEVICE_ENERGY     143u /* 590.65 homestead.device_energy */
+#define ALX_SLOT_LOGIC_HOMESTEAD_HOME_DEVICE_OK  144u /* 490.68 homestead.home_device_ok */
+#define ALX_SLOT_LOGIC_HOMESTEAD_HOME_SCENE_OK   145u /* 490.69 homestead.home_scene_ok */
+#define ALX_SLOT__COUNT 145u
 /* clang-format on */
 
 #endif

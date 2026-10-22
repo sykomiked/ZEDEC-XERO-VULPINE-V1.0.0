@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Homestead files one step of a scene in MYRA (homestead_rules.h HR6):
+; the scene's number, the device the step sets and the setpoint it sets,
+; in the device's own unit. Each step still passes device_cmd_ok when
+; the scene runs.
+^ZXSCENE(scene:i3, device:i4) = setpoint:i5!

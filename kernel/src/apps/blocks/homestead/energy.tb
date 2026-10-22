@@ -1,0 +1,14 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! One device's energy (homestead_rules.h HR4), in Trebago: the exact sum
+! of the readings in watt-hours whose device is want, added from the first.
+! A reading counts when both 1 + device - want and 1 + want - device are
+! at least 1, that is when its device is want. A partial sum past 64 bits
+! is refused, never wrapped; energy.kron adds from the last, so a sum that
+! passes 64 bits one way only is held.
+trebago device_energy
+  in  device(n), want, wh(n)
+  out energy
+  energy = sum(i, max(0, min(1, 1 + device(i) - want)) * max(0, min(1, 1 + want - device(i))) * wh(i))
+end

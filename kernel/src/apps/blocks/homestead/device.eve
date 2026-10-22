@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a home device record may say (homestead_rules.h HR5): a device
+# number 1 to 9999, one of the six kinds (light, plug, blind, lock, heater,
+# oven), and the ends of its range and its setpoint, each -99999 to 99999
+# in the device's own unit. device.myra holds only the digits: a device 0
+# or a kind 7 to 9 is held.
+eve homestead
+device_number = 1 .. 9999
+device_kind = 1 .. 6
+device_point = -99999 .. 99999
+
+home_device {
+  device: device_number
+  kind: device_kind
+  lo: device_point
+  hi: device_point
+  setpoint: device_point
+}
