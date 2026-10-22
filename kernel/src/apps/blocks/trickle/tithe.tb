@@ -1,0 +1,29 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A tithe of one income, in Trebago (trickle_rules.h TK2):
+! floor((income * tnum + carry) / tden), counted in integers three digits
+! at a time from the top as due.tb does (Trebago is exact and has no
+! floor); the tithe is at most the income, below 10^12, so the top group
+! is 10^9. ok is 0 for an income outside 0..999999999999, a tden outside
+! 1..999999, a tnum outside 0..tden or a carry outside 0..tden - 1, and
+! the tithe is divided by it: refused. tithe.sutra holds tden to 9(5):
+! past it the two disagree and it is held.
+trebago tithe
+  in  income(n), tnum(n), tden(n), carry(n)
+  out tithe(n)
+  var y(n), a(n), b(n), c(n), d(n), ok(n)
+  ok(i) = min(1, max(0, income(i) + 1)) * min(1, max(0, 999999999999 - income(i) + 1)) &
+        * min(1, max(0, tden(i))) * min(1, max(0, 999999 - tden(i) + 1)) &
+        * min(1, max(0, tnum(i) + 1)) * min(1, max(0, tden(i) - tnum(i) + 1)) &
+        * min(1, max(0, carry(i) + 1)) * min(1, max(0, tden(i) - carry(i)))
+  y(i) = (income(i) * tnum(i) + carry(i)) * ok(i)
+  a(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000000000 * tden(i) + 1)))
+  y(i) = y(i) - a(i) * 1000000000 * tden(i)
+  b(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000000 * tden(i) + 1)))
+  y(i) = y(i) - b(i) * 1000000 * tden(i)
+  c(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000 * tden(i) + 1)))
+  y(i) = y(i) - c(i) * 1000 * tden(i)
+  d(i) = sum(k = 1:999, min(1, max(0, y(i) - k * tden(i) + 1)))
+  tithe(i) = (a(i) * 1000000000 + b(i) * 1000000 + c(i) * 1000 + d(i)) / ok(i)
+end

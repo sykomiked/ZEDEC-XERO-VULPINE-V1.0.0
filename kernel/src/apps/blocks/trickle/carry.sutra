@@ -1,0 +1,24 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The remainder a tithe carries to the next income, in Sutra
+# (trickle_rules.h TK2): (income * tnum + carry) - tithe * tden with tithe
+# = floor((income * tnum + carry) / tden), in tden-ths of a minor unit,
+# 0..tden - 1, so no part of a unit is lost to rounding. The same pictures
+# and refusals as tithe.sutra; carry.tb says the same in Trebago, which
+# takes tden to six digits: past 9(5) the two disagree and it is held.
+record tithe-carry
+  income: 9(12)
+  tnum: 9(5)
+  tden: 9(5)
+  carry: 9(5)
+  room: 9(5)
+  gap: 9(5)
+  tithe: 9(12)
+  rest: 9(5)
+procedure
+  compute room = tden - tnum
+  compute gap = tden - carry - 1
+  compute tithe = (income * tnum + carry) / tden
+  compute rest = income * tnum + carry - tithe * tden
+  answer rest

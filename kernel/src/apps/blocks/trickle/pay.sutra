@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether one period of a stream may be paid, in Sutra (trickle_rules.h
+# TK3): due 1 to 2^53 - 1 minor units, after (the paying balance after
+# it), room (the per-day stream cap left after it) and left (the stream's
+# total left after it) not below zero, and the owner's approval standing
+# (approved = 1). due, after, room and left are s9(18) and approved one
+# digit: a value past its picture is refused, where pay.eve answers FALSE:
+# held. The model posts only when both say TRUE.
+record stream-pay
+  due: s9(18)
+  after: s9(18)
+  room: s9(18)
+  left: s9(18)
+  approved: 9
+procedure
+  answer due >= 1 and due <= 9007199254740991 and after >= 0 and room >= 0 and left >= 0 and approved = 1

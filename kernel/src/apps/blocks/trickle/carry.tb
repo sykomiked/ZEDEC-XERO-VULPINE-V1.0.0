@@ -1,0 +1,27 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The remainder a tithe carries to the next income, in Trebago
+! (trickle_rules.h TK2): what is left of y = income * tnum + carry once
+! the tithe's tden-ths are taken out, counted three digits at a time as
+! tithe.tb does, 0..tden - 1. ok is 0 outside the domain tithe.tb names,
+! and the remainder is divided by it: refused. carry.sutra holds tden to
+! 9(5): past it the two disagree and it is held.
+trebago carry
+  in  income(n), tnum(n), tden(n), carry(n)
+  out rest(n)
+  var y(n), a(n), b(n), c(n), d(n), ok(n)
+  ok(i) = min(1, max(0, income(i) + 1)) * min(1, max(0, 999999999999 - income(i) + 1)) &
+        * min(1, max(0, tden(i))) * min(1, max(0, 999999 - tden(i) + 1)) &
+        * min(1, max(0, tnum(i) + 1)) * min(1, max(0, tden(i) - tnum(i) + 1)) &
+        * min(1, max(0, carry(i) + 1)) * min(1, max(0, tden(i) - carry(i)))
+  y(i) = (income(i) * tnum(i) + carry(i)) * ok(i)
+  a(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000000000 * tden(i) + 1)))
+  y(i) = y(i) - a(i) * 1000000000 * tden(i)
+  b(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000000 * tden(i) + 1)))
+  y(i) = y(i) - b(i) * 1000000 * tden(i)
+  c(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000 * tden(i) + 1)))
+  y(i) = y(i) - c(i) * 1000 * tden(i)
+  d(i) = sum(k = 1:999, min(1, max(0, y(i) - k * tden(i) + 1)))
+  rest(i) = (y(i) - d(i) * tden(i)) / ok(i)
+end

@@ -1,0 +1,23 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether one period of a stream may be paid, in Eve (trickle_rules.h
+# TK3): due 1 to 2^53 - 1 minor units (libzxv ZXV_AMOUNT_MAX), the paying
+# account not below zero after it (after = its balance - due), the
+# owner's per-day cap for streams not passed (room = cap - streamed today
+# - due), the stream not paying past its total (left = total - paid -
+# due), each 0 to 18 digits, and the owner's approval standing (approved
+# exactly 1). Each field is checked against its own range. pay.sutra says
+# the same in Sutra; the model posts only when both say TRUE.
+eve trickle
+minor_due = 1 .. 9007199254740991
+minor_left = 0 .. 999999999999999999
+flag_on = 1 .. 1
+
+stream_pay_rule {
+  due: minor_due
+  after: minor_left
+  room: minor_left
+  left: minor_left
+  approved: flag_on
+}

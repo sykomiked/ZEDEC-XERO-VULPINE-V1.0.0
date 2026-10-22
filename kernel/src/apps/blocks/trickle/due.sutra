@@ -1,0 +1,25 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a stream owes at tick `tick` of `ticks`, in Sutra (trickle_rules.h
+# TK1), one stream per row: floor(total * tick / ticks) - paid in integer
+# minor units (COMPUTE truncates, and nothing here is negative), the
+# cumulative rule, so no period rounds a unit away. total and paid fit
+# 9(12), tick and ticks 9(5); room (ticks - tick) and due are unsigned,
+# so a tick past the last or a paid past what is owed is a size error,
+# refused, and a ticks of 0 a division Sutra refuses. due.tb says the
+# same in Trebago, which takes ticks to six digits: past 9(5) the two
+# disagree and it is held.
+record stream-due
+  total: 9(12)
+  tick: 9(5)
+  ticks: 9(5)
+  paid: 9(12)
+  room: 9(5)
+  owed: 9(12)
+  due: 9(12)
+procedure
+  compute room = ticks - tick
+  compute owed = total * tick / ticks
+  compute due = owed - paid
+  answer due

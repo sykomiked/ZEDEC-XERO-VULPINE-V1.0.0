@@ -488,7 +488,11 @@
 #define ALX_SLOT_LOGIC_SIEVE_SUGGESTION_APPLY_OK 480u /* 492.34 sieve.suggestion_apply_ok */
 #define ALX_SLOT_LOGIC_SIEVE_SUGGESTION_HOLD_OK  481u /* 492.35 sieve.suggestion_hold_ok */
 #define ALX_SLOT_LOGIC_SIEVE_SUGGESTION_INDEX_OK 482u /* 492.36 sieve.suggestion_index_ok */
-#define ALX_SLOT__COUNT 482u
+#define ALX_SLOT_NUM_TRICKLE_STREAM_DUE          483u /* 592.40 trickle.stream_due */
+#define ALX_SLOT_LOGIC_TRICKLE_STREAM_PAY_OK     484u /* 492.37 trickle.stream_pay_ok */
+#define ALX_SLOT_NUM_TRICKLE_TITHE_CARRY         485u /* 592.41 trickle.tithe_carry */
+#define ALX_SLOT_NUM_TRICKLE_TITHE_DUE           486u /* 592.42 trickle.tithe_due */
+#define ALX_SLOT__COUNT 486u
 /* clang-format on */
 
 #endif

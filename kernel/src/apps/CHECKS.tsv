@@ -1300,6 +1300,16 @@ tributary	check assay.meets_bar passroom=0,-1 refusalroom=0,0 runroom=0,0 = true
 tributary	check assay.meets_bar passroom=0,10001 refusalroom=0,0 runroom=0,0 = both
 tributary	check twelvefold.lp_entail_kept premise=3,3,1 conclusion=3,2,1 = true,false,true
 tributary	check twelvefold.lp_entail_kept premise=1,4 conclusion=1,1 = both
+trickle	check stream_due total=1000,1000,1000,1000,999999999999,0 tick=0,1,2,3,99999,5 ticks=3,3,3,3,99999,99999 paid=0,0,333,666,0,0 = 0,333,333,334,999999999999,0
+trickle	check stream_due total=1000,1000 tick=1,1 ticks=3,100000 paid=0,0 = both
+trickle	check tithe_due income=1000,1000,999,1,999999999999,0 tnum=1,1,1,1,99999,0 tden=10,10,10,10,99999,1 carry=0,9,9,9,0,0 = 100,100,100,1,999999999999,0
+trickle	check tithe_due income=1000,1000 tnum=1,1 tden=10,100000 carry=0,0 = both
+trickle	check tithe_carry income=1000,1000,999,1,999999999999,7 tnum=1,1,1,1,99999,2 tden=10,10,10,10,99999,3 carry=0,9,9,9,0,2 = 0,9,8,0,0,1
+trickle	check tithe_carry income=1000,1000 tnum=1,1 tden=10,100000 carry=0,0 = both
+trickle	check stream_pay_ok due=1,9007199254740991,0,5,5,5,5 after=0,0,0,-1,0,0,0 room=0,0,0,0,-1,0,0 left=0,0,0,0,0,-1,0 approved=1,1,1,1,1,1,0 = true,true,false,false,false,false,false
+trickle	check stream_pay_ok due=5,5 after=0,1000000000000000000 room=0,0 left=0,0 approved=1,1 = both
+trickle	check stream_pay_ok due=5,5 after=0,0 room=0,0 left=0,0 approved=1,10 = both
+trickle	check coffer.balance before=1000,333 moved=-333,-333 = 667,0
 twelvefold	check lp_entail_kept premise=0,0,1,1,1,1,2,3,3,3 conclusion=0,2,0,1,2,3,0,0,2,3 = true,true,false,true,false,true,true,false,false,true
 twelvefold	check lp_entail_kept premise=1,4 conclusion=1,1 = both
 twelvefold	check lp_entail_kept premise=1,-1 conclusion=1,0 = both

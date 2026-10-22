@@ -1,0 +1,33 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! What a stream owes at tick `tick` of `ticks`, in Trebago (trickle_rules.h
+! TK1), one stream per row: q - paid with q = floor(total * tick / ticks),
+! in minor units. Trebago is exact and has no floor, so q is counted in
+! integers, three digits at a time from the top: each group the count of
+! k = 1 to 999 with k * step * ticks <= what is left, which
+! min(1, max(0, y - k * step * ticks + 1)) is for integers. q is at most
+! total, below 10^12, so the top group is 10^9. ok is 0 for a total
+! outside 0..999999999999, a ticks outside 1..999999, a tick outside
+! 0..ticks, a negative paid or a paid past q, and the answer is divided
+! by it: refused. due.sutra holds ticks to 9(5): past it the two
+! disagree and it is held.
+trebago due
+  in  total(n), tick(n), ticks(n), paid(n)
+  out due(n)
+  var y(n), a(n), b(n), c(n), d(n), q(n), ok(n)
+  ok(i) = min(1, max(0, total(i) + 1)) * min(1, max(0, 999999999999 - total(i) + 1)) &
+        * min(1, max(0, ticks(i))) * min(1, max(0, 999999 - ticks(i) + 1)) &
+        * min(1, max(0, tick(i) + 1)) * min(1, max(0, ticks(i) - tick(i) + 1)) &
+        * min(1, max(0, paid(i) + 1))
+  y(i) = total(i) * tick(i) * ok(i)
+  a(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000000000 * ticks(i) + 1)))
+  y(i) = y(i) - a(i) * 1000000000 * ticks(i)
+  b(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000000 * ticks(i) + 1)))
+  y(i) = y(i) - b(i) * 1000000 * ticks(i)
+  c(i) = sum(k = 1:999, min(1, max(0, y(i) - k * 1000 * ticks(i) + 1)))
+  y(i) = y(i) - c(i) * 1000 * ticks(i)
+  d(i) = sum(k = 1:999, min(1, max(0, y(i) - k * ticks(i) + 1)))
+  q(i) = a(i) * 1000000000 + b(i) * 1000000 + c(i) * 1000 + d(i)
+  due(i) = (q(i) - paid(i)) / (ok(i) * min(1, max(0, q(i) - paid(i) + 1)))
+end

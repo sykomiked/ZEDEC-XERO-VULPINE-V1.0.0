@@ -1,0 +1,25 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A tithe of one income, in Sutra (trickle_rules.h TK2): tnum / tden of
+# it with the remainder carried from the incomes before (carry, in
+# tden-ths of a minor unit), floor((income * tnum + carry) / tden)
+# (COMPUTE truncates, and nothing here is negative). income fits 9(12),
+# tnum, tden and carry 9(5); room (tden - tnum) and gap (tden - carry - 1)
+# are unsigned, so a share past the whole or a carry of a whole unit or
+# more is a size error, refused, and a tden of 0 too. tithe.tb says the
+# same in Trebago, which takes tden to six digits: past 9(5) the two
+# disagree and it is held.
+record tithe-due
+  income: 9(12)
+  tnum: 9(5)
+  tden: 9(5)
+  carry: 9(5)
+  room: 9(5)
+  gap: 9(5)
+  tithe: 9(12)
+procedure
+  compute room = tden - tnum
+  compute gap = tden - carry - 1
+  compute tithe = (income * tnum + carry) / tden
+  answer tithe

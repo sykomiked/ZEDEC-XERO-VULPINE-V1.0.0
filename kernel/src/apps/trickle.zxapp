@@ -1,0 +1,100 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Trickle, streaming payments and tithes: layer 77 of the matrix. Standing
+# streams (a total paid out over a count of periods) and tithes (a share
+# of each income given on) that the owner sets up, each period paid by
+# ledger.post through Coffer and read back with ledger.entries. Money is
+# integer minor units, never a float; anything that does not fit is
+# refused, never rounded or cut short.
+#
+# No unit is lost to rounding: a stream follows the cumulative rule
+# zxvd's estate.stream keeps (floor(total x share), the held-back units
+# carried), so at tick t it owes floor(total * t / ticks) less what it has
+# paid, and a tithe carries its remainder (in tden-ths of a minor unit) to
+# the next income.
+#
+# Advisory and owner-confirmed: a stream or tithe starts, changes or stops
+# only on the owner's approval, and every payment is posted only when the
+# owner confirms it (trickle_model.h TQ2); without it nothing is sent.
+# This is the owner's own giving and paying, never the network's fee
+# (fairground.assurance_fee owns that).
+#
+# Built from the layer it leans on: Coffer (73) holds the books; a balance
+# after a payment is coffer.balance and every post is one Coffer's
+# transfer rule allows (coffer.transfer_ok) before ledger.post. The owner's
+# confirmation is Trickle's own (TQ2), so it posts itself rather than
+# holding a second confirmation in Coffer. tally.fx_amount and
+# fx_rest convert an amount at a rate with nothing carried in and a rate
+# numerator of 1 or more, so a tithe that carries the remainder of the
+# incomes before it (and may be 0 of a whole) is written here. Nothing in
+# the core is a stream's cumulative due. No later layer leans on this one
+# yet, but each rule is general (royalties, wages, subscriptions, giving),
+# so each is registered in CONCEPTS.tsv with Trickle as its owner.
+#
+# Witness pairs are of one kind: the stream's due, the tithe and its
+# carry are numbers, in Sutra and Trebago (Sutra holds ticks and tden to
+# 9(5) and refuses past them, Trebago answers to six digits: held). Stream
+# allowed is a truth whose fields Eve checks each against its own range,
+# so the model gives it margins (after, room, left) and Sutra answers the
+# same condition (a margin past 18 digits or an approval past one digit:
+# Sutra refuses, Eve says FALSE: held).
+#
+# zxvd has no stream method (estate.stream is the estate's royalties, not
+# a standing order) and no notification method, so the schedule lives in
+# the model and the notice is composed for the view to show (needs notify).
+zxapp 1
+id     trickle
+name   Trickle
+version 1.0.0
+slot   77
+layer  L1
+matrix 77
+icon   icons/l1/077-trickle.svg
+budget 233
+needs  ledger.read
+needs  ledger.post
+needs  notify
+model  apps/trickle_model.c
+use    coffer 1     # @num.coffer_balance @logic.coffer_transfer_ok
+
+# What a stream owes at tick `tick` of `ticks` (TK1): floor(total * tick
+# / ticks) - paid, the cumulative rule.
+provides stream_due num total tick ticks paid
+logic    sutra   stream_due apps/blocks/trickle/due.sutra
+logic    trebago stream_due apps/blocks/trickle/due.tb
+# Scala (typed data pipelines) owns a schedule of periods flowing into
+# payments; it does not run yet, so Sutra and Trebago stand in.
+pending  Scala stream_due
+
+# A tithe of one income (TK2): floor((income * tnum + carry) / tden).
+provides tithe_due num income tnum tden carry
+logic    sutra   tithe_due apps/blocks/trickle/tithe.sutra
+logic    trebago tithe_due apps/blocks/trickle/tithe.tb
+
+# The remainder it carries on (TK2): (income * tnum + carry) mod tden.
+provides tithe_carry num income tnum tden carry
+logic    sutra   tithe_carry apps/blocks/trickle/carry.sutra
+logic    trebago tithe_carry apps/blocks/trickle/carry.tb
+
+# A stream payment allowed (TK3): due 1 .. 2^53 - 1, after, room and left
+# 0 .. 18 digits, approved exactly 1.
+provides stream_pay_ok truth due after room left approved
+logic    eve   stream_pay_ok apps/blocks/trickle/pay.eve
+logic    sutra stream_pay_ok apps/blocks/trickle/pay.sutra
+# Eiffel (contracts) and Solidity (contract rules) own this rule; neither
+# runs yet, so Eve and Sutra stand in.
+pending  Eiffel stream_pay_ok
+pending  Solidity stream_pay_ok
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check stream_due total=1000,1000,1000,1000,999999999999,0 tick=0,1,2,3,99999,5 ticks=3,3,3,3,99999,99999 paid=0,0,333,666,0,0 = 0,333,333,334,999999999999,0
+check stream_due total=1000,1000 tick=1,1 ticks=3,100000 paid=0,0 = both
+check tithe_due income=1000,1000,999,1,999999999999,0 tnum=1,1,1,1,99999,0 tden=10,10,10,10,99999,1 carry=0,9,9,9,0,0 = 100,100,100,1,999999999999,0
+check tithe_due income=1000,1000 tnum=1,1 tden=10,100000 carry=0,0 = both
+check tithe_carry income=1000,1000,999,1,999999999999,7 tnum=1,1,1,1,99999,2 tden=10,10,10,10,99999,3 carry=0,9,9,9,0,2 = 0,9,8,0,0,1
+check tithe_carry income=1000,1000 tnum=1,1 tden=10,100000 carry=0,0 = both
+check stream_pay_ok due=1,9007199254740991,0,5,5,5,5 after=0,0,0,-1,0,0,0 room=0,0,0,0,-1,0,0 left=0,0,0,0,0,-1,0 approved=1,1,1,1,1,1,0 = true,true,false,false,false,false,false
+check stream_pay_ok due=5,5 after=0,1000000000000000000 room=0,0 left=0,0 approved=1,1 = both
+check stream_pay_ok due=5,5 after=0,0 room=0,0 left=0,0 approved=1,10 = both
+check coffer.balance before=1000,333 moved=-333,-333 = 667,0

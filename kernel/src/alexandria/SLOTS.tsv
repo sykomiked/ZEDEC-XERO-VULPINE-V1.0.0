@@ -517,3 +517,7 @@
 480	logic.sieve_suggestion_apply_ok	492.34	sieve.suggestion_apply_ok	base
 481	logic.sieve_suggestion_hold_ok	492.35	sieve.suggestion_hold_ok	base
 482	logic.sieve_suggestion_index_ok	492.36	sieve.suggestion_index_ok	base
+483	num.trickle_stream_due	592.40	trickle.stream_due	base
+484	logic.trickle_stream_pay_ok	492.37	trickle.stream_pay_ok	base
+485	num.trickle_tithe_carry	592.41	trickle.tithe_carry	base
+486	num.trickle_tithe_due	592.42	trickle.tithe_due	base
