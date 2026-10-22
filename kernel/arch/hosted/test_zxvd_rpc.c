@@ -373,6 +373,36 @@ static void test_buf(void)
             CHECK(u.p && !strcmp(u.p, U[i].out), "json_str UTF-8 case %zu", i);
             free(u.p);
         }
+        /* each edge of RFC 3629's table: these pass whole ... */
+        static const char *const WELL[] = {
+            "\xc2\x80",         "\xc2\xbf",         "\xdf\x80",         "\xdf\xbf",
+            "\xe0\xa0\x80",     "\xe0\xbf\xbf",     "\xe1\x80\x80",     "\xe1\xbf\xbf",
+            "\xec\xbf\xbf",     "\xed\x80\x80",     "\xed\x9f\xbf",     "\xee\x80\x80",
+            "\xee\xbf\xbf",     "\xef\xbf\xbf",     "\xf0\x90\x80\x80", "\xf0\xbf\xbf\xbf",
+            "\xf1\x80\x80\x80", "\xf3\xbf\xbf\xbf", "\xf4\x80\x80\x80", "\xf4\x8f\xbf\xbf",
+        };
+        for (size_t i = 0; i < sizeof WELL / sizeof WELL[0]; i++) {
+            zxvd_buf_t u = {0};
+            char want[16];
+            snprintf(want, sizeof want, "\"%s\"", WELL[i]);
+            zxvd_buf_json_str(&u, WELL[i]);
+            CHECK(u.p && !strcmp(u.p, want), "json_str: well-formed edge %zu passes", i);
+            free(u.p);
+        }
+        /* ... and these start with a byte that is not a well-formed start */
+        static const char *const ILL[] = {
+            "\xc0\x80",         "\xc1\xbf",         "\xc2\x7f",         "\xc2\xc0",
+            "\xdf\xc0",         "\xe0\x9f\xbf",     "\xe1\x7f\x80",     "\xe1\xc0\x80",
+            "\xe1\x80\x7f",     "\xe1\x80\xc0",     "\xed\xa0\x80",     "\xef\xc0\x80",
+            "\xf0\x8f\xbf\xbf", "\xf0\x90\x80\x7f", "\xf0\x90\x80\xc0", "\xf0\x90\x7f\x80",
+            "\xf0\x90\xc0\x80", "\xf4\x90\x80\x80", "\xf5\x80\x80\x80", "\xf8\x80\x80\x80",
+        };
+        for (size_t i = 0; i < sizeof ILL / sizeof ILL[0]; i++) {
+            zxvd_buf_t u = {0};
+            zxvd_buf_json_str(&u, ILL[i]);
+            CHECK(u.p && !strncmp(u.p, "\"\xef\xbf\xbd", 4), "json_str: ill-formed edge %zu", i);
+            free(u.p);
+        }
     }
     size_t before = b.len;
     zxvd_buf_printf(&b, "%d-%s", -42, "x");
@@ -7640,6 +7670,11 @@ static void test_notify(void)
     rpc(REQ("1", "notify.send",
             ",\"params\":{\"app\":\"brazier\",\"title\":\"x\",\"key\":\"cpu\"}"));
     CHECK(LAST_NOTE.key == k1, "N2: the same key, the same coalescing key");
+    {
+        uint64_t f = 0xcbf29ce484222325ull; /* FNV-1a 64 of "cpu", worked here */
+        for (const char *q = "cpu"; *q; q++) f = (f ^ (uint8_t) *q) * 0x100000001b3ull;
+        CHECK(k1 == f, "N2: the key is FNV-1a 64 of the text");
+    }
     rpc(REQ("1", "notify.send",
             ",\"params\":{\"app\":\"brazier\",\"title\":\"x\",\"key\":\"gpu\"}"));
     CHECK(LAST_NOTE.key != k1, "a different key");
@@ -7670,6 +7705,33 @@ static void test_notify(void)
                   "\"012345678901234567890123456789012345678901234567890123456789012\"}"),
               "\"seq\""),
           "63 bytes fit");
+    /* every field's limit, as the refusal states it */
+    static const struct {
+        const char *field;
+        unsigned max;
+    } LIM[] = {{"app", 23}, {"body", 191}, {"action", 47}, {"key", 64}, {"level", 7}};
+    for (size_t i = 0; i < sizeof LIM / sizeof LIM[0]; i++) {
+        char v[300], q[600], want[80];
+        for (unsigned n = LIM[i].max; n <= LIM[i].max + 1; n++) {
+            memset(v, 'a', n);
+            v[n] = 0;
+            if (!strcmp(LIM[i].field, "app"))
+                snprintf(q, sizeof q,
+                         "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"notify.send\",\"params\":{"
+                         "\"app\":\"%s\",\"title\":\"t\"}}",
+                         v);
+            else
+                snprintf(q, sizeof q,
+                         "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"notify.send\",\"params\":{"
+                         "\"app\":\"a\",\"title\":\"t\",\"%s\":\"%s\"}}",
+                         LIM[i].field, v);
+            snprintf(want, sizeof want, "\\\"%s\\\" must be a string of at most %u bytes",
+                     LIM[i].field, LIM[i].max);
+            bool over = strstr(rpc(q), want) != NULL;
+            CHECK(over == (n > LIM[i].max), "N1: %s of %u bytes %s: %s", LIM[i].field, n,
+                  n > LIM[i].max ? "refused" : "fits", OUT.p);
+        }
+    }
     zxvd_rpc_set_notify(NULL);
 }
 
@@ -8191,9 +8253,11 @@ static int64_t sched_clock(void)
 
 static uint32_t SCHED_NOTES;
 static char SCHED_NOTE[200];
+static uint64_t SCHED_KEY;
 static uint32_t sched_note(const zxvd_notice_t *n)
 {
     SCHED_NOTES++;
+    SCHED_KEY = n->key;
     snprintf(SCHED_NOTE, sizeof SCHED_NOTE, "%s|%s|%s|%u", n->app, n->title, n->body,
              (unsigned) n->pri);
     return SCHED_NOTES;
@@ -8280,6 +8344,11 @@ static void test_sched(void)
                    "\"missed\":0,\"ended\":true}],\"next\":1}"));
     CHECK(SCHED_NOTES == 1 && !strcmp(SCHED_NOTE, "treadle|water|the ferns|1"),
           "T1: a notice in the app's name: %u %s", SCHED_NOTES, SCHED_NOTE);
+    {
+        uint64_t f = 0xcbf29ce484222325ull; /* as notify.send's key "schedule:1" */
+        for (const char *q = "schedule:1"; *q; q++) f = (f ^ (uint8_t) *q) * 0x100000001b3ull;
+        CHECK(SCHED_KEY == f, "T1: its key is the schedule's, so a repeat replaces the notice");
+    }
     CHECK(!has(REQ("1", "schedule.list", ""), "\"water\""), "an `at` schedule ends when it fires");
     EXPECT(REQ("1", "schedule.fired", ",\"params\":{\"after\":1}"),
            OK("1", "{\"fired\":[],\"next\":1}"));
@@ -8370,6 +8439,17 @@ static void test_sched(void)
           "an edited file is moved aside; schedules start empty");
     zsd_close();
     CHECK(zsd_open(NULL) == 0, "back to memory");
+    /* the minute both ways round an hour; no "days" is every day */
+    CHECK(has(REQ("1", "schedule.add",
+                  ",\"params\":{\"app\":\"clock\",\"name\":\"a\",\"daily\":\"07:05\"}"),
+              "\"daily\":\"07:05\",\"days\":[\"sun\",\"mon\",\"tue\",\"wed\",\"thu\",\"fri\","
+              "\"sat\"]"),
+          "T2: 07:05, every day: %s", OUT.p);
+    CHECK(has(REQ("1", "schedule.add",
+                  ",\"params\":{\"app\":\"clock\",\"name\":\"b\",\"daily\":\"23:58\","
+                  "\"days\":[\"sat\",\"sun\"]}"),
+              "\"daily\":\"23:58\",\"days\":[\"sun\",\"sat\"]"),
+          "T2: 23:58, the weekend: %s", OUT.p);
     zsd_set_clock(NULL);
     zxvd_rpc_set_notify(NULL);
     if (old_tz[0])
