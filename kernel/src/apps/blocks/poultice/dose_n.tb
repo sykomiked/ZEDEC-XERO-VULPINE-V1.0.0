@@ -1,0 +1,21 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A proposed dose within the plan's declared limits, as a number to count
+! with (poultice_rules.h PR3), in Trebago, one dose per row: 1 when every
+! margin (dosegap, daygap, waitgap: the limit less the proposal) is 0 or
+! more, else 0. For integers min(1, max(0, a + 1)) is 1 exactly when
+! a >= 0. Trebago holds dosegap and waitgap to -999999999 .. 999999999 and
+! daygap to -999 .. 99: outside, ok is 0 and the answer a division by
+! zero, refused, where dose_n.kron answers: held. Advice only: the
+! clinician sets the limits, a carer acts.
+trebago dosen
+  in  dosegap(n), daygap(n), waitgap(n)
+  out within(n)
+  var ok(n)
+  ok(i) = min(1, max(0, dosegap(i) + 1000000000)) * min(1, max(0, 1000000000 - dosegap(i))) &
+        * min(1, max(0, daygap(i) + 1000)) * min(1, max(0, 100 - daygap(i))) &
+        * min(1, max(0, waitgap(i) + 1000000000)) * min(1, max(0, 1000000000 - waitgap(i)))
+  within(i) = min(1, max(0, dosegap(i) + 1)) * min(1, max(0, daygap(i) + 1)) &
+            * min(1, max(0, waitgap(i) + 1)) / ok(i)
+end

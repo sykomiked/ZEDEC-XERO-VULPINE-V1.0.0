@@ -1,0 +1,12 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Poultice files one entry of the care plan in MYRA (poultice_rules.h
+; PR5): under the patient, the entry's kind (1 symptom, 2 dose given,
+; 3 vital reading), its item (the symptom, the medicine or the vital),
+; its day (days since 1970), its minute of the day and the carer who
+; logged it, holding its value (a severity, a dose in the plan's unit or a
+; reading). The carer is in the key, so two carers' entries for one minute
+; are two nodes, both kept. Advisory: the tree is a record, never a
+; diagnosis.
+^ZXPOULT(patient:i4, kind:i1, item:i4, day:i6, minute:i4, carer:i2) = value:i9!

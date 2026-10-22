@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What one care item costs over a month (poultice_rules.h PR4), in Sutra,
+# in integer minor units: a unit's price in 9(9), the units used a day in
+# 9(3) and the month's days in 9(2) (solstice.month_days), the cost
+# price * perday * days in 9(15). A negative value, or one with more
+# digits, does not fit its picture: refused, never wrapped, where cost.tb
+# answers it: held.
+record care-cost
+  price: 9(9)
+  perday: 9(3)
+  days: 9(2)
+  cost: 9(15)
+procedure
+  compute cost = price * perday * days
+  answer cost

@@ -935,6 +935,35 @@ pollen	check ferry.target_fits avail=1000,1000,0,0 need=600,600,1,0 spare=400,40
 pollen	check ferry.target_fits avail=1000,1000000000000000 need=600,0 spare=400,0 = both
 pollen	check hedgerow.addr_scope fam=4,4,4,4,4 a=127,192,10,169,8 b=0,168,0,254,8 c=0,1,0,1,8 d=1,7,5,9,8 = 1,2,2,3,0
 pollen	check hedgerow.addr_scope fam=4,4 a=8,256 b=8,0 c=8,0 d=8,0 = both
+poultice	check dose_in_limit dosegap=0,5,999999999,-1,5,5,5,0 daygap=0,3,99,0,-1,3,3,0 waitgap=0,60,999999999,0,0,-1,60,-999999999 = true,true,true,false,false,false,true,false
+poultice	check dose_in_limit dosegap=0,1000000000 daygap=0,0 waitgap=0,0 = both
+poultice	check dose_in_limit dosegap=0,0 daygap=0,100 waitgap=0,0 = both
+poultice	check dose_in_limit_n dosegap=0,5,999999999,-1,5,5,-999999999,0 daygap=0,3,99,0,-1,3,-999,0 waitgap=0,60,999999999,0,0,-1,60,-999999999 = 1,1,1,0,0,0,0,0
+poultice	check dose_in_limit_n dosegap=0,1000000000 daygap=0,0 waitgap=0,0 = both
+poultice	check dose_in_limit_n dosegap=0,0 daygap=0,-1000 waitgap=0,0 = both
+poultice	check care_month_cost price=0,1250,999999999,100,1 perday=1,3,999,0,1 days=31,30,99,28,0 = 0,112500,98900999901099,0,0
+poultice	check care_month_cost price=1,1000000000 perday=1,1 days=30,30 = both
+poultice	check care_node_ok patient=1,9999,10000,1,1,1 kind=1,3,1,1,1,1 item=1,9999,1,1,1,1 day=20000,999999,1,1000000,1,1 minute=0,1439,0,0,10000,0 carer=1,99,1,1,1,100 value=72,999999999,0,0,0,0 = true,true,false,false,false,false
+poultice	check solstice.next_occurrence start=100,100,100,100,0 every=7,7,7,7,1 today=50,100,101,107,2932896 = 100,100,107,107,2932896
+poultice	check solstice.next_occurrence start=100,100 every=7,7 today=101,2932897 = both
+poultice	check bowline.unskipped_day day=2 skip=96 = 4
+poultice	check bowline.unskipped_day day=0 skip=127 = both
+poultice	check solstice.events_overlap aover=1,0,3600,253402300799,-5,1 bover=1,5,3600,1,7,0 = true,false,true,true,false,false
+poultice	check solstice.events_overlap aover=1,253402300800 bover=1,1 = both
+poultice	check solstice.month_days year=2024 month=2 = 29
+poultice	check solstice.month_days year=1000000000 month=2 = both
+poultice	check bowline.overdue late=1,0,2932896,5,-3,7 open=1,1,1,0,1,1 = true,false,true,false,false,true
+poultice	check bowline.overdue late=1,2932897 open=1,1 = both
+poultice	check wellspring.band reading=39,40,100,101 lo=40,40,40,40 hi=100,100,100,100 = -1,0,0,1
+poultice	check wellspring.band reading=50,50 lo=40,101 hi=100,100 = both
+poultice	check wellspring.week amount=30,0,1440,45 = 1515
+poultice	check wellspring.week amount=9223372036854775807,1,-1 = both
+poultice	check wellspring.log_ok day=0,999999,1000000 kind=1,4,1 amount=0,999999999,1 = true,true,false
+poultice	check wellspring.log_ok day=20000,20000 kind=1,5 amount=30,30 = both
+poultice	check watchfire.medical_id_ok field=1,6,9,10,1,1 bytes=0,255,999,1,1000,1 stamp=1700000000000,999999999999999,0,0,0,1000000000000000 = true,true,true,false,false,false
+poultice	check watchfire.sos_contact_ok seq=1,9,99,100,1,1,1 peer=7,4294967295,9999999999,7,10000000000,7,7 bytes=1,47,99,1,1,100,1 stamp=1700000000000,0,999999999999999,0,0,0,1000000000000000 = true,true,true,false,false,false,false
+poultice	check cartulary.class_year_cell cls=1,1,2,1,2 year=20000,20000,20000,20001,20000 = 2,2,2,1,2
+poultice	check weatherglass.week_temps temp=72,80,64,90,71,77,68 = 64,90,74
 quarry	check claim_sourced cite=1,9999,0,10000,5,5,-1 held=1,1,1,1,0,1,1 = true,true,false,false,false,true,false
 quarry	check claim_sourced cite=5,5 held=1,2 = both
 quarry	check claim_sourced cite=5,5 held=1,3 = both

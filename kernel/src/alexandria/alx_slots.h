@@ -479,7 +479,11 @@
 #define ALX_SLOT_NUM_ASSIZE_DOCKET_NUMBER        471u /* 592.34 assize.docket_number */
 #define ALX_SLOT_LOGIC_ASSIZE_FILING_ACCEPTED    472u /* 492.31 assize.filing_accepted */
 #define ALX_SLOT_NUM_ASSIZE_RESPONSE_DAYS_LEFT   473u /* 592.35 assize.response_days_left */
-#define ALX_SLOT__COUNT 473u
+#define ALX_SLOT_NUM_POULTICE_CARE_MONTH_COST    474u /* 592.36 poultice.care_month_cost */
+#define ALX_SLOT_LOGIC_POULTICE_CARE_NODE_OK     475u /* 492.32 poultice.care_node_ok */
+#define ALX_SLOT_LOGIC_POULTICE_DOSE_IN_LIMIT    476u /* 492.33 poultice.dose_in_limit */
+#define ALX_SLOT_NUM_POULTICE_DOSE_IN_LIMIT_N    477u /* 592.37 poultice.dose_in_limit_n */
+#define ALX_SLOT__COUNT 477u
 /* clang-format on */
 
 #endif

@@ -1,0 +1,22 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Is a proposed dose within the limits the care plan declares
+# (poultice_rules.h PR2), in Eve: the per-dose maximum less the dose
+# (dosegap), the daily maximum less the doses in the 24 hours up to it,
+# itself counted (daygap), and the minutes since the last dose less the
+# minimum interval (waitgap) each fit their own range, from 0 up. A
+# negative margin is a limit passed: not within. The limits come from the
+# person's clinician and a carer enters them; this is advice to the carer,
+# never a dose decided or changed. dose.kron and dose_n.kron compare the
+# same three; a margin past its range is held.
+eve poultice
+dose_room = 0 .. 999999999
+day_room = 0 .. 99
+wait_room = 0 .. 999999999
+
+dose_within_limit {
+  dosegap: dose_room
+  daygap: day_room
+  waitgap: wait_room
+}

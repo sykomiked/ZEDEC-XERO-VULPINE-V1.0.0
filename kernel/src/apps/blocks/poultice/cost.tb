@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! What one care item costs over a month (poultice_rules.h PR4), in
+! Trebago, one item per row, exact in integer minor units:
+! price * perday * days. A negative value makes ok 0 and the cost a
+! division by zero, refused; a product past 64 bits is refused, never
+! wrapped. Trebago answers any non-negative row, where cost.sutra holds
+! each value to its picture: past them it is held.
+trebago carecost
+  in  price(n), perday(n), days(n)
+  out cost(n)
+  var ok(n)
+  ok(i) = min(1, max(0, price(i) + 1)) * min(1, max(0, perday(i) + 1)) &
+        * min(1, max(0, days(i) + 1))
+  cost(i) = price(i) * perday(i) * days(i) / ok(i)
+end

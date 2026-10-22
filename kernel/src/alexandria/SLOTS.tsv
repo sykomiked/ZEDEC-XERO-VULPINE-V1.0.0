@@ -508,3 +508,7 @@
 471	num.assize_docket_number	592.34	assize.docket_number	base
 472	logic.assize_filing_accepted	492.31	assize.filing_accepted	base
 473	num.assize_response_days_left	592.35	assize.response_days_left	base
+474	num.poultice_care_month_cost	592.36	poultice.care_month_cost	base
+475	logic.poultice_care_node_ok	492.32	poultice.care_node_ok	base
+476	logic.poultice_dose_in_limit	492.33	poultice.dose_in_limit	base
+477	num.poultice_dose_in_limit_n	592.37	poultice.dose_in_limit_n	base

@@ -1,0 +1,159 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Poultice, the care plan: L2, slot 148. A person's symptoms, medicines,
+# vitals, carers, medical ID and care costs are one text file in the
+# Hoard (files.read, files.write); carers read their notices with
+# notes.list and mark them read with notes.mark_read, on the owner's
+# confirmed word. See poultice_model.h PM1-PM8 and poultice_rules.h
+# PR1-PR6.
+#
+# Clinical: advisory and human-approved. Poultice is not a medical device,
+# diagnoses nothing and never decides or changes a dose: the limits a
+# dose is measured against (per-dose maximum, daily maximum, minimum
+# interval) and the safe range of each vital come from the person's
+# clinician and are entered by a carer; Poultice says whether a proposed
+# dose is within them, and every change to the plan or the log takes the
+# owner's confirmed word. zxvd has no method to post a notice and none to
+# take a reading from a vitals device; none is invented: the model
+# composes each carer's notice for the view (notify), and vitals are
+# typed in by a carer.
+#
+# Composed, not written again (six uses of ZXAPP_USES 8; its own 7 logic
+# lines and its parts' 65 are 72 of ZXAPP_LOGIC_MAX 128): the
+# next day of a repeating dose is solstice.next_occurrence, moved past the
+# weekdays the plan skips by bowline.unskipped_day; whether two dose
+# windows clash is solstice.events_overlap; a month's days for its costs
+# are solstice.month_days; a medicine's clinician review past its day is
+# bowline.overdue; a reading outside its declared range is
+# wellspring.band, a week's doses and a month's costs are wellspring.week's
+# exact total, and a heart-rate entry fits Wellspring's log by
+# wellspring.log_ok; the medical ID and each carer are records held as
+# typed, never computed, by watchfire.medical_id_ok and
+# watchfire.sos_contact_ok. The task's symptom grid (symptom by day
+# counts, in KRON) is cartulary.class_year_cell, the KRON count of rows
+# sharing two keys, and its vital trends (7-day low, high and floored
+# mean, in Trebago) are weatherglass.week_temps, the same Trebago span of
+# a week's readings: each is used, not written again under another name.
+# A vital is in its own unit inside week_temps' -1000..1000 (beats a
+# minute, % saturation, tenths of a degree, breaths a minute, mmHg, mg/dL,
+# whole kg).
+#
+# matrix: zxapp.c takes 0..144 and slot 148 is no matrix layer; an L2 app
+# sits on the layer of its L1 part outermost in MATRIX_ORDER.tsv:
+# Watchfire (place 129, layer 143), past Weatherglass (88), Wellspring
+# (89), Bowline (45) and Solstice (43). Cartulary is L2, on Witness's 18.
+#
+# Witness pairs are of one kind: Eve answers truths only and checks each
+# field against its own range, and Trebago answers numbers only, so the
+# task's "dose within the declared limit" in Eve, KRON and Trebago is
+# given as three margins (the model works them out, PR1) and split as
+# Gatehouse splits use_ok: the truth (dose_in_limit) in Eve and KRON, the
+# same rule as a number to count with (dose_in_limit_n) in KRON and
+# Trebago; three witnesses, and the model's C a fourth.
+#
+# Later layers take the dose rule, the month's cost of daily use and the
+# care plan's node with "use poultice 1", so each is registered in
+# CONCEPTS.tsv with Poultice as owner. Kept in C: text (the plan's lines,
+# names, notices) and zxvd's answers, and the four-valued join of two
+# carers' readings of one vital at one minute (lpres_kjoin, PR6).
+#
+# Planned (no runtime yet): Simula I owns discrete-event simulation, the
+# doses as events in time against their interval and daily count, so it
+# waits on dose_in_limit_n; Modula-2 owns modular structure, the care
+# plan's node, so it waits on care_node_ok.
+zxapp 1
+id     poultice
+name   Poultice
+version 1.0.0
+slot   148
+layer  L2
+matrix 143
+icon   icons/l2/148-poultice.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  notify
+model  apps/poultice_model.c
+use    solstice 1     # @num.solstice_next_occurrence @logic.solstice_events_overlap @num.solstice_month_days
+use    bowline 1      # @num.bowline_unskipped_day @logic.bowline_overdue
+use    wellspring 1   # @num.wellspring_band @num.wellspring_week @logic.wellspring_log_ok
+use    watchfire 1    # @logic.watchfire_medical_id_ok @logic.watchfire_sos_contact_ok
+use    cartulary 1    # @num.cartulary_class_year_cell
+use    weatherglass 1 # @num.weatherglass_week_temps
+# what it exports, so apps built from it can use them too (C1)
+provides solstice.next_occurrence num start every today
+provides solstice.events_overlap truth aover bover
+provides solstice.month_days num year month
+provides bowline.unskipped_day num day skip
+provides bowline.overdue truth late open
+provides wellspring.band num reading lo hi
+provides wellspring.week num amount
+provides wellspring.log_ok truth day kind amount
+provides watchfire.medical_id_ok truth field bytes stamp
+provides watchfire.sos_contact_ok truth seq peer bytes stamp
+provides cartulary.class_year_cell num cls year
+provides weatherglass.week_temps num temp
+
+# A proposed dose within the plan's declared limits (PR2, critical): the
+# three margins each 0 or more. Ada as Eve declares each range, APL as
+# KRON compares; a margin past its range is held (Eve FALSE, KRON TRUE).
+provides dose_in_limit truth dosegap daygap waitgap
+logic    eve  dose_in_limit apps/blocks/poultice/dose.eve
+logic    kron dose_in_limit apps/blocks/poultice/dose.kron
+
+# The same rule as a number, 1 or 0 (PR3, critical): APL as KRON and
+# FORTRAN as Trebago; outside Trebago's domain it refuses, KRON answers.
+provides dose_in_limit_n num dosegap daygap waitgap
+logic    kron    dose_in_limit_n apps/blocks/poultice/dose_n.kron
+logic    trebago dose_in_limit_n apps/blocks/poultice/dose_n.tb
+pending  Simula_I dose_in_limit_n
+
+# One care item's cost over a month in minor units (PR4, critical):
+# COBOL as Sutra refuses past its pictures, FORTRAN as Trebago answers to
+# 64 bits: held.
+provides care_month_cost num price perday days
+logic    sutra   care_month_cost apps/blocks/poultice/cost.sutra
+logic    trebago care_month_cost apps/blocks/poultice/cost.tb
+
+# The patient tree (PR5): ^ZXPOULT(patient, kind, item, day, minute,
+# carer) = value. MUMPS as MYRA.
+provides care_node_ok truth patient kind item day minute carer value
+logic    myra care_node_ok apps/blocks/poultice/node.myra
+pending  Modula-2 care_node_ok
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check dose_in_limit dosegap=0,5,999999999,-1,5,5,5,0 daygap=0,3,99,0,-1,3,3,0 waitgap=0,60,999999999,0,0,-1,60,-999999999 = true,true,true,false,false,false,true,false
+check dose_in_limit dosegap=0,1000000000 daygap=0,0 waitgap=0,0 = both
+check dose_in_limit dosegap=0,0 daygap=0,100 waitgap=0,0 = both
+check dose_in_limit_n dosegap=0,5,999999999,-1,5,5,-999999999,0 daygap=0,3,99,0,-1,3,-999,0 waitgap=0,60,999999999,0,0,-1,60,-999999999 = 1,1,1,0,0,0,0,0
+check dose_in_limit_n dosegap=0,1000000000 daygap=0,0 waitgap=0,0 = both
+check dose_in_limit_n dosegap=0,0 daygap=0,-1000 waitgap=0,0 = both
+check care_month_cost price=0,1250,999999999,100,1 perday=1,3,999,0,1 days=31,30,99,28,0 = 0,112500,98900999901099,0,0
+check care_month_cost price=1,1000000000 perday=1,1 days=30,30 = both
+check care_node_ok patient=1,9999,10000,1,1,1 kind=1,3,1,1,1,1 item=1,9999,1,1,1,1 day=20000,999999,1,1000000,1,1 minute=0,1439,0,0,10000,0 carer=1,99,1,1,1,100 value=72,999999999,0,0,0,0 = true,true,false,false,false,false
+# A repeating dose's next day, moved past skipped weekdays, and two dose windows
+check solstice.next_occurrence start=100,100,100,100,0 every=7,7,7,7,1 today=50,100,101,107,2932896 = 100,100,107,107,2932896
+check solstice.next_occurrence start=100,100 every=7,7 today=101,2932897 = both
+check bowline.unskipped_day day=2 skip=96 = 4
+check bowline.unskipped_day day=0 skip=127 = both
+check solstice.events_overlap aover=1,0,3600,253402300799,-5,1 bover=1,5,3600,1,7,0 = true,false,true,true,false,false
+check solstice.events_overlap aover=1,253402300800 bover=1,1 = both
+check solstice.month_days year=2024 month=2 = 29
+check solstice.month_days year=1000000000 month=2 = both
+# A clinician review past its day
+check bowline.overdue late=1,0,2932896,5,-3,7 open=1,1,1,0,1,1 = true,false,true,false,false,true
+check bowline.overdue late=1,2932897 open=1,1 = both
+# A reading against its declared range, a week's exact total, a heart-rate log entry
+check wellspring.band reading=39,40,100,101 lo=40,40,40,40 hi=100,100,100,100 = -1,0,0,1
+check wellspring.band reading=50,50 lo=40,101 hi=100,100 = both
+check wellspring.week amount=30,0,1440,45 = 1515
+check wellspring.week amount=9223372036854775807,1,-1 = both
+check wellspring.log_ok day=0,999999,1000000 kind=1,4,1 amount=0,999999999,1 = true,true,false
+check wellspring.log_ok day=20000,20000 kind=1,5 amount=30,30 = both
+# The medical ID and the carers, held as typed
+check watchfire.medical_id_ok field=1,6,9,10,1,1 bytes=0,255,999,1,1000,1 stamp=1700000000000,999999999999999,0,0,0,1000000000000000 = true,true,true,false,false,false
+check watchfire.sos_contact_ok seq=1,9,99,100,1,1,1 peer=7,4294967295,9999999999,7,10000000000,7,7 bytes=1,47,99,1,1,100,1 stamp=1700000000000,0,999999999999999,0,0,0,1000000000000000 = true,true,true,false,false,false,false
+# The symptom grid, symptom by day, and a week's span of one vital
+check cartulary.class_year_cell cls=1,1,2,1,2 year=20000,20000,20000,20001,20000 = 2,2,2,1,2
+check weatherglass.week_temps temp=72,80,64,90,71,77,68 = 64,90,74
