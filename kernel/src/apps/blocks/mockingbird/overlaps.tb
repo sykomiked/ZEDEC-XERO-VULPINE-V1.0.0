@@ -1,0 +1,21 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! How many neighbours of a memory map overlap (mockingbird_rules.h MR2),
+! in Trebago. The regions come one to a row, sorted by base, each base ..
+! base + size - 1; the pair i, i + 1 overlaps (or is out of order) when
+! base(i) + size(i) > base(i + 1), which min(1, max(0, ...)) counts for
+! integers. 0 is a clean map. Every base and size is 0 .. 2^48 and every
+! region ends inside 2^48 (a 48-bit address space): bad counts the rows
+! that do not, and the count is divided by 1 - min(1, their sum), a
+! division by zero, refused, never answered. overlaps.kron answers any
+! integers: past the address space the two disagree and it is held.
+trebago region_overlaps
+  in  base(n), size(n)
+  out count
+  var bad(n)
+  bad(i) = min(1, max(0, 0 - base(i))) + min(1, max(0, 0 - size(i))) &
+         + min(1, max(0, base(i) + size(i) - 281474976710656))
+  count = sum(i = 1:n-1, min(1, max(0, base(i) + size(i) - base(i+1)))) &
+        / (1 - min(1, sum(i, bad(i))))
+end

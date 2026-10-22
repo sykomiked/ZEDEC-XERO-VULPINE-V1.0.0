@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What one emulated device may be (mockingbird_rules.h MR4): 1 byte to
+# 4 GiB of RAM, 0 to 64 devices on its map, and 0 to 10^9 cycles run
+# before it stops. Eve checks that each value fits its range; the model
+# keeps RAM in whole 64 KiB pages.
+eve mockingbird
+ram_bytes = 1 .. 4294967296
+device_count = 0 .. 64
+cycles_run = 0 .. 1000000000
+
+emu_limits {
+  ram: ram_bytes
+  devices: device_count
+  cycles: cycles_run
+}

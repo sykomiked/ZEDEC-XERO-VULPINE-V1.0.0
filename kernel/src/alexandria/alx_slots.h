@@ -285,7 +285,12 @@
 #define ALX_SLOT_NUM_GNOMON_POLYGON_AREA2        277u /* 591.31 gnomon.polygon_area2 */
 #define ALX_SLOT_NUM_GNOMON_SIDE_LEN_SQ          278u /* 591.32 gnomon.side_len_sq */
 #define ALX_SLOT_NUM_GNOMON_TRIANGLE_AREA2       279u /* 591.33 gnomon.triangle_area2 */
-#define ALX_SLOT__COUNT 279u
+#define ALX_SLOT_LOGIC_MOCKINGBIRD_BOOT_PASSED   280u /* 491.38 mockingbird.boot_passed */
+#define ALX_SLOT_LOGIC_MOCKINGBIRD_EMU_DEVICE_OK 281u /* 491.39 mockingbird.emu_device_ok */
+#define ALX_SLOT_LOGIC_MOCKINGBIRD_EMU_LIMITS_OK 282u /* 491.40 mockingbird.emu_limits_ok */
+#define ALX_SLOT_NUM_MOCKINGBIRD_REGION_OVERLAPS 283u /* 591.34 mockingbird.region_overlaps */
+#define ALX_SLOT_NUM_MOCKINGBIRD_RUN_CYCLES      284u /* 591.35 mockingbird.run_cycles */
+#define ALX_SLOT__COUNT 284u
 /* clang-format on */
 
 #endif

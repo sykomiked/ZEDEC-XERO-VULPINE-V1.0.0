@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The cycles one emulated run takes (mockingbird_rules.h MR3), in Sutra:
+# steps of cost cycles each, and stall cycles besides. steps fits 9(9),
+# cost 9(4) and stall 9(9), so a larger or a negative one is a size error:
+# refused, never cut short. cycles.tb says the same in Trebago, which
+# answers up to 64 bits: past these pictures the two disagree and the run
+# is held.
+record run-cycles
+  steps: 9(9)
+  cost: 9(4)
+  stall: 9(9)
+  cycles: 9(14)
+procedure
+  compute cycles = steps * cost + stall
+  answer cycles

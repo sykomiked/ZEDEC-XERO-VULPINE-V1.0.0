@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A boot passed (mockingbird_rules.h MR1), in Eve: the five stages run in
+# order (rom, loader, kernel, drivers, apps), and the only record that fits
+# is every stage's code exactly 0. A fault (1 .. 255) does not fit, and
+# neither does a stage never reached (-1): one skipped, or after a failure.
+# boot.kron reads any code below 1 as passed, so a stage that never ran
+# where none failed before it is held, never passed.
+eve mockingbird
+stage_passed = 0 .. 0
+
+boot_passed {
+  rom: stage_passed
+  loader: stage_passed
+  kernel: stage_passed
+  drivers: stage_passed
+  apps: stage_passed
+}

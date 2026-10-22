@@ -314,3 +314,8 @@
 277	num.gnomon_polygon_area2	591.31	gnomon.polygon_area2	base
 278	num.gnomon_side_len_sq	591.32	gnomon.side_len_sq	base
 279	num.gnomon_triangle_area2	591.33	gnomon.triangle_area2	base
+280	logic.mockingbird_boot_passed	491.38	mockingbird.boot_passed	base
+281	logic.mockingbird_emu_device_ok	491.39	mockingbird.emu_device_ok	base
+282	logic.mockingbird_emu_limits_ok	491.40	mockingbird.emu_limits_ok	base
+283	num.mockingbird_region_overlaps	591.34	mockingbird.region_overlaps	base
+284	num.mockingbird_run_cycles	591.35	mockingbird.run_cycles	base

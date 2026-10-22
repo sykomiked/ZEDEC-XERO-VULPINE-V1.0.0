@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Mockingbird files one emulated device in MYRA (mockingbird_rules.h
+; MR5): its place on the map, its kind (uart, timer, display ...), the base
+; and size of its region in bytes (a 48-bit address space fits 15 digits)
+; and the irq it is wired to. Mockingbird asks whether the numbers fit
+; before it lists them.
+^ZXMOCK(device:i2) = kind:i2! ^ base:i15! ^ size:i15! ^ irq:i3!

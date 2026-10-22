@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The cycles one emulated run takes (mockingbird_rules.h MR3), in
+! Trebago, one run per row: steps * cost + stall, exact. ok is 1 when
+! steps, cost and stall are all at least 0, else 0, and the answer is
+! divided by it: a negative one is a division by zero, refused. A result
+! past 64 bits is refused too, never wrapped. cycles.sutra holds each to
+! its picture: past them the two disagree and the run is held.
+trebago run_cycles
+  in  steps(n), cost(n), stall(n)
+  out cycles(n)
+  var ok(n)
+  ok(i) = min(1, max(0, steps(i) + 1)) * min(1, max(0, cost(i) + 1)) &
+        * min(1, max(0, stall(i) + 1))
+  cycles(i) = (steps(i) * cost(i) + stall(i)) / ok(i)
+end
