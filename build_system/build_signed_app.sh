@@ -117,6 +117,9 @@ mac_app() {
         # bundled libzxv without library validation (macos/ZXV-adhoc.entitlements)
         codesign --force --sign - --options runtime --entitlements "$here/macos/ZXV-adhoc.entitlements" \
             "$app/Contents/MacOS/zxv-engine"
+        # zxsh (shell.* for the Flint terminal) is a nested binary: sealed first
+        [ -f "$app/Contents/MacOS/zxsh" ] &&
+            codesign --force --sign - --options runtime "$app/Contents/MacOS/zxsh"
         codesign --force --sign - --options runtime --entitlements "$ent" "$app"
         log "ad-hoc signed (set ZXV_SIGN_IDENTITY for a Developer ID signature)"
         return 0
@@ -126,6 +129,9 @@ mac_app() {
         codesign_one "$app/Contents/Frameworks/libzxv.dylib"
     fi
     codesign_one "$app/Contents/MacOS/zxv-engine" --entitlements "$ent"
+    if [ -f "$app/Contents/MacOS/zxsh" ]; then
+        codesign_one "$app/Contents/MacOS/zxsh"
+    fi
     codesign_one "$app" --entitlements "$ent"
     codesign --verify --strict --deep --verbose=2 "$app"
     log "signed with the Hardened Runtime: $ZXV_SIGN_IDENTITY"
