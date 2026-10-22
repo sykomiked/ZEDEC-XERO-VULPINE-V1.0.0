@@ -235,3 +235,6 @@
 198	num.ninefold_form_share_x100	590.95	ninefold.form_share_x100	base
 199	logic.ninefold_state_reserved	490.93	ninefold.state_reserved	base
 200	num.ninefold_state_reserved_n	590.96	ninefold.state_reserved_n	base
+201	logic.sealwax_field_record_ok	490.94	sealwax.field_record_ok	base
+202	num.sealwax_fill_order	590.97	sealwax.fill_order	base
+203	logic.sealwax_sign_ready	490.95	sealwax.sign_ready	base

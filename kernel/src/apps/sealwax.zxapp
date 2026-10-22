@@ -1,0 +1,87 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Sealwax, fill and sign forms: layer 47 of the matrix. A form is a plain
+# text file in the Hoard (files.read, files.write): a title and up to 32
+# fields, each text, an amount or a number, required or not, with its
+# bounds and what was entered. Sealwax guides the filling, says when the
+# form is ready to sign, writes the filled form as a one-page PDF and
+# prints it (print.status, print.submit) when the owner asks, and checks a
+# signed copy (web4.verify, the owner's key by default).
+#
+# Signing is the person's own act: Sealwax never signs, prints or submits
+# by itself, and legal and financial forms are advice only (every notice
+# says so). zxvd has no method that signs a document with the owner's key,
+# and web4.verify does not give back what an envelope signed (only its
+# size, payload_bytes), so a signed copy is matched to the form by its
+# size; none is invented. There is no notice-post method either: what is
+# due is composed as text for the view (notify is declared for it).
+#
+#   sign_ready      ready to sign (SR3): 1..32 fields, none missing, none
+#                   outside its bounds. Eve and KRON witnessed (the task's
+#                   pair): both answer truths, and Eve's record holds each
+#                   count to its own range, which is all the rule asks. A
+#                   count below zero is no count to Eve and passes KRON's
+#                   "below one": held.
+#   furrow.money_cell  an amount field as entered, units and cents to minor
+#                   units at the fixed scale of 100 (SR4): the rule is
+#                   Furrow's (money_from_parts, Sutra + KRON, refused on
+#                   overflow), used, never written again. Furrow's money is
+#                   signed; a form's amount is not, so the model's C
+#                   (sealwax_amount_minor) refuses a negative amount and
+#                   cents outside 0..99 before Furrow's rule applies, and
+#                   holds units to 13 digits so every amount fits the
+#                   field record's 15-digit bounds.
+#   fill_order      the order to fill the form in (SR5), BASIC as its twin
+#                   Hatchling: the fields still empty, required first.
+#   field_record_ok a field's record, ^ZXSEALWAX, in MYRA (SR6).
+#   coffer.holdings the total of the amount fields (SR7): the exact sum of
+#                   minor units is Coffer's (holdings_total), used, never
+#                   written again.
+#
+# Planned languages: Icon owns string scanning, TeX typesetting and
+# PostScript page description. No entry here is any of those (the field
+# text is only counted, and the PDF is composed by the model in C), so
+# none is pending.
+zxapp 1
+id     sealwax
+name   Sealwax
+version 1.0.0
+slot   47
+layer  L1
+matrix 47
+icon   icons/l1/047-sealwax.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  print
+needs  notify
+model  apps/sealwax_model.c
+use    furrow 1   # @num.furrow_money_cell
+use    coffer 1   # @num.coffer_holdings
+
+# Ready to sign (SR3), Eve and KRON.
+provides sign_ready truth fields missing outside
+logic    eve  sign_ready apps/blocks/sealwax/ready.eve
+logic    kron sign_ready apps/blocks/sealwax/ready.kron
+
+# The guided fill order (SR5). BASIC, written in its twin Hatchling's
+# canonical form (zxlang twin); the line names the runtime "basic".
+provides fill_order num count required filled
+logic    basic fill_order apps/blocks/sealwax/fill_order.bas
+
+# A field's record (SR6), MYRA.
+provides field_record_ok truth form field kind required lo hi len
+logic    myra field_record_ok apps/blocks/sealwax/field.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check sign_ready fields=1,32,33,0,5,5,5 missing=0,0,0,0,1,0,0 outside=0,0,0,0,0,1,0 = true,true,false,false,false,false,true
+check sign_ready fields=5,5 missing=0,-1 outside=0,0 = both
+check sign_ready fields=5,5 missing=0,0 outside=0,-3 = both
+check furrow.money_cell units=0,1,12,9999999999999 cents=0,99,5,99 = 0,199,1205,999999999999999
+check furrow.money_cell units=1,1 cents=5,100 = both
+check fill_order count=5 required=5 filled=0 = 1,3,2,4,5
+check fill_order count=4 required=10 filled=2 = 4,1,3
+check fill_order count=5 required=0 filled=31 = 0
+check field_record_ok form=1,999999999,1000000000,1,1,1 field=1,99,1,100,1,1 kind=1,3,2,1,10,2 required=1,0,1,0,1,1 lo=0,-999999999999999,0,0,0,0 hi=120,999999999999999,1,1,1,1000000000000000 len=0,999,1,1,1,1 = true,true,false,false,false,false
+check coffer.holdings balance=12050,99,0 = 12149

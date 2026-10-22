@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Sealwax files one field of a form in MYRA (sealwax_rules.h SR6): the
+; form's number and the field's place in it, its kind (1 text, 2 amount,
+; 3 number), whether it is required, its bounds (characters for text,
+; minor units for an amount, the value for a number) and the length of
+; what was entered, in characters.
+^ZXSEALWAX(form:i9, field:i2) = kind:i1! ^ required:i1! ^ lo:i15! ^ hi:i15! ^ len:i3!

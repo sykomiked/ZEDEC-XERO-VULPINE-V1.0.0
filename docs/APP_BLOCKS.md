@@ -209,6 +209,7 @@ Reuse is blocks used against new entries written, used / (used + new).
 | reckoner 1.0.0 | 83 | L1 | coffer 1 | `statement_close num opening credits debits`: sutra, trebago<br>`band_tax num income lo hi rate`: sutra, trebago<br>`report_ok truth closed books`: eve | 1 used, 3 new: 25% |
 | satchel 1.0.0 | 7 | L1 | witness 1, banker 1 | `package_ok truth files bytes largest`: eve, kron<br>`pkg_record_ok truth seq files bytes signed stamp`: myra | 2 used, 2 new: 50% |
 | scent 1.0.0 | 5 | L1 | - | `score num name folder count`: kron, trebago | 0 used, 1 new: 0% |
+| sealwax 1.0.0 | 47 | L1 | furrow 1, coffer 1 | `sign_ready truth fields missing outside`: eve, kron<br>`fill_order num count required filled`: basic<br>`field_record_ok truth form field kind required lo hi len`: myra | 2 used, 3 new: 40% |
 | seedbank 1.0.0 | 33 | L1 | used_share 1 | `cid_byte num pos code len`: wasm, kron<br>`block_put_ok truth bytes`: eve, sutra<br>`block_get_ok truth bytes`: eve, sutra<br>`pin_record_ok truth pin bytes sealed stamp`: myra | 1 used, 4 new: 20% |
 | shepherd 1.0.0 | 142 | L1 | - | `left num minutes extra used`: sutra, kron<br>`limit_ok truth minutes from to`: eve<br>`week num minutes`: trebago | 0 used, 3 new: 0% |
 | signpost 1.0.0 | 34 | L1 | - | `name_fault num label total bad`: wasm, kron<br>`name_ok truth label total bad`: eve, kron<br>`addr_class num a b c d`: wasm, kron<br>`cache_ok truth seq class addr stored ttl`: myra<br>`ttl_left num stored ttl now`: kron | 0 used, 5 new: 0% |

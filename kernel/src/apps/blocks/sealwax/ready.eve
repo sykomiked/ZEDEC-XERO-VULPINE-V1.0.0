@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Is a form ready to sign (sealwax_rules.h SR3), in Eve: a form of 1 to 32
+# fields with no required field left empty (missing) and no filled field
+# outside its bounds (outside). Each count must fit its own range, so a
+# count below zero is no count at all and never reads as ready.
+eve sealwax
+field_count = 1 .. 32
+none_missing = 0 .. 0
+none_outside = 0 .. 0
+
+ready_form {
+  fields: field_count
+  missing: none_missing
+  outside: none_outside
+}

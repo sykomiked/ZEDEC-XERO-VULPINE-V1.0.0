@@ -272,6 +272,16 @@ satchel	check banker.share size=5,11 total=10 = both
 satchel	check witness.kind_count kind=2,2,1,3,2 want=2 = 3
 satchel	check witness.kind_count kind=1,2 want=1,1 = both
 scent	check score name=1,0,0 folder=0,1,0 count=5,200,7 = 1211
+sealwax	check sign_ready fields=1,32,33,0,5,5,5 missing=0,0,0,0,1,0,0 outside=0,0,0,0,0,1,0 = true,true,false,false,false,false,true
+sealwax	check sign_ready fields=5,5 missing=0,-1 outside=0,0 = both
+sealwax	check sign_ready fields=5,5 missing=0,0 outside=0,-3 = both
+sealwax	check furrow.money_cell units=0,1,12,9999999999999 cents=0,99,5,99 = 0,199,1205,999999999999999
+sealwax	check furrow.money_cell units=1,1 cents=5,100 = both
+sealwax	check fill_order count=5 required=5 filled=0 = 1,3,2,4,5
+sealwax	check fill_order count=4 required=10 filled=2 = 4,1,3
+sealwax	check fill_order count=5 required=0 filled=31 = 0
+sealwax	check field_record_ok form=1,999999999,1000000000,1,1,1 field=1,99,1,100,1,1 kind=1,3,2,1,10,2 required=1,0,1,0,1,1 lo=0,-999999999999999,0,0,0,0 hi=120,999999999999999,1,1,1,1000000000000000 len=0,999,1,1,1,1 = true,true,false,false,false,false
+sealwax	check coffer.holdings balance=12050,99,0 = 12149
 seedbank	check cid_byte pos=0,0,1,58,5,5,5,5,0,254 code=98,97,97,55,56,49,123,65,98,0 len=59,59,59,59,59,59,59,59,58,255 = 1,0,1,1,0,0,0,0,0,0
 seedbank	check cid_byte pos=1,-1 code=97,97 len=59,59 = both
 seedbank	check cid_byte pos=1,1 code=97,256 len=59,59 = both
