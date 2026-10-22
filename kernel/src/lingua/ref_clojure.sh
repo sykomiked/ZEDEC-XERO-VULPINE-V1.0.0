@@ -7,11 +7,13 @@
 # agree byte for byte, then a differential run of gen_lisp.c programs in
 # its clj mode. Each clojure run starts a JVM (about a second), so the
 # default of 100 programs takes a minute or two.
+# A golden's .in goes to the reference on stdin and its integers to
+# zxlang as inputs (ref_in and ref_args, from ref_check.sh).
 if need clojure; then
     for f in $G/*.clj; do
         b=$(basename "$f" .clj)
-        clojure "$f" > "$d/$b.clj.ref" 2>"$d/$b.clj.log" || { cat "$d/$b.clj.log"; echo "[FAIL] clojure $f"; fail=1; continue; }
-        "$d/zxlang" run "$f" > "$d/$b.clj.zl" 2>&1
+        clojure "$f" < "$(ref_in "$f")" > "$d/$b.clj.ref" 2>"$d/$b.clj.log" || { cat "$d/$b.clj.log"; echo "[FAIL] clojure $f"; fail=1; continue; }
+        "$d/zxlang" run "$f" $(ref_args "$f") > "$d/$b.clj.zl" 2>&1
         if cmp -s "$d/$b.clj.ref" "$d/$b.clj.zl" && cmp -s "$d/$b.clj.ref" "$f.out"; then ran=$((ran + 1)); else
             echo "[FAIL] $f: zxlang, clojure and $f.out differ"; diff "$d/$b.clj.ref" "$d/$b.clj.zl" | head -20; fail=1; fi
     done

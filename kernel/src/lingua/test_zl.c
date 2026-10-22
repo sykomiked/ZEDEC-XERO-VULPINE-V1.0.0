@@ -804,6 +804,16 @@ static void expect_refused(int lang, const char *src, int status, uint32_t line,
     CHECK(s == status && n == 0 && tw[0] == 0, "%s: no twin either (%d)", what, s);
 }
 
+/* A program that reads input: given in[0..nin), it prints want. */
+static void expect_in(int lang, const char *src, const int64_t *in, size_t nin, const char *want,
+                      const char *what)
+{
+    int s = run_src(lang, src, in, nin, 0);
+    CHECK(s == ZL_OK && strcmp(out, want) == 0, "%s: status %d out [%s] want [%s]", what, s, out,
+          want);
+    twin_props(lang, src, strlen(src), what);
+}
+
 static void expect_trap(int lang, const char *src, int status, uint32_t line, const char *what)
 {
     int s = run_src(lang, src, 0, 0, 0);
@@ -1416,16 +1426,32 @@ static int name_cmp(const void *a, const void *b)
     return strcmp(*(const char *const *) a, *(const char *const *) b);
 }
 
+/* A golden's input, <name>.in next to it: integers, one per line (what the
+ * reference tool reads on stdin). No file: no input. */
+static size_t golden_in(const char *path, int64_t *in, size_t cap)
+{
+    static char text[1 << 12];
+    size_t n = slurp(path, text, sizeof text), k = 0;
+    if (n == (size_t) -1) return 0;
+    for (char *p = text, *e; *p && k < cap; p = e + 1) {
+        in[k++] = strtoll(p, &e, 10);
+        CHECK(e != p && *e == '\n', "%s: one integer per line", path);
+        if (e == p || !*e) break;
+    }
+    return k;
+}
+
 /* Every program in the golden folder (any extension zl_langs.def knows)
- * compiles, runs to its .out byte for byte and round-trips through its
- * twin; every collatz program prints the same 40 numbers. */
+ * compiles, runs to its .out byte for byte (given its .in, if any) and
+ * round-trips through its twin; every collatz program prints the same 40
+ * numbers. */
 static void test_golden(const char *dir)
 {
     enum { NG = 512 };
     static char names[NG][256];
     static const char *g[NG];
     static char src[1 << 16], want[1 << 16];
-    static int64_t traces[NG][64];
+    static int64_t traces[NG][64], in[256];
     size_t tn[NG] = {0}, ng = 0;
     char path[512];
     int ti = 0, ncollatz = 0, langs_seen[ZL_LANG__COUNT] = {0};
@@ -1461,6 +1487,9 @@ static void test_golden(const char *dir)
         R.out = out;
         R.out_cap = sizeof out;
         R.trace = is_collatz ? &t : 0;
+        snprintf(path, sizeof path, "%s/%s.in", dir, g[i]);
+        R.in = in;
+        R.nin = golden_in(path, in, sizeof in / sizeof in[0]);
         if (lang == ZL_LANG_FORTH) R.preload = 1;
         s = zl_run(&P, &R);
         CHECK(s == ZL_OK, "%s runs: %s at line %u", g[i], zl_status_name(s), R.trap_line);

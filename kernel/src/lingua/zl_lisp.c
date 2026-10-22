@@ -21,6 +21,14 @@
  * up to four letters, cons list length append reverse, member and assoc.
  * Self tail calls (loops written as recursion) run in constant space.
  *
+ * Input, in every dialect: (read) returns the next integer of the input
+ * (the run's input list; the references read it from stdin, one integer
+ * per line), and traps INPUT when none is left, where sbcl, guile and
+ * racket read end of file and clojure throws. Input to these programs is
+ * integers only: a line the reference would read as a symbol, list or
+ * string is outside the subset, and an integer outside +-2^62 traps
+ * OVERFLOW. read-line, read-char and the other readers are refused.
+ *
  * LISP (Common Lisp): defun, defvar, defparameter (with a value), setq,
  * setf / incf / decf / push / pop on a variable, progn, dotimes, labels,
  * floor truncate ceiling (one value) mod rem 1+ 1-, zerop plusp minusp
@@ -104,14 +112,15 @@
  * variadic) not= == < > <= >= (one argument is true), zero? pos? neg?
  * even? odd? number? integer? int? symbol? nil? some? true? false? not
  * seq? empty?, list cons first rest next second count conj reverse on
- * lists and nil (anything else traps DOMAIN where clojure throws), and
+ * lists and nil (anything else traps DOMAIN where clojure throws),
  * println print prn pr newline (values separated by spaces; prn and pr
- * quote strings). Refused: vectors, maps, sets and keywords (but :else) as
- * values, characters, regexes, #(...), deref, metadata, syntax-quote, fn
- * and functions as values (map, filter, reduce, apply), docstrings,
- * multi-arity, variadic and destructuring parameters, redefinition, atoms,
- * set!, try/throw, lazy sequences (concat, range, for, doseq), strings as
- * values (str, format), interop, namespaces and octal literals. A long
+ * quote strings), and read (from *in*, a long). Refused: vectors, maps,
+ * sets and keywords (but :else) as values, characters, regexes, #(...),
+ * deref, metadata, syntax-quote, fn and functions as values (map, filter,
+ * reduce, apply), docstrings, multi-arity, variadic and destructuring
+ * parameters, redefinition, atoms, set!, try/throw, lazy sequences
+ * (concat, range, for, doseq), strings as values (str, format), interop,
+ * namespaces, octal literals, read-line and read-string. A long
  * past +-2^62 traps OVERFLOW where clojure goes on to 2^63, and / traps
  * INEXACT where clojure makes a ratio. Stonewyrm writes no commas, one
  * semicolon per comment, [ ] vectors on one line, and each cond pair on a
@@ -407,6 +416,7 @@ enum {
     B_RPRINTLN,
     B_VOID,
     B_RLIST,
+    B_READ,
     B_CEQ,
     B_CNE,
     B_CSYMP,
@@ -534,6 +544,7 @@ static const lbi_t bis[] = {
     {"third", D_RKT | D_RFULL, B_RLIST, 1, 1, 0},
     {"empty?", D_RKT | D_RFULL, B_NULL, 1, 1, "null?"},
     {"cons?", D_RKT | D_RFULL, B_CONSP, 1, 1, "pair?"},
+    {"read", DA | D_CLJ, B_READ, 0, -1, 0},
     {"+", D_CLJ, B_ADD, 0, -1, 0},
     {"-", D_CLJ, B_SUB, 1, -1, 0},
     {"*", D_CLJ, B_MUL, 0, -1, 0},
@@ -597,8 +608,21 @@ static const char *const why[] = {
     "this form is not in the subset",
     "pairs are immutable in Racket (mcons is not in this subset)",
     "mutable references (atoms, refs, set!) are not in this subset",
+    "input is integers, one per line, read with (read)",
 };
-enum { R_PROC, R_MACRO, R_CONT, R_FLOAT, R_STRING, R_VECTOR, R_VALUES, R_OTHER, R_IMMUT, R_REF };
+enum {
+    R_PROC,
+    R_MACRO,
+    R_CONT,
+    R_FLOAT,
+    R_STRING,
+    R_VECTOR,
+    R_VALUES,
+    R_OTHER,
+    R_IMMUT,
+    R_REF,
+    R_INPUT
+};
 
 static const struct {
     const char *name;
@@ -675,7 +699,10 @@ static const struct {
     {"typecase", DL, R_OTHER},
     {"prog1", DL, R_OTHER},
     {"eval", DA, R_OTHER},
-    {"read", DA, R_OTHER},
+    {"read-line", DA | D_CLJ, R_INPUT},
+    {"read-char", DA, R_INPUT},
+    {"peek-char", DA, R_INPUT},
+    {"read-from-string", DL, R_INPUT},
     {"random", DA, R_OTHER},
     {"declare", DL, R_OTHER},
     {"write", DL, R_OTHER},
@@ -761,6 +788,7 @@ static const struct {
     {"fn?", D_CLJ, R_PROC},
     {"identity", D_CLJ, R_PROC},
     {"println-str", D_CLJ, R_STRING},
+    {"read-string", D_CLJ, R_INPUT},
     {"keyword", D_CLJ, R_OTHER},
     {"lazy-seq", D_CLJ, R_OTHER},
     {"if-let", D_CLJ, R_OTHER},
@@ -2372,6 +2400,10 @@ static int bcall(lw_t *w, int32_t n, int bi, int ctx, int *isnum)
         return format_form(w, n, a, ctx);
     case B_VOID:
         return fin_none(w, ctx, n);
+    case B_READ: /* the next integer of the input; none left traps INPUT */
+        if (na) return lfail(w, a, ZL_E_UNSUPPORTED, "(read) takes no stream or options here");
+        E(w, ZL_IN, 0, 0);
+        break;
     case B_RLIST: { /* Racket's first rest second third: the argument must be a list */
         char c0 = w->src[N(w, head)->v];
         TRY(cv(w, a));
@@ -2392,7 +2424,7 @@ static int bcall(lw_t *w, int32_t n, int bi, int ctx, int *isnum)
     default:
         return lfail(w, n, ZL_E_ARG, "internal: unknown built-in");
     }
-    if (isnum) *isnum = op <= B_EXPT || op == B_LENGTH;
+    if (isnum) *isnum = op <= B_EXPT || op == B_LENGTH || op == B_READ;
     return fin_value(w, ctx);
 }
 

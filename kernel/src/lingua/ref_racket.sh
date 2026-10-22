@@ -6,11 +6,13 @@
 # zxlang, racket and the .out file to agree byte for byte, then a
 # differential run of gen_lisp.c programs in its rkt mode (which leaves
 # some values bare at the top level for racket to print itself).
+# A golden's .in goes to the reference on stdin and its integers to
+# zxlang as inputs (ref_in and ref_args, from ref_check.sh).
 if need racket; then
     for f in $G/*.rkt; do
         b=$(basename "$f" .rkt)
-        racket "$f" > "$d/$b.rkt.ref" 2>"$d/$b.rkt.log" || { cat "$d/$b.rkt.log"; echo "[FAIL] racket $f"; fail=1; continue; }
-        "$d/zxlang" run "$f" > "$d/$b.rkt.zl" 2>&1
+        racket "$f" < "$(ref_in "$f")" > "$d/$b.rkt.ref" 2>"$d/$b.rkt.log" || { cat "$d/$b.rkt.log"; echo "[FAIL] racket $f"; fail=1; continue; }
+        "$d/zxlang" run "$f" $(ref_args "$f") > "$d/$b.rkt.zl" 2>&1
         if cmp -s "$d/$b.rkt.ref" "$d/$b.rkt.zl" && cmp -s "$d/$b.rkt.ref" "$f.out"; then ran=$((ran + 1)); else
             echo "[FAIL] $f: zxlang, racket and $f.out differ"; diff "$d/$b.rkt.ref" "$d/$b.rkt.zl" | head -20; fail=1; fi
     done

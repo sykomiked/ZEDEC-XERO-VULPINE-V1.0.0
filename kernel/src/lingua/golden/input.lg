@@ -1,0 +1,35 @@
+; Input: a count, that many integers, two more and a last one, one per
+; line. Prints the integers' sum, largest and list, the gcd of the two
+; and the last line read as a list.
+
+to readints :n
+if :n = 0 [output []]
+output fput readword readints :n - 1
+end
+
+to total :l
+if emptyp :l [output 0]
+output sum first :l total butfirst :l
+end
+
+to bigger :a :b
+if :a > :b [output :a]
+output :b
+end
+
+to largest :l
+if emptyp butfirst :l [output first :l]
+output bigger first :l largest butfirst :l
+end
+
+to gcd2 :a :b
+if :b = 0 [output :a]
+output gcd2 :b modulo :a :b
+end
+
+make "xs readints readword
+(print "sum total :xs)
+(print "largest largest :xs)
+show :xs
+(print "gcd gcd2 rw rw)
+show rl

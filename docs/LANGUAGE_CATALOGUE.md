@@ -103,7 +103,8 @@ the language, and every app uses it by name.
   `kernel/src/lingua/zl_langs.def` (`pascal`, `algol60`, `scheme`, `logo` ...),
   its catalogue name or its twin's name (`Tutordrake`); one whose front-end is
   not built yet refuses at load, by name. The arguments are the program's
-  input (FORTRAN `READ *`, BASIC `INPUT`, Pascal `read`, the Forth stack) and
+  input (FORTRAN `READ *`, BASIC `INPUT`, Pascal `read`, `(read)` in the LISP
+  family, Logo `readword`, the Forth stack) and
   the answer is every number it prints.
 - **Precompiled.** `zxlang pack prog.f` writes the program already compiled,
   as Lingua IR text (`.zlir`). An app that ships it as `logic zlir ...`

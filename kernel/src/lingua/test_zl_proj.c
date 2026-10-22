@@ -4,8 +4,9 @@
  *
  * Usage: test_zl_proj <golden-dir> <out-dir> <random programs> <seed>
  *
- * The corpus is every golden program, compiled by every front-end that
- * accepts it, and random IR programs (half of them in the Forth subset).
+ * The corpus is every golden program (given its .in), compiled by every
+ * front-end that accepts it, and random IR programs (half of them in the
+ * Forth subset).
  * Each program runs under zl_run. Then:
  *   Forth: the projection compiles with Lingua's Forth front-end and runs;
  *     its output must equal the original's, and it must end exactly when
@@ -154,13 +155,22 @@ static void goldens(const char *dir)
     CHECK(dp != 0, "golden directory %s", dir);
     if (!dp) return;
     static char src[1 << 16];
+    static int64_t in[256];
     unsigned used = 0;
     for (struct dirent *e; (e = readdir(dp)) != 0;) {
         size_t l = strlen(e->d_name);
-        if (e->d_name[0] == '.' || (l > 4 && !strcmp(e->d_name + l - 4, ".out"))) continue;
+        if (e->d_name[0] == '.' || (l > 4 && !strcmp(e->d_name + l - 4, ".out")) ||
+            (l > 3 && !strcmp(e->d_name + l - 3, ".in")))
+            continue;
         char path[1100];
+        snprintf(path, sizeof path, "%s/%s.in", dir, e->d_name);
+        FILE *f = fopen(path, "rb"); /* its input: integers, one per line */
+        size_t nin = 0;
+        long long v;
+        while (f && nin < sizeof in / sizeof in[0] && fscanf(f, "%lld", &v) == 1) in[nin++] = v;
+        if (f) fclose(f);
         snprintf(path, sizeof path, "%s/%s", dir, e->d_name);
-        FILE *f = fopen(path, "rb");
+        f = fopen(path, "rb");
         if (!f) continue;
         size_t n = fread(src, 1, sizeof src - 1, f);
         fclose(f);
@@ -169,7 +179,7 @@ static void goldens(const char *dir)
             if (zl_compile(lang, src, n, &P, &work, &d) != ZL_OK) continue;
             char what[300];
             snprintf(what, sizeof what, "%s in language %d", e->d_name, lang);
-            project_all(&P, 0, 0, 0, sizeof out1, what);
+            project_all(&P, in, nin, 0, sizeof out1, what);
             used++;
         }
     }
