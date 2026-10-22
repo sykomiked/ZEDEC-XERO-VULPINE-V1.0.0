@@ -560,3 +560,10 @@
 523	num.dibber_seed_supply_cost	592.62	dibber.seed_supply_cost	base
 524	logic.dibber_water_now_ok	492.55	dibber.water_now_ok	base
 525	logic.dibber_watering_limit_ok	492.56	dibber.watering_limit_ok	base
+526	num.binnacle_hazard_margin	592.63	binnacle.hazard_margin	base
+527	logic.binnacle_heading_safe	492.57	binnacle.heading_safe	base
+528	num.binnacle_leg_run_m	592.64	binnacle.leg_run_m	base
+529	num.binnacle_lop_fix_offset	592.65	binnacle.lop_fix_offset	base
+530	logic.binnacle_waypoint_node_ok	492.58	binnacle.waypoint_node_ok	base
+531	num.binnacle_wpt_bearing_cdeg	592.66	binnacle.wpt_bearing_cdeg	base
+532	num.binnacle_wpt_range_m	592.67	binnacle.wpt_range_m	base

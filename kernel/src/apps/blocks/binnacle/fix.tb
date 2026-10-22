@@ -1,0 +1,30 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A fix from two lines of position (binnacle_rules.h BR1), in Trebago, one
+! pair of sights a row. Each line is s * east + c * north = p: sa, ca and
+! sb, cb are 10000 times the sine and cosine of each body's azimuth, pa
+! and pb 10000 times its intercept in millionths of a degree of arc. By
+! Cramer's rule, with d = sa * cb - sb * ca, east is (pa * cb - pb * ca) / d
+! and north (sa * pb - sb * pa) / d, off the assumed position; axis 0
+! answers east, 1 north. Trebago is exact, so the answer is the reduced
+! fraction itself, never rounded. Parallel lines (d = 0) are a division by
+! zero, refused. ok is 1 when a sine or cosine is inside -10000 .. 10000,
+! an intercept inside -9999999999 .. 9999999999 and axis 0 or 1, and 0
+! otherwise; the answer is divided by it, so anything else is refused,
+! where fix.kron answers: held.
+trebago lop_fix
+  in  sa(n), ca(n), pa(n), sb(n), cb(n), pb(n), axis(n)
+  out coord(n)
+  var ok(n), d(n)
+  ok(i) = min(1, max(0, sa(i) + 10001)) * min(1, max(0, 10001 - sa(i))) &
+        * min(1, max(0, ca(i) + 10001)) * min(1, max(0, 10001 - ca(i))) &
+        * min(1, max(0, sb(i) + 10001)) * min(1, max(0, 10001 - sb(i))) &
+        * min(1, max(0, cb(i) + 10001)) * min(1, max(0, 10001 - cb(i))) &
+        * min(1, max(0, pa(i) + 10000000000)) * min(1, max(0, 10000000000 - pa(i))) &
+        * min(1, max(0, pb(i) + 10000000000)) * min(1, max(0, 10000000000 - pb(i))) &
+        * min(1, max(0, axis(i) + 1)) * min(1, max(0, 2 - axis(i)))
+  d(i) = sa(i) * cb(i) - sb(i) * ca(i)
+  coord(i) = ((1 - axis(i)) * (pa(i) * cb(i) - pb(i) * ca(i)) &
+           + axis(i) * (sa(i) * pb(i) - sb(i) * pa(i))) / d(i) / ok(i)
+end

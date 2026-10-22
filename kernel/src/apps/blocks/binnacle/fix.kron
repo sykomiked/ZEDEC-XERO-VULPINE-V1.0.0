@@ -1,0 +1,4 @@
+d:(sa*cb)-sb*ca
+x:(pa*cb)-pb*ca
+y:(sa*pb)-sb*pa
+(((1-axis)*x)+axis*y)%d

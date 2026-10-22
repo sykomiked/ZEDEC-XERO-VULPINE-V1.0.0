@@ -1,0 +1,23 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A heading's margin outside one marked hazard sector (binnacle_rules.h
+! BR4), in Trebago, one sector a row: the sector runs clockwise from lo to
+! hi, both inside it, every bearing in centidegrees 0 .. 35999. The margin
+! is ((heading - lo) mod 36000) - ((hi - lo) mod 36000): 1 or more outside
+! the sector, 0 or less inside. Trebago has no mod, so a difference d of
+! two bearings (-35999 .. 35999) is d + 36000 * min(1, max(0, 0 - d)),
+! which is d mod 36000 on that range. ok is 0, and the answer divided by
+! it refused, for a bearing outside 0 .. 35999, where hazard.kron takes
+! any residue: held.
+trebago hazard_margin
+  in  heading(n), lo(n), hi(n)
+  out margin(n)
+  var ok(n), off(n), wid(n)
+  ok(i) = min(1, max(0, heading(i) + 1)) * min(1, max(0, 36000 - heading(i))) &
+        * min(1, max(0, lo(i) + 1)) * min(1, max(0, 36000 - lo(i))) &
+        * min(1, max(0, hi(i) + 1)) * min(1, max(0, 36000 - hi(i)))
+  off(i) = heading(i) - lo(i) + 36000 * min(1, max(0, lo(i) - heading(i)))
+  wid(i) = hi(i) - lo(i) + 36000 * min(1, max(0, lo(i) - hi(i)))
+  margin(i) = (off(i) - wid(i)) / ok(i)
+end

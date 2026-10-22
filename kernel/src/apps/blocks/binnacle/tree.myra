@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Binnacle files its waypoint tree in MYRA (binnacle_rules.h BR7):
+; under the route (its place in the list of routes), the waypoint (its
+; place on the route), then the waypoint's latitude and longitude in
+; millionths of a degree. Binnacle asks whether the numbers fit before it
+; keeps a waypoint on a route.
+^ZXBINNACLE(route:i3, wpt:i3) = lat:i8! ^ lon:i9!

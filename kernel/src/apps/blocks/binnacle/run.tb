@@ -1,0 +1,27 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Distance run on a leg (binnacle_rules.h BR6), in Trebago, one leg a row:
+! floor(speed * secs / 3600) metres, speed in metres an hour (a knot is
+! 1852) and secs the seconds on the leg, each 0 .. 999999. Trebago is
+! exact and has no floor, so the floor of p = speed * secs over 3600 is
+! counted three digits at a time: each group is the count of k = 1 to 999
+! with k * step * 3600 <= p, which min(1, max(0, p - k * step * 3600 + 1))
+! is for integers, and p loses what it counted. ok is 0, and the answer
+! divided by it refused, for a speed or a time outside its range. Trebago
+! answers a run past 99999999 m, which run.sutra refuses as an overflow of
+! its picture: held.
+trebago leg_run
+  in  speed(n), secs(n)
+  out run(n)
+  var ok(n), p(n), q1(n), q2(n), q3(n)
+  ok(i) = min(1, max(0, speed(i) + 1)) * min(1, max(0, 1000000 - speed(i))) &
+        * min(1, max(0, secs(i) + 1)) * min(1, max(0, 1000000 - secs(i)))
+  p(i) = speed(i) * secs(i)
+  q1(i) = sum(k = 1:999, min(1, max(0, p(i) - k * 3600000000 + 1)))
+  p(i) = p(i) - q1(i) * 3600000000
+  q2(i) = sum(k = 1:999, min(1, max(0, p(i) - k * 3600000 + 1)))
+  p(i) = p(i) - q2(i) * 3600000
+  q3(i) = sum(k = 1:999, min(1, max(0, p(i) - k * 3600 + 1)))
+  run(i) = (q1(i) * 1000000 + q2(i) * 1000 + q3(i)) / ok(i)
+end

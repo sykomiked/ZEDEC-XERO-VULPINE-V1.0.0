@@ -1,0 +1,152 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Binnacle, offline navigation: L2, slot 147. Position, heading and
+# routes worked out on the device from star sights, the clock (sys.info)
+# and saved places (place.here, place.list, place.add), with no outside
+# service. See binnacle_model.h BM1-BM8 and binnacle_rules.h BR1-BR8.
+# Advisory navigation aid, not a certified navigation system: a person
+# steers and keeps official charts. A waypoint goes on the device's map
+# only on the owner's word.
+#
+# zxvd has no method to take a star sight from an instrument, no chart
+# data and no method to post a notice: the navigator enters each sight
+# (azimuth and intercept, from their own reduction), hazards are the
+# sectors the owner marks, and the model composes each notice's text for
+# the view. None is invented.
+#
+# Composed, not written again (five uses of ZXAPP_USES 8; its own 11
+# logic lines and its parts' 39 are 50 of ZXAPP_LOGIC_MAX 128):
+#   waymark.place_ok          every fix and every waypoint is a place
+#   weatherglass.wind_kmh_x10 and weatherglass.warn_flags  the leg's wind
+#                             in km/h and its warnings (frost, heat, gale)
+#   orrery.civil_day, orrery.planet_longitude, orrery.sky_above_horizon
+#                             a sight's day number, a planet's mean
+#                             longitude that day, and whether the body was
+#                             above the horizon at the assumed position
+#   sundial.zone_minute       the local time of a zone, for the log
+#   gnomon.triangle_area2     the cross-track distance: twice the area of
+#                             the triangle leg start, leg end, the fix,
+#                             over the leg's length
+#
+# matrix: zxapp.c takes 0..144 and slot 147 is no matrix layer; an L2 app
+# sits on the layer of its part outermost in MATRIX_ORDER.tsv: Sundial
+# (place 106, layer 110), past Gnomon (104), Orrery (98), Weatherglass
+# (89) and Waymark (wave 0).
+#
+# Witness pairs answer one kind. Safe heading pairs Ada as Eve with APL as
+# KRON; Eve answers only truths and holds each field to its own range, so
+# the rule is two entries of one meaning: hazard_margin, the number
+# (KRON, witnessed by Trebago) for one marked sector, and heading_safe,
+# the truth over the least margin and the cross-track room (Eve and KRON).
+# The model's C (binnacle_rules.h) is each pair's third witness.
+#
+# Later layers (Meridian, Azimuth, Portolan, Landfall, Spinnaker, Foghorn,
+# Bearing) use the fix, bearing and distance, safe heading and distance
+# run, so these are registered in CONCEPTS.tsv with Binnacle as owner.
+# Kept in C: text (waypoint names, notices), zxvd's answers, the plane
+# chart between a place and metres (binnacle_metres, a cosine from
+# Orrery's table), dead reckoning from the clock, and the four-valued join
+# of the star fix and the clock fix (lpres_kjoin: BOTH, plotted as the box
+# holding both, never one point).
+#
+# Logo (twin Kiteling) runs now and owns geometry, but Lingua's Logo
+# refuses readword and readlist (zl_logo.c), so a Logo block cannot take
+# an entry's arguments: there is no logo line. Prolog (rules, every answer
+# that fits) is planned: safe heading is a heading that fits every rule.
+zxapp 1
+id     binnacle
+name   Binnacle
+version 1.0.0
+slot   147
+layer  L2
+matrix 110
+icon   icons/l2/147-binnacle.svg
+budget 233
+needs  location
+needs  sys.read
+needs  notify
+model  apps/binnacle_model.c
+use    waymark 1        # @logic.waymark_place_ok
+use    weatherglass 1   # @num.weatherglass_wind_kmh_x10 @num.weatherglass_warn_flags
+use    orrery 1         # @num.orrery_civil_day @num.orrery_planet_longitude @logic.orrery_sky_above_horizon
+use    sundial 1        # @num.sundial_zone_minute
+use    gnomon 1         # @num.gnomon_triangle_area2
+# what it exports, so apps built from it can use them too (C1)
+provides waymark.place_ok truth lat lon
+provides weatherglass.wind_kmh_x10 num wind
+provides weatherglass.warn_flags num temp wind
+provides orrery.civil_day num year month day
+provides orrery.planet_longitude num planet day
+provides orrery.sky_above_horizon truth lat dec hour
+provides sundial.zone_minute num utc offset
+provides gnomon.triangle_area2 num ax ay bx by cx cy
+
+# A fix from two lines of position (BR1, critical): FORTRAN as Trebago
+# and APL as KRON, an exact fraction; a value past its range, Trebago
+# refuses and KRON answers: held.
+provides lop_fix_offset num sa ca pa sb cb pb axis
+logic    trebago lop_fix_offset apps/blocks/binnacle/fix.tb
+logic    kron    lop_fix_offset apps/blocks/binnacle/fix.kron
+
+# Bearing and distance to every waypoint (BR2, BR3), APL as KRON over the
+# waypoint vectors, fixed point.
+provides wpt_bearing_cdeg num dn de
+logic    kron wpt_bearing_cdeg apps/blocks/binnacle/bearing.kron
+provides wpt_range_m num dn de
+logic    kron wpt_range_m apps/blocks/binnacle/range.kron
+
+# A heading's margin outside a marked hazard sector (BR4, critical): APL as
+# KRON, witnessed by FORTRAN as Trebago; a bearing past 35999, Trebago
+# refuses and KRON answers: held.
+provides hazard_margin num heading lo hi
+logic    kron    hazard_margin apps/blocks/binnacle/hazard.kron
+logic    trebago hazard_margin apps/blocks/binnacle/hazard.tb
+
+# Safe heading (BR5, critical): Ada as Eve and APL as KRON.
+provides heading_safe truth heading margin xtkroom
+logic    eve  heading_safe apps/blocks/binnacle/safe.eve
+logic    kron heading_safe apps/blocks/binnacle/safe.kron
+pending  Prolog heading_safe
+
+# Distance run per leg in metres, refused on overflow (BR6, critical):
+# COBOL as Sutra and FORTRAN as Trebago; a run past Sutra's 9(8), Sutra
+# refuses and Trebago answers: held.
+provides leg_run_m num speed secs
+logic    sutra   leg_run_m apps/blocks/binnacle/run.sutra
+logic    trebago leg_run_m apps/blocks/binnacle/run.tb
+
+# The waypoint tree (BR7), MUMPS as MYRA.
+provides waypoint_node_ok truth route wpt lat lon
+logic    myra waypoint_node_ok apps/blocks/binnacle/tree.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check lop_fix_offset sa=0,0,5000,5000,8660,10000 ca=10000,10000,8660,8660,5000,0 pa=500000000,500000000,10000000,10000000,-9999999999,9999999999 sb=10000,10000,-5000,-5000,-5000,0 cb=0,0,8660,8660,8660,10000 pb=300000000,300000000,20000000,20000000,0,-9999999999 axis=0,1,0,1,0,1 = 30000,50000,-1000,750000/433,-4329999999567/4999780,-9999999999/10000
+check lop_fix_offset sa=0,10001 ca=10000,10000 pa=500000000,500000000 sb=10000,10000 cb=0,0 pb=300000000,300000000 axis=0,0 = both
+check lop_fix_offset sa=0,0 ca=10000,10000 pa=500000000,500000000 sb=10000,10000 cb=0,0 pb=300000000,300000000 axis=0,2 = both
+check wpt_bearing_cdeg dn=100,0,-100,0,100,1000,1,-20000000 de=0,100,0,-100,100,9,-1000,20000000 = 0,9000,18000,27000,4500,100,27000,13500
+check wpt_range_m dn=3,20000000,-20000000,0,7 de=4,20000000,0,1,7 = 5,28284271,20000000,1,9
+check hazard_margin heading=100,5000,35000,0,35999,1 lo=35000,35000,35000,0,0,0 hi=1000,1000,1000,0,35999,0 = -900,4000,-2000,0,0,1
+check hazard_margin heading=100,36000 lo=0,0 hi=50,50 = both
+check heading_safe heading=0,35999,36000,-1,9000,9000,9000,9000 margin=1,35999,1,1,0,36000,5,5 xtkroom=0,1000000,0,0,0,0,-1,1000001 = true,true,false,false,false,false,false,false
+# agree: heading_safe Eve and KRON hold the same three ranges, each on its own, so no integer input can split them
+check leg_run_m speed=0,1852,999999,18520,999999 secs=0,3600,1,1800,359999 = 0,1852,277,9260,99999622
+check leg_run_m speed=999999,999999 secs=999999,1 = both
+check waypoint_node_ok route=1,999,1000,1,1,1 wpt=1,-999,1,1000,1,1 lat=59913900,-90000000,0,0,100000000,0 lon=10752200,180000000,0,0,0,1000000000 = true,true,false,false,false,false
+# The parts: a place, the leg's wind and warnings, a sight's day, planet and horizon, the zone's time, the cross-track
+check waymark.place_ok lat=59913900,90000001 lon=10752200,0 = true,false
+# agree: waymark.place_ok Eve and KRON hold the same two ranges, each on its own, so no integer input can split them
+check weatherglass.wind_kmh_x10 wind=0,1,5,172,2000 = 0,18/5,18,3096/5,7200
+check weatherglass.wind_kmh_x10 wind=0,2001 = both
+check weatherglass.warn_flags temp=0,1,349,350,-1000,1000,200,0 wind=0,0,171,0,0,0,172,2000 = 1,0,0,2,1,2,4,5
+check weatherglass.warn_flags temp=0,1001 wind=0,0 = both
+check orrery.civil_day year=2026 month=10 day=22 = 20748
+check orrery.civil_day year=9999 month=12 day=31 = 2932896
+check orrery.civil_day year=2023 month=2 day=29 = both
+check orrery.planet_longitude planet=3 day=10957 = 99972
+check orrery.planet_longitude planet=1 day=2932897 = both
+check orrery.sky_above_horizon lat=51,51,51,0,90,90,-33,51,91,0 dec=89,-60,0,0,1,-1,-60,0,0,0 hour=180,0,90,90,0,0,0,0,0,360 = true,false,false,false,true,false,true,true,false,false
+check sundial.zone_minute utc=0,0,1439,1439,600,0,1439,720 offset=0,-1,1,-720,840,840,-720,330 = 0,1439,0,719,0,840,719,1050
+check sundial.zone_minute utc=0,0 offset=0,841 = both
+check gnomon.triangle_area2 ax=0,0,0,-1000000,5 ay=0,0,0,-1000000,5 bx=1,0,2,1000000,5 by=0,1,2,-1000000,5 cx=0,1,4,1000000,5 cy=1,0,4,1000000,5 = 1,-1,0,4000000000000,0
+check gnomon.triangle_area2 ax=0,1000001 ay=0,0 bx=1,0 by=0,0 cx=0,0 cy=1,1 = both

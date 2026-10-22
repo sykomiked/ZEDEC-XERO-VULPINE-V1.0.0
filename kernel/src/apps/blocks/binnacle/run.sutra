@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Distance run on a leg (binnacle_rules.h BR6), in Sutra: a leg of the log
+# is a fixed record, the speed in metres an hour (a knot is 1852) and the
+# seconds on the leg, 9(6) each, and the run in whole metres, the floor of
+# speed * secs / 3600, in 9(8). A run past 99999999 m does not fit its
+# picture: an overflow, refused, where run.tb answers (held). A negative
+# speed or time, or one with more digits, is a size error, refused.
+record leg-run
+  speed: 9(6)
+  secs: 9(6)
+  run: 9(8)
+procedure
+  compute run = speed * secs / 3600
+  answer run

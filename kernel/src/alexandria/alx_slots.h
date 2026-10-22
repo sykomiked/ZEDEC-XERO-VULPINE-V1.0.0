@@ -531,7 +531,14 @@
 #define ALX_SLOT_NUM_DIBBER_SEED_SUPPLY_COST     523u /* 592.62 dibber.seed_supply_cost */
 #define ALX_SLOT_LOGIC_DIBBER_WATER_NOW_OK       524u /* 492.55 dibber.water_now_ok */
 #define ALX_SLOT_LOGIC_DIBBER_WATERING_LIMIT_OK  525u /* 492.56 dibber.watering_limit_ok */
-#define ALX_SLOT__COUNT 525u
+#define ALX_SLOT_NUM_BINNACLE_HAZARD_MARGIN      526u /* 592.63 binnacle.hazard_margin */
+#define ALX_SLOT_LOGIC_BINNACLE_HEADING_SAFE     527u /* 492.57 binnacle.heading_safe */
+#define ALX_SLOT_NUM_BINNACLE_LEG_RUN_M          528u /* 592.64 binnacle.leg_run_m */
+#define ALX_SLOT_NUM_BINNACLE_LOP_FIX_OFFSET     529u /* 592.65 binnacle.lop_fix_offset */
+#define ALX_SLOT_LOGIC_BINNACLE_WAYPOINT_NODE_OK 530u /* 492.58 binnacle.waypoint_node_ok */
+#define ALX_SLOT_NUM_BINNACLE_WPT_BEARING_CDEG   531u /* 592.66 binnacle.wpt_bearing_cdeg */
+#define ALX_SLOT_NUM_BINNACLE_WPT_RANGE_M        532u /* 592.67 binnacle.wpt_range_m */
+#define ALX_SLOT__COUNT 532u
 /* clang-format on */
 
 #endif

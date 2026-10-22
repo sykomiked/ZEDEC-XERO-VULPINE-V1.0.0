@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Safe heading (binnacle_rules.h BR5), in Eve: a heading in centidegrees
+# (0 .. 35999), outside every marked hazard sector (margin, the least
+# hazard_margin over the sectors, 1 or more; 35999 when none is
+# marked) and with the cross-track distance within the declared limit
+# (xtkroom, the limit less the cross-track distance in metres, 0 ..
+# 1000000). Each field against its own range; safe.kron compares the same
+# three.
+eve binnacle_heading
+heading_cd = 0 .. 35999
+clear_margin = 1 .. 35999
+xtk_room = 0 .. 1000000
+
+safe_heading {
+  heading: heading_cd
+  margin: clear_margin
+  xtkroom: xtk_room
+}
