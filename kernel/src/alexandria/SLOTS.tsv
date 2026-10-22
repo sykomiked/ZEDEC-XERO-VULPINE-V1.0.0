@@ -199,3 +199,8 @@
 162	logic.watchfire_place_share_ok	490.79	watchfire.place_share_ok	base
 163	logic.watchfire_sos_contact_ok	490.80	watchfire.sos_contact_ok	base
 164	logic.watchfire_sos_ring_ok	490.81	watchfire.sos_ring_ok	base
+165	num.sundial_alarm_wait	590.73	sundial.alarm_wait	base
+166	num.sundial_clock_limits_fault	590.74	sundial.clock_limits_fault	base
+167	logic.sundial_clock_limits_ok	490.82	sundial.clock_limits_ok	base
+168	num.sundial_zone_minute	590.75	sundial.zone_minute	base
+169	num.sundial_zone_offset	590.76	sundial.zone_offset	base

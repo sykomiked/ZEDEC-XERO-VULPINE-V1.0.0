@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Sundial's limits (sundial_rules.h SD3), in Sutra: at most 64 alarms, a
+# snooze of 1 to 60 minutes and a timer of at most 5999 minutes. The counts
+# are unsigned pictures, so a count below zero (a timer is never below
+# zero) or one past its digits does not fit: refused, where limits.eve
+# answers no (held).
+record clock-limits
+  alarms: 9(2)
+  snooze: 9(2)
+  timer: 9(4)
+procedure
+  answer alarms <= 64 and snooze >= 1 and snooze <= 60 and timer <= 5999

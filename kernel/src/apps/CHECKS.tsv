@@ -292,6 +292,20 @@ stillwater	check let_through quiet=1,1,1,0,1,1 allowed=0,1,0,0,0,0 gap=-1,-1,180
 stillwater	check let_through quiet=1,1 allowed=0,0 gap=-1,1000000000 emergency=0,0 = both
 stillwater	check schedule_ok mode=0,2,3,0 days=0,127,1,128 opens=0,1439,0,0 closes=1439,0,0,0 = true,true,false,false
 stillwater	check record_ok schedule=999,1 mode=9,0 days=999,1 opens=9999,0 closes=9999,10000 allowed=999,1 = true,false
+sundial	check zone_minute utc=0,0,1439,1439,600,0,1439,720 offset=0,-1,1,-720,840,840,-720,330 = 0,1439,0,719,0,840,719,1050
+sundial	check zone_minute utc=0,1440 offset=0,0 = both
+sundial	check zone_minute utc=0,0 offset=0,841 = both
+sundial	check alarm_wait now=420,420,420,600,1439,0,0,419 today=1,1,1,7,3,7,1,5 mask=1,1,2,1,127,64,64,96 at=420,419,420,420,0,0,1439,420 = 0,10079,1440,1260,1,0,10079,1441
+sundial	check alarm_wait now=420,420 today=1,1 mask=1,0 at=420,420 = both
+sundial	check alarm_wait now=420,420 today=1,8 mask=1,1 at=420,420 = both
+sundial	check clock_limits_ok alarms=0,64,65,1,1,1,1,0 snooze=1,60,1,0,61,1,1,10 timer=0,5999,0,0,0,6000,5999,25 = true,true,false,false,false,false,true,true
+sundial	check clock_limits_ok alarms=1,1 snooze=1,1 timer=0,-1 = both
+sundial	check clock_limits_ok alarms=1,100 snooze=1,1 timer=0,0 = both
+sundial	check clock_limits_fault alarms=0,64,65,1,1,1,1,65 snooze=1,60,1,0,61,1,1,0 timer=0,5999,0,0,0,6000,5999,6000 = 0,0,1,2,2,3,0,1
+sundial	check clock_limits_fault alarms=1,1 snooze=1,1 timer=0,-1 = both
+sundial	check zone_offset zone=0,1,13,14,15,23,28,37 = -720,-660,-60,0,60,345,525,840
+sundial	check solstice.weekday year=2026 month=10 day=22 = 4
+sundial	check halloo.hms ms=0,1500000,359940000 = 0,2500,995900
 talisman	check reach_x100 have=0,50,100,150,1,2,999999999,0,10001 need=100,100,100,100,3,3,999999999,1,10000 = 0,5000,10000,10000,3333,6666,10000,0,10000
 talisman	check reach_x100 have=1,1 need=1,0 = both
 talisman	check reach_x100 have=1,1000000000 need=1,1 = both

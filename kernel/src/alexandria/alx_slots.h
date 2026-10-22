@@ -170,7 +170,12 @@
 #define ALX_SLOT_LOGIC_WATCHFIRE_PLACE_SHARE_OK  162u /* 490.79 watchfire.place_share_ok */
 #define ALX_SLOT_LOGIC_WATCHFIRE_SOS_CONTACT_OK  163u /* 490.80 watchfire.sos_contact_ok */
 #define ALX_SLOT_LOGIC_WATCHFIRE_SOS_RING_OK     164u /* 490.81 watchfire.sos_ring_ok */
-#define ALX_SLOT__COUNT 164u
+#define ALX_SLOT_NUM_SUNDIAL_ALARM_WAIT          165u /* 590.73 sundial.alarm_wait */
+#define ALX_SLOT_NUM_SUNDIAL_CLOCK_LIMITS_FAULT  166u /* 590.74 sundial.clock_limits_fault */
+#define ALX_SLOT_LOGIC_SUNDIAL_CLOCK_LIMITS_OK   167u /* 490.82 sundial.clock_limits_ok */
+#define ALX_SLOT_NUM_SUNDIAL_ZONE_MINUTE         168u /* 590.75 sundial.zone_minute */
+#define ALX_SLOT_NUM_SUNDIAL_ZONE_OFFSET         169u /* 590.76 sundial.zone_offset */
+#define ALX_SLOT__COUNT 169u
 /* clang-format on */
 
 #endif

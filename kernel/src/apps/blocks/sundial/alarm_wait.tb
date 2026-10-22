@@ -1,0 +1,54 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Minutes until an alarm next rings (sundial_rules.h SD2), in Trebago. now
+! and at are minutes of the day (0..1439), today the day of the week (1
+! Monday .. 7 Sunday, ISO 8601, as solstice.weekday gives it) and mask the
+! alarm's days (1..127, bit 0 Monday .. bit 6 Sunday). The alarm rings at
+! minute at of each day in the mask; the answer is the minutes from now to
+! the first of those at or after now: 0 when it rings this minute, at most
+! 7 * 1440 - 1 when its only day is today and its minute has just gone.
+!
+! Trebago is exact and has no floor, so p = 2 ** (today - 1) is chosen by
+! eq(today, j) = 1 - min(1, abs(today - j)), and the floor of mask / p is
+! counted (min(1, max(0, mask - q * p + 1)) is 1 for q <= mask / p). The
+! mask turned so that bit 0 is today, rm, is mask * 128 / p + that floor,
+! less whole 128s; its bits, top first, are the days from today on. From the
+! last day back, each day's ring replaces the later one when its bit is set,
+! and today's only when its minute is not past. ok is 0 for any input
+! outside its range (a mask of 0 has no day), and the answer is divided by
+! it: refused, where alarm_wait.kron answers (held).
+trebago alarm_wait
+  in  now(n), today(n), mask(n), at(n)
+  out wait(n)
+  var p(n), f(n), rm(n), r0(n), r1(n), r2(n), r3(n), r4(n), r5(n), r6(n), c(n), ok(n)
+  ok(i) = min(1, max(0, now(i) + 1)) * min(1, max(0, 1440 - now(i))) &
+        * min(1, max(0, at(i) + 1)) * min(1, max(0, 1440 - at(i))) &
+        * min(1, max(0, today(i))) * min(1, max(0, 8 - today(i))) &
+        * min(1, max(0, mask(i))) * min(1, max(0, 128 - mask(i)))
+  p(i) = sum(j = 1:7, (1 - min(1, abs(today(i) - j))) * 2 ** (j - 1))
+  f(i) = mask(i) * 128 / p(i) + sum(q = 1:127, min(1, max(0, mask(i) - q * p(i) + 1)))
+  rm(i) = f(i) - 128 * sum(q = 1:127, min(1, max(0, f(i) - q * 128 + 1)))
+  r6(i) = min(1, max(0, rm(i) - 63))
+  rm(i) = rm(i) - 64 * r6(i)
+  r5(i) = min(1, max(0, rm(i) - 31))
+  rm(i) = rm(i) - 32 * r5(i)
+  r4(i) = min(1, max(0, rm(i) - 15))
+  rm(i) = rm(i) - 16 * r4(i)
+  r3(i) = min(1, max(0, rm(i) - 7))
+  rm(i) = rm(i) - 8 * r3(i)
+  r2(i) = min(1, max(0, rm(i) - 3))
+  rm(i) = rm(i) - 4 * r2(i)
+  r1(i) = min(1, max(0, rm(i) - 1))
+  r0(i) = rm(i) - 2 * r1(i)
+  c(i) = at(i) - now(i)
+  wait(i) = 10080 + c(i)
+  wait(i) = r6(i) * (8640 + c(i)) + (1 - r6(i)) * wait(i)
+  wait(i) = r5(i) * (7200 + c(i)) + (1 - r5(i)) * wait(i)
+  wait(i) = r4(i) * (5760 + c(i)) + (1 - r4(i)) * wait(i)
+  wait(i) = r3(i) * (4320 + c(i)) + (1 - r3(i)) * wait(i)
+  wait(i) = r2(i) * (2880 + c(i)) + (1 - r2(i)) * wait(i)
+  wait(i) = r1(i) * (1440 + c(i)) + (1 - r1(i)) * wait(i)
+  r0(i) = r0(i) * min(1, max(0, c(i) + 1))
+  wait(i) = (r0(i) * c(i) + (1 - r0(i)) * wait(i)) / ok(i)
+end

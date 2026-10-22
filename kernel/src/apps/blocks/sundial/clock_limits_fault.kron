@@ -1,0 +1,6 @@
+fa:0|1&alarms-64
+fs:(0|1&1-snooze)|0|1&snooze-60
+ft:0|1&timer-5999
+rb:3*ft
+rs:rb+fs*2-rb
+rs+fa*1-rs

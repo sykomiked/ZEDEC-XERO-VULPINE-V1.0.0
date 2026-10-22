@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Sundial's limits (sundial_rules.h SD3), in Eve: at most 64 alarms, a
+# snooze of 1 to 60 minutes and a timer of 0 to 5999 minutes, never below
+# zero. Eve holds each range alone; limits.sutra's pictures cannot hold a
+# count below zero or past their digits at all, so such a row is held.
+eve sundial
+alarm_count = 0 .. 64
+snooze_minutes = 1 .. 60
+timer_minutes = 0 .. 5999
+
+clock_limits {
+  alarms: alarm_count
+  snooze: snooze_minutes
+  timer: timer_minutes
+}

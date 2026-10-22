@@ -1,0 +1,20 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The minute of the day in a time zone (sundial_rules.h SD1), in Trebago:
+! utc + offset, wrapped into 0..1439, utc the minute of the day in UTC
+! (0..1439) and offset the zone's offset from UTC in minutes (-720..840,
+! UTC-12:00 to UTC+14:00). With both in range the sum is -720..2279, so one
+! day added or taken away wraps it; Trebago is exact and has no floor, so
+! min(1, max(0, x)) stands for x > 0 on integers. ok is 0 for a minute or an
+! offset outside its range, and the answer is divided by it: refused, where
+! zone_minute.kron wraps any sum (held).
+trebago zone_minute
+  in  utc(n), offset(n)
+  out local(n)
+  var t(n), ok(n)
+  ok(i) = min(1, max(0, utc(i) + 1)) * min(1, max(0, 1440 - utc(i))) &
+        * min(1, max(0, offset(i) + 721)) * min(1, max(0, 841 - offset(i)))
+  t(i) = utc(i) + offset(i)
+  local(i) = (t(i) + 1440 * min(1, max(0, 0 - t(i))) - 1440 * min(1, max(0, t(i) - 1439))) / ok(i)
+end

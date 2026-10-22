@@ -1,0 +1,97 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Sundial, the clock: layer 110 of the matrix. The time in the owner's zone
+# and in up to eight world clocks, alarms on days of the week with a
+# snooze, and a countdown timer (sundial_model.c). The time is zxvd's wall
+# clock, sys.info's time_ms.
+#
+# zxvd has no alarm, timer, time-zone or notice-post method, and none is
+# invented: alarms and the timer are kept by the model, a zone is one of
+# the 38 standard offsets from UTC (zone_offset; daylight saving is not
+# applied, since no time-zone rules are reachable), and what is due is
+# composed as text for the view to show (notify is declared for that
+# notice); nothing is posted.
+#
+# Its layer leans only on the core. Two apps built before it answer what it
+# needs, so it uses them and never writes them again: Solstice gives the
+# day of the week of the local date (alarm days are weekdays), Halloo shows
+# a length as hours, minutes and seconds (a timer's time left). The model
+# runs their rules (solstice_rules.h, halloo_rules.h); the check lines at
+# the end re-run their blocks here. The local minute, the wait for an alarm,
+# the zone offsets and the limits are general rules a later layer keeps
+# (a reminder, a calendar's world time), so each is a concept with Sundial
+# as its owner (CONCEPTS.tsv).
+#
+# Witness pairs are of one kind, since a witnessed call compares answers
+# exactly and a truth entry refuses a number (zxapp.c run_one B3). Eve
+# answers truths only (zxapp_eve.c EV2) and WebAssembly numbers only
+# (zxapp_wasm.c W2), so the task's "Rust wasm + Eve" for the limits is
+# split, as Signpost and Gatehouse split theirs: Rust and KRON witness which
+# limit a setting passes (clock_limits_fault), Eve and Sutra whether it is
+# inside them (clock_limits_ok). Sutra is Eve's witness because its
+# unsigned pictures refuse a count below zero outright (a timer never below
+# zero), so such a row is held rather than read either way.
+zxapp 1
+id     sundial
+name   Sundial
+version 1.0.0
+slot   110
+layer  L1
+matrix 110
+icon   icons/l1/110-sundial.svg
+budget 233
+needs  sys.read
+needs  notify
+model  apps/sundial_model.c
+use    solstice 1   # @num.solstice_weekday
+use    halloo 1     # @num.halloo_hms
+
+# The minute of the day in a zone (SD1): utc + offset wrapped into
+# 0..1439, offset -720..840. Trebago and KRON; a minute or an offset
+# outside its range is refused by Trebago and wrapped by KRON: held.
+provides zone_minute num utc offset
+logic    trebago zone_minute apps/blocks/sundial/zone_minute.tb
+logic    kron    zone_minute apps/blocks/sundial/zone_minute.kron
+
+# Minutes until an alarm next rings (SD2): now and at minutes of the day,
+# today 1 Monday .. 7 Sunday, mask the alarm's days (bit 0 Monday).
+# Trebago and KRON; a mask of no day is refused by Trebago, answered by
+# KRON: held. An alarm is a timed job, which is Bash's kind of work.
+provides alarm_wait num now today mask at
+logic    trebago alarm_wait apps/blocks/sundial/alarm_wait.tb
+logic    kron    alarm_wait apps/blocks/sundial/alarm_wait.kron
+pending  Bash alarm_wait
+
+# Inside the limits (SD3): at most 64 alarms, a snooze of 1..60 minutes, a
+# timer of 0..5999 minutes. Eve and Sutra.
+provides clock_limits_ok truth alarms snooze timer
+logic    eve   clock_limits_ok apps/blocks/sundial/limits.eve
+logic    sutra clock_limits_ok apps/blocks/sundial/limits.sutra
+
+# Which limit a setting passes first (SD3): 1 alarms, 2 snooze, 3 timer, 0
+# none. Rust (as WebAssembly) and KRON; a count below zero traps in Rust.
+provides clock_limits_fault num alarms snooze timer
+logic    wasm clock_limits_fault apps/blocks/sundial/clock_limits_fault.wasm
+logic    kron clock_limits_fault apps/blocks/sundial/clock_limits_fault.kron
+
+# The world-time zones' offsets from UTC as one vector, by zone index
+# (SD4), in KRON; an index past the table is refused.
+provides zone_offset num zone
+logic    kron zone_offset apps/blocks/sundial/zone_offset.kron
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check zone_minute utc=0,0,1439,1439,600,0,1439,720 offset=0,-1,1,-720,840,840,-720,330 = 0,1439,0,719,0,840,719,1050
+check zone_minute utc=0,1440 offset=0,0 = both
+check zone_minute utc=0,0 offset=0,841 = both
+check alarm_wait now=420,420,420,600,1439,0,0,419 today=1,1,1,7,3,7,1,5 mask=1,1,2,1,127,64,64,96 at=420,419,420,420,0,0,1439,420 = 0,10079,1440,1260,1,0,10079,1441
+check alarm_wait now=420,420 today=1,1 mask=1,0 at=420,420 = both
+check alarm_wait now=420,420 today=1,8 mask=1,1 at=420,420 = both
+check clock_limits_ok alarms=0,64,65,1,1,1,1,0 snooze=1,60,1,0,61,1,1,10 timer=0,5999,0,0,0,6000,5999,25 = true,true,false,false,false,false,true,true
+check clock_limits_ok alarms=1,1 snooze=1,1 timer=0,-1 = both
+check clock_limits_ok alarms=1,100 snooze=1,1 timer=0,0 = both
+check clock_limits_fault alarms=0,64,65,1,1,1,1,65 snooze=1,60,1,0,61,1,1,0 timer=0,5999,0,0,0,6000,5999,6000 = 0,0,1,2,2,3,0,1
+check clock_limits_fault alarms=1,1 snooze=1,1 timer=0,-1 = both
+check zone_offset zone=0,1,13,14,15,23,28,37 = -720,-660,-60,0,60,345,525,840
+check solstice.weekday year=2026 month=10 day=22 = 4
+check halloo.hms ms=0,1500000,359940000 = 0,2500,995900
