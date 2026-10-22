@@ -158,7 +158,7 @@ done
 # payments (zxvd_pay.h): ident's passkey check and the post-quantum code it
 # links (app_sources.sh already has ML-DSA-65/87, ML-KEM-1024, X25519), and
 # its Argon2id for seats.* (zxvd_seats.c)
-set -- "$@" "-I$K/src/ident" "$HERE/zxvd_pay.c" "$K/src/ident/id_passkey.c" "$K/src/ident/id_core.c" \
+set -- "$@" "-I$K/src/ident" "$HERE/zxvd_pay.c" "$K/src/ident/id_passkey.c" "$K/src/ident/id_core.c" "$K/src/ident/id_mem.c" \
     "$K/src/ident/id_argon2.c"
 for f in pq_matrix pq_hqc5 pq_slh256s; do set -- "$@" "$K/src/pqsec/$f.c"; done
 for f in "$K"/src/pqsec/slhdsa/[a-z]*.c; do set -- "$@" "$f"; done

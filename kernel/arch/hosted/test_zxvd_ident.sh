@@ -35,7 +35,7 @@ WERR="-Werror"
 # ident's passkeys and what id_core.c links against (app_sources.sh groups)
 set -- "$HERE/zxvd_rpc.c" $RPCDEPS "$HERE/zxv_http_guard.c" "$K/src/web4/web4_json.c" \
     "$K/src/web4/web4_util.c" "$K/src/robin_debanks/sha256.c" "$K/src/tls/x25519.c" \
-    "$K/src/ident/id_core.c" "$K/src/ident/id_passkey.c"
+    "$K/src/ident/id_core.c" "$K/src/ident/id_mem.c" "$K/src/ident/id_passkey.c"
 for f in pq_mldsa65 pq_mldsa87 pq_mlkem1024 pq_matrix pq_hqc5 pq_slh256s; do
     set -- "$@" "$K/src/pqsec/$f.c"
 done
