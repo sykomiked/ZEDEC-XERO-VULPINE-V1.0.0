@@ -1,0 +1,123 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Forage, node bounties: layer 84 of the matrix. It finds and claims work
+# for this node and posts the node's own bounties, over methods zxvd
+# already has: what the node wants, shares and still waits on (net.offers),
+# a claim sent as a sell to the bounty's poster and a bounty posted as a
+# want (net.command), the peer book's wallet and whether the node serves
+# (peer.status), answering other nodes for a price (peer.serve), the
+# swarm's tokens a cycle, the bounties returned and the owner's quest
+# (swarm.state), and the node's power draw and posture (power.status).
+# Every method is zxvd's; none is invented. zxvd has no bounty board, so a
+# bounty another node posts is entered on Forage's board by the owner
+# (forage_model.h FG2); the missing board is in the build report.
+#
+# Advisory and owner-confirmed (forage_model.h FG4, FG5): a claim or a
+# posted bounty is only checked and held, with a notice, until the owner
+# approves it (owner_confirmed); only then is net.command sent, and a
+# cancelled one sends nothing. peer.serve stays off: Forage never calls it
+# unless the owner turns serving on (forage_serve, owner_confirmed), and
+# turning it off takes the owner's word too. Forage never sends a network
+# mode ("off", "lan", "online", "peer"). Money is integer minor units of
+# VFV, never a float.
+#
+# The fee and the net (FR1). zxvd charges the 0.08889% assurance fee to
+# the buyer, on top of the price (fairground.assurance_fee), and the
+# seller is paid the price. A bounty's value is the gross its poster
+# offers, so Forage claims it at its net, value - fee(value): the poster
+# then pays net + fee(net), which never passes the value. A bounty this
+# node posts is sent as a want at the net of its value, for the same
+# reason. The net is witnessed in Sutra and Trebago (as Fairground's fee
+# is); past Sutra's 9(15) it is held.
+#
+# Composed, not written again: the fee is fairground.assurance_fee (layer
+# 79, built before this one) and the wallet after a claim is paid
+# coffer.balance (layer 73). Of the other layers the task names, Ramble
+# (25) owns a payment consent covering a spend, and Forage spends nothing
+# without the owner's approval of each claim, so no consent is read;
+# Murmuration (61) only re-exports swarm_shares, whose limits are a swarm
+# agent's slice of a cycle, not a node's budget for outside work, so
+# neither is used. Hamlet (96) is built after this one and nothing of it
+# is used.
+#
+# Witness pairs are of one kind (zxapp.c run_one B3). Eve and Sutra witness
+# claim_fits, a truth: Eve checks each field against its own range alone,
+# so the budgets come as margins (tokroom, mwroom) the model works out from
+# swarm.state, power.status and the owner's budgets. Trebago alone ranks
+# bounties by value per minute, exact by cross products, and MYRA files a
+# bounty's record. The model's C (forage_rules.h) is the third witness.
+#
+# Tidewatch (15) and Bramble (48) lean on this layer, so the net after the
+# fee, a claim inside the node's budgets, the rank by value per minute and
+# a bounty's record are general and owned here (CONCEPTS.tsv).
+#
+# Planned (no runtime yet): Prolog (rules, searching for every answer that
+# fits), Eiffel (design by contract) and Solidity (contract rules) own
+# whether a claim may stand inside the node's budgets: pending on
+# claim_fits.
+#
+# Defaults taken: the owner's budgets start at 0, so no claim fits until
+# the owner sets them (forage_set_budget). The swarm's budget for bounties
+# is the owner's, held to the cycle's tokens scaled by the power posture
+# (swarm.state tokens_per_cycle times power.status token_scale_permille,
+# per mille, floored). power.status is read under sys.read, as Retort
+# declares it, so sys.read is needed beside the task's peers, net, swarm
+# and notify. zxvd has no notification method, so the notice is only
+# composed for the view (forage_t notice).
+zxapp 1
+id     forage
+name   Forage
+version 1.0.0
+slot   84
+layer  L1
+matrix 84
+icon   icons/l1/084-forage.svg
+budget 233
+needs  peers
+needs  net
+needs  swarm
+needs  notify
+needs  sys.read
+model  apps/forage_model.c
+use    fairground 1   # @num.fairground_assurance_fee
+use    coffer 1       # @num.coffer_balance
+
+# A bounty's value net of the 0.08889% fee (FR1): amount - floor(amount *
+# 8889 / 10^7). Sutra holds 15 digits and refuses past them; Trebago
+# answers to 2^53 - 1.
+provides net_after_fee num amount
+logic    sutra   net_after_fee apps/blocks/forage/net.sutra
+logic    trebago net_after_fee apps/blocks/forage/net.tb
+
+# A claim inside the node's swarm and power budgets (FR2): tokens at least
+# 1, a draw not below 0, both margins not below 0. Eve holds 9 digits as
+# no; Sutra refuses them.
+provides claim_fits truth tokens mw tokroom mwroom
+logic    eve   claim_fits apps/blocks/forage/claim.eve
+logic    sutra claim_fits apps/blocks/forage/claim.sutra
+pending  Prolog claim_fits
+pending  Eiffel claim_fits
+pending  Solidity claim_fits
+
+# Bounties ranked by value per minute (FR3), exact, in Trebago.
+provides rate_rank num amount minutes
+logic    trebago rate_rank apps/blocks/forage/rank.tb
+
+# A bounty's record on the node's board (FR4), in MYRA.
+provides bounty_rec_ok truth bounty kind tokens mw amount minutes status
+logic    myra bounty_rec_ok apps/blocks/forage/bounty.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check net_after_fee amount=0,1124,1125,180000,10000000,999999999999999 = 0,1124,1124,179840,9991111,999111100000000
+check net_after_fee amount=1,1000000000000000 = both
+check net_after_fee amount=1,9007199254740991 = both
+check claim_fits tokens=1,999999999,0,5,5,5,5 mw=0,999999999,0,0,-1,0,0 tokroom=0,999999999,0,0,0,-1,0 mwroom=0,999999999,0,0,0,0,-1 = true,true,false,true,false,false,false
+check claim_fits tokens=1,1000000000 mw=0,0 tokroom=0,0 mwroom=0,0 = both
+check claim_fits tokens=1,1 mw=0,0 tokroom=0,0 mwroom=0,1000000000 = both
+check rate_rank amount=600,300,900,0,300 minutes=10,5,30,1,10 = 1,1,3,5,3
+check rate_rank amount=999999999,1,0 minutes=1,999999999,999999999 = 1,2,3
+check bounty_rec_ok bounty=9999,10000,1,1,1,1 kind=1,1,10,1,1,1 tokens=999999999,1,1,1000000000,1,1 mw=0,0,0,0,0,0 amount=999999999999999,0,0,0,1000000000000000,0 minutes=1,1,1,1,1,1000000000 status=3,0,0,0,0,0 = true,false,false,false,false,false
+# A claim of 20000 VFV gross: its fee, and the wallet after it is paid at its net
+check fairground.assurance_fee amount=20000,0 = 17,0
+check coffer.balance before=29983,0 moved=19983,0 = 49966,0

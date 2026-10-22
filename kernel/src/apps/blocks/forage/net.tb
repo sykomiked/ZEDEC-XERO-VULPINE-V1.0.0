@@ -1,0 +1,32 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A bounty's value net of the 0.08889% assurance fee, in Trebago
+! (forage_rules.h FR1): amount - floor(amount * 8889 / 10000000), one
+! bounty per row, the fee Fairground's (blocks/fairground/fee.tb, counted
+! the same way). Trebago is exact and has no floor, and amount * 8889
+! passes 64 bits near the top of the range, so the amount is split: h =
+! floor(amount / 10^7), counted three digits at a time (each digit the
+! count of k = 1 to 999 with k * scale <= x, which
+! min(1, max(0, x - k * scale + 1)) is for integers), and l the rest,
+! below 10^7. The fee is h * 8889 + floor(l * 8889 / 10^7), the last part
+! 0..8888 counted the same way, and the net is the amount less it. ok is 1
+! for an amount of 0 to 2^53 - 1 and 0 outside, and the net is divided by
+! it: refused. net.sutra holds 15 digits: past them the two disagree and
+! the net is held.
+trebago net_after_fee
+  in  amount(n)
+  out net(n)
+  var x(n), a(n), b(n), c(n), s(n), d(n), ok(n)
+  ok(i) = min(1, max(0, amount(i) + 1)) * min(1, max(0, 9007199254740991 - amount(i) + 1))
+  x(i) = amount(i)
+  a(i) = sum(k = 1:999, min(1, max(0, x(i) - k * 10000000000000 + 1)))
+  x(i) = x(i) - a(i) * 10000000000000
+  b(i) = sum(k = 1:999, min(1, max(0, x(i) - k * 10000000000 + 1)))
+  x(i) = x(i) - b(i) * 10000000000
+  c(i) = sum(k = 1:999, min(1, max(0, x(i) - k * 10000000 + 1)))
+  x(i) = x(i) - c(i) * 10000000
+  s(i) = x(i) * 8889
+  d(i) = sum(k = 1:8888, min(1, max(0, s(i) - k * 10000000 + 1)))
+  net(i) = (amount(i) - (a(i) * 1000000 + b(i) * 1000 + c(i)) * 8889 - d(i)) / ok(i)
+end

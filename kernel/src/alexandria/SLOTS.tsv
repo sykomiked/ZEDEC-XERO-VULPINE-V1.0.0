@@ -603,3 +603,7 @@
 566	num.nightjar_reading_place	592.80	nightjar.reading_place	base
 567	logic.nightjar_speech_cuts_in	492.80	nightjar.speech_cuts_in	base
 568	logic.nightjar_speech_voice_ok	492.81	nightjar.speech_voice_ok	base
+569	logic.forage_bounty_rec_ok	492.82	forage.bounty_rec_ok	base
+570	logic.forage_claim_fits	492.83	forage.claim_fits	base
+571	num.forage_net_after_fee	592.81	forage.net_after_fee	base
+572	num.forage_rate_rank	592.82	forage.rate_rank	base

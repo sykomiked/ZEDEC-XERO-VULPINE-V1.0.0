@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A claim fits the node (forage_rules.h FR2), in Sutra: the work takes at
+# least 1 swarm token a cycle, draws no negative power, and leaves tokroom
+# (the owner's swarm budget for bounties less what is claimed, this work
+# included) and mwroom (the owner's power cap less the node's draw, this
+# work included) not below 0. Every field is s9(9): a value past 9 digits
+# either way is a size error, refused, where claim.eve answers no: the two
+# disagree and the claim is held.
+record forage-claim-rule
+  tokens: s9(9)
+  mw: s9(9)
+  tokroom: s9(9)
+  mwroom: s9(9)
+procedure
+  answer tokens >= 1 and mw >= 0 and tokroom >= 0 and mwroom >= 0

@@ -1,0 +1,21 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Bounties ranked by value per minute (forage_rules.h FR3), in Trebago,
+! exact: amount(i) / minutes(i) is never divided out, two bounties are
+! compared by cross products, amount(j) * minutes(i) against amount(i) *
+! minutes(j), each at most 10^18 and so inside 64 bits.
+! min(1, max(0, x)) is x > 0 on integers, so rank(i) is 1 + the number of
+! bounties strictly better, ties sharing the higher place (1224). bad
+! counts the bounties outside amount 0..999999999 or minutes 1..999999999,
+! and every rank is divided by 1 - min(1, bad): any one of them is a
+! division by zero, refused.
+trebago rate_rank
+  in  amount(n), minutes(n)
+  out rank(n)
+  var bad(n), ok
+  bad(i) = min(1, max(0, 0 - amount(i))) + min(1, max(0, amount(i) - 999999999)) &
+     + min(1, max(0, 1 - minutes(i))) + min(1, max(0, minutes(i) - 999999999))
+  ok = 1 - min(1, sum(j, bad(j)))
+  rank(i) = (1 + sum(j, min(1, max(0, amount(j) * minutes(i) - amount(i) * minutes(j))))) / ok
+end

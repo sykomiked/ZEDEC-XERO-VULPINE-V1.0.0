@@ -574,7 +574,11 @@
 #define ALX_SLOT_NUM_NIGHTJAR_READING_PLACE      566u /* 592.80 nightjar.reading_place */
 #define ALX_SLOT_LOGIC_NIGHTJAR_SPEECH_CUTS_IN   567u /* 492.80 nightjar.speech_cuts_in */
 #define ALX_SLOT_LOGIC_NIGHTJAR_SPEECH_VOICE_OK  568u /* 492.81 nightjar.speech_voice_ok */
-#define ALX_SLOT__COUNT 568u
+#define ALX_SLOT_LOGIC_FORAGE_BOUNTY_REC_OK      569u /* 492.82 forage.bounty_rec_ok */
+#define ALX_SLOT_LOGIC_FORAGE_CLAIM_FITS         570u /* 492.83 forage.claim_fits */
+#define ALX_SLOT_NUM_FORAGE_NET_AFTER_FEE        571u /* 592.81 forage.net_after_fee */
+#define ALX_SLOT_NUM_FORAGE_RATE_RANK            572u /* 592.82 forage.rate_rank */
+#define ALX_SLOT__COUNT 572u
 /* clang-format on */
 
 #endif

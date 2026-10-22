@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A bounty's value net of the 0.08889% assurance fee, in Sutra
+# (forage_rules.h FR1): amount - floor(amount * 8889 / 10000000), amount
+# in integer minor units, the fee Fairground's (fairground.assurance_fee),
+# never rounded up, so the net is never rounded down. amount fits 9(15):
+# a larger or a negative one is a size error, refused, never cut short.
+# net.tb says the same in Trebago, which answers up to 2^53 - 1: past 15
+# digits the two disagree and the net is held.
+record forage-net
+  amount: 9(15)
+  fee: 9(12)
+  net: 9(15)
+procedure
+  compute fee = amount * 8889 / 10000000
+  compute net = amount - fee
+  answer net

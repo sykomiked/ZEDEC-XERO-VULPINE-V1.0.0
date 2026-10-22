@@ -1,0 +1,24 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A claim fits the node (forage_rules.h FR2), in Eve: a bounty's work
+# inside the node's swarm and power budgets. Eve checks each field
+# against its own range, so the budgets come as margins the model works
+# out: tokroom is the swarm tokens the owner lets bounties take this
+# cycle, less those already claimed, less this work's; mwroom is the
+# owner's power cap, less what the node draws now, less this work's draw.
+# The work takes 1..999999999 tokens a cycle and draws 0..999999999
+# milliwatts; each room is 0..999999999, and a room below 0 is past the
+# budget. claim.sutra says the same in Sutra, which refuses a value past
+# 9 digits: held.
+eve forage
+claim_tokens = 1 .. 999999999
+claim_milliwatts = 0 .. 999999999
+claim_room = 0 .. 999999999
+
+claim_rule {
+  tokens: claim_tokens
+  mw: claim_milliwatts
+  tokroom: claim_room
+  mwroom: claim_room
+}

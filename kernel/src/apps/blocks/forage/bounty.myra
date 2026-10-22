@@ -1,0 +1,11 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Forage indexes one bounty in MYRA (forage_rules.h FR4): its number
+; on the node's board (4 digits), its kind (1 a bounty to claim, 2 one this
+; node posts), the swarm tokens a cycle its work takes and its draw in
+; milliwatts (9 digits each), its value in minor units (15 digits, Sutra's
+; witnessed fee range), the minutes it takes (9 digits) and its status (0
+; waiting for the owner, 1 sent, 2 refused by zxvd, 3 cancelled). Forage
+; asks whether the numbers fit before it keeps them.
+^ZXFORAGE(bounty:i4) = kind:i1! ^ tokens:i9! ^ mw:i9! ^ amount:i15! ^ minutes:i9! ^ status:i1!
