@@ -513,7 +513,12 @@
 #define ALX_SLOT_LOGIC_PIVOT_DWELL_FIRES         505u /* 492.46 pivot.dwell_fires */
 #define ALX_SLOT_LOGIC_PIVOT_DWELL_SELECT        506u /* 492.47 pivot.dwell_select */
 #define ALX_SLOT_NUM_PIVOT_SCAN_ITEM             507u /* 592.53 pivot.scan_item */
-#define ALX_SLOT__COUNT 507u
+#define ALX_SLOT_LOGIC_TALEWIND_CHOICE_SHOWN     508u /* 492.48 talewind.choice_shown */
+#define ALX_SLOT_LOGIC_TALEWIND_TALE_CHOICE_OK   509u /* 492.49 talewind.tale_choice_ok */
+#define ALX_SLOT_NUM_TALEWIND_TALE_FLAGS_AFTER   510u /* 592.54 talewind.tale_flags_after */
+#define ALX_SLOT_NUM_TALEWIND_TALE_FLAGS_LACKING 511u /* 592.55 talewind.tale_flags_lacking */
+#define ALX_SLOT_LOGIC_TALEWIND_TALE_PASSAGE_OK  512u /* 492.50 talewind.tale_passage_ok */
+#define ALX_SLOT__COUNT 512u
 /* clang-format on */
 
 #endif

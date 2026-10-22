@@ -542,3 +542,8 @@
 505	logic.pivot_dwell_fires	492.46	pivot.dwell_fires	base
 506	logic.pivot_dwell_select	492.47	pivot.dwell_select	base
 507	num.pivot_scan_item	592.53	pivot.scan_item	base
+508	logic.talewind_choice_shown	492.48	talewind.choice_shown	base
+509	logic.talewind_tale_choice_ok	492.49	talewind.tale_choice_ok	base
+510	num.talewind_tale_flags_after	592.54	talewind.tale_flags_after	base
+511	num.talewind_tale_flags_lacking	592.55	talewind.tale_flags_lacking	base
+512	logic.talewind_tale_passage_ok	492.50	talewind.tale_passage_ok	base

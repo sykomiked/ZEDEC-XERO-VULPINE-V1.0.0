@@ -1260,6 +1260,23 @@ sundial	check clock_limits_fault alarms=1,1 snooze=1,1 timer=0,-1 = both
 sundial	check zone_offset zone=0,1,13,14,15,23,28,37 = -720,-660,-60,0,60,345,525,840
 sundial	check solstice.weekday year=2026 month=10 day=22 = 4
 sundial	check halloo.hms ms=0,1500000,359940000 = 0,2500,995900
+talewind	check choice_shown lacking=0,0,0,1,0,-1,0 ratingroom=0,4,-1,0,2,0,-100 = true,true,false,false,true,false,false
+talewind	check choice_shown lacking=0,0 ratingroom=4,5 = both
+talewind	check tale_flags_lacking need=0 held=0 = 0
+talewind	check tale_flags_lacking need=7 held=0 = 3
+talewind	check tale_flags_lacking need=5 held=4 = 1
+talewind	check tale_flags_lacking need=65535 held=0 = 16
+talewind	check tale_flags_lacking need=65535 held=65535 = 0
+talewind	check tale_flags_lacking need=65536 held=0 = both
+talewind	check tale_flags_lacking need=1 held=-1 = both
+talewind	check tale_flags_after held=0 sets=0 = 0
+talewind	check tale_flags_after held=1 sets=8 = 9
+talewind	check tale_flags_after held=5 sets=3 = 7
+talewind	check tale_flags_after held=0 sets=65535 = 65535
+talewind	check tale_flags_after held=65536 sets=1 = both
+talewind	check tale_passage_ok story=1,999999,1000000,1,1,1 passage=1,99,1,100,1,1 rating=0,9,0,0,10,0 bytes=1,9999,1,1,1,10000 = true,true,false,false,false,false
+talewind	check tale_choice_ok story=1,999999,1,1,1,1,1,1 passage=1,99,1,100,1,1,1,1 choice=1,9,10,1,1,1,1,1 target=2,99,2,2,100,2,2,2 need=0,99999,0,0,0,100000,0,0 sets=0,99999,0,0,0,0,100000,-100000 = true,true,false,false,false,false,false,false
+talewind	check sieve.suggestion_apply_ok accepted=1,1,1,0 secondsleft=600,600,0,600 drift=0,1,0,0 = true,false,false,false
 talisman	check reach_x100 have=0,50,100,150,1,2,999999999,0,10001 need=100,100,100,100,3,3,999999999,1,10000 = 0,5000,10000,10000,3333,6666,10000,0,10000
 talisman	check reach_x100 have=1,1 need=1,0 = both
 talisman	check reach_x100 have=1,1000000000 need=1,1 = both

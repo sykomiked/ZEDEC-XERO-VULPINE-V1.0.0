@@ -1,0 +1,7 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Talewind files a passage of a story graph, in MYRA (talewind_rules.h
+; TR4): its story, its number in the story, its age rating (0 all ages to
+; 4 adults only) and the bytes of its text.
+^ZXTALE(story:i6, passage:i2) = rating:i1! ^ bytes:i4!

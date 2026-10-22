@@ -1,0 +1,108 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Talewind, interactive stories: layer 108 of the matrix. A story is a
+# graph of passages (nodes, 1..64) and choices (edges, at most 4 leaving a
+# passage), kept as one text file in the Banker (files.read, files.write).
+# A reader holds flags (a mask of 16); a choice needs some and sets some,
+# and leads to a passage with an age rating, 0 all ages to 4 adults only
+# (a default taken: five steps, the common shape of age labels). The swarm
+# drafts passages (swarm.ask), and a draft is held for the author's
+# approval, never written on its own (talewind_model.h TM1-TM4; the rules
+# are talewind_rules.h TR1-TR6).
+#
+# Its layer leans on no other layer's code yet. One idea nearer the core is
+# used, never written again: whether a held AI suggestion may be applied
+# (Sieve's suggestion_apply_ok, sieve_rules.h SR1: the author's accept,
+# time left on the hold, and the story unchanged since it was drafted).
+# Rill and Spindrift (L2) take "choice shown" and the story graph with
+# "use talewind 1", so each entry is a concept with Talewind as its owner
+# (CONCEPTS.tsv).
+#
+# Witness pairs are of one kind, since a witnessed call compares answers
+# exactly and a truth entry refuses a number (zxapp.c run_one B3). Eve
+# checks each field against its own range (zxapp_eve.c EV1-EV3), so the
+# task's "choice shown in KRON and Eve" takes each part as its margin, as
+# Sieve and Tributary do: lacking (the flags the choice needs that the
+# reader does not hold) and ratingroom (the reader's ceiling less the
+# target's rating). The flags themselves are bit work across two masks,
+# which Eve cannot say: KRON and Pascal (twin Tutordrake, written step by
+# step for teaching) count them, and the model's C is the third witness
+# (tests/talewind_zxapp.inc). Pascal keeps 32-bit integers and reads one
+# row per call (zxapp_lingua.c L1), so each check line that reaches it has
+# one row; the lines name the runtime (pascal), as Orrery's do.
+#
+# Logo (twin Kiteling) is not used: Lingua's Logo refuses readword and
+# readlist (zl_logo.c), so a Logo program cannot read an entry's arguments
+# (zxapp_lingua.c L1), and Talewind draws no geometry.
+#
+# Kept in C, since no runnable language owns it: the story file's text
+# (parsing and composing lines) and the prompt sent to the swarm.
+#
+# Planned (no runtime yet): Mojo owns numeric kernels; the flag count is
+# the one numeric kernel here, so tale_flags_lacking waits on it (pending).
+zxapp 1
+id     talewind
+name   Talewind
+version 1.0.0
+slot   108
+layer  L1
+matrix 108
+icon   icons/l1/108-talewind.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  ai.ask
+model  apps/talewind_model.c
+use    sieve 1   # @logic.sieve_suggestion_apply_ok
+
+# A story choice is shown (TR1): lacking exactly 0 and ratingroom 0..4.
+# Eve declares the two ranges; KRON reads any room at or above 0 as
+# allowed. A room past 4 is no pair of ratings: Eve refuses it, KRON
+# answers: held.
+provides choice_shown truth lacking ratingroom
+logic    eve  choice_shown apps/blocks/talewind/choice_shown.eve
+logic    kron choice_shown apps/blocks/talewind/choice_shown.kron
+
+# The flags a choice needs that the reader does not hold (TR2), each mask
+# 0..65535. KRON counts the low 16 bits of any integer; Pascal refuses a
+# mask outside 0..65535: held.
+provides tale_flags_lacking num need held
+logic    kron   tale_flags_lacking apps/blocks/talewind/flags_lacking.kron
+# Pascal, twin Tutordrake
+logic    pascal tale_flags_lacking apps/blocks/talewind/flags_lacking.pas
+pending  Mojo tale_flags_lacking
+
+# The flags held after taking a choice (TR3): held with every flag of sets
+# added. KRON and Pascal, the same way: a mask past 16 flags is held.
+provides tale_flags_after num held sets
+logic    kron   tale_flags_after apps/blocks/talewind/flags_after.kron
+# Pascal, twin Tutordrake
+logic    pascal tale_flags_after apps/blocks/talewind/flags_after.pas
+
+# The story graph in MYRA: a passage makes a ^ZXTALE record (TR4), a
+# choice a ^ZXTALECH record (TR5).
+provides tale_passage_ok truth story passage rating bytes
+logic    myra tale_passage_ok apps/blocks/talewind/passage.myra
+
+provides tale_choice_ok truth story passage choice target need sets
+logic    myra tale_choice_ok apps/blocks/talewind/choice.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check choice_shown lacking=0,0,0,1,0,-1,0 ratingroom=0,4,-1,0,2,0,-100 = true,true,false,false,true,false,false
+check choice_shown lacking=0,0 ratingroom=4,5 = both
+check tale_flags_lacking need=0 held=0 = 0
+check tale_flags_lacking need=7 held=0 = 3
+check tale_flags_lacking need=5 held=4 = 1
+check tale_flags_lacking need=65535 held=0 = 16
+check tale_flags_lacking need=65535 held=65535 = 0
+check tale_flags_lacking need=65536 held=0 = both
+check tale_flags_lacking need=1 held=-1 = both
+check tale_flags_after held=0 sets=0 = 0
+check tale_flags_after held=1 sets=8 = 9
+check tale_flags_after held=5 sets=3 = 7
+check tale_flags_after held=0 sets=65535 = 65535
+check tale_flags_after held=65536 sets=1 = both
+check tale_passage_ok story=1,999999,1000000,1,1,1 passage=1,99,1,100,1,1 rating=0,9,0,0,10,0 bytes=1,9999,1,1,1,10000 = true,true,false,false,false,false
+check tale_choice_ok story=1,999999,1,1,1,1,1,1 passage=1,99,1,100,1,1,1,1 choice=1,9,10,1,1,1,1,1 target=2,99,2,2,100,2,2,2 need=0,99999,0,0,0,100000,0,0 sets=0,99999,0,0,0,0,100000,-100000 = true,true,false,false,false,false,false,false
+check sieve.suggestion_apply_ok accepted=1,1,1,0 secondsleft=600,600,0,600 drift=0,1,0,0 = true,false,false,false

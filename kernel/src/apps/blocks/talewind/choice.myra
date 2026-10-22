@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Talewind files a choice, an edge of a story graph, in MYRA
+; (talewind_rules.h TR5): its story, the passage it leaves, its place among
+; that passage's choices, the passage it leads to, the flags it needs and
+; the flags it sets (each a mask of 16 flags).
+^ZXTALECH(story:i6, passage:i2, choice:i1) = target:i2! ^ need:i5! ^ sets:i5!

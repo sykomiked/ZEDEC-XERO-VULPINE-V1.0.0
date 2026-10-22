@@ -1,0 +1,5 @@
+p:2 pow !16
+w:(0*held)+\:p
+s:2 res _ sets %\: p
+b:2 res _ held %\: p
+held++/+w*s*1-b

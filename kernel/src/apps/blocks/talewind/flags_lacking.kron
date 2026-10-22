@@ -1,0 +1,4 @@
+p:2 pow !16
+a:2 res _ need %\: p
+b:2 res _ held %\: p
++/+a*1-b

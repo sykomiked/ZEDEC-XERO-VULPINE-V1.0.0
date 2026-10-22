@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Is this story choice shown to the reader (talewind_rules.h TR1), in Eve.
+# Eve checks each field against its own range, so each part comes as its
+# margin: lacking, the flags the choice needs that the reader does not
+# hold (story_flags_lacking), exactly 0; ratingroom, the reader's age
+# rating ceiling less the rating of the passage the choice leads to, 0 to
+# 4 (ratings run 0 all ages to 4 adults only, so no room is wider than 4).
+# Any other row does not fit: the choice is not shown. choice_shown.kron
+# says the same in KRON, which reads any room at or above 0 as allowed: a
+# room past 4 is no pair of ratings, and is held.
+eve talewind
+none_lacking = 0 .. 0
+rating_room = 0 .. 4
+
+choice_shown {
+  lacking: none_lacking
+  ratingroom: rating_room
+}
