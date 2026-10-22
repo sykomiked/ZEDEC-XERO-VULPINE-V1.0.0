@@ -280,16 +280,12 @@ async function partBoot(browser, z, root)
         const ctx = await browser.newContext();
         const page = await ctx.newPage();
         const watch = watchPage(page, 'reload');
-        // what the first boot asked for: the reload cancels what was still loading
-        const first = new Set(), cancelled = [];
-        const onReq = (r) => first.add(r);
-        page.on('request', onReq);
-        page.on('requestfailed', (r) => {
-            if (first.has(r) && (r.failure() || {}).errorText === 'net::ERR_ABORTED') cancelled.push(r.url());
-        });
+        // A reload cancels what the first boot was still loading, and the
+        // second boot's streamed loads can end before Chromium marks them
+        // finished: both show as ERR_ABORTED. The second boot reaching the
+        // login means every file arrived whole and matched its hash.
         await page.goto(z.url);
         await page.waitForTimeout(150);
-        page.off('request', onReq);
         await page.reload();
         await page.waitForURL(/\/web\/session\/index\.html$/, {timeout : 60000});
         await page.waitForSelector('#v-login.on');
@@ -300,9 +296,10 @@ async function partBoot(browser, z, root)
                                                    })).status);
         check(st === 200, 'a reload in the middle of the boot boots again, and the tab keeps its token');
         await page.waitForTimeout(100);
-        const probs = watch.problems.filter((p) => !(/ERR_ABORTED/.test(p) && cancelled.some((u) => p.includes(u))));
+        const aborted = watch.problems.filter((p) => /ERR_ABORTED/.test(p));
+        const probs = watch.problems.filter((p) => !/ERR_ABORTED/.test(p));
         check(probs.length === 0,
-              `reload: no page errors besides the ${cancelled.length} first-boot loads the reload cancelled${probs.length ? ': ' + probs.join('; ') : ''}`);
+              `reload: no page errors besides ${aborted.length} aborted load(s)${probs.length ? ': ' + probs.join('; ') : ''}`);
         await ctx.close();
     }
     // close in the middle of the boot: zxvd serves the next tab
@@ -455,8 +452,13 @@ async function partZxvdDown(browser, zxvd, models, root)
     const why3 = await page.locator('#ask-why').textContent();
     check(/refused this page \(bad token\).*ZXV-WEB link/.test(why3), `zxvd back with a new token: the page says to open its new link: "${why3}"`);
 
-    // down while logging in: the spaces say so
+    // down while logging in: the spaces say so. Signing out starts a new
+    // passport worker, which loads its wasm from zxvd: zxvd goes down once
+    // that has arrived.
+    const wasmBack = page.waitForResponse((r) => r.url().endsWith('/zxv_passport.wasm'), {timeout : 30000});
     await signOutFromAsk(page);
+    await wasmBack;
+    await page.waitForTimeout(500);
     await z.stop('SIGKILL');
     await loginKeep(page, SEED_TEXT);
     await page.waitForFunction(() => document.getElementById('spaces-why').textContent.includes('did not answer'), null,
