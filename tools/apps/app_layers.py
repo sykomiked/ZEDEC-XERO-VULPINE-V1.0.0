@@ -63,7 +63,10 @@ READS = {"list", "read", "stat", "root", "status", "get", "feed", "query", "veri
          "account", "books", "disk", "net", "budget", "top", "job", "render", "decode",
          "encode", "card", "find", "quote", "draft", "catalog", "keys", "issuer", "positions",
          "receipts", "plan", "segment", "iso8583_parse", "check_pan"}
-READ_METHODS = {"play.run", "aipi.execute"}  # sandboxed compute: nothing of the owner's moves
+# sandboxed compute, and reads whose verb alone would read as a write (the spec says each
+# changes nothing: books.file names where the books are kept, search.refresh re-reads the
+# index, irc.record fetches one relayed message)
+READ_METHODS = {"play.run", "aipi.execute", "books.file", "search.refresh", "irc.record"}
 
 LIT = re.compile(r'"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\'|/\*.*?\*/|//[^\n]*', re.S)
 STR = re.compile(r'"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\'')
