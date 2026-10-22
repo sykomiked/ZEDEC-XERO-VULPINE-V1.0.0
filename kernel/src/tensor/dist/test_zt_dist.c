@@ -392,7 +392,8 @@ int main(int argc, char **argv)
     if (me == 0) printf("%d/%d checks passed (MPI, %d ranks)\n", checks - failures, checks, np);
     return failures ? 1 : 0;
 #else
-    uint16_t port = (uint16_t) (20000 + (getpid() % 2000) * 8);
+    /* below Linux's ephemeral range (32768 and up), so no outgoing connection holds one */
+    uint16_t port = (uint16_t) (20000 + (getpid() % 1500) * 8);
     for (uint32_t vi = 0; vi < MF_N_VARIANTS; vi++) {
         const mf_variant_t *v = &MF_VARIANTS[vi];
         loaded_t L;
