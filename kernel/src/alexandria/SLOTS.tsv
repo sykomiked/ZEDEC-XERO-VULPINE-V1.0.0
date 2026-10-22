@@ -329,3 +329,7 @@
 292	logic.margins_note_size_ok	491.44	margins.note_size_ok	base
 293	logic.margins_note_tag_row_ok	491.45	margins.note_tag_row_ok	base
 294	num.margins_pinned_recent_key	591.40	margins.pinned_recent_key	base
+295	num.warble_playlist_ms	591.41	warble.playlist_ms	base
+296	num.warble_shuffle_at	591.42	warble.shuffle_at	base
+297	logic.warble_track_record_ok	491.46	warble.track_record_ok	base
+298	logic.warble_volume_cap_ok	491.47	warble.volume_cap_ok	base

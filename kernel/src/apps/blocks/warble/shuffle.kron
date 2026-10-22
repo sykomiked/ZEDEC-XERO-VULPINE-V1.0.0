@@ -1,0 +1,25 @@
+s:999983 res seed
+k0:count res s
+p0:count res (k0+count)-step
+h0:999983 res s+31337*step|p0
+x0:step+(2 res 999983 res h0*h0)*p0-step
+k1:count res s+104729
+p1:count res (k1+count)-x0
+h1:999983 res s+65537+31337*x0|p1
+x1:x0+(2 res 999983 res h1*h1)*p1-x0
+k2:count res s+209458
+p2:count res (k2+count)-x1
+h2:999983 res s+131074+31337*x1|p2
+x2:x1+(2 res 999983 res h2*h2)*p2-x1
+k3:count res s+314187
+p3:count res (k3+count)-x2
+h3:999983 res s+196611+31337*x2|p3
+x3:x2+(2 res 999983 res h3*h3)*p3-x2
+k4:count res s+418916
+p4:count res (k4+count)-x3
+h4:999983 res s+262148+31337*x3|p4
+x4:x3+(2 res 999983 res h4*h4)*p4-x3
+k5:count res s+523645
+p5:count res (k5+count)-x4
+h5:999983 res s+327685+31337*x4|p5
+x4+(2 res 999983 res h5*h5)*p5-x4

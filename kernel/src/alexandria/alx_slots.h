@@ -300,7 +300,11 @@
 #define ALX_SLOT_LOGIC_MARGINS_NOTE_SIZE_OK      292u /* 491.44 margins.note_size_ok */
 #define ALX_SLOT_LOGIC_MARGINS_NOTE_TAG_ROW_OK   293u /* 491.45 margins.note_tag_row_ok */
 #define ALX_SLOT_NUM_MARGINS_PINNED_RECENT_KEY   294u /* 591.40 margins.pinned_recent_key */
-#define ALX_SLOT__COUNT 294u
+#define ALX_SLOT_NUM_WARBLE_PLAYLIST_MS          295u /* 591.41 warble.playlist_ms */
+#define ALX_SLOT_NUM_WARBLE_SHUFFLE_AT           296u /* 591.42 warble.shuffle_at */
+#define ALX_SLOT_LOGIC_WARBLE_TRACK_RECORD_OK    297u /* 491.46 warble.track_record_ok */
+#define ALX_SLOT_LOGIC_WARBLE_VOLUME_CAP_OK      298u /* 491.47 warble.volume_cap_ok */
+#define ALX_SLOT__COUNT 298u
 /* clang-format on */
 
 #endif

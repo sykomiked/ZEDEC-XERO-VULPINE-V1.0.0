@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A playlist's length (warble_rules.h WR2), in Trebago: the exact sum of
+! its tracks' lengths in ms, added from the first, each 0..86400000 (a
+! day; 0 is a length not known). For integers min(1, max(0, -ms)) is 1
+! exactly when ms is negative and min(1, max(0, ms - 86400000)) exactly
+! when it is past a day, so bad counts the lengths outside, and the sum is
+! divided by 1 - min(1, bad): any length outside is a division by zero,
+! refused, never added. A partial sum past 64 bits is refused too.
+trebago playlist
+  in  ms(n)
+  out total
+  var bad(n)
+  bad(i) = min(1, max(0, 0 - ms(i))) + min(1, max(0, ms(i) - 86400000))
+  total = sum(i, ms(i)) / (1 - min(1, sum(i, bad(i))))
+end

@@ -1,0 +1,107 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Warble, the music library and player: layer 50 of the matrix. The
+# library is the Hoard's Music folder, listed with files.list, one track
+# looked at again with files.stat, a WAV track's length read from its
+# header with files.read, and tracks found by their names and words with
+# search.query. Playing together is a watch hall: hall.load puts a track's
+# media CID in a hall, hall.play and hall.pause steer it, hall.status says
+# where every listener is (warble_model.h WM1-WM7).
+#
+# zxvd has no method that plays audio on this device, sets its volume, or
+# gives a Hoard file's media CID for a track longer than fab.put's 2 MiB
+# block. None is invented: the view plays the sound and hands Warble the
+# media CID the owner published, and Warble keeps the volume and its cap
+# for the view to apply. The hall's methods are behind zxvd's pspace
+# switch, off until the owner turns it on.
+#
+# Advisory and owner-confirmed: only the owner's confirmed word moves the
+# volume cap, and a volume past it is refused, never turned down silently.
+#
+# Built on what is nearer the core. A playlist's length as h:mm:ss is
+# halloo.hms, never written again. Crown's draw_at (seeded_draw_order) is
+# not a shuffle: (seed + step * 1000003) mod members is one stride for
+# every seed, so a seed only moves where the same order starts, and a
+# listener would hear one order every time. Warble's shuffle_at changes
+# the order with the seed, so it is a new entry. Keystone's setting_ok
+# holds a volume to 0..100 with nothing beside it; a volume under the
+# owner's cap relates two fields, so volume_cap_ok is new.
+#
+# Later layers lean on this one (Luthier, Mummer, Courser, Swell use its
+# playlist length, shuffle, volume limits and track index), so its four
+# entries are general rules registered in CONCEPTS.tsv with Warble as
+# owner. Witness pairs are of one kind: shuffle_at is a number, Rust (as
+# WebAssembly) and KRON, as the task asks; Rust traps on a seed, count or
+# step outside its range where KRON answers: held. playlist_ms is exact in
+# Trebago, witnessed by KRON, which sums as given where Trebago refuses a
+# length outside 0..a day: held. volume_cap_ok is Eve's ranges, witnessed
+# by KRON, which also holds the volume under the cap, a relation across
+# fields Eve cannot say: held. track_record_ok is MYRA's index record,
+# witnessed by Eve, whose ranges are narrower than MYRA's digits: held.
+#
+# Kept in C, since no runnable language owns it: a file name read as a
+# track (its extension), a WAV header decoded from base64, and reading
+# zxvd's answers.
+#
+# Planned languages: LabVIEW (dataflow, signal) for the listening volume,
+# a signal level; Julia (numeric) for the playlist's exact length.
+zxapp 1
+id     warble
+name   Warble
+version 1.0.0
+slot   50
+layer  L1
+matrix 50
+icon   icons/l1/050-warble.svg
+budget 233
+needs  fs.read
+needs  search
+needs  peers
+model  apps/warble_model.c
+use    halloo 1   # @num.halloo_hms
+
+# The shuffle (WR1): the track at place step of the shuffle of count
+# tracks from seed, every track once. Rust (as WebAssembly) and KRON.
+provides shuffle_at num seed count step
+logic    wasm shuffle_at apps/blocks/warble/shuffle.wasm
+logic    kron shuffle_at apps/blocks/warble/shuffle.kron
+
+# A playlist's exact length in ms (WR2): Trebago, witnessed by KRON.
+provides playlist_ms num ms
+logic    trebago playlist_ms apps/blocks/warble/playlist.tb
+logic    kron    playlist_ms apps/blocks/warble/playlist.kron
+pending  Julia playlist_ms
+
+# A listening volume inside its limits and under the owner's cap (WR3):
+# Eve, witnessed by KRON.
+provides volume_cap_ok truth volume cap
+logic    eve  volume_cap_ok apps/blocks/warble/volume.eve
+logic    kron volume_cap_ok apps/blocks/warble/volume.kron
+pending  LabVIEW volume_cap_ok
+
+# The library's track index (WR4), a ^ZXWARBLE record in MYRA, witnessed
+# by Eve.
+provides track_record_ok truth track ms mtime
+logic    myra track_record_ok apps/blocks/warble/track.myra
+logic    eve  track_record_ok apps/blocks/warble/track.eve
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check shuffle_at seed=0,0,0,0,0,0 count=1,5,5,5,5,5 step=0,0,1,2,3,4 = 0,3,4,0,1,2
+check shuffle_at seed=42,42,42,42,42 count=5,5,5,5,5 step=0,1,2,3,4 = 2,1,3,4,0
+check shuffle_at seed=999999999,999999999 count=999999,999999 step=0,999998 = 226457,121729
+check shuffle_at seed=42,1000000000 count=5,5 step=0,0 = both
+check shuffle_at seed=42,42 count=5,5 step=0,5 = both
+check shuffle_at seed=42,-1 count=5,5 step=0,0 = both
+check playlist_ms ms=0,86400000,1515,0 = 86401515
+check playlist_ms ms=180000,240500,0,3 = 420503
+check playlist_ms ms=1000,-1 = both
+check playlist_ms ms=1000,86400001 = both
+check volume_cap_ok volume=0,100,50,101,-1,50,50,60 cap=0,100,60,100,60,101,-1,60 = true,true,true,false,false,false,false,true
+check volume_cap_ok volume=50,80 cap=60,60 = both
+check track_record_ok track=0,511,10000,0,0 ms=0,86400000,1000,100000000,1000 mtime=0,99999999999,1,1,100000000000 = true,true,false,false,false
+check track_record_ok track=1,1 ms=1000,90000000 mtime=1760000000,1760000000 = both
+check track_record_ok track=1,1 ms=1000,1000 mtime=1760000000,-1 = both
+check track_record_ok track=1,512 ms=1000,1000 mtime=1760000000,1760000000 = both
+# A playlist's length shown, through Halloo's h:mm:ss
+check halloo.hms ms=420503,86401515,8640000000 = 700,240001,24000000

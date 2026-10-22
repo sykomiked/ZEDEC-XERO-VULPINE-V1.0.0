@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Warble files a track in its library index, in MYRA: the track's
+; place in the library, its length in ms and when its file last changed
+; (Unix seconds). The digits hold more than track.eve's ranges allow, so a
+; track past them is held.
+^ZXWARBLE(track:i4) = ms:i8! ^ mtime:i11!

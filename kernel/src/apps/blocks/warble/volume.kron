@@ -1,0 +1,1 @@
+(volume>-1)&(volume<101)&(cap>-1)&(cap<101)&volume<cap+1

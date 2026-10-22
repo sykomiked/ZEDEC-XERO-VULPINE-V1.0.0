@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a listening volume may be (warble_rules.h WR3), in Eve: the volume
+# and the owner's cap are each 0 to 100 percent, Keystone's volume range.
+# Eve holds each range on its own; that the volume is no louder than the
+# cap is volume.kron's to say, so a volume past the cap is held.
+eve warble
+volume_percent = 0 .. 100
+
+listening_volume {
+  volume: volume_percent
+  cap: volume_percent
+}

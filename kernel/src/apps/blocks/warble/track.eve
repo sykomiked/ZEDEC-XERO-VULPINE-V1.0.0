@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a track in Warble's library index may say (warble_rules.h WR4), in
+# Eve: its place in the library (0 to 511, warble_rules.h WARBLE_TRACKS),
+# its length in ms (0 to 86400000, a day; 0 is a length not known) and
+# when its file last changed (seconds since 1970, 11 digits).
+eve warble
+track_place = 0 .. 511
+track_ms = 0 .. 86400000
+track_mtime = 0 .. 99999999999
+
+track_entry {
+  track: track_place
+  ms: track_ms
+  mtime: track_mtime
+}
