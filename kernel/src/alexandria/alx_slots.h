@@ -324,7 +324,10 @@
 #define ALX_SLOT_NUM_ORRERY_PLANET_LONGITUDE     316u /* 591.52 orrery.planet_longitude */
 #define ALX_SLOT_LOGIC_ORRERY_SKY_ABOVE_HORIZON  317u /* 491.56 orrery.sky_above_horizon */
 #define ALX_SLOT_LOGIC_ORRERY_SKY_OBSERVATION_OK 318u /* 491.57 orrery.sky_observation_ok */
-#define ALX_SLOT__COUNT 318u
+#define ALX_SLOT_LOGIC_GAZETTE_FEED_ITEM_SHOWN   319u /* 491.58 gazette.feed_item_shown */
+#define ALX_SLOT_LOGIC_GAZETTE_FEED_READ_OK      320u /* 491.59 gazette.feed_read_ok */
+#define ALX_SLOT_NUM_GAZETTE_FEED_UNREAD_TOTAL   321u /* 591.53 gazette.feed_unread_total */
+#define ALX_SLOT__COUNT 321u
 /* clang-format on */
 
 #endif

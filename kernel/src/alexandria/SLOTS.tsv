@@ -353,3 +353,6 @@
 316	num.orrery_planet_longitude	591.52	orrery.planet_longitude	base
 317	logic.orrery_sky_above_horizon	491.56	orrery.sky_above_horizon	base
 318	logic.orrery_sky_observation_ok	491.57	orrery.sky_observation_ok	base
+319	logic.gazette_feed_item_shown	491.58	gazette.feed_item_shown	base
+320	logic.gazette_feed_read_ok	491.59	gazette.feed_read_ok	base
+321	num.gazette_feed_unread_total	591.53	gazette.feed_unread_total	base

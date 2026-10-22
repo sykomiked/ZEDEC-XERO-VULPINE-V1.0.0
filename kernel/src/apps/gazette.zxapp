@@ -1,0 +1,97 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Gazette, news and feeds: layer 36 of the matrix. One reading list of
+# what nodes and people post: this node's chat (chat.feed), the social
+# feed (social.feed), the owner's Web4 envelope feed (web4.feed), the
+# spaces the owner reads (pspace.events) and messages the IRC gateway
+# relayed (irc.record). The owner follows people through zxvd
+# (chat.me, chat.follow: the newest FOLLOW record decides); a space, a
+# Web4 companion or an IRC channel is followed and any source muted in
+# Gazette itself. Every method is zxvd's; none is invented.
+#
+# Gazette keeps the daemon's ranking (gazette_model.h GM3): each page is
+# kept in the order zxvd gives it, and nothing is re-ranked; replies,
+# reactions and scores are not even kept, so nothing can rank by
+# engagement. Notices are composed only when the owner asked for them
+# (docs/ENGAGEMENT.md: no "we miss you", no streaks), and zxvd has no
+# notification method, so the notice is only composed (GM7). Fetching
+# feeds from outside the mesh (RSS, Atom: ANEWS in
+# docs/P2P_PROTOCOL_TWINS.md, planned) has no method in zxvd; nothing is
+# fetched any other way.
+#
+# Built on what is nearer the core. A source's unread count is Commons's
+# room_unread (newest - seen, never below 0; KRON and Trebago), used as it
+# is (commons.room_unread), never written again. A space's CID is checked
+# as text before pspace.events is asked with Seedbank's CID rule
+# (seedbank.cid_byte, every byte 1). Caravan, which the matrix says this
+# layer leans on, measures parcels against carriers' limits: Gazette
+# decides nothing of that kind, so none of its entries is used.
+#
+# No later layer leans on this one (LAYER_ORDER.tsv), but its rules are
+# general to any reader of feeds, so they are registered as concepts
+# owned here (CONCEPTS.tsv): whether an item is shown, the unread badge
+# over every source, and an item's read-state record.
+#
+# Witness pairs are of one kind (zxapp.c run_one B3). Eve and KRON
+# witness feed_item_shown, a truth: Eve holds each flag to its range,
+# KRON reads past a flag that is no flag (held). KRON and Trebago
+# witness feed_unread_total, a number: Trebago refuses a row outside its
+# ranges, KRON answers (held). MYRA alone holds the read-state record.
+# The model's C (gazette_rules.h) is the third witness of each.
+#
+# Planned (no runtime yet): Go owns concurrency and messaging, and which
+# items of many message feeds reach the reader is a messaging service's
+# rule: pending on feed_item_shown.
+#
+# Defaults taken (gazette_model.h): the owner's own posts are not news
+# and are never in the list; a Web4 envelope is news only once signed
+# (held and denied ones wait on consent) and never a CONSENT entry; a
+# space CID is 59 bytes, Seedbank's rule (zxvd takes up to 79, but a
+# CIDv1 raw sha2-256 is 59).
+zxapp 1
+id     gazette
+name   Gazette
+version 1.0.0
+slot   36
+layer  L1
+matrix 36
+icon   icons/l1/036-gazette.svg
+budget 233
+needs  net
+needs  peers
+needs  notify
+model  apps/gazette_model.c
+use    commons 1    # @num.commons_room_unread
+use    seedbank 1   # @num.seedbank_cid_byte
+
+# Show this item (GR1): its source followed, not muted. Eve holds each
+# flag to its range; KRON reads past a flag that is no flag: held.
+provides feed_item_shown truth followed muted
+logic    eve  feed_item_shown apps/blocks/gazette/shown.eve
+logic    kron feed_item_shown apps/blocks/gazette/shown.kron
+pending  Go feed_item_shown
+
+# The unread badge (GR2): every source's unread, counted when shown,
+# summed. Trebago refuses a row outside its ranges; KRON answers: held.
+provides feed_unread_total num newest seen shown
+logic    kron    feed_unread_total apps/blocks/gazette/total.kron
+logic    trebago feed_unread_total apps/blocks/gazette/total.tb
+
+# An item's read state fits its record (GR3): ^ZXGAZETTE's digits, in
+# MYRA (MUMPS).
+provides feed_read_ok truth source item lamport stamp state
+logic    myra feed_read_ok apps/blocks/gazette/read.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check feed_item_shown followed=1,0,1,0 muted=0,0,1,1 = true,false,false,false
+check feed_item_shown followed=1,2 muted=0,0 = both
+check feed_item_shown followed=1,1 muted=0,-1 = both
+check feed_unread_total newest=5,3,7,0,999999999999 seen=2,9,0,0,0 shown=1,1,0,1,1 = 1000000000002
+check feed_unread_total newest=5,5 seen=0,0 shown=1,2 = both
+check feed_unread_total newest=5,-1 seen=0,0 shown=1,1 = both
+check feed_read_ok source=0,999,1000,0,0,0,0,-5 item=0,999999999999,0,1000000000000,0,0,0,0 lamport=0,999999999999999999,0,0,1000000000000000000,0,0,0 stamp=0,9999999999999,0,0,0,10000000000000,0,0 state=0,1,0,0,0,0,10,1 = true,true,false,false,false,false,false,true
+# A source's unread, Commons's rule as it is: one source per row
+check commons.room_unread newest=0,5,3 seen=0,2,7 = 0,3,0
+# A space CID's bytes, Seedbank's rule as it is: 'b', 'c', then '1' (not base32)
+check seedbank.cid_byte pos=0,1,2 code=98,99,49 len=59,59,59 = 1,1,0

@@ -1,0 +1,20 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The unread badge over every source (gazette_rules.h GR2), in Trebago:
+! one source per row, its unread newest - seen never below 0 (Commons's
+! room_unread), counted when shown is 1 and left out when it is 0, summed
+! exactly. For integers min(1, max(0, m + 1)) is 1 exactly when m >= 0, so
+! ok is 1 when newest and seen are 0..999999999999 (12 digits) and shown
+! is 0 or 1, else 0, and each row is divided by it: a row outside is a
+! division by zero and refuses the whole sum, where total.kron answers:
+! held.
+trebago feedunread
+  in  newest(n), seen(n), shown(n)
+  out total
+  var ok(n)
+  ok(i) = min(1, max(0, newest(i) + 1)) * min(1, max(0, 999999999999 - newest(i) + 1)) &
+        * min(1, max(0, seen(i) + 1)) * min(1, max(0, 999999999999 - seen(i) + 1)) &
+        * min(1, max(0, shown(i) + 1)) * min(1, max(0, 1 - shown(i) + 1))
+  total = sum(i, max(0, newest(i) - seen(i)) * shown(i) / ok(i))
+end

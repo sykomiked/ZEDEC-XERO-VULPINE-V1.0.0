@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Show this item (gazette_rules.h GR1), in Eve: the only record that fits
+# is an item whose source the owner follows (followed exactly 1) and has
+# not muted (muted exactly 0). Eve checks each flag against its own range
+# alone; a flag that is no flag (2, -1) does not fit, where shown.kron
+# reads past it: held.
+eve gazette
+is_followed = 1 .. 1
+not_muted = 0 .. 0
+
+feed_item {
+  followed: is_followed
+  muted: not_muted
+}

@@ -238,6 +238,15 @@ gatehouse	check use_allowed asked=1,1 granted=1,-1 revoked=0,0 = both
 gatehouse	check holders held=1,0,1,1 = 3
 gatehouse	check holders held=0,0 = 0
 gatehouse	check holders held=1,2 = both
+gazette	check feed_item_shown followed=1,0,1,0 muted=0,0,1,1 = true,false,false,false
+gazette	check feed_item_shown followed=1,2 muted=0,0 = both
+gazette	check feed_item_shown followed=1,1 muted=0,-1 = both
+gazette	check feed_unread_total newest=5,3,7,0,999999999999 seen=2,9,0,0,0 shown=1,1,0,1,1 = 1000000000002
+gazette	check feed_unread_total newest=5,5 seen=0,0 shown=1,2 = both
+gazette	check feed_unread_total newest=5,-1 seen=0,0 shown=1,1 = both
+gazette	check feed_read_ok source=0,999,1000,0,0,0,0,-5 item=0,999999999999,0,1000000000000,0,0,0,0 lamport=0,999999999999999999,0,0,1000000000000000000,0,0,0 stamp=0,9999999999999,0,0,0,10000000000000,0,0 state=0,1,0,0,0,0,10,1 = true,true,false,false,false,false,false,true
+gazette	check commons.room_unread newest=0,5,3 seen=0,2,7 = 0,3,0
+gazette	check seedbank.cid_byte pos=0,1,2 code=98,99,49 len=59,59,59 = 1,1,0
 gesso	check pixel_bright px=0,255,100,100,0,255,128,0 delta=0,0,50,-150,-255,255,-1,255 = 0,255,150,0,0,255,127,255
 gesso	check pixel_bright px=10,256 delta=0,0 = both
 gesso	check pixel_bright px=10,10 delta=0,-256 = both

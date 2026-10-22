@@ -1,0 +1,11 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Gazette files one item's read state, in MYRA (gazette_rules.h GR3):
+; its source (its place in the model's source list, 3 digits) and its
+; place in the reading list (12 digits), its order key (lamport: the
+; Lamport time, the envelope id, the event index or the relay time, 18
+; digits), when it was written in ms since 1970 (13 digits, to the year
+; 2286; 0 unknown) and its state (0 unread, 1 read). Gazette asks whether
+; the numbers fit before it keeps an item or marks it read.
+^ZXGAZETTE(source:i3, item:i12) = lamport:i18! ^ stamp:i13! ^ state:i1!
