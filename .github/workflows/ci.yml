@@ -711,7 +711,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
       - name: Install build tools

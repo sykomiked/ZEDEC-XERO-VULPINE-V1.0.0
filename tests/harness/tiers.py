@@ -239,7 +239,15 @@ def compile_obj(src, flags, out_dir, cache):
     """Compile one source to an object, through the cache when allowed."""
     target = os.environ.get("ZXV_MUT_TARGET", "")
     abs_src = os.path.normpath(os.path.join(KERNEL, src))
-    obj = os.path.join(out_dir, hashlib.sha1(src.encode()).hexdigest()[:12] + ".o")
+    # The object keeps its source's path under a per-source directory, so the
+    # link command names the test too (fuzz/tools/san-cc's SANCC_MATCH picks
+    # the commands to instrument by path, and the link needs the runtime).
+    rel = os.path.normpath(src)
+    while rel.startswith("../"):
+        rel = rel[3:]
+    obj = os.path.join(out_dir, hashlib.sha1(src.encode()).hexdigest()[:12],
+                       os.path.splitext(rel.lstrip("/"))[0] + ".o")
+    os.makedirs(os.path.dirname(obj), exist_ok=True)
     use_cache = cache and target and not target.endswith(".h") and \
         os.path.normpath(os.path.join(ROOT, target)) != abs_src
     key = None
