@@ -261,3 +261,7 @@
 224	logic.aerie_ham_clear_ok	491.10	aerie.ham_clear_ok	base
 225	logic.aerie_line_threshold_ok	491.11	aerie.line_threshold_ok	base
 226	logic.aerie_radio_msg_ok	491.12	aerie.radio_msg_ok	base
+227	logic.pinhole_camera_ready	491.13	pinhole.camera_ready	base
+228	num.pinhole_camera_ready_n	591.06	pinhole.camera_ready_n	base
+229	logic.pinhole_exposure_ok	491.14	pinhole.exposure_ok	base
+230	logic.pinhole_photo_record_ok	491.15	pinhole.photo_record_ok	base

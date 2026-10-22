@@ -232,7 +232,11 @@
 #define ALX_SLOT_LOGIC_AERIE_HAM_CLEAR_OK        224u /* 491.10 aerie.ham_clear_ok */
 #define ALX_SLOT_LOGIC_AERIE_LINE_THRESHOLD_OK   225u /* 491.11 aerie.line_threshold_ok */
 #define ALX_SLOT_LOGIC_AERIE_RADIO_MSG_OK        226u /* 491.12 aerie.radio_msg_ok */
-#define ALX_SLOT__COUNT 226u
+#define ALX_SLOT_LOGIC_PINHOLE_CAMERA_READY      227u /* 491.13 pinhole.camera_ready */
+#define ALX_SLOT_NUM_PINHOLE_CAMERA_READY_N      228u /* 591.06 pinhole.camera_ready_n */
+#define ALX_SLOT_LOGIC_PINHOLE_EXPOSURE_OK       229u /* 491.14 pinhole.exposure_ok */
+#define ALX_SLOT_LOGIC_PINHOLE_PHOTO_RECORD_OK   230u /* 491.15 pinhole.photo_record_ok */
+#define ALX_SLOT__COUNT 230u
 /* clang-format on */
 
 #endif

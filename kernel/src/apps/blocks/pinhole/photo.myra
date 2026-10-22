@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Pinhole files one photo in MYRA (pinhole_rules.h PH7): its number,
+; its album, its size in bytes, its width and height in pixels, whether a
+; place tag was added with the owner's permit (0 or 1) and when it was
+; taken (ms since 1970).
+^ZXPINHOLE(photo:i9) = album:i4! ^ bytes:i12! ^ width:i5! ^ height:i5! ^ placed:i1! ^ stamp:i15!

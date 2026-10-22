@@ -1,0 +1,1 @@
+(iso>24)&(iso<25601)&(shutter>30)&(shutter<30000001)&(comp>-10)&comp<10

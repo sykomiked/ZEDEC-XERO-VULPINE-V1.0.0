@@ -1,0 +1,111 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pinhole, the camera: layer 58 of the matrix. Photos are files in the
+# Hoard, written with zxvd's files.write (pinhole_model.c), with the room
+# left read from sys.disk and a place tag added only after the owner's
+# answer to place.ask. The camera is shown as on whenever it is
+# (pinhole_model.h PM1), and the location is never added without the
+# owner's permit (PM5).
+#
+# zxvd has no method that captures a frame from the camera, none that
+# lists the camera's sensors or modes and none that sets an exposure
+# (api/zxvd.openrpc.json lists none), so the view captures the frame and
+# hands it to the model with what the camera reported; "camera" is the
+# capability that capture asks for. None is invented.
+#
+#   camera_ready    the camera is ready (PH1): a sensor present, the mode
+#                   supported and the frame fitting the buffer, as flags.
+#                   The task asks for Forth and Eve witnessed; Eve answers
+#                   only truths and Forth (Lingua) only the numbers it
+#                   prints, and a witnessed pair must answer the same kind,
+#                   so the rule is split as Lifeboat's start_ok and start_n
+#                   are: Eve and KRON witness the truth, Forth and KRON the
+#                   number (camera_ready_n). A flag of 2 fits KRON's yes
+#                   and not Eve's record: held.
+#   camera_ready_n  the same rule as a number, 1 or 0 (PH2): Forth, written
+#                   in its twin Cairndrake's canonical form (zxlang twin),
+#                   and KRON, one row per call (Lingua's Forth reads its
+#                   input from the stack). Forth refuses a flag that is no
+#                   flag, KRON reads it above 0 as yes: held.
+#   exposure_ok     the exposure limits (PH3) in Eve, with KRON beside it:
+#                   iso 25..25600, shutter 31..30000000 microseconds, comp
+#                   -9..9 thirds of a stop, each on its own.
+#   photo_record_ok a photo's record, ^ZXPINHOLE, in MYRA (PH7).
+#
+# Used, never written again (CONCEPTS.tsv):
+#   lifeboat.restore_fits   "photo fits" (PH4): the photo's bytes with the
+#                           owner's floor kept free, at most what may be
+#                           written (space_for_write, Sutra and KRON).
+#   furrow.range_total      bytes per album (PH5): the exact sum of the
+#                           bytes whose album (the position) lies in the
+#                           range want..want (range_total, Trebago and
+#                           KRON). Homestead's total_by_key is the same sum
+#                           by a key, but Homestead is built after this
+#                           layer in MATRIX_ORDER.tsv, so it is not used.
+#   gatehouse.use_ok        the place tag (PH6): asked, granted by the
+#                           owner's answer, not revoked (Eve and KRON).
+#
+# Planned languages: LabVIEW owns instrument dataflow and stands for the
+# camera's readiness (camera_ready). Julia owns numeric and matrix work;
+# the one numeric entry here, bytes per album, is Furrow's, so Julia
+# has no entry of Pinhole's own and is not pending.
+zxapp 1
+id     pinhole
+name   Pinhole
+version 1.0.0
+slot   58
+layer  L1
+matrix 58
+icon   icons/l1/058-pinhole.svg
+budget 233
+needs  camera
+needs  location
+needs  fs.write
+needs  sys.read
+model  apps/pinhole_model.c
+use    lifeboat 1    # @logic.lifeboat_restore_fits
+use    furrow 1      # @num.furrow_range_total
+use    gatehouse 1   # @logic.gatehouse_use_ok
+
+# The camera is ready (PH1), Eve and KRON.
+provides camera_ready truth sensor mode buffer
+logic    eve  camera_ready apps/blocks/pinhole/ready.eve
+logic    kron camera_ready apps/blocks/pinhole/ready.kron
+pending  LabVIEW camera_ready
+
+# The same rule as a number (PH2). Forth, twin Cairndrake; the line names
+# the runtime "forth", since the Alexandria index numbers runtimes, not
+# twins.
+provides camera_ready_n num sensor mode buffer
+logic    forth camera_ready_n apps/blocks/pinhole/ready.fs
+logic    kron  camera_ready_n apps/blocks/pinhole/ready_n.kron
+
+# The exposure limits (PH3), Eve and KRON.
+provides exposure_ok truth iso shutter comp
+logic    eve  exposure_ok apps/blocks/pinhole/exposure.eve
+logic    kron exposure_ok apps/blocks/pinhole/exposure.kron
+
+# A photo's record (PH7), in MYRA.
+provides photo_record_ok truth photo album bytes width height placed stamp
+logic    myra photo_record_ok apps/blocks/pinhole/photo.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check camera_ready sensor=1,0,1,1,0,-1 mode=1,1,0,1,0,1 buffer=1,1,1,0,0,1 = true,false,false,false,false,false
+check camera_ready sensor=1,2 mode=1,1 buffer=1,1 = both
+check camera_ready sensor=1,1 mode=1,1 buffer=1,3 = both
+check camera_ready_n sensor=1 mode=1 buffer=1 = 1
+check camera_ready_n sensor=0 mode=1 buffer=1 = 0
+check camera_ready_n sensor=1 mode=1 buffer=0 = 0
+check camera_ready_n sensor=2 mode=1 buffer=1 = both
+check camera_ready_n sensor=1 mode=-1 buffer=1 = both
+check exposure_ok iso=25,25600,24,25601,100,100,100,100,100,100 shutter=31,30000000,8000,8000,30,30000001,8000,8000,8000,8000 comp=-9,9,0,0,0,0,-10,10,0,-3 = true,true,false,false,false,false,false,false,true,true
+# agree: exposure_ok Eve and KRON hold the same three ranges, each on its own, with nothing relating them, so no integer input can split them
+check photo_record_ok photo=1,999999999,1000000000,1,1,1 album=0,9999,0,10000,1,1 bytes=1,999999999999,1,1,1000000000000,1 width=4032,99999,1,1,1,100000 height=3024,99999,1,1,1,1 placed=0,1,0,0,0,0 stamp=1792627200000,999999999999999,1,1,1,1 = true,true,false,false,false,false
+check lifeboat.restore_fits need=0,3000000,3000001,999999999999999998 free=0,4000000,4000000,999999999999999999 reserve=0,1000000,1000000,1 = true,true,false,true
+check lifeboat.restore_fits need=1,-1 free=10,10 reserve=1,1 = both
+check furrow.range_total pos=1,2,1,3,1 lo=1,1,1,1,1 hi=1,1,1,1,1 cell=2400000,1800000,3100000,900000,0 = 5500000
+check furrow.range_total pos=4,4 lo=9,9 hi=9,9 cell=5,6 = 0
+check furrow.range_total pos=1,1,1 lo=1,1,1 hi=1,1,1 cell=9223372036854775807,1,-1 = both
+check gatehouse.use_ok asked=1,1,1,1 granted=1,0,1,0 revoked=0,0,1,1 = true,false,false,false
+check gatehouse.use_ok asked=1,1 granted=1,2 revoked=0,0 = both

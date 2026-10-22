@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Is the camera ready (pinhole_rules.h PH1), in Eve: the only record that
+# fits is a sensor present (1), the mode asked for supported (1) and the
+# frame fitting the capture buffer (1). Any other row, a flag that is no
+# flag among them, does not fit: not ready.
+eve pinhole
+flag_yes = 1 .. 1
+
+camera_ready {
+  sensor: flag_yes
+  mode: flag_yes
+  buffer: flag_yes
+}

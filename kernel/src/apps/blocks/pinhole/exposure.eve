@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What an exposure may be (pinhole_rules.h PH3), in Eve: iso 25 to 25600,
+# shutter (how long the exposure lasts) 31 to 30000000 microseconds (1/32000
+# of a second to 30 seconds) and comp (exposure compensation) -9 to 9
+# thirds of a stop. Each value is held to its own range; exposure.kron
+# says the same, and nothing relates the three.
+eve pinhole
+iso_speed = 25 .. 25600
+shutter_us = 31 .. 30000000
+comp_thirds = -9 .. 9
+
+exposure {
+  iso: iso_speed
+  shutter: shutter_us
+  comp: comp_thirds
+}

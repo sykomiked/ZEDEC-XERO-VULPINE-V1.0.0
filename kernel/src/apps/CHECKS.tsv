@@ -293,6 +293,23 @@ ninefold	check state_reserved form=0,9 = both
 ninefold	check state_reserved_n form=0,3,4,5,6,7,8 = 0,0,1,1,1,1,0
 ninefold	check state_reserved_n form=0,-1 = both
 ninefold	check coffer.holdings balance=100,250,0 = 350
+pinhole	check camera_ready sensor=1,0,1,1,0,-1 mode=1,1,0,1,0,1 buffer=1,1,1,0,0,1 = true,false,false,false,false,false
+pinhole	check camera_ready sensor=1,2 mode=1,1 buffer=1,1 = both
+pinhole	check camera_ready sensor=1,1 mode=1,1 buffer=1,3 = both
+pinhole	check camera_ready_n sensor=1 mode=1 buffer=1 = 1
+pinhole	check camera_ready_n sensor=0 mode=1 buffer=1 = 0
+pinhole	check camera_ready_n sensor=1 mode=1 buffer=0 = 0
+pinhole	check camera_ready_n sensor=2 mode=1 buffer=1 = both
+pinhole	check camera_ready_n sensor=1 mode=-1 buffer=1 = both
+pinhole	check exposure_ok iso=25,25600,24,25601,100,100,100,100,100,100 shutter=31,30000000,8000,8000,30,30000001,8000,8000,8000,8000 comp=-9,9,0,0,0,0,-10,10,0,-3 = true,true,false,false,false,false,false,false,true,true
+pinhole	check photo_record_ok photo=1,999999999,1000000000,1,1,1 album=0,9999,0,10000,1,1 bytes=1,999999999999,1,1,1000000000000,1 width=4032,99999,1,1,1,100000 height=3024,99999,1,1,1,1 placed=0,1,0,0,0,0 stamp=1792627200000,999999999999999,1,1,1,1 = true,true,false,false,false,false
+pinhole	check lifeboat.restore_fits need=0,3000000,3000001,999999999999999998 free=0,4000000,4000000,999999999999999999 reserve=0,1000000,1000000,1 = true,true,false,true
+pinhole	check lifeboat.restore_fits need=1,-1 free=10,10 reserve=1,1 = both
+pinhole	check furrow.range_total pos=1,2,1,3,1 lo=1,1,1,1,1 hi=1,1,1,1,1 cell=2400000,1800000,3100000,900000,0 = 5500000
+pinhole	check furrow.range_total pos=4,4 lo=9,9 hi=9,9 cell=5,6 = 0
+pinhole	check furrow.range_total pos=1,1,1 lo=1,1,1 hi=1,1,1 cell=9223372036854775807,1,-1 = both
+pinhole	check gatehouse.use_ok asked=1,1,1,1 granted=1,0,1,0 revoked=0,0,1,1 = true,false,false,false
+pinhole	check gatehouse.use_ok asked=1,1 granted=1,2 revoked=0,0 = both
 platen	check sheets pages=3,4,1 sides=2,2,1 copies=1,3,1 = 2,6,1
 platen	check sheets pages=1 sides=1 copies=10000 = both
 platen	check copies_ok copies=0,1,99,100 most=99,99,99,99 = false,true,true,false
