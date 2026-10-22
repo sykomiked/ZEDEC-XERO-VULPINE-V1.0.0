@@ -67,6 +67,9 @@ READS = {"list", "read", "stat", "root", "status", "get", "feed", "query", "veri
 # changes nothing: books.file names where the books are kept, search.refresh re-reads the
 # index, irc.record fetches one relayed message)
 READ_METHODS = {"play.run", "aipi.execute", "books.file", "search.refresh", "irc.record"}
+# writes whose verb alone would read as a read: peer.ask pays the peer's price and the
+# assurance fee from the peer wallet
+WRITE_METHODS = {"peer.ask"}
 
 LIT = re.compile(r'"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\'|/\*.*?\*/|//[^\n]*', re.S)
 STR = re.compile(r'"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\'')
@@ -115,6 +118,8 @@ def methods_in(code, known):
 
 
 def changes_state(meth):
+    if meth in WRITE_METHODS:
+        return True
     return meth not in READ_METHODS and meth.split(".")[-1] not in READS
 
 
