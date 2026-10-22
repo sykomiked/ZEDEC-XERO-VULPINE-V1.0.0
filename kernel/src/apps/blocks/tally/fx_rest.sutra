@@ -1,0 +1,23 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a conversion at an exchange rate leaves over, in Sutra (tally_rules.h
+# TL4): amount * rnum - floor(amount * rnum / rden) * rden, in rden-ths of a
+# minor unit of the other currency, shown beside the whole minor units and
+# never dropped. The domain is fx_amount.sutra's: amount 9(12), the rate's
+# parts 9(6), a part of 0 refused (rden as a division by 0, rnum as a size
+# error in the one-digit field). fx_rest.kron says the same.
+record fx-rest
+  amount: 9(12)
+  rnum: 9(6)
+  rden: 9(6)
+  conv: 9(18)
+  rest: 9(6)
+  bad: 9
+procedure
+  if rnum < 1
+    compute bad = 0 - 1
+  end-if
+  compute conv = amount * rnum / rden
+  compute rest = amount * rnum - conv * rden
+  answer rest

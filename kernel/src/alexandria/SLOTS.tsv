@@ -209,3 +209,10 @@
 172	num.tideturn_version_order	590.77	tideturn.version_order	base
 173	logic.ramble_consent_covers	490.85	ramble.consent_covers	base
 174	logic.ramble_envelope_record_ok	490.86	ramble.envelope_record_ok	base
+175	num.tally_fx_amount	590.78	tally.fx_amount	base
+176	num.tally_fx_rest	590.79	tally.fx_rest	base
+177	num.tally_ratio_add	590.80	tally.ratio_add	base
+178	num.tally_ratio_div	590.81	tally.ratio_div	base
+179	num.tally_ratio_mul	590.82	tally.ratio_mul	base
+180	num.tally_ratio_sub	590.83	tally.ratio_sub	base
+181	num.tally_unit_convert	590.84	tally.unit_convert	base

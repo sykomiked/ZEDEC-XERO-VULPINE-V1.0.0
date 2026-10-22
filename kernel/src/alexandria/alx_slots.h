@@ -180,7 +180,14 @@
 #define ALX_SLOT_NUM_TIDETURN_VERSION_ORDER      172u /* 590.77 tideturn.version_order */
 #define ALX_SLOT_LOGIC_RAMBLE_CONSENT_COVERS     173u /* 490.85 ramble.consent_covers */
 #define ALX_SLOT_LOGIC_RAMBLE_ENVELOPE_RECORD_OK 174u /* 490.86 ramble.envelope_record_ok */
-#define ALX_SLOT__COUNT 174u
+#define ALX_SLOT_NUM_TALLY_FX_AMOUNT             175u /* 590.78 tally.fx_amount */
+#define ALX_SLOT_NUM_TALLY_FX_REST               176u /* 590.79 tally.fx_rest */
+#define ALX_SLOT_NUM_TALLY_RATIO_ADD             177u /* 590.80 tally.ratio_add */
+#define ALX_SLOT_NUM_TALLY_RATIO_DIV             178u /* 590.81 tally.ratio_div */
+#define ALX_SLOT_NUM_TALLY_RATIO_MUL             179u /* 590.82 tally.ratio_mul */
+#define ALX_SLOT_NUM_TALLY_RATIO_SUB             180u /* 590.83 tally.ratio_sub */
+#define ALX_SLOT_NUM_TALLY_UNIT_CONVERT          181u /* 590.84 tally.unit_convert */
+#define ALX_SLOT__COUNT 181u
 /* clang-format on */
 
 #endif

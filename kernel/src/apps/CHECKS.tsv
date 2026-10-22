@@ -321,6 +321,26 @@ talisman	check earned cred=0,5,0,0,-1,0,0,999999999999999999 bond=0,0,7,0,0,-1,0
 talisman	check earned cred=0,0 bond=0,0 uptime=0,10001 = both
 talisman	check earned_n cred=0,5,0,0,-1,0,0,999999999999999999 bond=0,0,7,0,0,-1,0,0 uptime=0,0,0,10000,0,0,-1,0 = 1,1,1,1,0,0,0,1
 talisman	check earned_n cred=0,0 bond=0,0 uptime=0,10001 = both
+tally	check ratio_add an=1,1,-1,0,999999999999999999 ad=3,2,3,5,1 bn=1,1,1,0,-999999999999999999 bd=6,3,3,7,1 = 1/2,5/6,0,0,0
+tally	check ratio_add an=1,1000000000000000000 ad=3,1 bn=1,0 bd=6,1 = both
+tally	check ratio_sub an=1,1,0,-7,999999999999999999 ad=3,2,1,4,1 bn=1,1,1,1,999999999999999999 bd=6,3,3,4,1 = 1/6,1/6,-1/3,-2,0
+tally	check ratio_sub an=1,1 ad=3,1 bn=1,-1000000000000000000 bd=6,1 = both
+tally	check ratio_mul an=1,2,-3,0,999999999999999999 ad=3,3,4,9,1 bn=3,9,4,5,1 bd=1,4,-3,7,999999999999999999 = 1,3/2,1,0,1
+tally	check ratio_mul an=1,1 ad=3,1000000000000000000 bn=3,1 bd=1,1 = both
+tally	check ratio_div an=1,2,-3,0,999999999999999999 ad=3,3,4,9,1 bn=1,4,3,5,999999999999999999 bd=3,9,-4,7,1 = 1,3/2,1,0,1
+tally	check ratio_div an=1,1 ad=3,1 bn=1,1 bd=6,1000000000000000000 = both
+tally	check fx_amount amount=1000 rnum=10873 rden=10000 = 1087
+tally	check fx_amount amount=0 rnum=1 rden=1 = 0
+tally	check fx_amount amount=999999999999 rnum=999999 rden=999999 = 999999999999
+tally	check fx_amount amount=999999999999 rnum=999999 rden=1 = 999998999999000001
+tally	check fx_amount amount=1 rnum=1 rden=3 = 0
+tally	check fx_amount amount=1000000000000 rnum=1 rden=1 = both
+tally	check fx_amount amount=-1 rnum=1 rden=1 = both
+tally	check fx_rest amount=1000,0,999999999999,1,100 rnum=10873,1,999999,1,2 rden=10000,1,999999,3,3 = 3000,0,0,1,2
+tally	check fx_rest amount=1,1000000000000 rnum=1,1 rden=3,3 = both
+tally	check unit_convert qty=1,1,5,3,1,1,1,2 src=4,7,12,20,5,16,0,19 dst=2,3,9,19,4,15,3,18 = 127/5000,25146/15625,45359237/20000,72,12,128,1/1000000,120
+tally	check pce_fin.npv cf=-100,110 rate_num=1 rate_den=10 = 0
+tally	check pce_fin.npv cf=-100,121 rate_num=1,0 rate_den=10,1 = 10,21
 threshold	check rights_ok role=1,1,1,2,2,2,3,3,1 own=0,1,0,1,0,1,1,0,0 target=2,1,3,2,2,3,3,2,0 = true,true,false,true,false,false,false,false,false
 threshold	check rights_ok role=1,10 own=0,0 target=2,2 = both
 threshold	check skip_ok seats=1,0,2,1,1,4096 lock=0,0,0,1,0,0 auto=1,1,1,1,0,1 = true,false,false,false,false,false

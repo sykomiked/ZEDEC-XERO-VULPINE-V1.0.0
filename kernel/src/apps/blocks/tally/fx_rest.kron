@@ -1,0 +1,2 @@
+p:amount*rnum*rnum%rnum
+p-rden*_p%rden

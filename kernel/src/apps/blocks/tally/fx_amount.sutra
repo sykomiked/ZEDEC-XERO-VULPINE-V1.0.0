@@ -1,0 +1,23 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# An amount in minor units at an exchange rate, in Sutra (tally_rules.h
+# TL3): floor(amount * rnum / rden) whole minor units of the other
+# currency. COMPUTE truncates toward zero, which is the floor here, since
+# nothing is negative. amount fits 9(12) and the rate's two parts 9(6), so a
+# negative or a larger one is refused; a rate part of 0 is no rate: rden 0
+# is a division Sutra refuses, and rnum 0 is stored as -1 into a one-digit
+# unsigned field, a size error, refused. fx_amount.kron and fx_amount.alg
+# say the same.
+record fx-amount
+  amount: 9(12)
+  rnum: 9(6)
+  rden: 9(6)
+  conv: 9(18)
+  bad: 9
+procedure
+  if rnum < 1
+    compute bad = 0 - 1
+  end-if
+  compute conv = amount * rnum / rden
+  answer conv

@@ -1,0 +1,19 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! One exact rational divided by another (tally_rules.h TL1), in Trebago:
+! an / ad over bn / bd over exact rationals, answered reduced, never
+! rounded; a result that does not fit int64 / int64, a denominator of 0 and
+! a division by a b of 0 are the pillar's refusals. ok is 0 when a part is
+! past 18 digits either way (the ledger's s9(18)), and the result is
+! divided by it: refused, where ratio_div.kron answers: held.
+trebago ratio_div
+  in  an(n), ad(n), bn(n), bd(n)
+  out r(n)
+  var ok(n)
+  ok(i) = min(1, max(0, 999999999999999999 - an(i) + 1)) * min(1, max(0, an(i) + 999999999999999999 + 1)) &
+        * min(1, max(0, 999999999999999999 - ad(i) + 1)) * min(1, max(0, ad(i) + 999999999999999999 + 1)) &
+        * min(1, max(0, 999999999999999999 - bn(i) + 1)) * min(1, max(0, bn(i) + 999999999999999999 + 1)) &
+        * min(1, max(0, 999999999999999999 - bd(i) + 1)) * min(1, max(0, bd(i) + 999999999999999999 + 1))
+  r(i) = ((an(i) / ad(i)) / (bn(i) / bd(i))) / ok(i)
+end
