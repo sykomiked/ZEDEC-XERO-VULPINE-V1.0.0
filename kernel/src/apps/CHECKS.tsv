@@ -219,6 +219,13 @@ commons	check room_record_ok room=0,999,1000,1,1 kind=0,2,0,1,10 newest=0,999999
 commons	check message_record_ok room=0,999,1,1,1 pos=0,999999999999,1,1,1 lamport=1,999999999999999999,1,1,1 stamp=0,9999999999999,10000000000000,0,0 bytes=1,1024,1,10000,1 = true,true,false,false,true
 commons	check witness.kind_count kind=1,0,2,1 want=1 = 2
 commons	check witness.kind_count kind=1,2 want=1,1 = both
+conch	check hearing_level_ok gain=0,300,301,-300,-301,250,100 total=650,950,951,350,349,900,1201 cap=900,950,1000,900,900,900,1201 = true,true,false,true,false,true,false
+conch	check hearing_level_ok gain=0,0,0 total=-1,0,1200 cap=0,-1,1200 = false,false,true
+conch	check hearing_level_ok gain=0,100 total=650,951 cap=900,950 = both
+conch	check hearing_balance_ok balance=-100,0,100,-101,101,0,0 mono=0,1,1,0,0,2,-1 = true,true,true,false,false,false,false
+conch	check sound_alert_map_ok sound=1,5,3,10,1,1 flash=0,3,3,0,10,0 vibrate=0,3,0,0,0,-10 = true,true,true,false,false,false
+conch	check sound_alert_map_ok sound=1,1 flash=1,4 vibrate=1,1 = both
+conch	check sound_alert_map_ok sound=2,0 flash=1,1 vibrate=1,1 = both
 cove	check tunnel_open_ok selfactive=1,0,1,1,1,0 selfrevoked=0,0,1,0,0,1 peeractive=1,1,1,0,1,0 peerrevoked=0,0,0,0,1,1 = true,false,false,false,false,false
 cove	check tunnel_open_ok selfactive=1,2 selfrevoked=0,0 peeractive=1,1 peerrevoked=0,0 = both
 cove	check tunnel_open_ok selfactive=1,1 selfrevoked=0,-1 peeractive=1,1 peerrevoked=0,0 = both

@@ -1,0 +1,1 @@
+(gain>-301)&(gain<301)&(total>-1)&(total<1201)&(cap>-1)&(cap<1201)&total<cap+1

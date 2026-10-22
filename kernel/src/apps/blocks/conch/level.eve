@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What one band of a hearing device may play (conch_rules.h CN1), in Eve:
+# its gain, a cut or a boost of at most 30 dB in tenths of a dB, and the
+# level it would play and the owner's cap, each 0 to 120 dB SPL in tenths.
+# Eve holds each range on its own; that the level is no louder than the
+# cap is level.kron's to say, so a level past the cap is held.
+eve conch
+band_gain_tenths = -300 .. 300
+spl_tenths = 0 .. 1200
+
+band_output {
+  gain: band_gain_tenths
+  total: spl_tenths
+  cap: spl_tenths
+}

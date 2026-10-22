@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# How a sound alert may be shown (conch_rules.h CN3), in Eve: a sound kind
+# 1 to 5 (call, message, alarm, task, other), and 0 to 3 pulses each of a
+# screen flash and of vibration. Pulses are 334 ms apart, so the screen
+# never flashes more than three times in a second. alert.myra's digits
+# hold more, so a pulse count past 3 is held.
+eve conch
+sound_kind = 1 .. 5
+pulse_count = 0 .. 3
+
+sound_alert {
+  sound: sound_kind
+  flash: pulse_count
+  vibrate: pulse_count
+}

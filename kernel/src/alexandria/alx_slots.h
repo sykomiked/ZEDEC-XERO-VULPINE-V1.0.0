@@ -468,7 +468,10 @@
 #define ALX_SLOT_LOGIC_SILT_CASE_FILE_NODE_OK    460u /* 492.25 silt.case_file_node_ok */
 #define ALX_SLOT_LOGIC_SILT_RECORD_MAY_DISPOSE   461u /* 492.26 silt.record_may_dispose */
 #define ALX_SLOT_NUM_SILT_REGISTER_NUMBER        462u /* 592.29 silt.register_number */
-#define ALX_SLOT__COUNT 462u
+#define ALX_SLOT_LOGIC_CONCH_HEARING_BALANCE_OK  463u /* 492.27 conch.hearing_balance_ok */
+#define ALX_SLOT_LOGIC_CONCH_HEARING_LEVEL_OK    464u /* 492.28 conch.hearing_level_ok */
+#define ALX_SLOT_LOGIC_CONCH_SOUND_ALERT_MAP_OK  465u /* 492.29 conch.sound_alert_map_ok */
+#define ALX_SLOT__COUNT 465u
 /* clang-format on */
 
 #endif

@@ -1,0 +1,7 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Conch files a sound alert's mapping, in MYRA: the sound kind it is
+; for, and how many pulses of screen flash and of vibration show it. Eve
+; says what the values may mean; this says whether they make a record.
+^ZXCONCH(sound:i1) = flash:i1! ^ vibrate:i1!

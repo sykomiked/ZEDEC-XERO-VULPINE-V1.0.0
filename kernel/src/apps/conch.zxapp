@@ -1,0 +1,90 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Conch, hearing devices and sound alerts: layer 141 of the matrix. Pair
+# hearing devices, set each band's gain under a cap the owner sets, the
+# balance between the ears and mono, and show sound alerts as a screen
+# flash and vibration. Alerts come from the notices zxvd keeps
+# (notes.list); their time from zxvd's clock (sys.info's time_ms).
+#
+# Advisory only: this is not a clinical fitting, and the cap is a safety
+# ceiling the owner sets. Every setting (a pairing, a gain, the cap, the
+# loudest input, the balance, an alert's pattern) changes only on the
+# owner's confirmed word, and a gain or cap that would put a band past
+# the cap is refused, never turned down silently (conch_model.h CM1-CM7).
+#
+# zxvd has no audio-device method: none pairs a hearing device, sets its
+# gain or balance, or plays to it, and none is invented. Conch keeps the
+# pairing and the settings on its own side for the view to apply, and
+# changes nothing in zxvd but the notices' read marks, when the owner
+# dismisses the alerts (notes.mark_read, on the owner's word).
+#
+#   hearing_level_ok    one band's gain (-300..300 tenths of a dB), the
+#                       level it would play and the owner's cap (each
+#                       0..1200 tenths of a dB SPL), the level no louder
+#                       than the cap. Eve, witnessed by KRON: Eve answers
+#                       only truths and holds each field against its own
+#                       range, so the level under the cap, a relation
+#                       across fields, is KRON's half; a level past the
+#                       cap is held (BOTH), never played.
+#   hearing_balance_ok  balance -100..100 and mono 0..1, Eve's ranges.
+#   sound_alert_map_ok  a sound kind's flash and vibrate pulses as a
+#                       ^ZXCONCH record (MYRA), witnessed by Eve: sound
+#                       1..5 and 0..3 pulses each, 334 ms apart, so a
+#                       screen never flashes more than three times a
+#                       second. MYRA's digits hold more, so a pattern past
+#                       Eve's ranges is held. The task asks for MYRA; the
+#                       flash limit is a safety limit, which Eve owns, so
+#                       Eve witnesses it.
+#
+# Kept in C, since no runnable language owns it: which sound kind a
+# notice's kind text is (text matching, Raku's planned kind of work, with
+# no entry of its own here), and what each ear plays of a level at a
+# balance (conch_rules.h CN4, the view's mix, not a decision of what is
+# allowed).
+#
+# Nothing nearer the core fits: the task's matrix line says this layer
+# leans on no other layer's code. warble.volume_cap_ok is a volume in
+# percent under a cap in percent; a hearing device's level is in tenths of
+# a dB SPL with a per-band gain range beside it, another rule.
+#
+# Planned languages: LabVIEW (dataflow, signal) for a band's output level;
+# Gleam (messaging, types) for the alert a notice becomes; Raku (parse,
+# text) has no entry here (the notice kind's text is matched in C).
+zxapp 1
+id     conch
+name   Conch
+version 1.0.0
+slot   141
+layer  L1
+matrix 141
+icon   icons/l1/141-conch.svg
+budget 233
+needs  notify
+needs  sys.read
+model  apps/conch_model.c
+
+# One band's level under the owner's cap (CN1): Eve, witnessed by KRON.
+provides hearing_level_ok truth gain total cap
+logic    eve  hearing_level_ok apps/blocks/conch/level.eve
+logic    kron hearing_level_ok apps/blocks/conch/level.kron
+pending  LabVIEW hearing_level_ok
+
+# The balance between the ears and mono (CN2): Eve.
+provides hearing_balance_ok truth balance mono
+logic    eve hearing_balance_ok apps/blocks/conch/balance.eve
+
+# A sound kind's flash and vibrate pattern (CN3): MYRA, witnessed by Eve.
+provides sound_alert_map_ok truth sound flash vibrate
+logic    myra sound_alert_map_ok apps/blocks/conch/alert.myra
+logic    eve  sound_alert_map_ok apps/blocks/conch/alert.eve
+pending  Gleam sound_alert_map_ok
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check hearing_level_ok gain=0,300,301,-300,-301,250,100 total=650,950,951,350,349,900,1201 cap=900,950,1000,900,900,900,1201 = true,true,false,true,false,true,false
+check hearing_level_ok gain=0,0,0 total=-1,0,1200 cap=0,-1,1200 = false,false,true
+check hearing_level_ok gain=0,100 total=650,951 cap=900,950 = both
+check hearing_balance_ok balance=-100,0,100,-101,101,0,0 mono=0,1,1,0,0,2,-1 = true,true,true,false,false,false,false
+check sound_alert_map_ok sound=1,5,3,10,1,1 flash=0,3,3,0,10,0 vibrate=0,3,0,0,0,-10 = true,true,true,false,false,false
+check sound_alert_map_ok sound=1,1 flash=1,4 vibrate=1,1 = both
+check sound_alert_map_ok sound=2,0 flash=1,1 vibrate=1,1 = both

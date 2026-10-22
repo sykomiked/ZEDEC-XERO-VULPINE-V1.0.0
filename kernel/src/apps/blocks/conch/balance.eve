@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Where a hearing device's sound sits between the ears (conch_rules.h
+# CN2), in Eve: balance -100 (all to the left) to 100 (all to the right),
+# 0 even, and mono 0 (stereo) or 1 (both ears hear one mix).
+eve conch
+balance_percent = -100 .. 100
+mono_flag = 0 .. 1
+
+ear_balance {
+  balance: balance_percent
+  mono: mono_flag
+}

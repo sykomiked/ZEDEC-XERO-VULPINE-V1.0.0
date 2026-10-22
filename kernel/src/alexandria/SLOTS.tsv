@@ -497,3 +497,6 @@
 460	logic.silt_case_file_node_ok	492.25	silt.case_file_node_ok	base
 461	logic.silt_record_may_dispose	492.26	silt.record_may_dispose	base
 462	num.silt_register_number	592.29	silt.register_number	base
+463	logic.conch_hearing_balance_ok	492.27	conch.hearing_balance_ok	base
+464	logic.conch_hearing_level_ok	492.28	conch.hearing_level_ok	base
+465	logic.conch_sound_alert_map_ok	492.29	conch.sound_alert_map_ok	base
