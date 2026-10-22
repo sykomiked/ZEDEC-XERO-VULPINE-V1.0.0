@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# "Share this place" (verderer_rules.h VR3), in Eve: a protected species'
+# place may leave the device only coarsened to the 10 km grid. The model
+# gives the place as it would leave: latoff and lonoff, millionths of a
+# degree off the corner of its grid cell (share_coarse_coord), and cell,
+# the east-west width of that cell. The only record that fits is a place
+# on a corner (both offsets 0) of a cell 10 km wide or wider and no wider
+# than half the globe (90000 .. 180000000); anything else stays on the
+# device.
+eve verderer_share
+on_corner = 0 .. 0
+coarse_cell = 90000 .. 180000000
+
+coarse_share {
+  latoff: on_corner
+  lonoff: on_corner
+  cell: coarse_cell
+}

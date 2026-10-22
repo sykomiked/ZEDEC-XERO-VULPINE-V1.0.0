@@ -547,3 +547,9 @@
 510	num.talewind_tale_flags_after	592.54	talewind.tale_flags_after	base
 511	num.talewind_tale_flags_lacking	592.55	talewind.tale_flags_lacking	base
 512	logic.talewind_tale_passage_ok	492.50	talewind.tale_passage_ok	base
+513	num.verderer_recapture_estimate	592.56	verderer.recapture_estimate	base
+514	logic.verderer_reserve_visit_ok	492.51	verderer.reserve_visit_ok	base
+515	num.verderer_share_coarse_coord	592.57	verderer.share_coarse_coord	base
+516	logic.verderer_share_coarse_ok	492.52	verderer.share_coarse_ok	base
+517	num.verderer_sighting_grid_cell	592.58	verderer.sighting_grid_cell	base
+518	logic.verderer_species_tree_ok	492.53	verderer.species_tree_ok	base

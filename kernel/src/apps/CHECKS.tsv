@@ -1426,6 +1426,29 @@ understory	check water_entry_ok day=0,999999,1000000,20000 source=1,4,1,10 litre
 understory	check land_entry_ok parcel=1,999999,1000000,7 kind=1,5,1,10 area=0,999999999999,5,5 = true,true,false,false
 understory	check keystone.energy_budget_ok window=60000,0 spend=500,500 whole=1000,1000 = true,false
 understory	check wellspring.progress_x100 done=0,500,1000,1500 goal=1000,1000,1000,1000 = 0,5000,10000,15000
+verderer	check recapture_estimate marked=100,1,999999,50 caught=60,1,999999,40 recaptured=20,1,1,7 = 300,1,999998000001,285
+verderer	check recapture_estimate marked=10,10 caught=5,5 recaptured=2,6 = both
+verderer	check recapture_estimate marked=100,1000000 caught=60,60 recaptured=20,20 = both
+verderer	check share_coarse_coord coord=59913900,-1,0,180000000,-180000000,10752200,-90000 cell=90000,90000,90000,180000000,90000,180000,90000 protected=1,1,1,1,1,0,1 = 59850000,-90000,0,180000000,-180000000,10752200,-90000
+verderer	check share_coarse_coord coord=59913900,59913900 cell=90000,89999 protected=1,1 = both
+verderer	check share_coarse_coord coord=10,10 cell=90000,90000 protected=1,2 = both
+verderer	check share_coarse_ok latoff=0,0,1,0,-1,0 lonoff=0,0,0,-5,0,0 cell=90000,180000000,90000,90000,90000,89999 = true,true,false,false,false,false
+verderer	check share_coarse_ok latoff=0,0 lonoff=0,0 cell=90000,180000001 = both
+verderer	check reserve_visit_ok partyroom=0,999,-1,1000,4,4,4,4 distroom=0,1000000,0,0,-1,1000001,50,50 drone=0,0,0,0,0,0,1,0 = true,true,false,false,false,false,false,true
+verderer	check sighting_grid_cell species=301,301,302,301,302 cell=7,7,7,8,7 = 2,2,2,1,2
+verderer	check species_tree_ok kingdom=1,8,10,1,1,1,1 family=5219,999999999,1,1000000000,1,1,1 genus=2433406,1,1,1,1000000000,1,1 species=2433407,999999999,1,1,1,1000000000,1 protected=1,0,0,0,0,0,10 = true,true,false,false,false,false,false
+verderer	check pinhole.photo_record_ok photo=1,1000000000 album=0,0 bytes=1,1 width=4032,1 height=3024,1 placed=0,0 stamp=1792627200000,1 = true,false
+verderer	check lifeboat.restore_fits need=0,3000000,3000001 free=0,4000000,4000000 reserve=0,1000000,1000000 = true,true,false
+verderer	check lifeboat.restore_fits need=1,-1 free=10,10 reserve=1,1 = both
+verderer	check waymark.place_ok lat=59913900,90000001 lon=10752200,0 = true,false
+verderer	check weatherglass.forecast_ok stamp=1792627200,100000000000 temp=-35,0 wind=41,0 rain=2,0 = true,false
+verderer	check fieldguide.species_caution mark=0,-1,0 = 1
+verderer	check fieldguide.species_caution mark=0,2 = both
+verderer	check fieldguide.key_next_lead answer=1 yes=5 no=-7 = 5
+verderer	check fieldguide.key_next_lead answer=2 yes=5 no=-7 = both
+verderer	check fieldguide.match_order_key score=0,1200 keyed=0,1 = 0,4294968496
+verderer	check fieldguide.match_order_key score=4294967296,5 keyed=0,0 = both
+verderer	check assay.score_rank score=5,4294967301,5 = 2,1,2
 vintner	check sale_value bottles=0,1,12,999999999 price=0,1500,2499,999999999 = 0,1500,29988,999999998000000001
 vintner	check sale_value bottles=1,1000000000 price=1,1 = both
 vintner	check sale_value bottles=1,1 price=1,1000000000 = both

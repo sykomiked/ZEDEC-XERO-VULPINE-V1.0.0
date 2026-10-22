@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Verderer files its species tree in MYRA (verderer_rules.h VR6):
+; under the kingdom (GBIF's kingdom key, 0 .. 8), the family, the genus
+; and the species (GBIF keys), whether the species is protected (1) or
+; not (0). Verderer asks whether the numbers fit before it keeps a
+; species.
+^ZXVERDERER(kingdom:i1, family:i9, genus:i9, species:i9) = protected:i1!

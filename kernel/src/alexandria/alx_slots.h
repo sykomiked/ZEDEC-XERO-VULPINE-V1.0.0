@@ -518,7 +518,13 @@
 #define ALX_SLOT_NUM_TALEWIND_TALE_FLAGS_AFTER   510u /* 592.54 talewind.tale_flags_after */
 #define ALX_SLOT_NUM_TALEWIND_TALE_FLAGS_LACKING 511u /* 592.55 talewind.tale_flags_lacking */
 #define ALX_SLOT_LOGIC_TALEWIND_TALE_PASSAGE_OK  512u /* 492.50 talewind.tale_passage_ok */
-#define ALX_SLOT__COUNT 512u
+#define ALX_SLOT_NUM_VERDERER_RECAPTURE_ESTIMATE 513u /* 592.56 verderer.recapture_estimate */
+#define ALX_SLOT_LOGIC_VERDERER_RESERVE_VISIT_OK 514u /* 492.51 verderer.reserve_visit_ok */
+#define ALX_SLOT_NUM_VERDERER_SHARE_COARSE_COORD 515u /* 592.57 verderer.share_coarse_coord */
+#define ALX_SLOT_LOGIC_VERDERER_SHARE_COARSE_OK  516u /* 492.52 verderer.share_coarse_ok */
+#define ALX_SLOT_NUM_VERDERER_SIGHTING_GRID_CELL 517u /* 592.58 verderer.sighting_grid_cell */
+#define ALX_SLOT_LOGIC_VERDERER_SPECIES_TREE_OK  518u /* 492.53 verderer.species_tree_ok */
+#define ALX_SLOT__COUNT 518u
 /* clang-format on */
 
 #endif

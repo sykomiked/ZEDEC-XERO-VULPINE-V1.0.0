@@ -1,0 +1,140 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Verderer, the field survey: L2, slot 176. Wildlife sightings, trails and
+# habitats, logged with their photos and the weather of the hour, kept in
+# the Hoard (files.read, files.write) and searchable (search.query); places
+# go on the device's map (place.here, place.add, place.list). See
+# verderer_model.h VM1-VM9 and verderer_rules.h VR1-VR6. Saving, a map
+# place and an expert's confirmation take the owner's word.
+#
+# Composed, not written again (six uses of ZXAPP_USES 8; its own 9 logic
+# lines and its parts' 42 are 51 of ZXAPP_LOGIC_MAX 128):
+#   pinhole.photo_record_ok   a sighting's photo record (PH7)
+#   lifeboat.restore_fits     "photo fits" (PH4): Pinhole takes it from
+#                             Lifeboat and exports only its own entries,
+#                             so Verderer uses the owner, Lifeboat
+#   waymark.place_ok          a sighting's or a place's point on the globe
+#   weatherglass.forecast_ok  the reading of the hour kept with a sighting
+#   fieldguide.species_caution  "show a caution"; Fieldguide's rule holds:
+#                             Verderer never says a plant or fungus is
+#                             safe to eat
+#   fieldguide.key_next_lead  the identification key, a question at a time
+#   fieldguide.match_order_key and assay.score_rank  the match ranking;
+#                             Fieldguide ranks with Assay's score_rank and
+#                             does not export it, so Verderer uses Assay
+#
+# matrix: zxapp.c takes 0..144 and slot 176 is no matrix layer; an L2 app
+# sits on the layer of its part outermost in MATRIX_ORDER.tsv: Fieldguide
+# (place 99, layer 102), past Weatherglass (88), Pinhole (58), Lifeboat
+# (11), Assay (72) and Waymark (wave 0).
+#
+# Witness pairs answer one kind. The estimate is FORTRAN as Trebago and APL
+# as KRON, numbers both. "Share this place" pairs Ada as Eve with APL as
+# KRON; Eve answers only truths and holds each field to its own range, so
+# the rule is two entries of one meaning (as Gatehouse and Weatherglass
+# split theirs): share_coarse_ok, the truth that a protected species'
+# place leaves only on a corner of the 10 km grid (Eve and KRON), and
+# share_coarse_coord, the coordinate that leaves (KRON, witnessed by
+# Trebago, exact, since a number cannot be Eve's). The model's C
+# (verderer_rules.h) is each pair's third witness.
+#
+# Later layers (Vigil, Tracery, Sightline, Landfall, Crowsnest, Tatting,
+# Hydrophone, Seine) use the estimate and "share this place", so both are
+# registered in CONCEPTS.tsv with Verderer as owner. Kept in C: text (the
+# sightings file, a share line), zxvd's answers, the east-west cell of a
+# latitude (VR2's band table) and the four-valued join of what the
+# observer and the key say a sighting is (lpres_kjoin: BOTH, kept until an
+# expert confirms).
+#
+# Planned (no runtime yet): MATLAB owns matrix numerics, and the sighting
+# grid, species by cell, is that matrix: pending on sighting_grid_cell.
+zxapp 1
+id     verderer
+name   Verderer
+version 1.0.0
+slot   176
+layer  L2
+matrix 102
+icon   icons/l2/176-verderer.svg
+budget 233
+needs  camera
+needs  location
+needs  fs.read
+needs  fs.write
+needs  search
+model  apps/verderer_model.c
+use    pinhole 1        # @logic.pinhole_photo_record_ok
+use    lifeboat 1       # @logic.lifeboat_restore_fits
+use    waymark 1        # @logic.waymark_place_ok
+use    weatherglass 1   # @logic.weatherglass_forecast_ok
+use    fieldguide 1     # @num.fieldguide_species_caution @num.fieldguide_key_next_lead @num.fieldguide_match_order_key
+use    assay 1          # @num.assay_score_rank
+# what it exports, so apps built from it can use them too (C1)
+provides pinhole.photo_record_ok truth photo album bytes width height placed stamp
+provides lifeboat.restore_fits truth need free reserve
+provides waymark.place_ok truth lat lon
+provides weatherglass.forecast_ok truth stamp temp wind rain
+provides fieldguide.species_caution num mark
+provides fieldguide.key_next_lead num answer yes no
+provides fieldguide.match_order_key num score keyed
+provides assay.score_rank num score
+
+# The population estimate by mark and recapture (VR1, critical): FORTRAN
+# as Trebago and APL as KRON; none recaptured, or more recaptured than
+# marked or caught, Trebago refuses and KRON answers: held.
+provides recapture_estimate num marked caught recaptured
+logic    trebago recapture_estimate apps/blocks/verderer/estimate.tb
+logic    kron    recapture_estimate apps/blocks/verderer/estimate.kron
+
+# "Share this place", the coordinate that leaves (VR2, critical): KRON,
+# witnessed by Trebago; a cell finer than 10 km is refused by Trebago.
+provides share_coarse_coord num coord cell protected
+logic    kron    share_coarse_coord apps/blocks/verderer/coarse.kron
+logic    trebago share_coarse_coord apps/blocks/verderer/coarse.tb
+
+# "Share this place", whether it may leave (VR3, critical): Ada as Eve and
+# APL as KRON; a cell past half the globe, Eve no, KRON yes: held.
+provides share_coarse_ok truth latoff lonoff cell
+logic    eve  share_coarse_ok apps/blocks/verderer/share.eve
+logic    kron share_coarse_ok apps/blocks/verderer/share.kron
+
+# Protected-area limits (VR4), Ada as Eve, advisory.
+provides reserve_visit_ok truth partyroom distroom drone
+logic    eve reserve_visit_ok apps/blocks/verderer/reserve.eve
+
+# The sighting grid, species by cell (VR5), APL as KRON.
+provides sighting_grid_cell num species cell
+logic    kron sighting_grid_cell apps/blocks/verderer/grid.kron
+pending  MATLAB sighting_grid_cell
+
+# The species tree (VR6), MUMPS as MYRA.
+provides species_tree_ok truth kingdom family genus species protected
+logic    myra species_tree_ok apps/blocks/verderer/tree.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check recapture_estimate marked=100,1,999999,50 caught=60,1,999999,40 recaptured=20,1,1,7 = 300,1,999998000001,285
+check recapture_estimate marked=10,10 caught=5,5 recaptured=2,6 = both
+check recapture_estimate marked=100,1000000 caught=60,60 recaptured=20,20 = both
+check share_coarse_coord coord=59913900,-1,0,180000000,-180000000,10752200,-90000 cell=90000,90000,90000,180000000,90000,180000,90000 protected=1,1,1,1,1,0,1 = 59850000,-90000,0,180000000,-180000000,10752200,-90000
+check share_coarse_coord coord=59913900,59913900 cell=90000,89999 protected=1,1 = both
+check share_coarse_coord coord=10,10 cell=90000,90000 protected=1,2 = both
+check share_coarse_ok latoff=0,0,1,0,-1,0 lonoff=0,0,0,-5,0,0 cell=90000,180000000,90000,90000,90000,89999 = true,true,false,false,false,false
+check share_coarse_ok latoff=0,0 lonoff=0,0 cell=90000,180000001 = both
+check reserve_visit_ok partyroom=0,999,-1,1000,4,4,4,4 distroom=0,1000000,0,0,-1,1000001,50,50 drone=0,0,0,0,0,0,1,0 = true,true,false,false,false,false,false,true
+check sighting_grid_cell species=301,301,302,301,302 cell=7,7,7,8,7 = 2,2,2,1,2
+check species_tree_ok kingdom=1,8,10,1,1,1,1 family=5219,999999999,1,1000000000,1,1,1 genus=2433406,1,1,1,1000000000,1,1 species=2433407,999999999,1,1,1,1000000000,1 protected=1,0,0,0,0,0,10 = true,true,false,false,false,false,false
+# The parts: a photo, its room, a point, a reading, the caution, the key and the ranking
+check pinhole.photo_record_ok photo=1,1000000000 album=0,0 bytes=1,1 width=4032,1 height=3024,1 placed=0,0 stamp=1792627200000,1 = true,false
+check lifeboat.restore_fits need=0,3000000,3000001 free=0,4000000,4000000 reserve=0,1000000,1000000 = true,true,false
+check lifeboat.restore_fits need=1,-1 free=10,10 reserve=1,1 = both
+check waymark.place_ok lat=59913900,90000001 lon=10752200,0 = true,false
+# agree: waymark.place_ok Eve and KRON hold the same two ranges, each on its own, so no integer input can split them
+check weatherglass.forecast_ok stamp=1792627200,100000000000 temp=-35,0 wind=41,0 rain=2,0 = true,false
+check fieldguide.species_caution mark=0,-1,0 = 1
+check fieldguide.species_caution mark=0,2 = both
+check fieldguide.key_next_lead answer=1 yes=5 no=-7 = 5
+check fieldguide.key_next_lead answer=2 yes=5 no=-7 = both
+check fieldguide.match_order_key score=0,1200 keyed=0,1 = 0,4294968496
+check fieldguide.match_order_key score=4294967296,5 keyed=0,0 = both
+check assay.score_rank score=5,4294967301,5 = 2,1,2

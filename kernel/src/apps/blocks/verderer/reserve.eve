@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A visit inside a protected area within its limits (verderer_rules.h
+# VR4), in Eve, advisory: the area's limits are the owner's, kept with the
+# area, and the model gives what is left of each: partyroom, the area's
+# largest party less the party (0 .. 999), distroom, the distance kept
+# from a nest, den or roost less the area's least distance in metres
+# (0 .. 1000000), and drone, drones flown (none allowed). Each value is
+# held to its own range; one outside it and the visit is past the limits.
+eve verderer_reserve
+party_room = 0 .. 999
+distance_room = 0 .. 1000000
+no_drone = 0 .. 0
+
+reserve_visit {
+  partyroom: party_room
+  distroom: distance_room
+  drone: no_drone
+}

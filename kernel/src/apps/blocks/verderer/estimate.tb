@@ -1,0 +1,34 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The population estimate by mark and recapture (verderer_rules.h VR1), in
+! Trebago, one survey a row: marked animals released, caught on the second
+! visit, recaptured among them (marked ones caught again); the estimate is
+! floor(marked * caught / recaptured). Trebago is exact and has no floor,
+! so the floor of p = marked * caught over recaptured is counted three
+! digits at a time, each group the count of k = 1 to 999 with
+! k * step * recaptured <= p, which min(1, max(0, p - k * step *
+! recaptured + 1)) is for integers, and p loses what it counted. marked
+! and caught are 1 .. 999999 and recaptured 1 .. both of them (none
+! recaptured gives no estimate; more recaptured than marked or caught is
+! no survey): ok is 1 inside and 0 outside, and the estimate is divided
+! by it, so anything else is a division by zero, refused, where
+! estimate.kron answers: held.
+trebago recapture_estimate
+  in  marked(n), caught(n), recaptured(n)
+  out est(n)
+  var p(n), q1(n), q2(n), q3(n), q4(n), ok(n)
+  ok(i) = min(1, max(0, marked(i))) * min(1, max(0, 1000000 - marked(i))) &
+        * min(1, max(0, caught(i))) * min(1, max(0, 1000000 - caught(i))) &
+        * min(1, max(0, recaptured(i))) * min(1, max(0, marked(i) - recaptured(i) + 1)) &
+        * min(1, max(0, caught(i) - recaptured(i) + 1))
+  p(i) = marked(i) * caught(i)
+  q1(i) = sum(k = 1:999, min(1, max(0, p(i) - k * 1000000000 * recaptured(i) + 1)))
+  p(i) = p(i) - q1(i) * 1000000000 * recaptured(i)
+  q2(i) = sum(k = 1:999, min(1, max(0, p(i) - k * 1000000 * recaptured(i) + 1)))
+  p(i) = p(i) - q2(i) * 1000000 * recaptured(i)
+  q3(i) = sum(k = 1:999, min(1, max(0, p(i) - k * 1000 * recaptured(i) + 1)))
+  p(i) = p(i) - q3(i) * 1000 * recaptured(i)
+  q4(i) = sum(k = 1:999, min(1, max(0, p(i) - k * recaptured(i) + 1)))
+  est(i) = (q1(i) * 1000000000 + q2(i) * 1000000 + q3(i) * 1000 + q4(i)) / ok(i)
+end

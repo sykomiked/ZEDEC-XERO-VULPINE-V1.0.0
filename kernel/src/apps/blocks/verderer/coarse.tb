@@ -1,0 +1,31 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! "Share this place" (verderer_rules.h VR2), the coordinate that leaves
+! the device, in Trebago, one coordinate a row: a protected species'
+! coordinate (protected 1) is floored to its grid cell, cell *
+! floor(coord / cell), millionths of a degree; any other (protected 0)
+! leaves as it is. Trebago is exact and has no floor: for a coordinate
+! below 0 the floor is minus the ceiling of its size, so a = |coord| plus
+! cell - 1 when coord < 0, and floor(a / cell) is counted in two groups
+! (thousands of cells, then cells), each the count of k with k * step *
+! cell <= a. coord is -180000000 .. 180000000, cell 90000 .. 180000000
+! (the 10 km grid or coarser: a finer cell is no coarsening) and
+! protected 0 or 1: ok is 1 inside and 0 outside, and the answer is
+! divided by it, so anything else is a division by zero, refused, where
+! coarse.kron answers: held.
+trebago share_coarse_coord
+  in  coord(n), cell(n), protected(n)
+  out shared(n)
+  var neg(n), a(n), hi(n), lo(n), ok(n)
+  ok(i) = min(1, max(0, coord(i) + 180000001)) * min(1, max(0, 180000001 - coord(i))) &
+        * min(1, max(0, cell(i) - 89999)) * min(1, max(0, 180000001 - cell(i))) &
+        * min(1, max(0, protected(i) + 1)) * min(1, max(0, 2 - protected(i)))
+  neg(i) = min(1, max(0, 0 - coord(i)))
+  a(i) = max(coord(i), 0 - coord(i)) + neg(i) * (cell(i) - 1)
+  hi(i) = sum(k = 1:9, min(1, max(0, a(i) - k * 1000 * cell(i) + 1)))
+  a(i) = a(i) - hi(i) * 1000 * cell(i)
+  lo(i) = sum(k = 1:999, min(1, max(0, a(i) - k * cell(i) + 1)))
+  shared(i) = (coord(i) + protected(i) * ((1 - 2 * neg(i)) * (1000 * hi(i) + lo(i)) * cell(i) &
+            - coord(i))) / ok(i)
+end
