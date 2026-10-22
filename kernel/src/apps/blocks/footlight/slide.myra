@@ -1,0 +1,10 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Footlight files one slide of a deck in MYRA (footlight_rules.h FL7):
+; under the deck's number and the slide's place in it, the seconds it was
+; rehearsed for, its layout (0 title, 1 title and text, 2 text only, 3
+; blank), the bytes of its text and when it was last changed (ms since
+; 1970). The rules say what the values may mean; this says whether they
+; make a record.
+^ZXFOOTLIGHT(deck:i9, slide:i4) = secs:i4! ^ layout:i1! ^ bytes:i7! ^ stamp:i15!

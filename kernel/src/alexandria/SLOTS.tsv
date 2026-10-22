@@ -361,3 +361,10 @@
 324	num.escapement_shift_clashes	591.55	escapement.shift_clashes	base
 325	logic.escapement_shift_node_ok	491.61	escapement.shift_node_ok	base
 326	num.escapement_timesheet_week	591.56	escapement.timesheet_week	base
+327	num.footlight_letterbox_bar	591.57	footlight.letterbox_bar	base
+328	num.footlight_next_slide	591.58	footlight.next_slide	base
+329	num.footlight_rehearsal_over	591.59	footlight.rehearsal_over	base
+330	num.footlight_slide_fit_h	591.60	footlight.slide_fit_h	base
+331	num.footlight_slide_fit_w	591.61	footlight.slide_fit_w	base
+332	logic.footlight_slide_record_ok	491.62	footlight.slide_record_ok	base
+333	num.footlight_slide_start	591.62	footlight.slide_start	base

@@ -1,0 +1,108 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Footlight, presentations: layer 41 of the matrix. A deck is a plain text
+# file in the Hoard (files.read, files.write): a line starting "# " begins
+# a slide and is its title, a line "@ <seconds>" is the seconds the slide
+# was rehearsed for, and every other line is the slide's text. Footlight
+# fits each slide to the window, times a rehearsal against the talk's
+# length, steps through the show (advance, hold or loop), writes a text
+# handout and prints it (print.submit), and presents the deck to others in
+# a watch hall (pspace.create, hall.load, hall.seek, hall.status): the
+# hall's position is where the slide shown starts in the rehearsed run, so
+# every viewer sees the same slide. Who may steer the hall is zxvd's
+# (an owner hall: the creator only).
+#
+# An anchor of the matrix: its layer leans on no other layer's code yet.
+# Every entry is a general rule a later layer takes with "use footlight 1"
+# (a video, a photo shown full screen, a page shown whole), each a concept
+# with Footlight as its owner (CONCEPTS.tsv):
+#   slide_fit_w     the width of a 16:9 slide fitted whole in a window
+#                   (FL1). KRON and C++ (as WebAssembly) witness it: the
+#                   C++ refuses a side outside 0..65535, KRON answers: held.
+#   slide_fit_h     its height (FL2), the same pair and the same refusal.
+#   letterbox_bar   the bar before a fitted side, floor((span - fit) / 2)
+#                   (FL3). KRON and C++: the C++ refuses a fit past its
+#                   span, KRON answers a negative bar: held.
+#   rehearsal_over  a rehearsal's total against the talk's length (FL4),
+#                   exact in Trebago.
+#   slide_start     where each slide starts in the rehearsed run (FL5),
+#                   exact in Trebago; the hall's position is 1000 times it.
+#   next_slide      the run order (FL6): advance, hold or loop. BASIC,
+#                   twin Hatchling. A Lingua block reads one row per call
+#                   (zxapp_lingua.c L1), so each check line has one row.
+#   slide_record_ok a slide's record in MYRA (^ZXFOOTLIGHT, FL7).
+#
+# Reuse, nearer the core: a length shown as h:mm:ss (the talk, the
+# rehearsal, the time over) is halloo.hms, never written again (FL8).
+# broadsheet.fit_zoom gives a zoom for a whole page, not the letterbox of a
+# 16:9 slide, and Broadsheet is built after this layer, so it is not used;
+# flint.cells counts whole cells, where a fit keeps the aspect.
+#
+# Planned: PostScript (exact page description and drawing) stands for
+# slide_fit_w, a slide laid out in its window. TeX (typesetting) and Icon
+# (goal-directed string scanning) have no entry of their kind here: the
+# deck's lines are read in C (footlight_model.c), since no runnable
+# language owns text, and nothing is typeset; there is no pending line.
+zxapp 1
+id     footlight
+name   Footlight
+version 1.0.0
+slot   41
+layer  L1
+matrix 41
+icon   icons/l1/041-footlight.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  print
+needs  peers
+model  apps/footlight_model.c
+use    halloo 1   # @num.halloo_hms
+
+provides slide_fit_w num winw winh
+logic    kron slide_fit_w apps/blocks/footlight/slide_fit_w.kron
+logic    wasm slide_fit_w apps/blocks/footlight/slide_fit_w.wasm
+pending  PostScript slide_fit_w
+
+provides slide_fit_h num winw winh
+logic    kron slide_fit_h apps/blocks/footlight/slide_fit_h.kron
+logic    wasm slide_fit_h apps/blocks/footlight/slide_fit_h.wasm
+
+provides letterbox_bar num span fit
+logic    kron letterbox_bar apps/blocks/footlight/letterbox_bar.kron
+logic    wasm letterbox_bar apps/blocks/footlight/letterbox_bar.wasm
+
+provides rehearsal_over num secs talk
+logic    trebago rehearsal_over apps/blocks/footlight/rehearsal_over.tb
+
+provides slide_start num secs
+logic    trebago slide_start apps/blocks/footlight/slide_start.tb
+
+# BASIC, twin Hatchling
+provides next_slide num cur count mode
+logic    basic next_slide apps/blocks/footlight/next_slide.bas
+
+provides slide_record_ok truth deck slide secs layout bytes stamp
+logic    myra slide_record_ok apps/blocks/footlight/slide.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check slide_fit_w winw=1920,1366,1920,1080,0,65535,800 winh=1080,768,1200,1920,0,65535,600 = 1920,1365,1920,1080,0,65535,800
+check slide_fit_w winw=1920,70000 winh=1080,1080 = both
+check slide_fit_h winw=1920,1366,1920,1080,0,65535,800 winh=1080,768,1200,1920,0,65535,600 = 1080,768,1080,607,0,36863,450
+check slide_fit_h winw=1920,1920 winh=1080,-1 = both
+check letterbox_bar span=1920,1366,1200,1920,0,65535,1081 fit=1920,1365,1080,607,0,0,0 = 0,0,60,656,0,32767,540
+check letterbox_bar span=1200,1080 fit=1080,1200 = both
+check rehearsal_over secs=60,90,120 talk=300 = -30
+check rehearsal_over secs=3600,3600 talk=3600 = 3600
+check rehearsal_over secs=1 talk=1 = 0
+check slide_start secs=60,90,120 = 0,60,150
+check slide_start secs=3600,1,3600 = 0,3600,3601
+check next_slide cur=1 count=5 mode=0 = 2
+check next_slide cur=5 count=5 mode=0 = 0
+check next_slide cur=5 count=5 mode=2 = 1
+check next_slide cur=3 count=5 mode=1 = 3
+check next_slide cur=999 count=999 mode=1 = 999
+check next_slide cur=1 count=1 mode=2 = 1
+check slide_record_ok deck=1,999999999,1000000000,1,1,1,1,-999999999 slide=1,9999,1,10000,1,1,1,-9999 secs=60,9999,1,1,10000,1,1,-9999 layout=1,9,1,1,1,10,1,-9 bytes=0,9999999,0,0,0,0,10000000,-9999999 stamp=1,999999999999999,1,1,1,1,1,-999999999999999 = true,true,false,false,false,false,false,true
+check halloo.hms ms=270000,3596400000 = 430,9990000

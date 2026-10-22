@@ -332,7 +332,14 @@
 #define ALX_SLOT_NUM_ESCAPEMENT_SHIFT_CLASHES    324u /* 591.55 escapement.shift_clashes */
 #define ALX_SLOT_LOGIC_ESCAPEMENT_SHIFT_NODE_OK  325u /* 491.61 escapement.shift_node_ok */
 #define ALX_SLOT_NUM_ESCAPEMENT_TIMESHEET_WEEK   326u /* 591.56 escapement.timesheet_week */
-#define ALX_SLOT__COUNT 326u
+#define ALX_SLOT_NUM_FOOTLIGHT_LETTERBOX_BAR     327u /* 591.57 footlight.letterbox_bar */
+#define ALX_SLOT_NUM_FOOTLIGHT_NEXT_SLIDE        328u /* 591.58 footlight.next_slide */
+#define ALX_SLOT_NUM_FOOTLIGHT_REHEARSAL_OVER    329u /* 591.59 footlight.rehearsal_over */
+#define ALX_SLOT_NUM_FOOTLIGHT_SLIDE_FIT_H       330u /* 591.60 footlight.slide_fit_h */
+#define ALX_SLOT_NUM_FOOTLIGHT_SLIDE_FIT_W       331u /* 591.61 footlight.slide_fit_w */
+#define ALX_SLOT_LOGIC_FOOTLIGHT_SLIDE_RECORD_OK 332u /* 491.62 footlight.slide_record_ok */
+#define ALX_SLOT_NUM_FOOTLIGHT_SLIDE_START       333u /* 591.62 footlight.slide_start */
+#define ALX_SLOT__COUNT 333u
 /* clang-format on */
 
 #endif

@@ -248,6 +248,25 @@ folio	check page_setup_ok width=12240,2879,12240,12240,12240,12240,31680 height=
 folio	check outline_ok doc=1,999999999,1000000000,1,1,-999999999 entry=0,9999,1,10000,1,1 level=1,9,1,1,10,3 page=1,999999,1,1,1,-1 line=1,999999999,1,1,1,1 = true,true,false,false,false,true
 folio	check flint.cells pixels=9360,9360 cell=120,120 = 78,78
 folio	check coffer.holdings balance=299900,4500,0 = 304400
+footlight	check slide_fit_w winw=1920,1366,1920,1080,0,65535,800 winh=1080,768,1200,1920,0,65535,600 = 1920,1365,1920,1080,0,65535,800
+footlight	check slide_fit_w winw=1920,70000 winh=1080,1080 = both
+footlight	check slide_fit_h winw=1920,1366,1920,1080,0,65535,800 winh=1080,768,1200,1920,0,65535,600 = 1080,768,1080,607,0,36863,450
+footlight	check slide_fit_h winw=1920,1920 winh=1080,-1 = both
+footlight	check letterbox_bar span=1920,1366,1200,1920,0,65535,1081 fit=1920,1365,1080,607,0,0,0 = 0,0,60,656,0,32767,540
+footlight	check letterbox_bar span=1200,1080 fit=1080,1200 = both
+footlight	check rehearsal_over secs=60,90,120 talk=300 = -30
+footlight	check rehearsal_over secs=3600,3600 talk=3600 = 3600
+footlight	check rehearsal_over secs=1 talk=1 = 0
+footlight	check slide_start secs=60,90,120 = 0,60,150
+footlight	check slide_start secs=3600,1,3600 = 0,3600,3601
+footlight	check next_slide cur=1 count=5 mode=0 = 2
+footlight	check next_slide cur=5 count=5 mode=0 = 0
+footlight	check next_slide cur=5 count=5 mode=2 = 1
+footlight	check next_slide cur=3 count=5 mode=1 = 3
+footlight	check next_slide cur=999 count=999 mode=1 = 999
+footlight	check next_slide cur=1 count=1 mode=2 = 1
+footlight	check slide_record_ok deck=1,999999999,1000000000,1,1,1,1,-999999999 slide=1,9999,1,10000,1,1,1,-9999 secs=60,9999,1,1,10000,1,1,-9999 layout=1,9,1,1,1,10,1,-9 bytes=0,9999999,0,0,0,0,10000000,-9999999 stamp=1,999999999999999,1,1,1,1,1,-999999999999999 = true,true,false,false,false,false,false,true
+footlight	check halloo.hms ms=270000,3596400000 = 430,9990000
 furrow	check range_total pos=1,2,3,4,5 lo=2,2,2,2,2 hi=4,4,4,4,4 cell=10,20,30,40,50 = 90
 furrow	check range_total pos=0,1048576,7 lo=1,1,9 hi=1048576,1048576,3 cell=5,-9223372036854775807,6 = -9223372036854775807
 furrow	check range_total pos=1,1,1 lo=1,1,1 hi=1,1,1 cell=9223372036854775807,1,-1 = both

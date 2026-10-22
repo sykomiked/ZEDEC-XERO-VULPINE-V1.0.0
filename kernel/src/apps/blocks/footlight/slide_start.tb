@@ -1,0 +1,15 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Where each slide starts in a rehearsed run, in Trebago (footlight_rules.h
+! FL5): the exact sum of the rehearsed seconds of every slide before it,
+! the first starting at 0. 1 .. 999 slides of 1 .. 3600 seconds each;
+! anything else makes ok 0, and the division by it is refused.
+trebago slide_start
+  in  secs(n)
+  out start(n)
+  var ok
+  ok = min(1, max(0, n)) * min(1, max(0, 999 - n + 1)) &
+     * (1 - min(1, sum(j, min(1, max(0, 1 - secs(j))) + min(1, max(0, secs(j) - 3600)))))
+  start(i) = sum(j, secs(j) * min(1, max(0, i - j))) / ok
+end

@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A rehearsal against the talk's length, in Trebago (footlight_rules.h
+! FL4): the exact sum of every slide's rehearsed seconds less the talk's
+! seconds, above 0 over, below 0 under. 1 .. 999 slides of 1 .. 3600
+! seconds each and a talk of 1 .. 86400 seconds; anything else makes ok 0,
+! and the division by it is refused, never answered.
+trebago rehearsal_over
+  in  secs(n), talk
+  out over
+  var ok
+  ok = min(1, max(0, n)) * min(1, max(0, 999 - n + 1)) &
+     * min(1, max(0, talk)) * min(1, max(0, 86400 - talk + 1)) &
+     * (1 - min(1, sum(j, min(1, max(0, 1 - secs(j))) + min(1, max(0, secs(j) - 3600)))))
+  over = (sum(i, secs(i)) - talk) / ok
+end
