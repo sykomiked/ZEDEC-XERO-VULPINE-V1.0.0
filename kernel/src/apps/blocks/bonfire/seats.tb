@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The seats left at each gathering (bonfire_rules.h BR2), in Trebago:
+! seats less going, the people coming (the parties of the guests who said
+! yes), one gathering per row. For integers min(1, max(0, m + 1)) is 1
+! exactly when m >= 0, so ok is 1 when 0 <= going <= seats <= 9999, else
+! 0, and the answer is divided by it: anything outside is a division by
+! zero, refused.
+trebago seatsleft
+  in  seats(n), going(n)
+  out left(n)
+  var ok(n)
+  ok(i) = min(1, max(0, going(i) + 1)) * min(1, max(0, seats(i) - going(i) + 1)) &
+        * min(1, max(0, 9999 - seats(i) + 1))
+  left(i) = (seats(i) - going(i)) / ok(i)
+end

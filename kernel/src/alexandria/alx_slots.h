@@ -404,7 +404,12 @@
 #define ALX_SLOT_LOGIC_KINETOSCOPE_RESUME_ROW_OK 396u /* 491.99 kinetoscope.resume_row_ok */
 #define ALX_SLOT_NUM_KINETOSCOPE_VIDEO_FIT_H     397u /* 591.89 kinetoscope.video_fit_h */
 #define ALX_SLOT_NUM_KINETOSCOPE_VIDEO_FIT_W     398u /* 591.90 kinetoscope.video_fit_w */
-#define ALX_SLOT__COUNT 398u
+#define ALX_SLOT_LOGIC_BONFIRE_EVENT_RECORD_OK   399u /* 492.01 bonfire.event_record_ok */
+#define ALX_SLOT_LOGIC_BONFIRE_GUEST_JOIN_OK     400u /* 492.02 bonfire.guest_join_ok */
+#define ALX_SLOT_LOGIC_BONFIRE_INVITE_RECORD_OK  401u /* 492.03 bonfire.invite_record_ok */
+#define ALX_SLOT_NUM_BONFIRE_RSVP_HEADCOUNT      402u /* 591.91 bonfire.rsvp_headcount */
+#define ALX_SLOT_NUM_BONFIRE_SEATS_LEFT          403u /* 591.92 bonfire.seats_left */
+#define ALX_SLOT__COUNT 403u
 /* clang-format on */
 
 #endif

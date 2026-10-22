@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; One line of a gathering's invite list, in MYRA (bonfire_rules.h BR5):
+; the gathering (3 digits) and the guest's place on its list (3) the keys;
+; the guest's answer (1: 0 none yet, 1 yes, 2 no, 3 maybe), the party (2:
+; the guest and who comes with them) and when the answer came, in ms since
+; 1970 (13). Bonfire keeps an answer only when its values make a record.
+^ZXBONFIREINV(gathering:i3, guest:i3) = answer:i1! ^ party:i2! ^ stamp:i13!

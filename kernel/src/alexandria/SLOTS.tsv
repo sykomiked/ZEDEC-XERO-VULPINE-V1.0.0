@@ -433,3 +433,8 @@
 396	logic.kinetoscope_resume_row_ok	491.99	kinetoscope.resume_row_ok	base
 397	num.kinetoscope_video_fit_h	591.89	kinetoscope.video_fit_h	base
 398	num.kinetoscope_video_fit_w	591.90	kinetoscope.video_fit_w	base
+399	logic.bonfire_event_record_ok	492.01	bonfire.event_record_ok	base
+400	logic.bonfire_guest_join_ok	492.02	bonfire.guest_join_ok	base
+401	logic.bonfire_invite_record_ok	492.03	bonfire.invite_record_ok	base
+402	num.bonfire_rsvp_headcount	591.91	bonfire.rsvp_headcount	base
+403	num.bonfire_seats_left	591.92	bonfire.seats_left	base

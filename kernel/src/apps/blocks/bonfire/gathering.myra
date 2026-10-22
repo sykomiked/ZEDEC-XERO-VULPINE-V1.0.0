@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; A gathering Bonfire keeps, in MYRA (bonfire_rules.h BR4): its place in
+; the model's list (3 digits), when it starts in seconds since 1970 (11
+; digits), its seats (4), the people coming (4) and its venue, the place
+; it meets at in place.list's order (3; -1 for none named). Bonfire keeps
+; a gathering only when its values make a record.
+^ZXBONFIRE(gathering:i3) = start:i11! ^ seats:i4! ^ going:i4! ^ venue:i3!

@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# May this guest join the gathering (bonfire_rules.h BR1), in Eve. Each
+# part comes as its margin, so that each field is held against its own
+# range: listpos, the guest's place on the invite list counted from 0
+# (0 to 99, the list's 100 places; -1 when the guest is not on it), and
+# seatroom, the seats left once the guest's party is seated (seats - going
+# - party, 0 to 9999; below 0 the party does not fit). join.myra reads
+# both as $H days (0 to 2980013): a place of 100 or more, or a room of
+# 10000 or more, is a day to MYRA and no guest or seat to Eve: held.
+eve bonfire
+list_pos = 0 .. 99
+seat_room = 0 .. 9999
+
+guest_join {
+  listpos: list_pos
+  seatroom: seat_room
+}

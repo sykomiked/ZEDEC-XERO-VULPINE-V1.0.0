@@ -1,0 +1,12 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; May this guest join the gathering (bonfire_rules.h BR1), in MYRA: the
+; guest's line of the invite list filed as ^ZXBONFIREJOIN, the guest's
+; place on the list the key and the seats left once the guest's party is
+; seated its piece, each a $H day, so a margin below 0 does not fit
+; (MYRA's date is 0 to 2980013): a listpos of -1 is a guest not on the
+; list, a seatroom below 0 a party with no room. join.eve holds each to
+; its meaning (0..99, 0..9999); a larger margin fits a day and not the
+; meaning: held.
+^ZXBONFIREJOIN(listpos:d) = seatroom:d!

@@ -1,0 +1,18 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The people coming to a gathering (bonfire_rules.h BR3), in Trebago: the
+! exact sum of each guest's party where the guest's answer is yes, one
+! guest per row; answer 0 none yet, 1 yes, 2 no, 3 maybe, party 1 to 99
+! (the guest and who comes with them). yes(i) is 1 exactly when the
+! answer is 1. ok is 1 when party is 1..99 and answer 0..3, else 0, and
+! each row is divided by it: anything outside refuses the whole sum.
+trebago headcount
+  in  party(n), answer(n)
+  out total
+  var ok(n), yes(n)
+  ok(i) = min(1, max(0, party(i))) * min(1, max(0, 99 - party(i) + 1)) &
+        * min(1, max(0, answer(i) + 1)) * min(1, max(0, 3 - answer(i) + 1))
+  yes(i) = max(0, min(1, answer(i))) * max(0, min(1, 2 - answer(i)))
+  total = sum(i, party(i) * yes(i) / ok(i))
+end
