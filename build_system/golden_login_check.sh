@@ -26,11 +26,12 @@
 #   keyboard  x86_64 only: the session typed on the PS/2 keyboard (QEMU's
 #             QMP send-key), not on the serial line
 #
-# On x86_64 under OVMF the floor is about 160 MB (the kernel's window must
-# be clear of the firmware's own memory), so lowmem is 160 MB and toosmall
-# 128 MB, where the loader refuses ([BOOT_REFUSED]) and returns to the
-# firmware. There the disc is on AHCI: the kernel reads the boot model off
-# it itself.
+# On x86_64 the kernel's window is small and its large buffers come from the
+# firmware's map, so under OVMF lowmem is 128 MB (the boot model's scratch
+# does not fit: the boot says so, [AI_NO_MODEL], and login works) and
+# toosmall 96 MB, where the kernel finds no room for its ledgers, refuses
+# ([BOOT_REFUSED]) and stops before [BOOT_OK]. There the disc is on AHCI:
+# the kernel reads the boot model off it itself.
 #
 # No typed seed may reach the serial log (the shell echoes seeds as '*'; the
 # new seed is shown once, by create), and no boot may print a fault marker.
@@ -101,13 +102,13 @@ drive(){ # scenario image memory
 drive full "$IMG" 512M
 # The plain disc (baremetal_images.sh) carries no model.
 drive nomodel "dist/discs/zxv-$ARCH-uefi.img" 512M
-# Just above the floor (about 240 MB on arm64, 160 MB on x86_64), then below.
+# Just above the floor (about 240 MB on arm64, 96 MB on x86_64), then below.
 if [ "$ARCH" = arm64 ]; then
   drive lowmem "$IMG" 256M
   drive toosmall "$IMG" 128M
 else
-  drive lowmem "$IMG" 160M
-  drive toosmall "$IMG" 128M
+  drive lowmem "$IMG" 128M
+  drive toosmall "$IMG" 96M
   # The PS/2 keyboard, typed through QMP.
   export ZXV_QMP="$PWD/$T/qmp.sock"
   QEMU+=(-qmp "unix:$ZXV_QMP,server=on,wait=off")

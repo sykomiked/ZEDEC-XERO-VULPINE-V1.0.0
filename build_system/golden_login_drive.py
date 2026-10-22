@@ -241,21 +241,23 @@ def lowmem(c, seed, did, digest, question):
 
 
 def toosmall(c, seed, did, digest, question):
-    # Less RAM than the kernel's own image, BSS and stack: the loader must
-    # say so and stop, never hand off into memory that is not there.
+    # Too little RAM: on arm64 less than the kernel's own image, BSS and
+    # stack, so the loader must say so and stop, never hand off into memory
+    # that is not there; on x86_64 no room for the kernel's ledgers, so the
+    # kernel must say so and stop before [BOOT_OK].
     if c.wait_for(TOO_SMALL, 0) < 0:
-        c.fail("too little RAM for the kernel, and the loader did not say so")
+        c.fail("too little RAM for the kernel, and the boot did not say so")
     end = time.monotonic() + 5
     while time.monotonic() < end and c.pump():
         pass
     # The kernel itself must never start.
     went_on = {"arm64": (b"handing off to ZXV kernel", b"[BOOT_OK]", b"[AI_HANDOFF]"),
-               "x86_64": (b"Long mode entered", b"[BOOT_OK]")}[ARCH]
+               "x86_64": (b"[BOOT_OK]",)}[ARCH]
     for m in went_on:
         if m in c.buf:
             c.fail(f"too little RAM, and the loader still went on ({m.decode()})")
     c.save()
-    return "too little RAM for the kernel: the loader says so and stops"
+    return "too little RAM for the kernel: the boot says so and stops"
 
 
 # QMP send-key names for what a seed, a command and a question type

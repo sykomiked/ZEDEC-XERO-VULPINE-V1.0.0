@@ -382,10 +382,14 @@ on the host.
 covers that window before anything else; when it does not it prints
 `[BOOT_FAIL] this kernel needs RAM from 0x40000000 to ...` and stops, where it
 used to hand off and hang without a word. It then reserves the window, so the
-boot model and its scratch are placed above it. The x86_64 loader already
-refuses a window it cannot own (`[BOOT_REFUSED]`) and returns to the firmware;
-under OVMF its floor is about 160 MB (the kernel's window must be clear of the
-firmware's own memory), and 128 MB is refused.
+boot model and its scratch are placed above it. On x86_64 the kernel's window
+is about 9 MB and its large buffers come from the firmware's map
+(`bootmem_x86.c`). Under OVMF, measured 2026-10-22: 160 MB boots and the
+boot model answers; 128 MB boots with the AI off (`[BOOTMEM] no usable memory
+for the boot model's scratch`, `[AI_NO_MODEL]`) and login works; 96 MB and
+64 MB are refused by the kernel before `[BOOT_OK]` (`[BOOT_REFUSED] no
+firmware memory map with room for the ledgers`); 48 MB by the loader (the
+window overlaps memory the firmware keeps).
 
 A riscv64 core disc needs a riscv64 UEFI loader first; the riscv64 kernel
 boots through OpenSBI only.
