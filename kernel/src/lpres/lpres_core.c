@@ -14,6 +14,7 @@ static ordinal_t current_cycle = 0;
 
 // Initialize the attestation table with all resources absent
 void lpres_init(void) {
+    current_cycle = 0;
     for (int i = 0; i < LPRES_TABLE_SIZE; i++) {
         for (int j = 0; j < 8; j++) {
             lpres_table[i][j].resource_id = 0;
@@ -35,7 +36,7 @@ trit_t lpres_get_presence(ordinal_t resource_id) {
     for (int i = 7; i >= 0; i--) {
         if (lpres_table[index][i].resource_id == resource_id) {
             found = true;
-            presence = lpres_table[index][i].presence;
+            presence = trit_canon(lpres_table[index][i].presence);
             break;
         }
     }
@@ -51,6 +52,8 @@ trit_t lpres_get_presence(ordinal_t resource_id) {
 
 // Set the presence state of a resource
 void lpres_set_presence(ordinal_t resource_id, trit_t presence) {
+    presence = trit_canon(presence);
+    if (!trit_is_canonical(presence)) return;
     // Compute the index into the table
     int index = resource_id % LPRES_TABLE_SIZE;
 
@@ -72,12 +75,8 @@ void lpres_set_presence(ordinal_t resource_id, trit_t presence) {
         lpres_table[index][max_cycle].magnitude = (rational_t){1, 1};
     }
 
-    // Handle GLUT state: if presence is TRIT_GLUT, mark as unresolved
-    if (presence == TRIT_GLUT) {
-        lpres_table[index][max_cycle].presence = TRIT_GLUT;
-    } else {
-        lpres_table[index][max_cycle].presence = presence;
-    }
+    /* Emit only canonical trits across the presence boundary. */
+    lpres_table[index][max_cycle].presence = presence;
 
     current_cycle++;
 }

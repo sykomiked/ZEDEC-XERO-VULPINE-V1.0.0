@@ -16,7 +16,7 @@
  *   G3  You set the price. Asks carry the provider's own unit price; matching
  *       is price-time priority and the trade executes at the ASK price.
  *   G4  A small, flat, published fee. Default: the platform 0.08889%
- *       assurance fee (pay_assure_fee, floor(a * 8889 / 10^7)) on settled
+ *       assurance fee (pay_assure_fee, floor(a * 8 / 9000)) on settled
  *       gross, charged once. Provider receipts use the no-carry form
  *       (pay_assure.h F1) so any node can re-verify a receipt's fee from the
  *       receipt alone; the settle hook (prov_pay.h) splits it exactly into

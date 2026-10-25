@@ -42,13 +42,13 @@ static bool str_eq(const char *a, const char *b) {
  * Conjunction (meet):
  *   T∧T=T, T∧F=F, T∧B=B, T∧⊥=⊥
  *   F∧anything=F
- *   B∧B=B, B∧⊥=⊥
+ *   B∧B=B, B∧⊥=F
  *   ⊥∧⊥=⊥
  *
  * Disjunction (join):
  *   F∨F=F, F∨T=T, F∨B=B, F∨⊥=⊥
  *   T∨anything=T
- *   B∨B=B, B∨⊥=B
+ *   B∨B=B, B∨⊥=T
  *   ⊥∨⊥=⊥
  */
 
@@ -71,6 +71,11 @@ lpres_state_t lpres_conjoin(lpres_state_t a, lpres_state_t b) {
         return b;
     if (b == LPRES_STATE_TRUE)
         return a;
+    /* In the truth order BOTH and NEITHER are incomparable.
+     * Their meet has negative evidence only. */
+    if ((a == LPRES_STATE_BOTH && b == LPRES_STATE_NEITHER) ||
+        (b == LPRES_STATE_BOTH && a == LPRES_STATE_NEITHER))
+        return LPRES_STATE_FALSE;
     /* NEITHER dominates BOTH in meet (bottom absorbs). Deliberate deviation
      * from Belnap's FOUR, where B AND N = F and B OR N = T: here the tables
      * are min/max on the chain F < N < B < T, so no mix of BOTH and NEITHER
@@ -92,7 +97,11 @@ lpres_state_t lpres_disjoin(lpres_state_t a, lpres_state_t b) {
         return b;
     if (b == LPRES_STATE_FALSE)
         return a;
-    /* B dominates NEITHER */
+    /* Their join has positive evidence only. */
+    if ((a == LPRES_STATE_BOTH && b == LPRES_STATE_NEITHER) ||
+        (b == LPRES_STATE_BOTH && a == LPRES_STATE_NEITHER))
+        return LPRES_STATE_TRUE;
+    /* Remaining BOTH cases */
     if (a == LPRES_STATE_BOTH || b == LPRES_STATE_BOTH)
         return LPRES_STATE_BOTH;
     /* Both NEITHER */
@@ -185,9 +194,10 @@ bool lpres_add_evidence(lpres_registry_t *reg, uint32_t idx, bool positive) {
     if (a->revoked) return false;
 
     if (positive) {
-        a->positive_evidence++;
+        /* Preserve evidence existence when the counter reaches its limit. */
+        if (a->positive_evidence != UINT32_MAX) a->positive_evidence++;
     } else {
-        a->negative_evidence++;
+        if (a->negative_evidence != UINT32_MAX) a->negative_evidence++;
     }
 
     /* Recompute state based on evidence counts */

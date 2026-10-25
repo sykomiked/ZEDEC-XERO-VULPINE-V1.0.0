@@ -39,8 +39,8 @@
  *       is over the cap is not minted. Default cap_share 8/21
  *       (docs/SWARM_ECONOMY.md section 6).
  *   W5  FEE AND MINT. For each farm, gross g = min(e_j, c), assurance fee
- *       t = the 0.08889% fee on g with the farm's own sub-unit carry
- *       (pay_assure.h F1-F2: floor((g * 8889 + carry) / 10^7)), and ONE
+ *       t = the 8/9000 (approximately 0.0888889%) fee on g with the farm's own sub-unit carry
+ *       (pay_assure.h F1-F2: floor((g * 8 + carry) / 9000)), and ONE
  *       pay_ledger posting issues g: issuer CREDIT +g, farm DEBIT +(g - t),
  *       and t split exactly into the four fee buckets (pay_assure_split:
  *       50% reserve floor + remainder, 25% V-Bill dividend pool, 15%

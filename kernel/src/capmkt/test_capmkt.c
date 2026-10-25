@@ -73,11 +73,11 @@ static void fresh(void)
 
 static void test_fee(void)
 {
-    printf("assurance fee = floor(a * 8889 / 10^7)\n");
+    printf("assurance fee = floor(a * 8 / 9000)\n");
     CHECK(cm_fee_assure(0) == 0 && cm_fee_assure(1124) == 0 && cm_fee_assure(1125) == 1 &&
               cm_fee_assure(2250) == 2,
           "small values: 1124 -> 0, 1125 -> 1");
-    CHECK(cm_fee_assure(10000000) == 8889 && cm_fee_assure(1000000) == 888, "0.08889 percent");
+    CHECK(cm_fee_assure(10000000) == 8888 && cm_fee_assure(1000000) == 888, "exact 8/9000 rate");
     int ok = 1;
     for (uint64_t a = 0; a < 20000; a++)
         if (cm_fee_assure(a) != pay_assure_fee(a)) ok = 0;
@@ -85,7 +85,7 @@ static void test_fee(void)
         uint64_t a = rnd();
         if (cm_fee_assure(a) != pay_assure_fee(a)) ok = 0;
     }
-    CHECK(cm_fee_assure(UINT64_MAX) == 16397310807120420ull, "largest amount");
+    CHECK(cm_fee_assure(UINT64_MAX) == 16397105843297379ull, "largest amount");
     CHECK(ok, "agrees with pay_assure_fee on 40000 values");
 }
 

@@ -75,7 +75,7 @@
  * interest, no late fee, no penalty rate anywhere in this module, and the
  * refund does not depend on when cm_expire runs.
  *
- * FEE. The 0.08889% assurance fee, fee(a) = floor(a * 8889 / 10^7), exact
+ * FEE. The 0.08889% assurance fee, fee(a) = floor(a * 8 / 9000), exact
  * (kernel/src/pay/pay_assure.h F1; it replaced the former phi-percent tithe).
  * It is a hook (cm_params_t.fee) so a deployment can route it elsewhere (the
  * provider bridge routes it to prov_fee); the default is pay_assure_fee().
@@ -285,7 +285,7 @@ typedef struct {
 void cm_params_default(cm_params_t *p);
 void cm_init(cm_market_t *m, const cm_params_t *p);
 
-/* the 0.08889% assurance fee, floor(a * 8889 / 10^7) (= pay_assure_fee) */
+/* the 0.08889% assurance fee, floor(a * 8 / 9000) (= pay_assure_fee) */
 uint64_t cm_fee_assure(uint64_t a);
 
 /* ===== accounts ===== */

@@ -147,19 +147,19 @@ static void test_assure(void)
     }
     /* F1: the 1,124 / 1,125 threshold and large amounts */
     CHECK(pay_assure_fee(0) == 0);
-    CHECK(pay_assure_fee(1124) == 0); /* 0.99912... */
-    CHECK(pay_assure_fee(1125) == 1); /* 1.00001... */
+    CHECK(pay_assure_fee(1124) == 0); /* 1124/1125 */
+    CHECK(pay_assure_fee(1125) == 1); /* exactly 1 */
     CHECK(pay_assure_fee(2249) == 1 && pay_assure_fee(2250) == 2);
-    CHECK(pay_assure_fee(10000000) == 8889);
+    CHECK(pay_assure_fee(10000000) == 8888);
     CHECK(pay_assure_fee(1000000) == 888);
-    /* UINT64_MAX range: floor((2^64-1) * 8889 / 10^7) = 16397310807120420 */
-    CHECK(pay_assure_fee(UINT64_MAX) == 16397310807120420ull);
-    CHECK(pay_assure_fee(UINT64_MAX - 1) == 16397310807120420ull);
-    CHECK(pay_assure_fee((uint64_t) 1 << 63) == 8198655403560210ull);
+    /* UINT64_MAX range: floor((2^64-1) * 8 / 9000) = 16397105843297379 */
+    CHECK(pay_assure_fee(UINT64_MAX) == 16397105843297379ull);
+    CHECK(pay_assure_fee(UINT64_MAX - 1) == 16397105843297379ull);
+    CHECK(pay_assure_fee((uint64_t) 1 << 63) == 8198552921648689ull);
     {
         uint64_t fee = 0, rem = 0;
         CHECK(pay_assure_fee_carry(PAY_ASSURE_DEN - 1, UINT64_MAX, &fee, &rem) && fee >= 1 &&
-              fee == 16397310807120421ull);
+              fee == 16397105843297380ull);
         CHECK(!pay_assure_fee_carry(PAY_ASSURE_DEN, 1, &fee, &rem)); /* corrupt carry refused */
     }
 
@@ -220,7 +220,7 @@ static void test_assure(void)
                            99,
                            101,
                            999,
-                           16397310807120420ull,
+                           16397105843297379ull,
                            UINT64_MAX,
                            UINT64_MAX - 1};
         for (unsigned i = 0; i < sizeof edge / sizeof edge[0]; i++) {
@@ -513,8 +513,8 @@ static void test_ledger(void)
     mkreq(&r3, 3);
     CHECK(pay_ledger_pay_with_fee(&L, &r3, acc[1][0][2], acc[1][0][3], 100000, bk, 5, iss[0][0],
                                   acc[0][0][2], 7, &rc, &fee1) == PAY_OK);
-    CHECK(fee1 == 88); /* floor(100000 * 8889 / 10^7) = floor(88.89) */
-    CHECK(pay_ledger_account(&L, acc[1][0][2])->fee_carry == 8900000);
+    CHECK(fee1 == 88); /* floor(100000 * 8 / 9000) = floor(88 + 8/9) */
+    CHECK(pay_ledger_account(&L, acc[1][0][2])->fee_carry == 8000);
     CHECK(pay_ledger_account(&L, acc[1][0][2])->debit == before - 100000 - 88 - 5);
     CHECK(pay_ledger_account(&L, acc[1][0][3])->debit == to_before + 100000);
     CHECK(pay_ledger_account(&L, bk[PAY_ASSURE_RESERVE_FLOOR])->debit == 45 + 5); /* + excess */

@@ -22,7 +22,7 @@ int main(void)
     // Test handling of TRIT_GLUT
     presence = TRIT_GLUT;
     lpres_set_presence(resource_id, presence);
-    assert(lpres_get_presence(resource_id) == presence);
+    assert(lpres_get_presence(resource_id) == TRIT_GLUT_NEUTRAL);
 
     // Test getting presence for an unattested resource
     ordinal_t unattested_resource_id = 1337;
