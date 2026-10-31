@@ -39,7 +39,7 @@
   "devDependencies": {
     "@nestjs/common": "12.1.2",
     "@nestjs/core": "12.1.2",
-    "@nestjs/platform-express": "12.1.2",
+    "@nestjs/platform-express": "12.3.2",
     "@nestjs/terminus": "12.1.0",
     "@nestjs/testing": "12.1.2",
     "@types/express": "5.0.6",
